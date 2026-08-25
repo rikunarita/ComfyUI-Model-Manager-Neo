@@ -32,7 +32,7 @@ VIDEO_CONTENT_TYPE_MAP = {
     'video/x-msvideo': '.avi',
     'video/x-matroska': '.mkv',
     'video/x-flv': '.flv',
-    'video/x-msvideo': '.wmv',
+    'video/x-ms-wmv': '.wmv',  # ← Fixed: was incorrectly 'video/x-msvideo'
     'video/ogg': '.ogv',
 }
 
