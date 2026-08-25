@@ -101,6 +101,12 @@ class TaskContent:
 class ModelDownload:
     def __init__(self):
         self.api_key = auth.get_api_key()
+        # Store the main event loop at init time, before any threads are spawned.
+        # This is needed for asyncio.run_coroutine_threadsafe() calls from worker threads.
+        try:
+            self._main_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            self._main_loop = None
 
     def add_routes(self, routes):
         @routes.post("/model-manager/download/init")
@@ -383,6 +389,7 @@ class ModelDownload:
                         interval=progress_interval,
                     )
             except Exception as e:
+                task_status = self.get_task_status(task_id)
                 task_status.status = "pause"
                 task_status.error = str(e)
                 await utils.send_json("update_download_task", task_status.to_dict())
@@ -396,6 +403,7 @@ class ModelDownload:
                 task_status.status = "waiting"
                 await utils.send_json("update_download_task", task_status.to_dict())
         except Exception as e:
+            task_status = self.get_task_status(task_id)
             task_status.status = "pause"
             task_status.error = str(e)
             await utils.send_json("update_download_task", task_status.to_dict())
@@ -552,7 +560,7 @@ class ModelDownload:
         try:
             from huggingface_hub import hf_hub_download
             from huggingface_hub.utils import HfHubHTTPError, EntryNotFoundError, RepositoryNotFoundError, GatedRepoError
-        except ImportError as e:
+        except ImportError:
             raise RuntimeError(
                 f"huggingface_hub is not installed. Please install it with: pip install huggingface_hub hf_xet"
             )
@@ -615,10 +623,22 @@ class ModelDownload:
 
         download_path = utils.get_download_path()
 
-        # Create a custom tqdm class that reports progress to the task status
+        # Create a per-task temporary directory for hf_hub_download to prevent
+        # conflicts when multiple tasks download from the same repository.
+        # Using downloads/{task_id}_hf/ as local_dir ensures:
+        # 1. No conflict with other download tasks
+        # 2. hf_hub_download won't return an existing file from another task
+        task_hf_dir = utils.join_path(download_path, f"{task_id}_hf")
+        os.makedirs(task_hf_dir, exist_ok=True)
+
+        # Create a custom tqdm class that reports progress to the task status.
         # The workaround for tqdm's non-TTY auto-disable bug:
-        # force disable=False so update() works in web server environments
-        loop = asyncio.get_event_loop()
+        # force disable=False so update() works in web server environments.
+        #
+        # IMPORTANT: We use self._main_loop (captured at __init__ time in the main thread)
+        # instead of asyncio.get_event_loop(), because this code runs in a worker thread
+        # created by DownloadThreadPool, where no event loop exists.
+        main_loop = self._main_loop
         last_progress_time = [time.time()]
 
         class ModelManagerTqdm(base_tqdm if base_tqdm else object):
@@ -643,45 +663,57 @@ class ModelDownload:
                     if self.total:
                         task_status.totalSize = float(self.total)
                         task_status.progress = (self.n / self.total * 100) if self.total > 0 else 0
-                    # Schedule the async progress callback on the event loop
-                    asyncio.run_coroutine_threadsafe(
-                        progress_callback(task_status),
-                        loop
-                    )
+                    # Schedule the async progress callback on the main event loop.
+                    # Use self._main_loop which was captured in the main thread.
+                    if main_loop is not None and main_loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            progress_callback(task_status),
+                            main_loop
+                        )
                 except Exception:
                     pass
 
         token = auth.get_hf_token()
 
-        # hf_hub_download is blocking, run in thread executor
+        # hf_hub_download is blocking, run in thread executor.
+        # We use a separate thread pool executor to avoid blocking the current event loop.
         result_path = None
         try:
-            result_path = await loop.run_in_executor(
+            result_path = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: hf_hub_download(
                     repo_id=repo_id,
                     filename=filename,
                     revision=revision,
                     token=token,
-                    local_dir=download_path,
+                    local_dir=task_hf_dir,  # ← Per-task directory to prevent conflicts
                     force_download=False,
                     resume_download=True,
-                    tqdm_class=ModelManagerTqdm,
+                    tqdm_class=ModelManagerTqdm if base_tqdm else None,
                     user_agent=config.user_agent,
                 )
             )
         except (EntryNotFoundError, RepositoryNotFoundError, GatedRepoError) as e:
+            # Clean up the task directory on failure
+            if os.path.isdir(task_hf_dir):
+                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"HuggingFace access denied for {repo_id}: {e}. Please check your HF API token and repository access.")
         except HfHubHTTPError as e:
+            if os.path.isdir(task_hf_dir):
+                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"HuggingFace download failed: {e}")
         except Exception as e:
+            if os.path.isdir(task_hf_dir):
+                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"Failed to download from HuggingFace: {e}")
 
         if not result_path or not os.path.exists(result_path):
+            if os.path.isdir(task_hf_dir):
+                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"Downloaded file not found at {result_path}")
 
-        # hf_hub_download places the file at local_dir/{filename}
-        # and creates .cache/huggingface/ inside local_dir for metadata.
+        # hf_hub_download places the file at task_hf_dir/{filename}
+        # and creates .cache/huggingface/ inside task_hf_dir for metadata.
         # Move the downloaded file to the task's temp file for compatibility
         # with the existing _download_complete() logic.
         download_tmp_file = utils.join_path(download_path, f"{task_id}.download")
@@ -696,16 +728,16 @@ class ModelDownload:
         except Exception as e:
             # If move fails (e.g., cross-device), try copy
             shutil.copy2(result_path, download_tmp_file)
-            os.remove(result_path)
+            if os.path.exists(result_path):
+                os.remove(result_path)
 
-        # Clean up the .cache/huggingface directory created by hf_hub_download
-        # inside local_dir. This is metadata cache and not needed after download.
-        hf_cache_dir = utils.join_path(download_path, ".cache")
-        if os.path.isdir(hf_cache_dir):
+        # Clean up the task_hf_dir which contains .cache/huggingface metadata
+        # and any other temporary files. This directory is no longer needed.
+        if os.path.isdir(task_hf_dir):
             try:
-                shutil.rmtree(hf_cache_dir)
+                shutil.rmtree(task_hf_dir)
             except Exception as e:
-                utils.print_warning(f"Failed to clean up HF cache dir {hf_cache_dir}: {e}")
+                utils.print_warning(f"Failed to clean up HF task dir {task_hf_dir}: {e}")
 
         # Update task status to 100%
         total_size = task_content.sizeBytes
