@@ -6,9 +6,7 @@ import yaml
 import requests
 import markdownify
 
-
 import folder_paths
-
 
 from aiohttp import web
 from abc import ABC, abstractmethod
@@ -16,10 +14,10 @@ from urllib.parse import urlparse, parse_qs
 from PIL import Image
 from io import BytesIO
 
-
 from . import utils
 from . import config
 from . import thread
+from . import auth
 
 
 class ModelSearcher(ABC):
@@ -58,7 +56,8 @@ class CivitaiModelSearcher(ModelSearcher):
         if not model_id:
             return []
 
-        response = requests.get(f"https://civitai.com/api/v1/models/{model_id}")
+        headers = auth.get_civitai_headers()
+        response = requests.get(f"https://civitai.com/api/v1/models/{model_id}", headers=headers)
         response.raise_for_status()
         res_data: dict = response.json()
 
@@ -136,7 +135,8 @@ class CivitaiModelSearcher(ModelSearcher):
         if not hash:
             raise RuntimeError(f"Hash value is empty.")
 
-        response = requests.get(f"https://civitai.com/api/v1/model-versions/by-hash/{hash}")
+        headers = auth.get_civitai_headers()
+        response = requests.get(f"https://civitai.com/api/v1/model-versions/by-hash/{hash}", headers=headers)
         response.raise_for_status()
         version: dict = response.json()
 
@@ -172,15 +172,39 @@ class HuggingfaceModelSearcher(ModelSearcher):
         parsed_url = urlparse(url)
 
         pathname = parsed_url.path
+        path_parts = [p for p in pathname.strip("/").split("/") if p]
 
-        space, name, *rest_paths = pathname.strip("/").split("/")
+        if len(path_parts) < 2:
+            raise RuntimeError(f"Invalid HuggingFace URL: {url}")
 
+        space = path_parts[0]
+        name = path_parts[1]
         model_id = f"{space}/{name}"
-        rest_pathname = "/".join(rest_paths)
 
-        response = requests.get(f"https://huggingface.co/api/models/{model_id}")
+        # Extract revision and rest_pathname from tree/blob paths
+        revision = "main"
+        rest_pathname = ""
+        if len(path_parts) >= 4 and path_parts[2] in ("tree", "blob"):
+            revision = path_parts[3]
+            rest_pathname = "/".join(path_parts[4:])
+
+        headers = auth.get_hf_headers()
+
+        # Fetch model info from HF API
+        response = requests.get(f"https://huggingface.co/api/models/{model_id}", headers=headers)
         response.raise_for_status()
         res_data: dict = response.json()
+
+        # Fetch file tree to get actual file sizes
+        file_sizes = {}
+        try:
+            tree_url = f"https://huggingface.co/api/models/{model_id}/tree/{revision}"
+            tree_response = requests.get(tree_url, headers=headers)
+            if tree_response.status_code == 200:
+                tree_data = tree_response.json()
+                file_sizes = self._build_file_sizes(tree_data)
+        except Exception as e:
+            utils.print_warning(f"Failed to fetch file tree for size info: {e}")
 
         sibling_files: list[str] = [x.get("rfilename") for x in res_data.get("siblings", [])]
 
@@ -193,7 +217,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             utils.filter_with(sibling_files, self._match_image_files()),
             self._match_tree_files(rest_pathname),
         )
-        image_files = [f"https://huggingface.co/{model_id}/resolve/main/{filename}" for filename in image_files]
+        image_files = [f"https://huggingface.co/{model_id}/resolve/{revision}/{filename}" for filename in image_files]
 
         models: list[dict] = []
 
@@ -201,8 +225,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             fullname = os.path.basename(filename)
             extension = os.path.splitext(fullname)[1]
             basename = os.path.splitext(fullname)[0]
-
-            description_parts: list[str] = []
+            size_bytes = file_sizes.get(filename, 0)
 
             metadata_info = {
                 "website": "HuggingFace",
@@ -235,14 +258,15 @@ class HuggingfaceModelSearcher(ModelSearcher):
                 "basename": basename,
                 "extension": extension,
                 "preview": image_files,
-                "sizeBytes": 0,
+                "sizeBytes": size_bytes,
                 "type": "",
                 "pathIndex": 0,
                 "subFolder": "",
                 "description": "\n".join(description_parts),
                 "metadata": {},
                 "downloadPlatform": "huggingface",
-                "downloadUrl": f"https://huggingface.co/{model_id}/resolve/main/{filename}?download=true",
+                "downloadUrl": f"https://huggingface.co/{model_id}/resolve/{revision}/{filename}?download=true",
+                "revision": revision,
             }
             models.append(model)
 
@@ -250,6 +274,19 @@ class HuggingfaceModelSearcher(ModelSearcher):
 
     def search_by_hash(self, hash: str):
         raise RuntimeError("Hash search is not supported by Huggingface.")
+
+    def _build_file_sizes(self, tree_data):
+        """Recursively build a dict of {filepath: size} from HF tree API response."""
+        sizes = {}
+        if isinstance(tree_data, list):
+            for item in tree_data:
+                if item.get("type") == "file":
+                    sizes[item.get("path", "")] = item.get("size", 0)
+                elif item.get("type") == "directory":
+                    children = item.get("children", [])
+                    if children:
+                        sizes.update(self._build_file_sizes(children))
+        return sizes
 
     def _match_model_files(self):
         extension = [
@@ -551,7 +588,13 @@ class Information:
                         preview_url = preview_url_list[0] if preview_url_list else None
                         if preview_url:
                             utils.print_debug(f"Save preview to {abs_model_path}")
-                            utils.save_model_preview(abs_model_path, preview_url)
+                            # Use platform-specific headers for private/gated models
+                            preview_headers = None
+                            if model_info.get("downloadPlatform") == "civitai":
+                                preview_headers = auth.get_civitai_headers()
+                            elif model_info.get("downloadPlatform") == "huggingface":
+                                preview_headers = auth.get_hf_headers()
+                            utils.save_model_preview(abs_model_path, preview_url, headers=preview_headers)
 
                         description = model_info.get("description", None)
                         if description:
