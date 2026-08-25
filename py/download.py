@@ -101,12 +101,6 @@ class TaskContent:
 class ModelDownload:
     def __init__(self):
         self.api_key = auth.get_api_key()
-        # Store the main event loop at init time, before any threads are spawned.
-        # This is needed for asyncio.run_coroutine_threadsafe() calls from worker threads.
-        try:
-            self._main_loop = asyncio.get_event_loop()
-        except RuntimeError:
-            self._main_loop = None
 
     def add_routes(self, routes):
         @routes.post("/model-manager/download/init")
@@ -623,11 +617,10 @@ class ModelDownload:
 
         download_path = utils.get_download_path()
 
-        # Create a per-task temporary directory for hf_hub_download to prevent
-        # conflicts when multiple tasks download from the same repository.
-        # Using downloads/{task_id}_hf/ as local_dir ensures:
-        # 1. No conflict with other download tasks
-        # 2. hf_hub_download won't return an existing file from another task
+        # Use a per-task temporary directory to prevent conflicts when multiple
+        # tasks download from the same repository. This avoids:
+        # 1. File conflicts when two tasks download the same file
+        # 2. Cache interference between concurrent downloads
         task_hf_dir = utils.join_path(download_path, f"{task_id}_hf")
         os.makedirs(task_hf_dir, exist_ok=True)
 
@@ -635,10 +628,14 @@ class ModelDownload:
         # The workaround for tqdm's non-TTY auto-disable bug:
         # force disable=False so update() works in web server environments.
         #
-        # IMPORTANT: We use self._main_loop (captured at __init__ time in the main thread)
-        # instead of asyncio.get_event_loop(), because this code runs in a worker thread
-        # created by DownloadThreadPool, where no event loop exists.
-        main_loop = self._main_loop
+        # IMPORTANT: Use asyncio.get_running_loop() instead of get_event_loop()
+        # for better compatibility with Python 3.12+. Since this is called from
+        # within an async function running on an event loop, get_running_loop()
+        # correctly returns the current event loop.
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
         last_progress_time = [time.time()]
 
         class ModelManagerTqdm(base_tqdm if base_tqdm else object):
@@ -663,33 +660,33 @@ class ModelDownload:
                     if self.total:
                         task_status.totalSize = float(self.total)
                         task_status.progress = (self.n / self.total * 100) if self.total > 0 else 0
-                    # Schedule the async progress callback on the main event loop.
-                    # Use self._main_loop which was captured in the main thread.
-                    if main_loop is not None and main_loop.is_running():
-                        asyncio.run_coroutine_threadsafe(
-                            progress_callback(task_status),
-                            main_loop
-                        )
+                    # Schedule the async progress callback on the current event loop
+                    asyncio.run_coroutine_threadsafe(
+                        progress_callback(task_status),
+                        loop
+                    )
                 except Exception:
                     pass
 
         token = auth.get_hf_token()
 
         # hf_hub_download is blocking, run in thread executor.
-        # We use a separate thread pool executor to avoid blocking the current event loop.
+        # Only pass tqdm_class if base_tqdm is available. If tqdm is not installed,
+        # ModelManagerTqdm inherits from object and lacks the tqdm interface,
+        # which would cause hf_hub_download to fail.
         result_path = None
         try:
-            result_path = await asyncio.get_event_loop().run_in_executor(
+            result_path = await loop.run_in_executor(
                 None,
                 lambda: hf_hub_download(
                     repo_id=repo_id,
                     filename=filename,
                     revision=revision,
                     token=token,
-                    local_dir=task_hf_dir,  # ← Per-task directory to prevent conflicts
+                    local_dir=task_hf_dir,  # Per-task directory to prevent conflicts
                     force_download=False,
                     resume_download=True,
-                    tqdm_class=ModelManagerTqdm if base_tqdm else None,
+                    tqdm_class=ModelManagerTqdm if base_tqdm else None,  # Only pass if tqdm is available
                     user_agent=config.user_agent,
                 )
             )
@@ -725,14 +722,20 @@ class ModelDownload:
         # Move the downloaded file to the temp file location
         try:
             shutil.move(result_path, download_tmp_file)
-        except Exception as e:
+        except Exception:
             # If move fails (e.g., cross-device), try copy
-            shutil.copy2(result_path, download_tmp_file)
-            if os.path.exists(result_path):
-                os.remove(result_path)
+            try:
+                shutil.copy2(result_path, download_tmp_file)
+            finally:
+                if os.path.exists(result_path):
+                    try:
+                        os.remove(result_path)
+                    except Exception:
+                        pass
 
-        # Clean up the task_hf_dir which contains .cache/huggingface metadata
-        # and any other temporary files. This directory is no longer needed.
+        # Clean up the task_hf_dir which contains the downloaded file and
+        # .cache/huggingface metadata. This directory is per-task, so deleting
+        # it won't interfere with other concurrent downloads.
         if os.path.isdir(task_hf_dir):
             try:
                 shutil.rmtree(task_hf_dir)
