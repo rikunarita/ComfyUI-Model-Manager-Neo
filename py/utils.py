@@ -32,27 +32,22 @@ VIDEO_CONTENT_TYPE_MAP = {
     'video/x-msvideo': '.avi',
     'video/x-matroska': '.mkv',
     'video/x-flv': '.flv',
-    'video/x-ms-wmv': '.wmv',
+    'video/x-msvideo': '.wmv',
     'video/ogg': '.ogv',
 }
-
 
 def print_info(msg, *args, **kwargs):
     logging.info(f"[{config.extension_tag}] {msg}", *args, **kwargs)
 
-
 def print_warning(msg, *args, **kwargs):
     logging.warning(f"[{config.extension_tag}][WARNING] {msg}", *args, **kwargs)
-
 
 def print_error(msg, *args, **kwargs):
     logging.error(f"[{config.extension_tag}][ERROR] {msg}", *args, **kwargs)
     logging.debug(traceback.format_exc())
 
-
 def print_debug(msg, *args, **kwargs):
     logging.debug(f"[{config.extension_tag}] {msg}", *args, **kwargs)
-
 
 def deprecated(reason: str):
     def decorator(func):
@@ -65,13 +60,11 @@ def deprecated(reason: str):
 
     return decorator
 
-
 def _matches(predicate: dict):
     def _filter(obj: dict):
         return all(obj.get(key, None) == value for key, value in predicate.items())
 
     return _filter
-
 
 def filter_with(list: list, predicate):
     if isinstance(predicate, dict):
@@ -79,22 +72,18 @@ def filter_with(list: list, predicate):
 
     return [item for item in list if predicate(item)]
 
-
 async def get_request_body(request) -> dict:
     try:
         return await request.json()
     except:
         return {}
 
-
 def normalize_path(path: str):
     normpath = os.path.normpath(path)
     return normpath.replace(os.path.sep, "/")
 
-
 def join_path(path: str, *paths: list[str]):
     return normalize_path(os.path.join(path, *paths))
-
 
 def get_current_version():
     try:
@@ -105,7 +94,6 @@ def get_current_version():
         return version.strip("'\"")
     except:
         return "0.0.0"
-
 
 def download_web_distribution(version: str):
     web_path = join_path(config.extension_uri, "web")
@@ -152,7 +140,6 @@ def download_web_distribution(version: str):
     except Exception as e:
         print_error(f"An unexpected error occurred: {e}")
 
-
 def resolve_model_base_paths() -> dict[str, list[str]]:
     """
     Resolve model base paths.
@@ -168,9 +155,8 @@ def resolve_model_base_paths() -> dict[str, list[str]]:
         model_base_paths[folder] = [normalize_path(f) for f in folders]
     return model_base_paths
 
-
 def resolve_file_content_type(filename: str):
-    extension_mimetypes_cache = folder_paths.extension_mimetypes_cache
+    extension_mimetypes_cache = folder_paths.extension_mimetype_cache
     extension = filename.split(".")[-1]
     if extension not in extension_mimetypes_cache:
         mime_type, _ = mimetypes.guess_type(filename, strict=False)
@@ -181,7 +167,6 @@ def resolve_file_content_type(filename: str):
     else:
         content_type = extension_mimetypes_cache[extension]
     return content_type
-
 
 def get_full_path(model_type: str, path_index: int, filename: str):
     """
@@ -198,7 +183,6 @@ def get_full_path(model_type: str, path_index: int, filename: str):
         raise RuntimeError(f"Path traversal detected: filename escapes model directory")
     return full_path
 
-
 def get_valid_full_path(model_type: str, path_index: int, filename: str):
     """
     Like get_full_path but it will check whether the file is valid.
@@ -209,13 +193,11 @@ def get_valid_full_path(model_type: str, path_index: int, filename: str):
     elif os.path.islink(full_path):
         raise RuntimeError(f"WARNING path {full_path} exists but doesn't link anywhere, skipping.")
 
-
 def get_download_path():
     download_path = join_path(config.extension_uri, "downloads")
     if not os.path.exists(download_path):
         os.makedirs(download_path)
     return download_path
-
 
 def recursive_search_files(directory: str, request):
     if not os.path.isdir(directory):
@@ -241,12 +223,10 @@ def recursive_search_files(directory: str, request):
 
     return [normalize_path(f) for f in result]
 
-
 def search_files(directory: str):
     entries = os.listdir(directory)
     files = [f for f in entries if os.path.isfile(join_path(directory, f))]
     return files
-
 
 def file_list_to_name_dict(files: list[str]):
     file_dict: dict[str, str] = {}
@@ -254,7 +234,6 @@ def file_list_to_name_dict(files: list[str]):
         filename = os.path.splitext(file)[0]
         file_dict[filename] = file
     return file_dict
-
 
 def get_model_metadata(filename: str):
     if not filename.endswith(".safetensors"):
@@ -269,7 +248,6 @@ def get_model_metadata(filename: str):
         return dt["__metadata__"]
     except:
         return {}
-
 
 def _check_preview_variants(base_dirname: str, basename: str, extensions: list[str]) -> list[str]:
     """Check for preview files with given extensions and return found files"""
@@ -286,19 +264,16 @@ def _check_preview_variants(base_dirname: str, basename: str, extensions: list[s
             found.append(preview_file)
     return found
 
-
 def _get_preview_path(model_path: str, extension: str) -> str:
     """Generate preview file path with given extension"""
     basename = os.path.splitext(model_path)[0]
     return f"{basename}{extension}"
-
 
 def get_model_all_previews(model_path: str) -> list[str]:
     """Get all preview files for a model"""
     base_dirname = os.path.dirname(model_path)
     basename = os.path.splitext(os.path.basename(model_path))[0]
     return _check_preview_variants(base_dirname, basename, PREVIEW_EXTENSIONS)
-
 
 def get_model_preview_name(model_path: str) -> str:
     """Get the first available preview file or 'no-preview.png' if none found"""
@@ -318,10 +293,8 @@ def get_model_preview_name(model_path: str) -> str:
     
     return "no-preview.png"
 
-
 from PIL import Image
 from io import BytesIO
-
 
 def remove_model_preview(model_path: str):
     """Remove all preview files for a model"""
@@ -334,8 +307,7 @@ def remove_model_preview(model_path: str):
         if os.path.exists(preview_path):
             os.remove(preview_path)
 
-
-def save_model_preview(model_path: str, file_or_url: Any, platform: Optional[str] = None):
+def save_model_preview(model_path: str, file_or_url: Any, platform: Optional[str] = None, headers: Optional[dict] = None):
     """Save a preview file for a model. Images -> WebP, videos -> original format"""
     
     # Download file if it is a URL
@@ -343,7 +315,7 @@ def save_model_preview(model_path: str, file_or_url: Any, platform: Optional[str
         url = file_or_url
 
         try:
-            response = requests.get(url)
+            response = requests.get(url, headers=headers or {})
             response.raise_for_status()
             
             # Determine content type from response headers or URL extension
@@ -396,7 +368,6 @@ def save_model_preview(model_path: str, file_or_url: Any, platform: Optional[str
         else:
             raise RuntimeError(f"FileTypeError: expected image or video, got {content_type}")
 
-
 def _get_video_extension_from_url(url: str) -> Optional[str]:
     """Extract video extension from URL."""
     from urllib.parse import urlparse
@@ -406,11 +377,9 @@ def _get_video_extension_from_url(url: str) -> Optional[str]:
             return ext
     return None
 
-
 def _get_extension_from_content_type(content_type: str) -> Optional[str]:
     """Map content-type to file extension."""
     return VIDEO_CONTENT_TYPE_MAP.get(content_type.lower())
-
 
 def get_model_all_descriptions(model_path: str):
     base_dirname = os.path.dirname(model_path)
@@ -425,12 +394,10 @@ def get_model_all_descriptions(model_path: str):
             output.append(file)
     return output
 
-
 def get_model_description_name(model_path: str):
     descriptions = get_model_all_descriptions(model_path)
     basename = os.path.splitext(os.path.basename(model_path))[0]
     return descriptions[0] if len(descriptions) > 0 else f"{basename}.md"
-
 
 def save_model_description(model_path: str, content: Any):
     if not isinstance(content, str):
@@ -445,7 +412,6 @@ def save_model_description(model_path: str, content: Any):
 
     with open(new_desc_path, "w", encoding="utf-8", newline="") as f:
         f.write(content)
-
 
 def rename_model(model_path: str, new_model_path: str):
     if model_path == new_model_path:
@@ -486,20 +452,16 @@ def rename_model(model_path: str, new_model_path: str):
         new_description_path = join_path(new_model_dirname, f"{new_model_name}.md")
         shutil.move(description_path, new_description_path)
 
-
 import pickle
-
 
 def save_dict_pickle_file(filename: str, data: dict):
     with open(filename, "wb") as f:
         pickle.dump(data, f)
 
-
 def load_dict_pickle_file(filename: str) -> dict:
     with open(filename, "rb") as f:
         data = pickle.load(f)
     return data
-
 
 def resolve_setting_key(key: str) -> str:
     key_paths = key.split(".")
@@ -514,29 +476,24 @@ def resolve_setting_key(key: str) -> str:
 
     return setting_id
 
-
 def set_setting_value(request: web.Request, key: str, value: Any):
     setting_id = resolve_setting_key(key)
     settings = config.serverInstance.user_manager.settings.get_settings(request)
     settings[setting_id] = value
     config.serverInstance.user_manager.settings.save_settings(request, settings)
 
-
 def get_setting_value(request: web.Request, key: str, default: Any = None) -> Any:
     setting_id = resolve_setting_key(key)
     settings = config.serverInstance.user_manager.settings.get_settings(request)
     return settings.get(setting_id, default)
 
-
 async def send_json(event: str, data: Any, sid: str = None):
     await config.serverInstance.send_json(event, data, sid)
-
 
 import sys
 import subprocess
 import importlib.util
 import importlib.metadata
-
 
 def is_installed(package_name: str):
     try:
@@ -551,13 +508,10 @@ def is_installed(package_name: str):
 
     return dist is not None
 
-
 def pip_install(package_name: str):
     subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)
 
-
 import hashlib
-
 
 def calculate_sha256(path, buffer_size=1024 * 1024):
     sha256 = hashlib.sha256()
