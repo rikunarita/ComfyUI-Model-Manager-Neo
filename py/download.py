@@ -145,8 +145,10 @@ class ModelDownload:
                 task_id = request.match_info.get("task_id", None)
                 if task_id is None:
                     raise web.HTTPBadRequest(reason="Invalid task id")
+
                 json_data = await request.json()
                 status = json_data.get("status", None)
+
                 if status == "pause":
                     await self.pause_model_download_task(task_id)
                 elif status == "resume":
@@ -390,6 +392,8 @@ class ModelDownload:
                 task_status.error = None
                 utils.print_error(str(e))
 
+        # FIXED: submit() call moved OUTSIDE download_task() function
+        # Previously this was inside download_task(), causing the task to never start
         try:
             status = self.download_thread_pool.submit(download_task, task_id)
             if status == "Waiting":
@@ -598,22 +602,21 @@ class ModelDownload:
             resolve_idx = path_parts.index("resolve")
             if resolve_idx + 1 < len(path_parts):
                 revision = path_parts[resolve_idx + 1]
-            if resolve_idx + 2 < len(path_parts):
-                filename = "/".join(path_parts[resolve_idx + 2:])
+                if resolve_idx + 2 < len(path_parts):
+                    filename = "/".join(path_parts[resolve_idx + 2:])
         except (ValueError, IndexError):
             # Fallback: try parts after repo name
             if len(path_parts) > 2:
                 filename = "/".join(path_parts[2:])
-
-        if not filename:
-            # Cannot parse, fall back to HTTP
-            utils.print_warning(f"Could not parse HF filename, falling back to HTTP: {model_url}")
-            headers = {"User-Agent": config.user_agent}
-            token = auth.get_hf_token()
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
-            await self.download_model_file_http(task_id, headers, progress_callback, interval)
-            return
+            if not filename:
+                # Cannot parse, fall back to HTTP
+                utils.print_warning(f"Could not parse HF filename, falling back to HTTP: {model_url}")
+                headers = {"User-Agent": config.user_agent}
+                token = auth.get_hf_token()
+                if token:
+                    headers["Authorization"] = f"Bearer {token}"
+                await self.download_model_file_http(task_id, headers, progress_callback, interval)
+                return
 
         download_path = utils.get_download_path()
 
@@ -636,6 +639,7 @@ class ModelDownload:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = asyncio.get_event_loop()
+
         last_progress_time = [time.time()]
 
         class ModelManagerTqdm(base_tqdm if base_tqdm else object):
@@ -655,11 +659,10 @@ class ModelDownload:
                     if current_time - last_progress_time[0] < interval:
                         return
                     last_progress_time[0] = current_time
-
                     task_status.downloadedSize = float(self.n)
                     if self.total:
                         task_status.totalSize = float(self.total)
-                        task_status.progress = (self.n / self.total * 100) if self.total > 0 else 0
+                    task_status.progress = (self.n / self.total * 100) if self.total > 0 else 0
                     # Schedule the async progress callback on the current event loop
                     asyncio.run_coroutine_threadsafe(
                         progress_callback(task_status),
@@ -688,7 +691,7 @@ class ModelDownload:
                     resume_download=True,
                     tqdm_class=ModelManagerTqdm if base_tqdm else None,  # Only pass if tqdm is available
                     user_agent=config.user_agent,
-                )
+                ),
             )
         except (EntryNotFoundError, RepositoryNotFoundError, GatedRepoError) as e:
             # Clean up the task directory on failure
@@ -747,8 +750,8 @@ class ModelDownload:
         actual_size = os.path.getsize(download_tmp_file)
         if total_size == 0:
             total_size = actual_size
-            task_content.sizeBytes = total_size
-            self.set_task_content(task_id, task_content)
+        task_content.sizeBytes = total_size
+        self.set_task_content(task_id, task_content)
 
         task_status.downloadedSize = float(actual_size)
         task_status.totalSize = float(total_size)
