@@ -24,7 +24,8 @@ function css(): Plugin {
       for (const key in bundle) {
         if (Object.prototype.hasOwnProperty.call(bundle, key)) {
           const chunk = bundle[key]
-          if (chunk.type === 'chunk' && /index-.*\.js$/.test(chunk.fileName)) {
+          // FIXED: Match the new entry file name 'manager.js'
+          if (chunk.type === 'chunk' && chunk.fileName === 'manager.js') {
             const originalCode = chunk.code
             chunk.code = '(function(){var s=document.createElement("style");'
             chunk.code += 's.type="text/css",s.dataset.styleId="model-manager",'
@@ -116,10 +117,12 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
     rollupOptions: {
-      // Disabling tree-shaking
-      // Prevent vite remove unused exports
       treeshake: true,
       output: {
+        // FIXED: Force entry file name to 'manager.js' so ComfyUI can find it
+        entryFileNames: 'manager.js',
+        chunkFileNames: '[name]-[hash].js',
+        assetFileNames: '[name]-[hash].[ext]',
         manualChunks(id) {
           if (id.includes('primevue')) {
             return 'primevue'
