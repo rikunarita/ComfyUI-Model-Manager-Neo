@@ -192,9 +192,6 @@ Temporary Items
 # dependencies
 node_modules/
 
-# dist
-web/
-
 # config
 config/
 
