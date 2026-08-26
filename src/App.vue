@@ -24,7 +24,6 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 const { dialog, models, config, download } = useStoreProvider()
 const { toast } = useToast()
-
 const firstOpenManager = ref(true)
 
 onMounted(() => {
@@ -83,16 +82,13 @@ onMounted(() => {
   const toggleLayout = () => {
     const newValue = !config.flat.value
     config.flat.value = newValue
-
     app.ui?.settings.setSettingValue('ModelManager.UI.Flat', newValue)
-
     dialog.closeAll()
     openManagerDialog()
   }
 
   const openManagerDialog = () => {
     const { cardWidth, gutter, aspect, flat } = config
-
     const layoutIcon = flat.value ? 'pi pi-th-large' : 'pi pi-folder-open'
 
     const includeHidden =
@@ -162,6 +158,10 @@ onMounted(() => {
     })
   }
 
+  // Topbar Menu API からのイベントをリッスンしてダイアログを開く
+  window.addEventListener('open-model-manager', openManagerDialog)
+
+  // 1. 従来のレガシーUI用コンテナへの追加
   app.ui?.menuContainer?.appendChild(
     $el('button', {
       id: 'comfyui-model-manager-button',
@@ -170,13 +170,24 @@ onMounted(() => {
     }),
   )
 
-  app.menu?.settingsGroup.append(
-    new ComfyButton({
-      icon: 'folder-search',
-      tooltip: t('openModelManager'),
-      content: t('modelManager'),
-      action: openManagerDialog,
-    }),
-  )
+  // 2. ComfyButton インスタンスの生成
+  const managerButton = new ComfyButton({
+    icon: 'folder-search',
+    tooltip: t('openModelManager'),
+    content: t('modelManager'),
+    action: openManagerDialog,
+  })
+
+  try {
+    // 3. 新しいVueベースフロントエンドのトップバー（設定ボタングループの直前）へ確実に挿入する
+    if (app.menu?.settingsGroup?.element) {
+      app.menu.settingsGroup.element.before(managerButton.element)
+    } else {
+      // 古いフロントエンド向けのフォールバック
+      app.menu?.settingsGroup?.insert?.(managerButton.element)
+    }
+  } catch (e) {
+    console.warn('Failed to add Model Manager button to topbar:', e)
+  }
 })
 </script>
