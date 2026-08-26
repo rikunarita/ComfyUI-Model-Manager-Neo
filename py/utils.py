@@ -32,7 +32,7 @@ VIDEO_CONTENT_TYPE_MAP = {
     'video/x-msvideo': '.avi',
     'video/x-matroska': '.mkv',
     'video/x-flv': '.flv',
-    'video/x-ms-wmv': '.wmv',  # Fixed: was incorrectly 'video/x-msvideo'
+    'video/x-ms-wmv': '.wmv',
     'video/ogg': '.ogv',
 }
 
@@ -114,7 +114,8 @@ def download_web_distribution(version: str):
     try:
         print_info(f"current version {version}, web version {web_version}")
         print_info("Downloading web distribution...")
-        download_url = f"https://github.com/hayden-cn/ComfyUI-Model-Manager/releases/download/v{version}/dist.tar.gz"
+        # FIXED: Changed to your fork repository
+        download_url = f"https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/releases/download/v{version}/dist.tar.gz"
         response = requests.get(download_url, stream=True)
         response.raise_for_status()
 
