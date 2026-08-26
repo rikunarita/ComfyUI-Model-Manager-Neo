@@ -392,8 +392,9 @@ class ModelDownload:
                 task_status.error = None
                 utils.print_error(str(e))
 
-        # FIXED: submit() call moved OUTSIDE download_task() function
-        # Previously this was inside download_task(), causing the task to never start
+        # FIXED: submit() call moved OUTSIDE download_task() function.
+        # Previously this was incorrectly placed inside download_task(),
+        # causing the download task to never be submitted to the thread pool.
         try:
             status = self.download_thread_pool.submit(download_task, task_id)
             if status == "Waiting":
