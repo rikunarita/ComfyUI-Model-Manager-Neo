@@ -96,65 +96,23 @@ def get_current_version():
         return "0.0.0"
 
 def download_web_distribution(version: str):
+    """
+    Web distribution is now bundled directly in the repository's 'web/' folder.
+    This function is kept for backward compatibility but no longer downloads anything.
+    """
     web_path = join_path(config.extension_uri, "web")
-    dev_web_file = join_path(web_path, "manager-dev.js")
-    if os.path.exists(dev_web_file):
+    
+    # Verify that the web folder exists and contains JS files
+    if not os.path.isdir(web_path):
+        print_error(f"Web distribution folder not found at {web_path}. The Model Manager UI will not load.")
         return
-
-    web_version = "0.0.0"
-    version_file = join_path(web_path, "version.yaml")
-    if os.path.exists(version_file):
-        with open(version_file, "r", encoding="utf-8", newline="") as f:
-            version_content = yaml.safe_load(f)
-            web_version = version_content.get("version", web_version)
-
-    if version == web_version:
+    
+    has_js = any(f.endswith(".js") for f in os.listdir(web_path))
+    if not has_js:
+        print_error(f"No .js files found in {web_path}. The Model Manager UI will not load.")
         return
-
-    try:
-        print_info(f"current version {version}, web version {web_version}")
-        print_info("Downloading web distribution...")
-        # FIXED: Changed to your fork repository
-        download_url = f"https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/releases/download/v{version}/dist.tar.gz"
-        response = requests.get(download_url, stream=True)
-        response.raise_for_status()
-
-        temp_file = join_path(config.extension_uri, "temp.tar.gz")
-        with open(temp_file, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-        if os.path.exists(web_path):
-            shutil.rmtree(web_path)
-
-        print_info("Extracting web distribution...")
-        with tarfile.open(temp_file, "r:gz") as tar:
-            members = [member for member in tar.getmembers() if member.name.startswith("web/")]
-            tar.extractall(path=config.extension_uri, members=members)
-
-        os.remove(temp_file)
-        print_info("Web distribution downloaded successfully.")
-    except requests.exceptions.RequestException as e:
-        print_error(f"Failed to download web distribution: {e}")
-    except tarfile.TarError as e:
-        print_error(f"Failed to extract web distribution: {e}")
-    except Exception as e:
-        print_error(f"An unexpected error occurred: {e}")
-
-def resolve_model_base_paths() -> dict[str, list[str]]:
-    """
-    Resolve model base paths.
-    eg. { "checkpoints": ["path/to/checkpoints"] }
-    """
-    folders = list(folder_paths.folder_names_and_paths.keys())
-    model_base_paths = {}
-    folder_black_list = ["configs", "custom_nodes"]
-    for folder in folders:
-        if folder in folder_black_list:
-            continue
-        folders = folder_paths.get_folder_paths(folder)
-        model_base_paths[folder] = [normalize_path(f) for f in folders]
-    return model_base_paths
+        
+    print_info(f"Web distribution loaded from local repository (version {version}).")
 
 def resolve_file_content_type(filename: str):
     extension_mimetypes_cache = folder_paths.extension_mimetype_cache
