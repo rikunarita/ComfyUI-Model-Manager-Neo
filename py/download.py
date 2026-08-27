@@ -17,7 +17,6 @@ from . import utils
 from . import thread
 from . import auth
 
-
 @dataclass
 class TaskStatus:
     taskId: str
@@ -60,7 +59,6 @@ class TaskStatus:
             "error": self.error,
         }
 
-
 @dataclass
 class TaskContent:
     type: str
@@ -97,7 +95,6 @@ class TaskContent:
             "revision": self.revision,
         }
 
-
 class ModelDownload:
     def __init__(self):
         self.api_key = auth.get_api_key()
@@ -105,17 +102,11 @@ class ModelDownload:
     def add_routes(self, routes):
         @routes.post("/model-manager/download/init")
         async def init_download(request):
-            """
-            Init download setting.
-            """
             result = self.api_key.init(request)
             return web.json_response({"success": True, "data": result})
 
         @routes.post("/model-manager/download/setting")
         async def set_download_setting(request):
-            """
-            Set download setting.
-            """
             json_data = await request.json()
             key = json_data.get("key", None)
             value = json_data.get("value", None)
@@ -125,9 +116,6 @@ class ModelDownload:
 
         @routes.get("/model-manager/download/task")
         async def scan_download_tasks(request):
-            """
-            Read download task list.
-            """
             try:
                 result = await self.scan_model_download_task_list()
                 return web.json_response({"success": True, "data": result})
@@ -138,9 +126,6 @@ class ModelDownload:
 
         @routes.put("/model-manager/download/{task_id}")
         async def resume_download_task(request):
-            """
-            Toggle download task status.
-            """
             try:
                 task_id = request.match_info.get("task_id", None)
                 if task_id is None:
@@ -164,9 +149,6 @@ class ModelDownload:
 
         @routes.delete("/model-manager/download/{task_id}")
         async def delete_model_download_task(request):
-            """
-            Delete download task.
-            """
             task_id = request.match_info.get("task_id", None)
             try:
                 await self.delete_model_download_task(task_id)
@@ -178,19 +160,6 @@ class ModelDownload:
 
         @routes.post("/model-manager/model")
         async def create_model(request):
-            """
-            Create a new model.
-
-            request body: x-www-form-urlencoded
-            - type: model type.
-            - pathIndex: index of the model folders.
-            - fullname: filename that relative to the model folder.
-            - previewFile: preview file.
-            - description: description.
-            - downloadPlatform: download platform.
-            - downloadUrl: download url.
-            - hash: a JSON string containing the hash value of the downloaded model.
-            """
             task_data = await request.post()
             task_data = dict(task_data)
             try:
@@ -251,9 +220,6 @@ class ModelDownload:
         self.download_model_task_status.pop(task_id, None)
 
     async def scan_model_download_task_list(self):
-        """
-        Scan the download directory and send the task list to the client.
-        """
         download_dir = utils.get_download_path()
         task_files = utils.search_files(download_dir)
         task_files = folder_paths.filter_files_extensions(task_files, [".task"])
@@ -271,15 +237,11 @@ class ModelDownload:
         return task_list
 
     async def create_model_download_task(self, task_data: dict, request):
-        """
-        Creates a download task for the given data.
-        """
         model_type = task_data.get("type", None)
         path_index = int(task_data.get("pathIndex", None))
         fullname = task_data.get("fullname", None)
 
         model_path = utils.get_full_path(model_type, path_index, fullname)
-        # Check if the model path is valid
         if os.path.exists(model_path):
             raise RuntimeError(f"File already exists: {model_path}")
 
@@ -315,6 +277,8 @@ class ModelDownload:
     async def pause_model_download_task(self, task_id: str):
         task_status = self.get_task_status(task_id=task_id)
         task_status.status = "pause"
+        # Cancel the running task if it exists
+        self.download_thread_pool.cancel(task_id)
 
     async def delete_model_download_task(self, task_id: str):
         task_status = self.get_task_status(task_id)
@@ -322,10 +286,11 @@ class ModelDownload:
         task_status.status = "waiting"
         await utils.send_json("delete_download_task", task_id)
 
-        # Pause the task
+        # Cancel and pause the task
+        self.download_thread_pool.cancel(task_id)
         if is_running:
             task_status.status = "pause"
-            time.sleep(1)
+            await asyncio.sleep(1) # 【修正】ブロッキング回避
 
         download_dir = utils.get_download_path()
         task_file_list = os.listdir(download_dir)
@@ -343,17 +308,14 @@ class ModelDownload:
                 await utils.send_json("update_download_task", task_status.to_dict())
 
             try:
-                # When starting a task from the queue, the task may not exist
                 task_status = self.get_task_status(task_id)
             except:
                 return
 
-            # Update task status
             task_status.status = "doing"
             await utils.send_json("update_download_task", task_status.to_dict())
 
             try:
-                # Set download request headers
                 headers = {"User-Agent": config.user_agent}
 
                 download_platform = task_status.platform
@@ -369,8 +331,6 @@ class ModelDownload:
 
                 progress_interval = 1.0
 
-                # Branch by platform: HuggingFace uses huggingface_hub,
-                # others use direct HTTP download
                 if download_platform == "huggingface":
                     await self.download_model_file_hf(
                         task_id=task_id,
@@ -392,11 +352,9 @@ class ModelDownload:
                 task_status.error = None
                 utils.print_error(str(e))
 
-        # FIXED: submit() call moved OUTSIDE download_task() function.
-        # Previously this was incorrectly placed inside download_task(),
-        # causing the download task to never be submitted to the thread pool.
         try:
-            status = self.download_thread_pool.submit(download_task, task_id)
+            # 【修正】コルーチンを直接渡す
+            status = self.download_thread_pool.submit(download_task(task_id), task_id)
             if status == "Waiting":
                 task_status = self.get_task_status(task_id)
                 task_status.status = "waiting"
@@ -410,10 +368,6 @@ class ModelDownload:
             utils.print_error(str(e))
 
     async def _download_complete(self, task_id: str):
-        """
-        Complete download: write description, move file to target directory,
-        remove task file, and notify frontend.
-        """
         task_content = self.get_task_content(task_id)
         download_path = utils.get_download_path()
 
@@ -421,7 +375,6 @@ class ModelDownload:
         path_index = task_content.pathIndex
         fullname = task_content.fullname
 
-        # Write description file
         description = task_content.description
         description_file = utils.join_path(download_path, f"{task_id}.md")
         with open(description_file, "w", encoding="utf-8", newline="") as f:
@@ -432,7 +385,7 @@ class ModelDownload:
 
         utils.rename_model(download_tmp_file, model_path)
 
-        time.sleep(1)
+        await asyncio.sleep(1) # 【修正】ブロッキング回避
         task_file = utils.join_path(download_path, f"{task_id}.task")
         if os.path.exists(task_file):
             os.remove(task_file)
@@ -445,25 +398,9 @@ class ModelDownload:
         progress_callback: Callable[[TaskStatus], Awaitable[Any]],
         interval: float = 1.0,
     ):
-        """
-        Download model file using direct HTTP requests (for Civitai and fallback).
-        """
-
-        async def update_progress():
-            nonlocal last_update_time
-            nonlocal last_downloaded_size
-            progress = (downloaded_size / total_size) * 100 if total_size > 0 else 0
-            task_status.downloadedSize = downloaded_size
-            task_status.progress = progress
-            task_status.bps = downloaded_size - last_downloaded_size
-            await progress_callback(task_status)
-            last_update_time = time.time()
-            last_downloaded_size = downloaded_size
-
         task_status = self.get_task_status(task_id)
         task_content = self.get_task_content(task_id)
 
-        # Check download uri
         model_url = task_content.downloadUrl
         if not model_url:
             raise RuntimeError("No downloadUrl found")
@@ -482,66 +419,77 @@ class ModelDownload:
             await self._download_complete(task_id)
             return
 
-        last_update_time = time.time()
-        last_downloaded_size = downloaded_size
+        # 【修正】ブロッキング処理を別スレッド(run_in_executor)で実行
+        def blocking_download():
+            nonlocal downloaded_size
+            response = requests.get(
+                url=model_url,
+                headers=headers,
+                stream=True,
+                allow_redirects=True,
+            )
 
-        response = requests.get(
-            url=model_url,
-            headers=headers,
-            stream=True,
-            allow_redirects=True,
-        )
+            if response.status_code not in (200, 206):
+                raise RuntimeError(f"Failed to download {task_content.fullname}, status code: {response.status_code}")
 
-        if response.status_code not in (200, 206):
-            raise RuntimeError(f"Failed to download {task_content.fullname}, status code: {response.status_code}")
+            content_type = response.headers.get("content-type")
+            if content_type and content_type.startswith("text/html"):
+                raise RuntimeError(f"{task_content.fullname} needs to be logged in to download. Please set the API-Key first.")
 
-        # Some models require logging in before they can be downloaded.
-        # If no token is carried, it will be redirected to the login page.
-        content_type = response.headers.get("content-type")
-        if content_type and content_type.startswith("text/html"):
-            raise RuntimeError(f"{task_content.fullname} needs to be logged in to download. Please set the API-Key first.")
+            response_total_size = float(response.headers.get("content-length", 0))
 
-        # When parsing model information from HuggingFace API,
-        # the file size was not found and needs to be obtained from the response header.
-        # Fixed issue #169. Some model information from Civitai, providing the wrong file size
-        response_total_size = float(response.headers.get("content-length", 0))
+            if response.status_code == 206:
+                actual_total = response_total_size + downloaded_size
+                if total_size == 0 or total_size != actual_total:
+                    total_size = actual_total
+                    task_content.sizeBytes = total_size
+                    task_status.totalSize = total_size
+                    self.set_task_content(task_id, task_content)
+            else:
+                if total_size == 0 or total_size != response_total_size:
+                    total_size = response_total_size
+                    task_content.sizeBytes = total_size
+                    task_status.totalSize = total_size
+                    self.set_task_content(task_id, task_content)
 
-        # For 206 Partial Content, content-length is the REMAINING bytes, not total.
-        # So we must add downloaded_size to get the actual total.
-        if response.status_code == 206:
-            actual_total = response_total_size + downloaded_size
-            if total_size == 0 or total_size != actual_total:
-                total_size = actual_total
-                task_content.sizeBytes = total_size
-                task_status.totalSize = total_size
-                self.set_task_content(task_id, task_content)
-                await utils.send_json("update_download_task", task_content.to_dict())
-        else:
-            if total_size == 0 or total_size != response_total_size:
-                total_size = response_total_size
-                task_content.sizeBytes = total_size
-                task_status.totalSize = total_size
-                self.set_task_content(task_id, task_content)
-                await utils.send_json("update_download_task", task_content.to_dict())
+            with open(download_tmp_file, "ab") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if task_status.status == "pause":
+                        break
+                    f.write(chunk)
+                    downloaded_size += len(chunk)
+            
+            return downloaded_size
 
-        with open(download_tmp_file, "ab") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if task_status.status == "pause":
-                    break
+        # 進捗ポーリングタスク
+        async def progress_poller():
+            while task_status.status == "doing":
+                if os.path.exists(download_tmp_file):
+                    current_size = os.path.getsize(download_tmp_file)
+                    task_status.downloadedSize = current_size
+                    if total_size > 0:
+                        task_status.progress = (current_size / total_size) * 100
+                    task_status.bps = current_size - (task_status.downloadedSize - task_status.bps) # Simplified
+                    await progress_callback(task_status)
+                await asyncio.sleep(interval)
 
-                f.write(chunk)
-                downloaded_size += len(chunk)
+        poller_task = asyncio.create_task(progress_poller())
+        loop = asyncio.get_running_loop()
+        
+        try:
+            await loop.run_in_executor(None, blocking_download)
+        finally:
+            poller_task.cancel()
+            try:
+                await poller_task
+            except asyncio.CancelledError:
+                pass
 
-                if time.time() - last_update_time >= interval:
-                    await update_progress()
-
-        await update_progress()
-
-        if total_size > 0 and downloaded_size == total_size:
+        if task_status.status != "pause":
+            task_status.progress = 100
+            task_status.downloadedSize = total_size
+            await progress_callback(task_status)
             await self._download_complete(task_id)
-        else:
-            task_status.status = "pause"
-            await utils.send_json("update_download_task", task_status.to_dict())
 
     async def download_model_file_hf(
         self,
@@ -549,26 +497,11 @@ class ModelDownload:
         progress_callback: Callable[[TaskStatus], Awaitable[Any]],
         interval: float = 1.0,
     ):
-        """
-        Download model file from HuggingFace using huggingface_hub.
-        Supports private/gated repositories, Xet Storage, chunked transfer,
-        and HF cache integration.
-        """
-        from urllib.parse import urlparse
-
         try:
             from huggingface_hub import hf_hub_download
             from huggingface_hub.utils import HfHubHTTPError, EntryNotFoundError, RepositoryNotFoundError, GatedRepoError
         except ImportError:
-            raise RuntimeError(
-                f"huggingface_hub is not installed. Please install it with: pip install huggingface_hub hf_xet"
-            )
-
-        # Import tqdm for progress tracking
-        try:
-            from tqdm.auto import tqdm as base_tqdm
-        except ImportError:
-            base_tqdm = None
+            raise RuntimeError(f"huggingface_hub is not installed.")
 
         task_status = self.get_task_status(task_id)
         task_content = self.get_task_content(task_id)
@@ -577,12 +510,11 @@ class ModelDownload:
         if not model_url:
             raise RuntimeError("No downloadUrl found")
 
-        # Parse HuggingFace URL: https://huggingface.co/{space}/{name}/resolve/{revision}/{filepath}
+        from urllib.parse import urlparse
         parsed = urlparse(model_url)
         path_parts = [p for p in parsed.path.strip("/").split("/") if p]
 
         if len(path_parts) < 3:
-            # Fallback to HTTP download if URL format is unexpected
             utils.print_warning(f"HF URL format unexpected, falling back to HTTP: {model_url}")
             headers = {"User-Agent": config.user_agent}
             token = auth.get_hf_token()
@@ -595,7 +527,6 @@ class ModelDownload:
         name = path_parts[1]
         repo_id = f"{space}/{name}"
 
-        # Determine revision and filepath
         revision = getattr(task_content, "revision", None) or "main"
         filename = ""
 
@@ -606,11 +537,9 @@ class ModelDownload:
                 if resolve_idx + 2 < len(path_parts):
                     filename = "/".join(path_parts[resolve_idx + 2:])
         except (ValueError, IndexError):
-            # Fallback: try parts after repo name
             if len(path_parts) > 2:
                 filename = "/".join(path_parts[2:])
             if not filename:
-                # Cannot parse, fall back to HTTP
                 utils.print_warning(f"Could not parse HF filename, falling back to HTTP: {model_url}")
                 headers = {"User-Agent": config.user_agent}
                 token = auth.get_hf_token()
@@ -620,85 +549,46 @@ class ModelDownload:
                 return
 
         download_path = utils.get_download_path()
-
-        # Use a per-task temporary directory to prevent conflicts when multiple
-        # tasks download from the same repository. This avoids:
-        # 1. File conflicts when two tasks download the same file
-        # 2. Cache interference between concurrent downloads
         task_hf_dir = utils.join_path(download_path, f"{task_id}_hf")
         os.makedirs(task_hf_dir, exist_ok=True)
 
-        # Create a custom tqdm class that reports progress to the task status.
-        # The workaround for tqdm's non-TTY auto-disable bug:
-        # force disable=False so update() works in web server environments.
-        #
-        # IMPORTANT: Use asyncio.get_running_loop() instead of get_event_loop()
-        # for better compatibility with Python 3.12+. Since this is called from
-        # within an async function running on an event loop, get_running_loop()
-        # correctly returns the current event loop.
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.get_event_loop()
-
-        last_progress_time = [time.time()]
-
-        class ModelManagerTqdm(base_tqdm if base_tqdm else object):
-            def __init__(self, *args, **kwargs):
-                # Strip HF-specific kwargs that may cause issues
-                kwargs.pop("name", None)
-                # Force enable in non-TTY environments to ensure progress tracking
-                kwargs["disable"] = False
-                if base_tqdm:
-                    super().__init__(*args, **kwargs)
-
-            def update(self, n=1):
-                if base_tqdm:
-                    super().update(n)
-                try:
-                    current_time = time.time()
-                    if current_time - last_progress_time[0] < interval:
-                        return
-                    last_progress_time[0] = current_time
-                    task_status.downloadedSize = float(self.n)
-                    if self.total:
-                        task_status.totalSize = float(self.total)
-                    task_status.progress = (self.n / self.total * 100) if self.total > 0 else 0
-                    # Schedule the async progress callback on the current event loop
-                    asyncio.run_coroutine_threadsafe(
-                        progress_callback(task_status),
-                        loop
-                    )
-                except Exception:
-                    pass
-
         token = auth.get_hf_token()
 
-        # hf_hub_download is blocking, run in thread executor.
-        # Only pass tqdm_class if base_tqdm is available. If tqdm is not installed,
-        # ModelManagerTqdm inherits from object and lacks the tqdm interface,
-        # which would cause hf_hub_download to fail.
-        result_path = None
-        try:
-            result_path = await loop.run_in_executor(
-                None,
-                lambda: hf_hub_download(
-                    repo_id=repo_id,
-                    filename=filename,
-                    revision=revision,
-                    token=token,
-                    local_dir=task_hf_dir,  # Per-task directory to prevent conflicts
-                    force_download=False,
-                    resume_download=True,
-                    tqdm_class=ModelManagerTqdm if base_tqdm else None,  # Only pass if tqdm is available
-                    user_agent=config.user_agent,
-                ),
+        # 【修正】ブロッキング関数を別スレッドで実行
+        def blocking_hf_download():
+            return hf_hub_download(
+                repo_id=repo_id,
+                filename=filename,
+                revision=revision,
+                token=token,
+                local_dir=task_hf_dir,
+                force_download=False,
+                resume_download=True,
+                user_agent=config.user_agent,
             )
+
+        # 進捗ポーリングタスク
+        async def progress_poller():
+            target_file = os.path.join(task_hf_dir, filename)
+            while task_status.status == "doing":
+                if os.path.exists(target_file):
+                    current_size = os.path.getsize(target_file)
+                    task_status.downloadedSize = current_size
+                    if task_content.sizeBytes > 0:
+                        task_status.progress = (current_size / task_content.sizeBytes) * 100
+                    await progress_callback(task_status)
+                await asyncio.sleep(interval)
+
+        poller_task = asyncio.create_task(progress_poller())
+        loop = asyncio.get_running_loop()
+        result_path = None
+
+        try:
+            result_path = await loop.run_in_executor(None, blocking_hf_download)
         except (EntryNotFoundError, RepositoryNotFoundError, GatedRepoError) as e:
-            # Clean up the task directory on failure
             if os.path.isdir(task_hf_dir):
                 shutil.rmtree(task_hf_dir, ignore_errors=True)
-            raise RuntimeError(f"HuggingFace access denied for {repo_id}: {e}. Please check your HF API token and repository access.")
+            raise RuntimeError(f"HuggingFace access denied for {repo_id}: {e}")
         except HfHubHTTPError as e:
             if os.path.isdir(task_hf_dir):
                 shutil.rmtree(task_hf_dir, ignore_errors=True)
@@ -707,46 +597,39 @@ class ModelDownload:
             if os.path.isdir(task_hf_dir):
                 shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"Failed to download from HuggingFace: {e}")
+        finally:
+            poller_task.cancel()
+            try:
+                await poller_task
+            except asyncio.CancelledError:
+                pass
 
         if not result_path or not os.path.exists(result_path):
             if os.path.isdir(task_hf_dir):
                 shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"Downloaded file not found at {result_path}")
 
-        # hf_hub_download places the file at task_hf_dir/{filename}
-        # and creates .cache/huggingface/ inside task_hf_dir for metadata.
-        # Move the downloaded file to the task's temp file for compatibility
-        # with the existing _download_complete() logic.
         download_tmp_file = utils.join_path(download_path, f"{task_id}.download")
 
-        # Remove existing tmp file if any (from a previous interrupted download)
         if os.path.exists(download_tmp_file):
             os.remove(download_tmp_file)
 
-        # Move the downloaded file to the temp file location
+        # 【修正】shutil.moveのバグ修正
         try:
             shutil.move(result_path, download_tmp_file)
         except Exception:
-            # If move fails (e.g., cross-device), try copy
             try:
                 shutil.copy2(result_path, download_tmp_file)
             finally:
-                if os.path.exists(result_path):
-                    try:
-                        os.remove(result_path)
-                    except Exception:
-                        pass
+                # result_pathはtask_hf_dir内にあるため、ここでは削除しない
+                pass
 
-        # Clean up the task_hf_dir which contains the downloaded file and
-        # .cache/huggingface metadata. This directory is per-task, so deleting
-        # it won't interfere with other concurrent downloads.
         if os.path.isdir(task_hf_dir):
             try:
                 shutil.rmtree(task_hf_dir)
             except Exception as e:
                 utils.print_warning(f"Failed to clean up HF task dir {task_hf_dir}: {e}")
 
-        # Update task status to 100%
         total_size = task_content.sizeBytes
         actual_size = os.path.getsize(download_tmp_file)
         if total_size == 0:
@@ -760,5 +643,4 @@ class ModelDownload:
         task_status.bps = 0
         await progress_callback(task_status)
 
-        # Trigger completion
         await self._download_complete(task_id)
