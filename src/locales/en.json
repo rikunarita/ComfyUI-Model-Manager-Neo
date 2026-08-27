@@ -1,7 +1,7 @@
 {
   "model": "Model",
-  "modelManager": "Model Manager",
-  "openModelManager": "Open Model Manager",
+  "modelManager": "Model Manager Neo",
+  "openModelManager": "Open Model Manager Neo",
   "searchModels": "Search models",
   "modelCopied": "Model Copied",
   "download": "Download",
@@ -52,7 +52,7 @@
     "medium": "Medium Icons",
     "small": "Small Icons",
     "custom": "Custom Size",
-    "customTip": "Set in `Settings > Model Manager > UI`"
+    "customTip": "Set in `Settings > Model Manager Neo > UI`"
   },
   "info": {
     "type": "Model Type",
