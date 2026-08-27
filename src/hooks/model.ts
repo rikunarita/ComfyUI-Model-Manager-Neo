@@ -1,8 +1,5 @@
-import DialogModelDetail from 'components/DialogModelDetail.vue'
-import { useLoading } from 'hooks/loading'
-import { useMarkdown } from 'hooks/markdown'
-import { request } from 'hooks/request'
 import { defineStore } from 'hooks/store'
+import { useLoading } from 'hooks/loading'
 import { useToast } from 'hooks/toast'
 import { castArray, cloneDeep } from 'lodash'
 import { TreeNode } from 'primevue/treenode'
@@ -25,7 +22,9 @@ import {
   unref,
 } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { configSetting } from './config'
+import { request } from 'hooks/request'
+import { configSetting } from 'hooks/config'
+import DialogModelDetail from 'components/DialogModelDetail.vue'
 
 const systemStat = ref()
 
@@ -50,15 +49,24 @@ export const useModels = defineStore('models', (store) => {
   const { toast, confirm } = useToast()
   const { t } = useI18n()
   const loading = useLoading()
-
   const folders = ref<ModelFolder>({})
   const initialized = ref(false)
 
   const refreshFolders = async () => {
-    return request('/models').then((resData) => {
-      folders.value = resData
-      initialized.value = true
-    })
+    return request('/models')
+      .then((resData) => {
+        folders.value = resData
+        initialized.value = true
+      })
+      .catch((err) => {
+        console.error('Failed to refresh folders:', err)
+        toast.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: `Failed to load folders: ${err.message}`,
+          life: 5000,
+        })
+      })
   }
 
   provide(modelFolderProvideKey, folders)
@@ -71,6 +79,9 @@ export const useModels = defineStore('models', (store) => {
       .then((resData) => {
         models.value[folder] = resData
         return resData
+      })
+      .catch((err) => {
+        console.error(`Failed to refresh models for ${folder}:`, err)
       })
       .finally(() => {
         loading.hide(folder)
@@ -88,6 +99,7 @@ export const useModels = defineStore('models', (store) => {
         ?.split(',')
         .map((type) => type.trim())
         .filter(Boolean) ?? []
+
     await forceRefresh.then(() =>
       Promise.allSettled(
         Object.keys(folders.value)
@@ -108,11 +120,14 @@ export const useModels = defineStore('models', (store) => {
     // Check current preview
     if (model.preview !== data.preview) {
       const preview = data.preview
-      if (preview) {
-        const previewFile = await previewUrlToFile(data.preview as string)
-        updateData.set('previewFile', previewFile)
-      } else {
-        updateData.set('previewFile', 'undefined')
+      // 【修正】プレビューがない場合に文字列 "undefined" を送るのをやめ、単にセットしない
+      if (preview && preview !== 'no-preview.png') {
+        try {
+          const previewFile = await previewUrlToFile(data.preview as string)
+          updateData.set('previewFile', previewFile)
+        } catch (e) {
+          console.warn('Failed to convert preview URL to file:', e)
+        }
       }
       needUpdate = true
     }
@@ -140,7 +155,6 @@ export const useModels = defineStore('models', (store) => {
     }
 
     loading.show()
-
     await request(genModelUrl(model), {
       method: 'PUT',
       body: updateData,
@@ -162,7 +176,6 @@ export const useModels = defineStore('models', (store) => {
     if (oldKey) {
       store.dialog.close({ key: oldKey })
     }
-
     refreshModels(data.type)
   }
 
@@ -221,7 +234,6 @@ export const useModels = defineStore('models', (store) => {
 
   function openModelDetail(model: BaseModel) {
     const filename = model.basename.replace(model.extension, '')
-
     store.dialog.open({
       key: genModelKey(model),
       title: filename,
@@ -260,436 +272,6 @@ declare module 'hooks/store' {
   }
 }
 
-export const useModelFormData = (getFormData: () => BaseModel) => {
-  const formData = ref<BaseModel>(getFormData())
-  const modelData = ref<BaseModel>(getFormData())
-
-  type ResetCallback = () => void
-  const resetCallback = ref<ResetCallback[]>([])
-
-  const registerReset = (callback: ResetCallback) => {
-    resetCallback.value.push(callback)
-  }
-
-  const reset = () => {
-    formData.value = getFormData()
-    modelData.value = getFormData()
-    for (const callback of resetCallback.value) {
-      callback()
-    }
-  }
-
-  type SubmitCallback = (data: WithResolved<BaseModel>) => void
-  const submitCallback = ref<SubmitCallback[]>([])
-
-  const registerSubmit = (callback: SubmitCallback) => {
-    submitCallback.value.push(callback)
-  }
-
-  const submit = (): WithResolved<BaseModel> => {
-    const data: any = cloneDeep(toRaw(unref(formData)))
-    for (const callback of submitCallback.value) {
-      callback(data)
-    }
-    return data
-  }
-
-  const metadata = ref<Record<string, any>>({})
-
-  return {
-    formData,
-    modelData,
-    registerReset,
-    reset,
-    registerSubmit,
-    submit,
-    metadata,
-  }
-}
-
-type ModelFormInstance = ReturnType<typeof useModelFormData>
-
-/**
- * Model base info
- */
-const baseInfoKey = Symbol('baseInfo') as InjectionKey<
-  ReturnType<typeof useModelBaseInfoEditor>
->
-
-export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
-  const { formData: model, modelData } = formInstance
-
-  const provideModelFolders = inject(modelFolderProvideKey)
-  const modelFolders = computed<ModelFolder>(() => {
-    return provideModelFolders?.value ?? {}
-  })
-
-  const type = computed({
-    get: () => {
-      return model.value.type
-    },
-    set: (val) => {
-      model.value.type = val
-    },
-  })
-
-  const pathIndex = computed({
-    get: () => {
-      return model.value.pathIndex
-    },
-    set: (val) => {
-      model.value.pathIndex = val
-    },
-  })
-
-  const subFolder = computed({
-    get: () => {
-      return model.value.subFolder
-    },
-    set: (val) => {
-      model.value.subFolder = val
-    },
-  })
-
-  const extension = computed(() => {
-    return model.value.extension
-  })
-
-  const basename = computed({
-    get: () => {
-      return model.value.basename
-    },
-    set: (val) => {
-      model.value.basename = val
-    },
-  })
-
-  interface BaseInfoItem {
-    key: string
-    display: string
-    value: any
-  }
-
-  interface FieldsItem {
-    key: keyof Model
-    formatter: (val: any) => string | undefined | null
-  }
-
-  const baseInfo = computed(() => {
-    const fields: FieldsItem[] = [
-      {
-        key: 'type',
-        formatter: () =>
-          modelData.value.type in modelFolders.value
-            ? modelData.value.type
-            : undefined,
-      },
-      {
-        key: 'pathIndex',
-        formatter: () => {
-          const modelType = model.value.type
-          const pathIndex = model.value.pathIndex
-          if (!modelType) {
-            return undefined
-          }
-          const folders = modelFolders.value[modelType] ?? []
-          return [`${folders[pathIndex]}`, model.value.subFolder]
-            .filter(Boolean)
-            .join('/')
-        },
-      },
-      {
-        key: 'basename',
-        formatter: (val) => `${val}${model.value.extension}`,
-      },
-      {
-        key: 'sizeBytes',
-        formatter: (val) => (val == 0 ? 'Unknown' : bytesToSize(val)),
-      },
-      {
-        key: 'createdAt',
-        formatter: (val) => val && formatDate(val),
-      },
-      {
-        key: 'updatedAt',
-        formatter: (val) => val && formatDate(val),
-      },
-    ]
-
-    const information: Record<string, BaseInfoItem> = {}
-    for (const item of fields) {
-      const key = item.key
-      const value = model.value[key]
-      const display = item.formatter(value)
-
-      if (display) {
-        information[key] = { key, value, display }
-      }
-    }
-
-    return information
-  })
-
-  const result = {
-    type,
-    baseInfo,
-    basename,
-    extension,
-    subFolder,
-    pathIndex,
-    modelFolders,
-  }
-
-  provide(baseInfoKey, result)
-
-  return result
-}
-
-export const useModelBaseInfo = () => {
-  return inject(baseInfoKey)!
-}
-
-export const useModelFolder = (
-  option: {
-    type?: MaybeRefOrGetter<string | undefined>
-  } = {},
-) => {
-  const { data: models, folders: modelFolders } = useModels()
-
-  const pathOptions = computed(() => {
-    const type = toValue(option.type)
-
-    if (!type) {
-      return []
-    }
-
-    const folderItems = cloneDeep(models.value[type]) ?? []
-    const pureFolders = folderItems.filter((item) => item.isFolder)
-    pureFolders.sort((a, b) => a.basename.localeCompare(b.basename))
-
-    const folders = modelFolders.value[type] ?? []
-
-    const root: TreeNode[] = []
-
-    for (const [index, folder] of folders.entries()) {
-      const pathIndexItem: TreeNode = {
-        key: folder,
-        label: folder,
-        children: [],
-      }
-
-      const items = pureFolders
-        .filter((item) => item.pathIndex === index)
-        .map((item) => {
-          const node: TreeNode = {
-            key: `${folder}/${genModelFullName(item)}`,
-            label: item.basename,
-            data: item,
-          }
-          return node
-        })
-      const itemMap = Object.fromEntries(items.map((item) => [item.key, item]))
-
-      for (const item of items) {
-        const key = item.key
-        const parentKey = key.split('/').slice(0, -1).join('/')
-
-        if (parentKey === folder) {
-          pathIndexItem.children!.push(item)
-          continue
-        }
-
-        const parentItem = itemMap[parentKey]
-        if (parentItem) {
-          parentItem.children ??= []
-          parentItem.children.push(item)
-        }
-      }
-
-      root.push(pathIndexItem)
-    }
-
-    return root
-  })
-
-  return {
-    pathOptions,
-  }
-}
-
-/**
- * Editable preview image.
- *
- * In edit mode, there are 4 methods for setting a preview picture:
- * 1. default value, which is the default image of the model type
- * 2. network picture
- * 3. local file
- * 4. no preview
- */
-const previewKey = Symbol('preview') as InjectionKey<
-  ReturnType<typeof useModelPreviewEditor>
->
-
-export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
-  const { formData: model, registerReset, registerSubmit } = formInstance
-
-  const typeOptions = ref(['default', 'network', 'local', 'none'])
-  const currentType = ref('default')
-
-  /**
-   * Default images
-   */
-  const defaultContent = computed(() => {
-    return model.value.preview ? castArray(model.value.preview) : []
-  })
-  const defaultContentPage = ref(0)
-
-  /**
-   * Network picture url
-   */
-  const networkContent = ref<string>()
-
-  /**
-   * Local file url
-   */
-  const localContent = ref<string>()
-  const localContentType = ref<string>()
-  const updateLocalContent = async (event: SelectEvent) => {
-    const { files } = event
-    localContent.value = files[0].objectURL
-    localContentType.value = files[0].type
-  }
-
-  /**
-   * No preview
-   */
-  const noPreviewContent = computed(() => {
-    const folder = model.value.type || 'unknown'
-    return `/model-manager/preview/${folder}/0/no-preview.png`
-  })
-
-  const preview = computed(() => {
-    let content: string | undefined
-
-    switch (currentType.value) {
-      case 'default':
-        content = defaultContent.value[defaultContentPage.value]
-        break
-      case 'network':
-        content = networkContent.value
-        break
-      case 'local':
-        content = localContent.value
-        break
-      default:
-        content = undefined
-        break
-    }
-
-    return content
-  })
-
-  onMounted(() => {
-    registerReset(() => {
-      currentType.value = 'default'
-      defaultContentPage.value = 0
-      networkContent.value = undefined
-      localContent.value = undefined
-      localContentType.value = undefined
-    })
-
-    registerSubmit((data) => {
-      data.preview = preview.value
-    })
-  })
-
-  const result = {
-    preview,
-    typeOptions,
-    currentType,
-    // default value
-    defaultContent,
-    defaultContentPage,
-    // network picture
-    networkContent,
-    // local file
-    localContent,
-    localContentType,
-    updateLocalContent,
-    // no preview
-    noPreviewContent,
-  }
-
-  provide(previewKey, result)
-
-  return result
-}
-
-export const useModelPreview = () => {
-  return inject(previewKey)!
-}
-
-/**
- * Model description
- */
-const descriptionKey = Symbol('description') as InjectionKey<
-  ReturnType<typeof useModelDescriptionEditor>
->
-
-export const useModelDescriptionEditor = (formInstance: ModelFormInstance) => {
-  const { formData: model, metadata } = formInstance
-
-  const md = useMarkdown({ metadata: metadata.value })
-
-  const description = computed({
-    get: () => {
-      return model.value.description
-    },
-    set: (val) => {
-      model.value.description = val
-    },
-  })
-
-  const renderedDescription = computed(() => {
-    return description.value ? md.render(description.value) : undefined
-  })
-
-  const result = { renderedDescription, description }
-
-  provide(descriptionKey, result)
-
-  return result
-}
-
-export const useModelDescription = () => {
-  return inject(descriptionKey)!
-}
-
-/**
- * Model metadata
- */
-const metadataKey = Symbol('metadata') as InjectionKey<
-  ReturnType<typeof useModelMetadataEditor>
->
-
-export const useModelMetadataEditor = (formInstance: ModelFormInstance) => {
-  const { formData: model } = formInstance
-
-  const metadata = computed(() => {
-    return model.value.metadata
-  })
-
-  const result = { metadata }
-
-  provide(metadataKey, result)
-
-  return result
-}
-
-export const useModelMetadata = () => {
-  return inject(metadataKey)!
-}
-
 export const useModelNodeAction = () => {
   const { t } = useI18n()
   const { toast, wrapperToastError } = useToast()
@@ -699,7 +281,6 @@ export const useModelNodeAction = () => {
     if (!nodeType) {
       throw new Error(t('unSupportedModelType', [model.type]))
     }
-
     const node = window.LiteGraph.createNode(nodeType, null, options)
     const widgetIndex = node.widgets.findIndex((w) => w.type === 'combo')
     if (widgetIndex > -1) {
@@ -710,18 +291,6 @@ export const useModelNodeAction = () => {
 
   const dragToAddModelNode = wrapperToastError(
     (model: BaseModel, event: DragEvent) => {
-      // const target = document.elementFromPoint(event.clientX, event.clientY)
-      // if (
-      //   target?.tagName.toLocaleLowerCase() === 'canvas' &&
-      //   target.id === 'graph-canvas'
-      // ) {
-      //   const pos = app.clientPosToCanvasPos([event.clientX - 20, event.clientY])
-      //   const node = createNode({ pos })
-      //   app.graph.add(node)
-      //   app.canvas.selectNode(node)
-      // }
-      //
-      // Use the legacy method instead
       const removeEmbeddingExtension = true
       const strictDragToAdd = false
       const splitter = systemStat.value?.system.os === 'nt' ? '\\' : '/'
