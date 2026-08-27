@@ -47,7 +47,7 @@ app.registerExtension({
   commands: [
     {
       id: 'Comfy.ModelManager.Open',
-      label: 'Model Manager',
+      label: 'Model Manager Neo',
       icon: 'pi pi-folder',
       function: () => {
         window.dispatchEvent(new CustomEvent('open-model-manager'))
