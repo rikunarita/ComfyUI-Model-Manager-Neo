@@ -90,12 +90,12 @@ def join_path(path: str, *paths: list[str]):
 
 def get_current_version():
     try:
+        import tomllib
         pyproject_path = join_path(config.extension_uri, "pyproject.toml")
-        config_parser = configparser.ConfigParser()
-        config_parser.read(pyproject_path)
-        version = config_parser.get("project", "version")
-        return version.strip("'\"")
-    except:
+        with open(pyproject_path, "rb") as f:
+            data = tomllib.load(f)
+        return data.get("project", {}).get("version", "0.0.0")
+    except Exception:
         return "0.0.0"
 
 def download_web_distribution(version: str):
