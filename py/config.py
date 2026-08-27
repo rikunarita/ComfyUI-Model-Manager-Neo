@@ -1,4 +1,4 @@
-extension_tag = "ComfyUI Model Manager"
+extension_tag = "ComfyUI Model Manager Neo"
 
 extension_uri: str = None
 
