@@ -588,7 +588,6 @@ class Information:
                         preview_url = preview_url_list[0] if preview_url_list else None
                         if preview_url:
                             utils.print_debug(f"Save preview to {abs_model_path}")
-                            # Use platform-specific headers for private/gated models
                             preview_headers = None
                             if model_info.get("downloadPlatform") == "civitai":
                                 preview_headers = auth.get_civitai_headers()
@@ -613,7 +612,8 @@ class Information:
 
         try:
             task_id = uuid.uuid4().hex
-            self.download_thread_pool.submit(download_information_task, task_id)
+            # 【修正】関数オブジェクトではなく、実行したコルーチンオブジェクトを渡す
+            self.download_thread_pool.submit(download_information_task(task_id), task_id)
         except Exception as e:
             utils.print_debug(str(e))
 
