@@ -280,6 +280,7 @@ class ModelDownload:
     async def pause_model_download_task(self, task_id: str):
         task_status = self.get_task_status(task_id=task_id)
         task_status.status = "pause"
+        self.download_thread_pool.cancel(task_id)
 
     async def delete_model_download_task(self, task_id: str):
         task_status = self.get_task_status(task_id)
@@ -287,9 +288,10 @@ class ModelDownload:
         task_status.status = "waiting"
         await utils.send_json("delete_download_task", task_id)
 
+        self.download_thread_pool.cancel(task_id)
         if is_running:
             task_status.status = "pause"
-            await asyncio.sleep(1)  # 【修正】time.sleep から await asyncio.sleep へ変更
+            await asyncio.sleep(1)
 
         download_dir = utils.get_download_path()
         task_file_list = os.listdir(download_dir)
@@ -352,7 +354,8 @@ class ModelDownload:
                 utils.print_error(str(e))
 
         try:
-            status = self.download_thread_pool.submit(download_task, task_id)
+            # 【修正】関数オブジェクトではなく、実行したコルーチンオブジェクトを渡す
+            status = self.download_thread_pool.submit(download_task(task_id), task_id)
             if status == "Waiting":
                 task_status = self.get_task_status(task_id)
                 task_status.status = "waiting"
@@ -383,7 +386,7 @@ class ModelDownload:
 
         utils.rename_model(download_tmp_file, model_path)
 
-        await asyncio.sleep(1)  # 【修正】time.sleep から await asyncio.sleep へ変更
+        await asyncio.sleep(1)
         task_file = utils.join_path(download_path, f"{task_id}.task")
         if os.path.exists(task_file):
             os.remove(task_file)
@@ -397,7 +400,6 @@ class ModelDownload:
         interval: float = 1.0,
     ):
         async def update_progress():
-            # 【修正】nonlocal を明示的に宣言し、UnboundLocalError を防止
             nonlocal last_update_time, last_downloaded_size, total_size, downloaded_size
             progress = (downloaded_size / total_size) * 100 if total_size > 0 else 0
             task_status.downloadedSize = downloaded_size
@@ -548,7 +550,6 @@ class ModelDownload:
                 return
 
         download_path = utils.get_download_path()
-
         task_hf_dir = utils.join_path(download_path, f"{task_id}_hf")
         os.makedirs(task_hf_dir, exist_ok=True)
 
@@ -626,9 +627,6 @@ class ModelDownload:
         if os.path.exists(download_tmp_file):
             os.remove(download_tmp_file)
 
-        # 【修正】shutil.move のバグ修正
-        # クロスデバイスリンク等で move が失敗した場合、copy2 にフォールバックするが、
-        # 元の finally ブロックでは無条件に result_path を削除していたためファイルが消えるバグがあった。
         try:
             shutil.move(result_path, download_tmp_file)
         except Exception:
@@ -636,7 +634,6 @@ class ModelDownload:
                 shutil.copy2(result_path, download_tmp_file)
             except Exception:
                 pass
-            # result_path (task_hf_dir 内) の削除はここでは行わず、後続の rmtree に任せる
 
         if os.path.isdir(task_hf_dir):
             try:
