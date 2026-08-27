@@ -17,6 +17,7 @@ from . import utils
 from . import thread
 from . import auth
 
+
 @dataclass
 class TaskStatus:
     taskId: str
@@ -59,6 +60,7 @@ class TaskStatus:
             "error": self.error,
         }
 
+
 @dataclass
 class TaskContent:
     type: str
@@ -94,6 +96,7 @@ class TaskContent:
             "hashes": self.hashes,
             "revision": self.revision,
         }
+
 
 class ModelDownload:
     def __init__(self):
@@ -277,8 +280,6 @@ class ModelDownload:
     async def pause_model_download_task(self, task_id: str):
         task_status = self.get_task_status(task_id=task_id)
         task_status.status = "pause"
-        # Cancel the running task if it exists
-        self.download_thread_pool.cancel(task_id)
 
     async def delete_model_download_task(self, task_id: str):
         task_status = self.get_task_status(task_id)
@@ -286,11 +287,9 @@ class ModelDownload:
         task_status.status = "waiting"
         await utils.send_json("delete_download_task", task_id)
 
-        # Cancel and pause the task
-        self.download_thread_pool.cancel(task_id)
         if is_running:
             task_status.status = "pause"
-            await asyncio.sleep(1) # 【修正】ブロッキング回避
+            await asyncio.sleep(1)  # 【修正】time.sleep から await asyncio.sleep へ変更
 
         download_dir = utils.get_download_path()
         task_file_list = os.listdir(download_dir)
@@ -353,8 +352,7 @@ class ModelDownload:
                 utils.print_error(str(e))
 
         try:
-            # 【修正】コルーチンを直接渡す
-            status = self.download_thread_pool.submit(download_task(task_id), task_id)
+            status = self.download_thread_pool.submit(download_task, task_id)
             if status == "Waiting":
                 task_status = self.get_task_status(task_id)
                 task_status.status = "waiting"
@@ -385,7 +383,7 @@ class ModelDownload:
 
         utils.rename_model(download_tmp_file, model_path)
 
-        await asyncio.sleep(1) # 【修正】ブロッキング回避
+        await asyncio.sleep(1)  # 【修正】time.sleep から await asyncio.sleep へ変更
         task_file = utils.join_path(download_path, f"{task_id}.task")
         if os.path.exists(task_file):
             os.remove(task_file)
@@ -398,6 +396,17 @@ class ModelDownload:
         progress_callback: Callable[[TaskStatus], Awaitable[Any]],
         interval: float = 1.0,
     ):
+        async def update_progress():
+            # 【修正】nonlocal を明示的に宣言し、UnboundLocalError を防止
+            nonlocal last_update_time, last_downloaded_size, total_size, downloaded_size
+            progress = (downloaded_size / total_size) * 100 if total_size > 0 else 0
+            task_status.downloadedSize = downloaded_size
+            task_status.progress = progress
+            task_status.bps = downloaded_size - last_downloaded_size
+            await progress_callback(task_status)
+            last_update_time = time.time()
+            last_downloaded_size = downloaded_size
+
         task_status = self.get_task_status(task_id)
         task_content = self.get_task_content(task_id)
 
@@ -419,77 +428,59 @@ class ModelDownload:
             await self._download_complete(task_id)
             return
 
-        # 【修正】ブロッキング処理を別スレッド(run_in_executor)で実行
-        def blocking_download():
-            nonlocal downloaded_size
-            response = requests.get(
-                url=model_url,
-                headers=headers,
-                stream=True,
-                allow_redirects=True,
-            )
+        last_update_time = time.time()
+        last_downloaded_size = downloaded_size
 
-            if response.status_code not in (200, 206):
-                raise RuntimeError(f"Failed to download {task_content.fullname}, status code: {response.status_code}")
+        response = requests.get(
+            url=model_url,
+            headers=headers,
+            stream=True,
+            allow_redirects=True,
+        )
 
-            content_type = response.headers.get("content-type")
-            if content_type and content_type.startswith("text/html"):
-                raise RuntimeError(f"{task_content.fullname} needs to be logged in to download. Please set the API-Key first.")
+        if response.status_code not in (200, 206):
+            raise RuntimeError(f"Failed to download {task_content.fullname}, status code: {response.status_code}")
 
-            response_total_size = float(response.headers.get("content-length", 0))
+        content_type = response.headers.get("content-type")
+        if content_type and content_type.startswith("text/html"):
+            raise RuntimeError(f"{task_content.fullname} needs to be logged in to download. Please set the API-Key first.")
 
-            if response.status_code == 206:
-                actual_total = response_total_size + downloaded_size
-                if total_size == 0 or total_size != actual_total:
-                    total_size = actual_total
-                    task_content.sizeBytes = total_size
-                    task_status.totalSize = total_size
-                    self.set_task_content(task_id, task_content)
-            else:
-                if total_size == 0 or total_size != response_total_size:
-                    total_size = response_total_size
-                    task_content.sizeBytes = total_size
-                    task_status.totalSize = total_size
-                    self.set_task_content(task_id, task_content)
+        response_total_size = float(response.headers.get("content-length", 0))
 
-            with open(download_tmp_file, "ab") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if task_status.status == "pause":
-                        break
-                    f.write(chunk)
-                    downloaded_size += len(chunk)
-            
-            return downloaded_size
+        if response.status_code == 206:
+            actual_total = response_total_size + downloaded_size
+            if total_size == 0 or total_size != actual_total:
+                total_size = actual_total
+                task_content.sizeBytes = total_size
+                task_status.totalSize = total_size
+                self.set_task_content(task_id, task_content)
+                await utils.send_json("update_download_task", task_content.to_dict())
+        else:
+            if total_size == 0 or total_size != response_total_size:
+                total_size = response_total_size
+                task_content.sizeBytes = total_size
+                task_status.totalSize = total_size
+                self.set_task_content(task_id, task_content)
+                await utils.send_json("update_download_task", task_content.to_dict())
 
-        # 進捗ポーリングタスク
-        async def progress_poller():
-            while task_status.status == "doing":
-                if os.path.exists(download_tmp_file):
-                    current_size = os.path.getsize(download_tmp_file)
-                    task_status.downloadedSize = current_size
-                    if total_size > 0:
-                        task_status.progress = (current_size / total_size) * 100
-                    task_status.bps = current_size - (task_status.downloadedSize - task_status.bps) # Simplified
-                    await progress_callback(task_status)
-                await asyncio.sleep(interval)
+        with open(download_tmp_file, "ab") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if task_status.status == "pause":
+                    break
 
-        poller_task = asyncio.create_task(progress_poller())
-        loop = asyncio.get_running_loop()
-        
-        try:
-            await loop.run_in_executor(None, blocking_download)
-        finally:
-            poller_task.cancel()
-            try:
-                await poller_task
-            except asyncio.CancelledError:
-                pass
+                f.write(chunk)
+                downloaded_size += len(chunk)
 
-        if task_status.status != "pause":
-            task_status.progress = 100
-            task_status.downloadedSize = total_size
-            await progress_callback(task_status)
+                if time.time() - last_update_time >= interval:
+                    await update_progress()
+
+        await update_progress()
+
+        if total_size > 0 and downloaded_size == total_size:
             await self._download_complete(task_id)
+        else:
+            task_status.status = "pause"
+            await utils.send_json("update_download_task", task_status.to_dict())
 
     async def download_model_file_hf(
         self,
@@ -497,11 +488,20 @@ class ModelDownload:
         progress_callback: Callable[[TaskStatus], Awaitable[Any]],
         interval: float = 1.0,
     ):
+        from urllib.parse import urlparse
+
         try:
             from huggingface_hub import hf_hub_download
             from huggingface_hub.utils import HfHubHTTPError, EntryNotFoundError, RepositoryNotFoundError, GatedRepoError
         except ImportError:
-            raise RuntimeError(f"huggingface_hub is not installed.")
+            raise RuntimeError(
+                f"huggingface_hub is not installed. Please install it with: pip install huggingface_hub hf_xet"
+            )
+
+        try:
+            from tqdm.auto import tqdm as base_tqdm
+        except ImportError:
+            base_tqdm = None
 
         task_status = self.get_task_status(task_id)
         task_content = self.get_task_content(task_id)
@@ -510,7 +510,6 @@ class ModelDownload:
         if not model_url:
             raise RuntimeError("No downloadUrl found")
 
-        from urllib.parse import urlparse
         parsed = urlparse(model_url)
         path_parts = [p for p in parsed.path.strip("/").split("/") if p]
 
@@ -549,46 +548,65 @@ class ModelDownload:
                 return
 
         download_path = utils.get_download_path()
+
         task_hf_dir = utils.join_path(download_path, f"{task_id}_hf")
         os.makedirs(task_hf_dir, exist_ok=True)
 
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+
+        last_progress_time = [time.time()]
+
+        class ModelManagerTqdm(base_tqdm if base_tqdm else object):
+            def __init__(self, *args, **kwargs):
+                kwargs.pop("name", None)
+                kwargs["disable"] = False
+                if base_tqdm:
+                    super().__init__(*args, **kwargs)
+
+            def update(self, n=1):
+                if base_tqdm:
+                    super().update(n)
+                try:
+                    current_time = time.time()
+                    if current_time - last_progress_time[0] < interval:
+                        return
+                    last_progress_time[0] = current_time
+                    task_status.downloadedSize = float(self.n)
+                    if self.total:
+                        task_status.totalSize = float(self.total)
+                    task_status.progress = (self.n / self.total * 100) if self.total > 0 else 0
+                    asyncio.run_coroutine_threadsafe(
+                        progress_callback(task_status),
+                        loop
+                    )
+                except Exception:
+                    pass
+
         token = auth.get_hf_token()
 
-        # 【修正】ブロッキング関数を別スレッドで実行
-        def blocking_hf_download():
-            return hf_hub_download(
-                repo_id=repo_id,
-                filename=filename,
-                revision=revision,
-                token=token,
-                local_dir=task_hf_dir,
-                force_download=False,
-                resume_download=True,
-                user_agent=config.user_agent,
-            )
-
-        # 進捗ポーリングタスク
-        async def progress_poller():
-            target_file = os.path.join(task_hf_dir, filename)
-            while task_status.status == "doing":
-                if os.path.exists(target_file):
-                    current_size = os.path.getsize(target_file)
-                    task_status.downloadedSize = current_size
-                    if task_content.sizeBytes > 0:
-                        task_status.progress = (current_size / task_content.sizeBytes) * 100
-                    await progress_callback(task_status)
-                await asyncio.sleep(interval)
-
-        poller_task = asyncio.create_task(progress_poller())
-        loop = asyncio.get_running_loop()
         result_path = None
-
         try:
-            result_path = await loop.run_in_executor(None, blocking_hf_download)
+            result_path = await loop.run_in_executor(
+                None,
+                lambda: hf_hub_download(
+                    repo_id=repo_id,
+                    filename=filename,
+                    revision=revision,
+                    token=token,
+                    local_dir=task_hf_dir,
+                    force_download=False,
+                    resume_download=True,
+                    tqdm_class=ModelManagerTqdm if base_tqdm else None,
+                    user_agent=config.user_agent,
+                ),
+            )
         except (EntryNotFoundError, RepositoryNotFoundError, GatedRepoError) as e:
             if os.path.isdir(task_hf_dir):
                 shutil.rmtree(task_hf_dir, ignore_errors=True)
-            raise RuntimeError(f"HuggingFace access denied for {repo_id}: {e}")
+            raise RuntimeError(f"HuggingFace access denied for {repo_id}: {e}. Please check your HF API token and repository access.")
         except HfHubHTTPError as e:
             if os.path.isdir(task_hf_dir):
                 shutil.rmtree(task_hf_dir, ignore_errors=True)
@@ -597,12 +615,6 @@ class ModelDownload:
             if os.path.isdir(task_hf_dir):
                 shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"Failed to download from HuggingFace: {e}")
-        finally:
-            poller_task.cancel()
-            try:
-                await poller_task
-            except asyncio.CancelledError:
-                pass
 
         if not result_path or not os.path.exists(result_path):
             if os.path.isdir(task_hf_dir):
@@ -614,15 +626,17 @@ class ModelDownload:
         if os.path.exists(download_tmp_file):
             os.remove(download_tmp_file)
 
-        # 【修正】shutil.moveのバグ修正
+        # 【修正】shutil.move のバグ修正
+        # クロスデバイスリンク等で move が失敗した場合、copy2 にフォールバックするが、
+        # 元の finally ブロックでは無条件に result_path を削除していたためファイルが消えるバグがあった。
         try:
             shutil.move(result_path, download_tmp_file)
         except Exception:
             try:
                 shutil.copy2(result_path, download_tmp_file)
-            finally:
-                # result_pathはtask_hf_dir内にあるため、ここでは削除しない
+            except Exception:
                 pass
+            # result_path (task_hf_dir 内) の削除はここでは行わず、後続の rmtree に任せる
 
         if os.path.isdir(task_hf_dir):
             try:
