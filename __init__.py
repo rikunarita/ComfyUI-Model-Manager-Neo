@@ -1,10 +1,8 @@
 import folder_paths
 
-
 # NOTE: This is an experiment
 # Add .gguf extension to supported_pt_extensions
 folder_paths.supported_pt_extensions.add(".gguf")
-
 
 import os
 from .py import config
@@ -28,7 +26,6 @@ if len(uninstalled_package) > 0:
     for p in uninstalled_package:
         utils.pip_install(p)
 
-
 # Init config settings
 config.extension_uri = extension_uri
 
@@ -36,20 +33,22 @@ config.extension_uri = extension_uri
 version = utils.get_current_version()
 utils.download_web_distribution(version)
 
-
 # Add api routes
 from .py import manager
 from .py import download
 from .py import information
 from .py import upload
+from .py import upload_hf
 
 routes = config.routes
 
 manager.ModelManager().add_routes(routes)
-download.ModelDownload().add_routes(routes)
+# NOTE: use the shared singleton so that py/upload.py can register local
+# upload tasks into the same download task system.
+download.get_model_download().add_routes(routes)
 information.Information().add_routes(routes)
 upload.ModelUploader().add_routes(routes)
-
+upload_hf.HfUploader().add_routes(routes)
 
 WEB_DIRECTORY = "web"
 NODE_CLASS_MAPPINGS = {}
