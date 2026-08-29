@@ -8,9 +8,9 @@
 <script setup lang="ts">
 import DialogDownload from 'components/DialogDownload.vue'
 import DialogExplorer from 'components/DialogExplorer.vue'
+import DialogHfUpload from 'components/DialogHfUpload.vue'
 import DialogManager from 'components/DialogManager.vue'
 import DialogScanning from 'components/DialogScanning.vue'
-import DialogUpload from 'components/DialogUpload.vue'
 import GlobalDialogStack from 'components/GlobalDialogStack.vue'
 import GlobalLoading from 'components/GlobalLoading.vue'
 import GlobalToast from 'components/GlobalToast.vue'
@@ -22,8 +22,11 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
+
 const { dialog, models, config, download } = useStoreProvider()
+
 const { toast } = useToast()
+
 const firstOpenManager = ref(true)
 
 onMounted(() => {
@@ -64,11 +67,11 @@ onMounted(() => {
     })
   }
 
-  const openUploadDialog = () => {
+  const openHfUploadDialog = () => {
     dialog.open({
-      key: 'model-manager-upload',
-      title: t('uploadModel'),
-      content: DialogUpload,
+      key: 'model-manager-hf-upload',
+      title: t('uploadToHuggingFace'),
+      content: DialogHfUpload,
       headerButtons: [
         {
           key: 'refresh',
@@ -90,7 +93,6 @@ onMounted(() => {
   const openManagerDialog = () => {
     const { cardWidth, gutter, aspect, flat } = config
     const layoutIcon = flat.value ? 'pi pi-th-large' : 'pi pi-folder-open'
-
     const includeHidden =
       app.ui?.settings.getSettingValue(
         'ModelManager.Scan.IncludeHiddenFiles',
@@ -150,7 +152,7 @@ onMounted(() => {
         {
           key: 'upload',
           icon: 'pi pi-upload',
-          command: openUploadDialog,
+          command: openHfUploadDialog,
         },
       ],
       minWidth: cardWidth * 2 + gutter + 42,
