@@ -17,7 +17,6 @@ from . import utils
 from . import thread
 from . import auth
 
-
 @dataclass
 class TaskStatus:
     taskId: str
@@ -60,7 +59,6 @@ class TaskStatus:
             "error": self.error,
         }
 
-
 @dataclass
 class TaskContent:
     type: str
@@ -96,7 +94,6 @@ class TaskContent:
             "hashes": self.hashes,
             "revision": self.revision,
         }
-
 
 class ModelDownload:
     def __init__(self):
@@ -354,7 +351,6 @@ class ModelDownload:
                 utils.print_error(str(e))
 
         try:
-            # 【修正】関数オブジェクトではなく、実行したコルーチンオブジェクトを渡す
             status = self.download_thread_pool.submit(download_task(task_id), task_id)
             if status == "Waiting":
                 task_status = self.get_task_status(task_id)
@@ -550,8 +546,6 @@ class ModelDownload:
                 return
 
         download_path = utils.get_download_path()
-        task_hf_dir = utils.join_path(download_path, f"{task_id}_hf")
-        os.makedirs(task_hf_dir, exist_ok=True)
 
         try:
             loop = asyncio.get_running_loop()
@@ -590,6 +584,8 @@ class ModelDownload:
 
         result_path = None
         try:
+            # 【修正】local_dir引数を削除し、HuggingFaceのデフォルトキャッシュ機構を利用する
+            # これにより、hf_transfer使用時などのシンボリックリンク解決バグやパス消失を防ぐ
             result_path = await loop.run_in_executor(
                 None,
                 lambda: hf_hub_download(
@@ -597,7 +593,6 @@ class ModelDownload:
                     filename=filename,
                     revision=revision,
                     token=token,
-                    local_dir=task_hf_dir,
                     force_download=False,
                     resume_download=True,
                     tqdm_class=ModelManagerTqdm if base_tqdm else None,
@@ -605,21 +600,13 @@ class ModelDownload:
                 ),
             )
         except (EntryNotFoundError, RepositoryNotFoundError, GatedRepoError) as e:
-            if os.path.isdir(task_hf_dir):
-                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"HuggingFace access denied for {repo_id}: {e}. Please check your HF API token and repository access.")
         except HfHubHTTPError as e:
-            if os.path.isdir(task_hf_dir):
-                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"HuggingFace download failed: {e}")
         except Exception as e:
-            if os.path.isdir(task_hf_dir):
-                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"Failed to download from HuggingFace: {e}")
 
         if not result_path or not os.path.exists(result_path):
-            if os.path.isdir(task_hf_dir):
-                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"Downloaded file not found at {result_path}")
 
         download_tmp_file = utils.join_path(download_path, f"{task_id}.download")
@@ -627,19 +614,16 @@ class ModelDownload:
         if os.path.exists(download_tmp_file):
             os.remove(download_tmp_file)
 
+        # 【修正】キャッシュディレクトリ内のファイル(result_path)を、一時ダウンロードファイルへ確実にコピーする
+        # result_path はシンボリックリンクである可能性があるため、shutil.copy2 で実ファイルをコピーする
         try:
-            shutil.move(result_path, download_tmp_file)
+            shutil.copy2(result_path, download_tmp_file)
         except Exception:
+            # copy2 が失敗した場合、move を試みる
             try:
-                shutil.copy2(result_path, download_tmp_file)
-            except Exception:
-                pass
-
-        if os.path.isdir(task_hf_dir):
-            try:
-                shutil.rmtree(task_hf_dir)
-            except Exception as e:
-                utils.print_warning(f"Failed to clean up HF task dir {task_hf_dir}: {e}")
+                shutil.move(result_path, download_tmp_file)
+            except Exception as move_e:
+                raise RuntimeError(f"Failed to copy or move downloaded file from HF cache to temporary file: {move_e}")
 
         total_size = task_content.sizeBytes
         actual_size = os.path.getsize(download_tmp_file)
