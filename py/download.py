@@ -1,3 +1,48 @@
+import asyncio
+from . import utils
+
+class DownloadThreadPool:
+    """
+    Asyncio-based task manager.
+    Runs tasks on the main event loop to ensure WebSocket notifications
+    (send_json) work correctly without thread-safety issues or deadlocks.
+    """
+    def __init__(self):
+        self.running_tasks = set()
+        self._lock = asyncio.Lock()
+        self._tasks = {}
+
+    def submit(self, coro, task_id):
+        """
+        Submit a coroutine to run as a background task on the main loop.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+
+        async def wrapper():
+            try:
+                await coro
+            except asyncio.CancelledError:
+                utils.print_info(f"Task {task_id} was cancelled.")
+            except Exception as e:
+                utils.print_error(f"Task {task_id} failed: {e}")
+            finally:
+                async with self._lock:
+                    self.running_tasks.discard(task_id)
+                    self._tasks.pop(task_id, None)
+
+        task = loop.create_task(wrapper())
+        self.running_tasks.add(task_id)
+        self._tasks[task_id] = task
+        return "Running"
+
+    def cancel(self, task_id):
+        task = self._tasks.get(task_id)
+        if task and not task.done():
+            task.cancel()
+
 import os
 import uuid
 import time
@@ -30,6 +75,7 @@ class TaskStatus:
     progress: float = 0
     bps: float = 0
     error: Optional[str] = None
+    source: str = "remote"
 
     def __init__(self, **kwargs):
         self.taskId = kwargs.get("taskId", None)
@@ -43,6 +89,7 @@ class TaskStatus:
         self.progress = kwargs.get("progress", 0)
         self.bps = kwargs.get("bps", 0)
         self.error = kwargs.get("error", None)
+        self.source = kwargs.get("source", "remote")
 
     def to_dict(self):
         return {
@@ -57,6 +104,7 @@ class TaskStatus:
             "progress": self.progress,
             "bps": self.bps,
             "error": self.error,
+            "source": self.source,
         }
 
 @dataclass
@@ -70,6 +118,7 @@ class TaskContent:
     sizeBytes: float
     hashes: Optional[dict[str, str]] = None
     revision: Optional[str] = None
+    source: str = "remote"
 
     def __init__(self, **kwargs):
         self.type = kwargs.get("type", None)
@@ -81,6 +130,7 @@ class TaskContent:
         self.sizeBytes = float(kwargs.get("sizeBytes", 0))
         self.hashes = kwargs.get("hashes", None)
         self.revision = kwargs.get("revision", None)
+        self.source = kwargs.get("source", "remote")
 
     def to_dict(self):
         return {
@@ -93,6 +143,7 @@ class TaskContent:
             "sizeBytes": self.sizeBytes,
             "hashes": self.hashes,
             "revision": self.revision,
+            "source": self.source,
         }
 
 class ModelDownload:
@@ -210,6 +261,7 @@ class ModelDownload:
                 downloadedSize=download_size,
                 totalSize=task_content.sizeBytes,
                 progress=download_size / total_size * 100 if total_size > 0 else 0,
+                source=task_content.source,
             )
 
             self.download_model_task_status[task_id] = task_status
@@ -351,6 +403,7 @@ class ModelDownload:
                 utils.print_error(str(e))
 
         try:
+            # 【修正】関数オブジェクトではなく、実行したコルーチンオブジェクトを渡す
             status = self.download_thread_pool.submit(download_task(task_id), task_id)
             if status == "Waiting":
                 task_status = self.get_task_status(task_id)
@@ -546,6 +599,8 @@ class ModelDownload:
                 return
 
         download_path = utils.get_download_path()
+        task_hf_dir = utils.join_path(download_path, f"{task_id}_hf")
+        os.makedirs(task_hf_dir, exist_ok=True)
 
         try:
             loop = asyncio.get_running_loop()
@@ -584,8 +639,6 @@ class ModelDownload:
 
         result_path = None
         try:
-            # 【修正】local_dir引数を削除し、HuggingFaceのデフォルトキャッシュ機構を利用する
-            # これにより、hf_transfer使用時などのシンボリックリンク解決バグやパス消失を防ぐ
             result_path = await loop.run_in_executor(
                 None,
                 lambda: hf_hub_download(
@@ -593,6 +646,7 @@ class ModelDownload:
                     filename=filename,
                     revision=revision,
                     token=token,
+                    local_dir=task_hf_dir,
                     force_download=False,
                     resume_download=True,
                     tqdm_class=ModelManagerTqdm if base_tqdm else None,
@@ -600,13 +654,21 @@ class ModelDownload:
                 ),
             )
         except (EntryNotFoundError, RepositoryNotFoundError, GatedRepoError) as e:
+            if os.path.isdir(task_hf_dir):
+                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"HuggingFace access denied for {repo_id}: {e}. Please check your HF API token and repository access.")
         except HfHubHTTPError as e:
+            if os.path.isdir(task_hf_dir):
+                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"HuggingFace download failed: {e}")
         except Exception as e:
+            if os.path.isdir(task_hf_dir):
+                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"Failed to download from HuggingFace: {e}")
 
         if not result_path or not os.path.exists(result_path):
+            if os.path.isdir(task_hf_dir):
+                shutil.rmtree(task_hf_dir, ignore_errors=True)
             raise RuntimeError(f"Downloaded file not found at {result_path}")
 
         download_tmp_file = utils.join_path(download_path, f"{task_id}.download")
@@ -614,16 +676,19 @@ class ModelDownload:
         if os.path.exists(download_tmp_file):
             os.remove(download_tmp_file)
 
-        # 【修正】キャッシュディレクトリ内のファイル(result_path)を、一時ダウンロードファイルへ確実にコピーする
-        # result_path はシンボリックリンクである可能性があるため、shutil.copy2 で実ファイルをコピーする
         try:
-            shutil.copy2(result_path, download_tmp_file)
+            shutil.move(result_path, download_tmp_file)
         except Exception:
-            # copy2 が失敗した場合、move を試みる
             try:
-                shutil.move(result_path, download_tmp_file)
-            except Exception as move_e:
-                raise RuntimeError(f"Failed to copy or move downloaded file from HF cache to temporary file: {move_e}")
+                shutil.copy2(result_path, download_tmp_file)
+            except Exception:
+                pass
+
+        if os.path.isdir(task_hf_dir):
+            try:
+                shutil.rmtree(task_hf_dir)
+            except Exception as e:
+                utils.print_warning(f"Failed to clean up HF task dir {task_hf_dir}: {e}")
 
         total_size = task_content.sizeBytes
         actual_size = os.path.getsize(download_tmp_file)
@@ -639,3 +704,13 @@ class ModelDownload:
         await progress_callback(task_status)
 
         await self._download_complete(task_id)
+
+# Singleton instance
+_model_download_instance = None
+
+def get_model_download():
+    """Get the global ModelDownload singleton instance."""
+    global _model_download_instance
+    if _model_download_instance is None:
+        _model_download_instance = ModelDownload()
+    return _model_download_instance
