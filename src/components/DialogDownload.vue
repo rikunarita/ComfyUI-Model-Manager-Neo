@@ -7,88 +7,77 @@
           :label="$t('createDownloadTask')"
           @click="openCreateTask"
         ></Button>
+        <Button
+          :class="[$sm('w-auto', 'w-full')]"
+          :label="$t('uploadFromLocalFile')"
+          @click="openLocalUpload"
+        ></Button>
       </div>
     </div>
-
-    <ResponseScroll>
-      <div class="w-full px-4">
-        <ul class="m-0 flex list-none flex-col gap-4 p-0">
-          <li
-            v-for="item in data"
-            :key="item.taskId"
-            class="rounded-lg border border-gray-500 p-4"
-          >
-            <div class="flex gap-4 overflow-hidden whitespace-nowrap">
-              <div class="h-18 preview-aspect">
-                <div v-if="isVideoUrl(item.preview)" class="h-full w-full">
-                  <PreviewVideo :src="item.preview" />
-                </div>
-                <img v-else :src="item.preview" />
-              </div>
-
-              <div class="flex flex-1 flex-col gap-3 overflow-hidden">
-                <div class="flex items-center gap-3 overflow-hidden">
-                  <span class="flex-1 overflow-hidden text-ellipsis">
-                    {{ item.fullname }}
-                  </span>
-                  <span v-show="item.status === 'waiting'" class="h-4">
-                    <i class="pi pi-spinner pi-spin"></i>
-                  </span>
-                  <span
-                    v-show="item.status === 'doing'"
-                    class="h-4 cursor-pointer"
-                    @click="item.pauseTask"
-                  >
-                    <i class="pi pi-pause-circle"></i>
-                  </span>
-                  <span
-                    v-show="item.status === 'pause'"
-                    class="h-4 cursor-pointer"
-                    @click="item.resumeTask"
-                  >
-                    <i class="pi pi-play-circle"></i>
-                  </span>
-                  <span class="h-4 cursor-pointer" @click="item.deleteTask">
-                    <i class="pi pi-trash text-red-400"></i>
-                  </span>
-                </div>
-                <div class="h-2 overflow-hidden rounded bg-gray-200">
-                  <div
-                    class="h-full bg-blue-500 transition-[width]"
-                    :style="{ width: `${item.progress}%` }"
-                  ></div>
-                </div>
-                <div class="flex justify-between">
-                  <div>{{ item.downloadProgress }}</div>
-                  <div v-show="item.status === 'doing'">
-                    {{ item.downloadSpeed }}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </li>
-        </ul>
+    <div class="flex min-h-0 flex-1 flex-col gap-4">
+      <div class="flex min-h-0 flex-1 flex-col gap-2">
+        <div class="px-4 text-sm font-bold opacity-60">
+          {{ $t('externalDownloads') }}
+        </div>
+        <ResponseScroll class="min-h-0 flex-1">
+          <div class="w-full px-4">
+            <ul class="m-0 flex list-none flex-col gap-4 p-0">
+              <DownloadTaskItem
+                v-for="item in remoteTasks"
+                :key="item.taskId"
+                :item="item"
+              />
+            </ul>
+          </div>
+        </ResponseScroll>
       </div>
-    </ResponseScroll>
+      <div class="border-t border-gray-600"></div>
+      <div class="flex min-h-0 flex-1 flex-col gap-2">
+        <div class="px-4 text-sm font-bold opacity-60">
+          {{ $t('localUploads') }}
+        </div>
+        <ResponseScroll class="min-h-0 flex-1">
+          <div class="w-full px-4">
+            <ul class="m-0 flex list-none flex-col gap-4 p-0">
+              <DownloadTaskItem
+                v-for="item in localTasks"
+                :key="item.taskId"
+                :item="item"
+              />
+            </ul>
+          </div>
+        </ResponseScroll>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import DialogCreateTask from 'components/DialogCreateTask.vue'
-import PreviewVideo from 'components/PreviewVideo.vue'
+import DialogUpload from 'components/DialogUpload.vue'
+import DownloadTaskItem from 'components/DownloadTaskItem.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { useContainerQueries } from 'hooks/container'
 import { useDialog } from 'hooks/dialog'
 import { useDownload } from 'hooks/download'
+import { useModels } from 'hooks/model'
+import { useToast } from 'hooks/toast'
 import Button from 'primevue/button'
-import { isVideoUrl } from 'utils/media'
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { data } = useDownload()
-
+const models = useModels()
 const { t } = useI18n()
+const { toast } = useToast()
 const dialog = useDialog()
+
+const remoteTasks = computed(() =>
+  data.value.filter((item) => item.source !== 'local'),
+)
+const localTasks = computed(() =>
+  data.value.filter((item) => item.source === 'local'),
+)
 
 const openCreateTask = () => {
   dialog.open({
@@ -98,6 +87,31 @@ const openCreateTask = () => {
   })
 }
 
+const refreshModelsAndConfig = async () => {
+  await Promise.all([models.refresh(true)])
+  toast.add({
+    severity: 'success',
+    summary: 'Refreshed Models',
+    life: 2000,
+  })
+}
+
+const openLocalUpload = () => {
+  dialog.open({
+    key: 'model-manager-upload',
+    title: t('uploadModel'),
+    content: DialogUpload,
+    headerButtons: [
+      {
+        key: 'refresh',
+        icon: 'pi pi-refresh',
+        command: refreshModelsAndConfig,
+      },
+    ],
+  })
+}
+
 const container = ref<HTMLElement | null>(null)
+
 const { $sm } = useContainerQueries(container)
 </script>
