@@ -76,10 +76,7 @@ export interface DownloadTaskOptions {
 }
 
 export interface DownloadTask
-  extends Omit<
-    DownloadTaskOptions,
-    'downloadedSize' | 'totalSize' | 'bps' | 'error'
-  > {
+  extends Omit<DownloadTaskOptions, 'bps' | 'error'> {
   downloadProgress: string
   downloadSpeed: string
   pauseTask: () => void
