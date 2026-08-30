@@ -40,7 +40,7 @@
                 >
                   <div class="preview-aspect w-full">
                     <img
-                      :src="model.preview"
+                      :src="getPreviewUrl(model.preview)"
                       class="h-full w-full object-cover"
                     />
                   </div>
@@ -299,6 +299,13 @@ const handleUpload = async () => {
 
 const formatSize = (size?: number) => {
   return size ? bytesToSize(size) : 'Unknown'
+}
+
+// Helper to safely handle preview URLs which can be string or string[]
+const getPreviewUrl = (preview: string | string[] | undefined): string => {
+  if (!preview) return ''
+  if (Array.isArray(preview)) return preview[0] || ''
+  return preview
 }
 
 const updateHfProgress = (event: CustomEvent) => {
