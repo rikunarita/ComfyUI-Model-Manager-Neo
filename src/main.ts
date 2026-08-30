@@ -16,25 +16,43 @@ const ComfyUIPreset = definePreset(Aura, {
   },
 })
 
+/**
+ * Sync the extension's dark/light mode with ComfyUI's active color palette.
+ *
+ * ComfyUI_frontend built-in palettes (coreColorPalettes.ts):
+ *   dark, light, solarized, arc, nord, github
+ * Only "light" has light_theme: true; all others are dark.
+ * Custom palettes may also exist — we treat anything other than "light" as dark.
+ *
+ * This approach does NOT depend on ComfyUI's DOM class names or PrimeVue's
+ * darkModeSelector CSS matching, making it immune to future version changes.
+ */
+function syncThemeClass(container: HTMLElement) {
+  const palette =
+    app.ui?.settings.getSettingValue<string>('Comfy.ColorPalette') ?? 'dark'
+  const isDark = palette !== 'light'
+  container.classList.toggle('mm-dark', isDark)
+  container.classList.toggle('mm-light', !isDark)
+}
+
 function createVueApp(rootContainer: string | HTMLElement) {
-  const app = createApp(App)
-  app.directive('tooltip', Tooltip)
-  app
+  const vueApp = createApp(App)
+  vueApp.directive('tooltip', Tooltip)
+  vueApp
     .use(PrimeVue, {
       theme: {
         preset: ComfyUIPreset,
         options: {
-          // Custom prefix: the extension's CSS variables become --mm-*,
-          // which can never collide with ComfyUI's own --p-* variables.
-          // NOTE: requires primevue >= 4.3.5 (prefix bug #7258 fixed there).
+          // Custom prefix: extension variables become --mm-*, never colliding
+          // with ComfyUI's own --p-* variables.
           prefix: 'mm',
           cssLayer: {
             name: 'primevue',
             order: 'tailwind-base, primevue, tailwind-utilities',
           },
-          // This is a workaround for the issue with the dark mode selector
-          // https://github.com/primefaces/primevue/issues/5515
-          darkModeSelector: '.dark-theme, :root:has(.dark-theme)',
+          // Dark mode is driven by the .mm-dark class that syncThemeClass()
+          // toggles on the extension container — NOT by ComfyUI's DOM classes.
+          darkModeSelector: '.mm-dark',
         },
       },
     })
@@ -67,6 +85,14 @@ app.registerExtension({
     const container = document.createElement('div')
     container.id = 'comfyui-model-manager'
     document.body.appendChild(container)
+
+    // Apply the correct theme class before mounting Vue
+    syncThemeClass(container)
+
+    // Re-sync whenever the user changes the palette in ComfyUI settings
+    app.ui?.settings.addEventListener('Comfy.ColorPalette.changed', () => {
+      syncThemeClass(container)
+    })
 
     createVueApp(container)
   },
