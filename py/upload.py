@@ -135,6 +135,7 @@ class ModelUploader:
         task_id = None
         task_status = None
         tmp_filepath = None
+        filepath = None
 
         try:
             while True:
@@ -186,6 +187,10 @@ class ModelUploader:
                                 # A local upload cannot be resumed; the pause
                                 # flag is used as a cancellation signal.
                                 raise LocalUploadCancelled()
+
+            # Guard against a malformed multipart request without a file part.
+            if tmp_filepath is None or filepath is None:
+                return
 
             update_upload_progress = {
                 "uploaded_size": uploaded_size,
