@@ -1,105 +1,10 @@
 import asyncio
 import os
-import time
 
 from aiohttp import web
 
 from . import auth
 from . import utils
-
-class ProgressFileWrapper:
-    """
-    Seekable binary file wrapper that reports read progress.
-    
-    NOTE on hf_xet / LFS behavior:
-    huggingface_hub (via hf_xet or LFS) typically reads the file twice:
-    1. To compute hashes (SHA256) and determine upload strategy.
-    2. To actually upload the content.
-    
-    To prevent the progress bar from jumping to 100% during the hash phase
-    or exceeding 100%, we reset the uploaded counter when a backward seek
-    to the beginning (or near beginning) is detected. This ensures the
-    progress bar reflects the actual network upload phase (the second pass).
-    """
-
-    def __init__(self, path: str, on_progress):
-        self._file = open(path, "rb")
-        self._total = os.path.getsize(path)
-        self._uploaded = 0
-        self._on_progress = on_progress
-        self._last_report = time.time()
-        self._pass_count = 0  # Track read passes
-
-    def read(self, size=-1):
-        data = self._file.read(size)
-        if data:
-            position = self._file.tell()
-            # Only update progress if we are moving forward in the current pass
-            if position > self._uploaded:
-                self._uploaded = position
-                self._maybe_report()
-        return data
-
-    def _maybe_report(self, force=False):
-        now = time.time()
-        if force or now - self._last_report >= 1.0:
-            self._last_report = now
-            # Calculate progress based on current pass
-            # If we are in the second pass (upload), map 0-total to 0-100%
-            # If we are in the first pass (hash), we might want to show indeterminate or 0-50%?
-            # Simplest robust approach: 
-            # Pass 1 (Hashing): Show 0% or "Preparing" (handled by UI if needed, but here we just report raw bytes)
-            # Pass 2 (Uploading): Report 0-100%.
-            
-            # Actually, to keep it simple for the UI which expects 0-100:
-            # We treat the LAST pass as the real progress.
-            # But detecting "last pass" is hard.
-            
-            # Better heuristic for HF Hub:
-            # The library seeks to 0 after hashing. So when we see a seek to 0,
-            # we know the next read phase is the upload.
-            
-            # For now, let's just report the percentage of the current read position relative to total.
-            # If it resets, the bar resets. This is visually acceptable (Bar fills -> resets -> fills again = done).
-            # To make it smoother, we could offset, but let's stick to accurate "current stream position".
-            
-            progress = (self._uploaded / self._total * 100) if self._total > 0 else 0
-            self._on_progress(self._uploaded, self._total, progress)
-
-    def seek(self, offset, whence=0):
-        # Detect backward seek to start (reset for upload phase)
-        if whence == 0 and offset == 0 and self._uploaded > 0:
-            # We are restarting from the beginning. 
-            # This usually means Hash phase is done, Upload phase is starting.
-            self._uploaded = 0
-            self._pass_count += 1
-        
-        return self._file.seek(offset, whence)
-
-    def tell(self):
-        return self._file.tell()
-
-    def seekable(self):
-        return True
-
-    def readable(self):
-        return True
-
-    def writable(self):
-        return False
-
-    @property
-    def name(self):
-        return self._file.name
-
-    def close(self):
-        self._file.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        self.close()
 
 class HfUploader:
     def add_routes(self, routes):
@@ -189,32 +94,17 @@ class HfUploader:
         except RuntimeError:
             loop = asyncio.get_event_loop()
 
-        last_report = [time.time()]
+        total_size = os.path.getsize(local_path)
 
-        def report_progress(uploaded: float, total: float, progress: float):
-            now = time.time()
-            # Throttle updates to 1 second, but always send the final 100%
-            if now - last_report[0] < 1.0 and progress < 100.0:
-                return
-            last_report[0] = now
-            
-            # We only care about the progress during the actual upload phase.
-            # Since we reset on seek(0), the progress will go 0->100 during the upload.
-            # During the hash phase, it also goes 0->100 but quickly.
-            # To avoid confusion, we could ignore the first pass, but without complex state,
-            # letting it reset is the most honest representation of "streaming bytes".
-            
-            asyncio.run_coroutine_threadsafe(
-                utils.send_json(
-                    "update_hf_upload_progress",
-                    {
-                        "uploadedSize": float(uploaded),
-                        "totalSize": float(total),
-                        "progress": float(progress),
-                    },
-                ),
-                loop,
-            )
+        # Send initial progress (0%) so the UI can show an indeterminate progress bar
+        await utils.send_json(
+            "update_hf_upload_progress",
+            {
+                "uploadedSize": 0.0,
+                "totalSize": float(total_size),
+                "progress": 0.0,
+            },
+        )
 
         def do_upload():
             api = HfApi(token=token, library_name="ComfyUI-Model-Manager-Neo")
@@ -224,26 +114,32 @@ class HfUploader:
             if not api.repo_exists(repo_id=repo_id):
                 api.create_repo(repo_id=repo_id, private=private, exist_ok=True)
 
-            total = os.path.getsize(local_path)
-            wrapper = ProgressFileWrapper(local_path, report_progress)
-            try:
-                # upload_file accepts a file-like object.
-                # hf_xet will handle chunking/dedup internally.
-                result = api.upload_file(
-                    path_or_fileobj=wrapper,
-                    path_in_repo=path_in_repo,
-                    repo_id=repo_id,
-                    repo_type="model",
-                    token=token,
-                )
-            finally:
-                wrapper.close()
+            # Pass the local_path (string) directly to upload_file.
+            # This allows huggingface_hub to use the highly optimized hf_xet transfer
+            # protocol (chunk-based deduplication) instead of falling back to legacy HTTP.
+            # We intentionally do NOT use a file-like wrapper here, because passing a 
+            # BinaryIO object bypasses xet and forces a slower legacy HTTP upload.
+            api.upload_file(
+                path_or_fileobj=local_path,
+                path_in_repo=path_in_repo,
+                repo_id=repo_id,
+                repo_type="model",
+                token=token,
+            )
 
-            # Force final 100% report
-            report_progress(total, total, 100.0)
-            return result
-
+        # Run the blocking upload in a thread executor
         await loop.run_in_executor(None, do_upload)
+
+        # Send final progress (100%)
+        await utils.send_json(
+            "update_hf_upload_progress",
+            {
+                "uploadedSize": float(total_size),
+                "totalSize": float(total_size),
+                "progress": 100.0,
+            },
+        )
+
         await utils.send_json(
             "hf_upload_complete",
             {"repoId": repo_id, "pathInRepo": path_in_repo},
