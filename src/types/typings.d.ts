@@ -72,6 +72,7 @@ export interface DownloadTaskOptions {
   totalSize: number
   bps: number
   error?: string
+  source?: 'remote' | 'local'
 }
 
 export interface DownloadTask
