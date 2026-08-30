@@ -23,13 +23,13 @@ import yaml from 'yaml'
 
 export const useDownload = defineStore('download', (store) => {
   const { toast, confirm, wrapperToastError } = useToast()
+
   const { t } = useI18n()
 
   const taskList = ref<DownloadTask[]>([])
 
   const createTaskItem = (item: DownloadTaskOptions) => {
     const { downloadedSize, totalSize, bps, ...rest } = item
-
     const task: DownloadTask = {
       ...rest,
       preview: `/model-manager/preview/download/${item.preview}`,
@@ -80,7 +80,6 @@ export const useDownload = defineStore('download', (store) => {
         })
       },
     }
-
     return task
   }
 
@@ -93,7 +92,7 @@ export const useDownload = defineStore('download', (store) => {
 
   // Initial download settings
   // Migrate API keys from user settings to private key
-    const init = async () => {
+  const init = async () => {
     try {
       const res = await request('/download/init', { method: 'POST' })
       store.config.apiKeyInfo.value = res
@@ -113,7 +112,6 @@ export const useDownload = defineStore('download', (store) => {
 
     api.addEventListener('fetch_download_task_list', (event) => {
       const data = event.detail as DownloadTaskOptions[]
-
       taskList.value = data.map((item) => {
         return createTaskItem(item)
       })
@@ -126,7 +124,6 @@ export const useDownload = defineStore('download', (store) => {
 
     api.addEventListener('update_download_task', (event) => {
       const item = event.detail as DownloadTaskOptions
-
       for (const task of taskList.value) {
         if (task.taskId === item.taskId) {
           if (item.error) {
@@ -152,10 +149,12 @@ export const useDownload = defineStore('download', (store) => {
       const taskId = event.detail as string
       const task = taskList.value.find((item) => item.taskId === taskId)
       taskList.value = taskList.value.filter((item) => item.taskId !== taskId)
+      const completeLabel =
+        task?.source === 'local' ? 'Upload completed' : 'Download completed'
       toast.add({
         severity: 'success',
         summary: 'Success',
-        detail: `${task?.fullname} Download completed`,
+        detail: `${task?.fullname} ${completeLabel}`,
         life: 2000,
       })
       store.models.refresh()
@@ -185,8 +184,11 @@ type FileSelectionVersionModel = VersionModel & {
 export const useModelSearch = () => {
   const loading = useLoading()
   const { toast } = useToast()
+
   const data = ref<WithSelection<FileSelectionVersionModel>[]>([])
+
   const current = ref<string | number>()
+
   const currentModel = ref<FileSelectionVersionModel>()
 
   const genFileSelectionItem = (
@@ -199,7 +201,6 @@ export const useModelSearch = () => {
         const parts = file.name.split('.')
         const extension = `.${parts.pop()}`
         const basename = parts.join('.')
-
         const regexp = /---\n([\s\S]*?)\n---/
         const yamlMetadataMatch = item.description.match(regexp)
         let yamlMetadata: any = {}
@@ -211,9 +212,8 @@ export const useModelSearch = () => {
         }
         yamlMetadata.hashes = file.hashes
         yamlMetadata.metadata = file.metadata
-        const yamlContent = `---\n${yaml.stringify(yamlMetadata)}---`
+        const yamlContent = `---\n${yaml.stringify(yamlMetadata)}\n---`
         const description = item.description.replace(regexp, yamlContent)
-
         return {
           label: file.type === 'Model' ? upperFirst(item.type) : file.type,
           value: file.id,
@@ -255,20 +255,11 @@ export const useModelSearch = () => {
         modelType: detectedModelType,
         downloadPlatform: 'Direct Link',
       }
-
-      const description = `---
-${Object.entries(yamlMetadata)
-  .map(([key, value]) => `${key}: ${value}`)
-  .join('\n')}
----
-
-# Direct File Download
-
-This is a direct download link to a model file. The file size will be determined during download.
-
-**Source:** ${url}
-**Filename:** ${filename}
-**Type:** ${detectedModelType}`
+      const description = `---\n${Object.entries(yamlMetadata)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(
+          '\n',
+        )}\n---\n# Direct File Download\n\nThis is a direct download link to a model file. The file size will be determined during download.\n\n**Source:** ${url}\n**Filename:** ${filename}\n**Type:** ${detectedModelType}`
 
       return {
         id: `direct-${Date.now()}`,
@@ -318,17 +309,7 @@ This is a direct download link to a model file. The file size will be determined
         pathIndex: 0,
         isFolder: false,
         preview: '',
-        description: `---
-source: direct-link
-original_url: ${url}
-filename: model.bin
-modelType: ${fallbackType}
-downloadPlatform: Direct Link
----
-
-# Direct File Download
-
-This is a direct download link to a model file.`,
+        description: `---\nsource: direct-link\noriginal_url: ${url}\nfilename: model.bin\nmodelType: ${fallbackType}\ndownloadPlatform: Direct Link\n---\n# Direct File Download\n\nThis is a direct download link to a model file.`,
         metadata: {
           source: 'direct-link',
           original_url: url,
@@ -368,7 +349,6 @@ This is a direct download link to a model file.`,
         // Create a mock model for direct file download
         const directModel = createDirectFileModel(url, modelType)
         const resolvedItem = genFileSelectionItem(directModel)
-
         data.value = [
           {
             label: directModel.shortname,
@@ -379,10 +359,8 @@ This is a direct download link to a model file.`,
             },
           },
         ]
-
         current.value = data.value[0]?.value
         currentModel.value = data.value[0]?.item
-
         loading.hide()
         return [directModel]
       } catch (error) {
@@ -414,7 +392,6 @@ This is a direct download link to a model file.`,
         })
         current.value = data.value[0]?.value
         currentModel.value = data.value[0]?.item
-
         if (resData.length === 0) {
           toast.add({
             severity: 'warn',
@@ -423,7 +400,6 @@ This is a direct download link to a model file.`,
             life: 3000,
           })
         }
-
         return resData
       })
       .catch((err) => {
