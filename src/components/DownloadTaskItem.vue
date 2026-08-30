@@ -36,7 +36,7 @@
         <div class="h-2 overflow-hidden rounded bg-gray-200">
           <div
             class="h-full bg-blue-500 transition-[width]"
-            :class="{ 'animate-pulse': unknownTotal && item.status === 'doing' }"
+            :class="{ 'animate-pulse': isLocal && item.status === 'doing' }"
             :style="{ width: `${barWidth}%` }"
           ></div>
         </div>
@@ -62,19 +62,15 @@ const props = defineProps<{ item: DownloadTask }>()
 
 const isLocal = computed(() => props.item.source === 'local')
 
-const unknownTotal = computed(
-  () => isLocal.value && (!props.item.totalSize || props.item.totalSize <= 0),
-)
-
 const barWidth = computed(() => {
-  if (unknownTotal.value) {
-    return props.item.status === 'doing' ? 100 : 0
+  if (isLocal.value) {
+    return props.item.status === 'doing' ? 100 : props.item.progress
   }
   return props.item.progress
 })
 
 const progressText = computed(() => {
-  if (unknownTotal.value) {
+  if (isLocal.value) {
     return bytesToSize(props.item.downloadedSize)
   }
   return props.item.downloadProgress
