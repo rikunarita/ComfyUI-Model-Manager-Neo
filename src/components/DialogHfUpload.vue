@@ -122,6 +122,7 @@
             <div v-show="uploading" class="w-full">
               <ProgressBar
                 :value="uploadProgress"
+                :mode="uploadProgress === 0 ? 'indeterminate' : 'determinate'"
                 :pt:value:style="{ transition: 'width .1s linear' }"
               ></ProgressBar>
             </div>
