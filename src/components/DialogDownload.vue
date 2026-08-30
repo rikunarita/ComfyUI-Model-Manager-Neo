@@ -63,7 +63,7 @@ import { useDownload } from 'hooks/download'
 import { useModels } from 'hooks/model'
 import { useToast } from 'hooks/toast'
 import Button from 'primevue/button'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { data } = useDownload()
