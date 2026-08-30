@@ -24,7 +24,10 @@ function createVueApp(rootContainer: string | HTMLElement) {
       theme: {
         preset: ComfyUIPreset,
         options: {
-          prefix: 'p',
+          // Custom prefix: the extension's CSS variables become --mm-*,
+          // which can never collide with ComfyUI's own --p-* variables.
+          // NOTE: requires primevue >= 4.3.5 (prefix bug #7258 fixed there).
+          prefix: 'mm',
           cssLayer: {
             name: 'primevue',
             order: 'tailwind-base, primevue, tailwind-utilities',
