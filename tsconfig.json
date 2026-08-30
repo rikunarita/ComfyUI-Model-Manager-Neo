@@ -13,6 +13,9 @@
     "emitDecoratorMetadata": true,
     "resolveJsonModule": true,
 
+    /* Suppress deprecation warnings for TS 7.0 */
+    "ignoreDeprecations": "6.0",
+
     /* Linting */
     "strict": false,
     "strictNullChecks": true,
