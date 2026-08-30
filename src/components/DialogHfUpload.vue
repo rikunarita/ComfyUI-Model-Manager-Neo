@@ -207,7 +207,7 @@ const modelList = ref<Model[]>([])
 const fetchModels = async (type: string) => {
   loading.show()
   try {
-    const resData = await request<Model[]>(`/models/${type}`)
+    const resData = (await request(`/models/${type}`)) as Model[]
     modelList.value = (resData ?? []).filter((item) => !item.isFolder)
   } catch (error) {
     toast.add({
