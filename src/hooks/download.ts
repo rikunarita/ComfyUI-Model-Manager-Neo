@@ -32,6 +32,8 @@ export const useDownload = defineStore('download', (store) => {
     const { downloadedSize, totalSize, bps, ...rest } = item
     const task: DownloadTask = {
       ...rest,
+      downloadedSize,
+      totalSize,
       preview: `/model-manager/preview/download/${item.preview}`,
       downloadProgress: `${bytesToSize(downloadedSize)} / ${bytesToSize(totalSize)}`,
       downloadSpeed: `${bytesToSize(bps)}/s`,
