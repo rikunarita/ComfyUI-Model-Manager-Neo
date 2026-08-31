@@ -12,6 +12,7 @@ import './style.css'
 
 const CONTAINER_ID = 'comfyui-model-manager'
 
+// PrimeVueのAuraテーマを拡張し、プライマリーカラーをComfyUIと一致させる
 const ComfyUIPreset = definePreset(Aura, {
   semantic: {
     primary: Aura['primitive'].blue,
@@ -20,21 +21,20 @@ const ComfyUIPreset = definePreset(Aura, {
 
 function createVueApp(rootContainer: string | HTMLElement) {
   const vueApp = createApp(App)
+  // Tooltipディレクティブは、Neo版独自のスコープ化処理を回避して、PrimeVueの標準機能をそのまま利用する
   vueApp.directive('tooltip', Tooltip)
   vueApp
     .use(PrimeVue, {
       theme: {
         preset: ComfyUIPreset,
         options: {
-          // Neoの独自機能を維持（ComfyUI本体の .p-* との衝突回避）
+          // Neo版独自のプレフィックスを維持することで、ComfyUI本体の.p-*クラスとの衝突を回避する
           prefix: 'mm',
-          // カスケードレイヤーを有効化。レイヤードCSSはアンレイヤード（ComfyUI本体）に
-          // 常に勝たないため、Tailwindユーティリティのグローバル漏洩が原理的に起きなくなる。
-          cssLayer: {
-            name: 'mm-primevue',
-            order: 'mm-tailwind-base, mm-primevue, mm-tailwind-utilities',
-          },
-          // ComfyUIの公式ルートクラスに追従。Neo独自の mm-dark/mm-light は不要。
+          // カスケードレイヤーを有効化。これにより、拡張機能のCSSは常に本体のCSSより後に適用されるが、優先度は低い。
+          // PrimeVueのドキュメントでは、styled modeでTailwindと併用する場合、このオプションを有効にする必要があるとされている[[83]]
+          cssLayer: 'auto',
+          // ComfyUI本体のダークモードセレクタに合わせる。これにより、本体のダークモード設定が管理者UIにも自動反映される。
+          // Neo版独自の.mm-darkクラスを付与するsyncThemeClass()関数は不要になった。
           darkModeSelector: '.dark-theme, :root:has(.dark-theme)',
         },
       },
@@ -45,9 +45,10 @@ function createVueApp(rootContainer: string | HTMLElement) {
     .mount(rootContainer)
 }
 
+// ComfyUIエクステンション登録API
 app.registerExtension({
   name: 'Comfy.ModelManager',
-  // 公式 Topbar Menu API への対応
+  // 公式のTopbarメニューAPIに対応
   commands: [
     {
       id: 'Comfy.ModelManager.Open',
