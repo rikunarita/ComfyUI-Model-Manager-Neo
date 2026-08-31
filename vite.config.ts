@@ -3,42 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig, Plugin } from 'vite'
 
-function css(): Plugin {
-  return {
-    name: 'vite-plugin-css-inject',
-    apply: 'build',
-    enforce: 'post',
-    generateBundle(_, bundle) {
-      const cssCode: string[] = []
-
-      for (const key in bundle) {
-        if (Object.prototype.hasOwnProperty.call(bundle, key)) {
-          const chunk = bundle[key]
-          if (chunk.type === 'asset' && chunk.fileName.endsWith('.css')) {
-            cssCode.push(<string>chunk.source)
-            delete bundle[key]
-          }
-        }
-      }
-
-      for (const key in bundle) {
-        if (Object.prototype.hasOwnProperty.call(bundle, key)) {
-          const chunk = bundle[key]
-          // FIXED: Match the new entry file name 'manager.js'
-          if (chunk.type === 'chunk' && chunk.fileName === 'manager.js') {
-            const originalCode = chunk.code
-            chunk.code = '(function(){var s=document.createElement("style");'
-            chunk.code += 's.type="text/css",s.dataset.styleId="model-manager",'
-            chunk.code += 's.appendChild(document.createTextNode('
-            chunk.code += JSON.stringify(cssCode.join(''))
-            chunk.code += ')),document.head.appendChild(s);})();'
-            chunk.code += originalCode
-          }
-        }
-      }
-    },
-  }
-}
+// CSSをJSに埋め込むIIFEプラグインを完全削除。
+// Viteの標準機能で web/manager.css として出力させ、ComfyUIに自動読み込みさせる。
 
 function output(): Plugin {
   return {
@@ -80,7 +46,8 @@ function dev(): Plugin {
         fs.mkdirSync(outDirPath)
 
         const port = server.config.server.port
-        const content = `import "http://localhost:${port}/src/main.ts";`
+        // 開発時はJSとCSSの両方を読み込む
+        const content = `import "http://localhost:${port}/src/main.ts";\nimport "http://localhost:${port}/src/style.css";`
         fs.writeFileSync(path.join(outDirPath, 'manager-dev.js'), content)
       })
     },
@@ -109,20 +76,28 @@ function createWebVersion(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [vue(), css(), output(), dev(), createWebVersion()],
+  // css() プラグインを配列から削除
+  plugins: [vue(), output(), dev(), createWebVersion()],
 
   build: {
     outDir: 'web',
     minify: 'esbuild',
     target: 'es2022',
     sourcemap: false,
+    // CSSを別ファイルに抽出する設定を明示（Viteのデフォルト動作を確保）
+    cssCodeSplit: false,
     rollupOptions: {
       treeshake: true,
       output: {
-        // FIXED: Force entry file name to 'manager.js' so ComfyUI can find it
         entryFileNames: 'manager.js',
         chunkFileNames: '[name]-[hash].js',
-        assetFileNames: '[name]-[hash].[ext]',
+        // CSSファイル名を固定して ComfyUI に認識させる
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+            return 'manager.css'
+          }
+          return '[name]-[hash].[ext]'
+        },
         manualChunks(id) {
           if (id.includes('primevue')) {
             return 'primevue'
@@ -134,8 +109,6 @@ export default defineConfig({
   },
 
   resolve: {
-    // Prevent multiple primevue instances (primefaces/primevue#8126 workaround)
-    dedupe: ['primevue', '@primevue/themes', 'vue'],
     alias: {
       src: resolvePath('src'),
       components: resolvePath('src/components'),
