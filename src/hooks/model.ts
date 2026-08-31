@@ -87,7 +87,7 @@ export const useModels = defineStore('models', (store) => {
     const customBlackList =
       excludeScanTypes
         ?.split(',')
-        .map((type) => type.trim())
+        .map((type: string) => type.trim())
         .filter(Boolean) ?? []
     await forceRefresh.then(() =>
       Promise.allSettled(
@@ -240,7 +240,7 @@ export const useModels = defineStore('models', (store) => {
   }
 
   onMounted(() => {
-    api.getSystemStats().then((res) => {
+    api.getSystemStats().then((res: any) => {
       systemStat.value = res
     })
   })
@@ -422,7 +422,7 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
     const information: Record<string, BaseInfoItem> = {}
     for (const item of fields) {
       const key = item.key
-      const value = model.value[key]
+      const value = (model.value as any)[key]
       const display = item.formatter(value)
 
       if (display) {
@@ -744,7 +744,7 @@ export const useModelNodeAction = () => {
     const firstSelectedNode = Object.values(selectedNodes)[0]
     const offset = 25
     const pos = firstSelectedNode
-      ? [firstSelectedNode.pos[0] + offset, firstSelectedNode.pos[1] + offset]
+      ? [(firstSelectedNode as any).pos[0] + offset, (firstSelectedNode as any).pos[1] + offset]
       : app.canvas.canvas_mouse
     const node = createNode(model, { pos })
     app.graph.add(node)
