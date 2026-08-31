@@ -33,7 +33,7 @@ export const useToast = () => {
         try {
           return callback(...args)
         } catch (error) {
-          showToast(error)
+          showToast(error as Error)
         }
       }
     }
