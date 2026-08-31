@@ -5,7 +5,7 @@ import { onMounted, ref } from 'vue'
 export const request = async (url: string, options?: RequestInit) => {
   return api
     .fetchApi(`/model-manager${url}`, options)
-    .then(async (response) => {
+    .then(async (response: Response) => {
       // 【修正】HTTPエラーステータス（401や403など）のハンドリング
       if (!response.ok) {
         let errorMessage = `HTTP Error: ${response.status} ${response.statusText}`
@@ -24,13 +24,13 @@ export const request = async (url: string, options?: RequestInit) => {
       }
       return response.json()
     })
-    .then((resData) => {
+    .then((resData: any) => {
       if (resData.success) {
         return resData.data
       }
       throw new Error(resData.error || 'Unknown error from server')
     })
-    .catch((err) => {
+    .catch((err: unknown) => {
       // JSONパースエラー（Unexpected end of JSON input など）もここでキャッチしてラップする
       if (err instanceof SyntaxError) {
         throw new Error(`Invalid JSON response from server. ${err.message}`)
