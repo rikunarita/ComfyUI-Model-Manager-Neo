@@ -93,32 +93,34 @@ function createWebVersion(): Plugin {
 
 export default defineConfig({
   plugins: [vue(), cssLoader(), output(), dev(), createWebVersion()],
+
+  // vue-i18n feature flags（tree-shaking 最適化。v11 公式推奨）
+  define: {
+    __VUE_I18N_FULL_INSTALL__: false,
+    __VUE_I18N_LEGACY_API__: false,
+    __INTLIFY_PROD_DEVTOOLS__: false,
+  },
+
   build: {
     outDir: 'web',
-    minify: 'esbuild',
     target: 'es2022',
     sourcemap: false,
     cssCodeSplit: false,
-    rollupOptions: {
+    // Vite 8: rollupOptions → rolldownOptions へ移行
+    // manualChunks は Vite 8 で削除/非推奨のため廃止（単一チャンク化。
+    // ComfyUI WEB_DIRECTORY が全 .js を読む仕様上、別チャンクを持たない方が安全）
+    rolldownOptions: {
       treeshake: true,
       output: {
         entryFileNames: 'manager.js',
         chunkFileNames: '[name]-[hash].js',
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.name && assetInfo.name.endsWith('.css')) {
-            return 'manager.css'
-          }
-          return '[name]-[hash].[ext]'
-        },
-        manualChunks(id) {
-          if (id.includes('primevue')) {
-            return 'primevue'
-          }
-        },
+        assetFileNames: '[name]-[hash].[ext]',
+        keepNames: true,
       },
     },
     chunkSizeWarningLimit: 1024,
   },
+
   resolve: {
     dedupe: ['primevue', '@primevue/themes', '@primeuix/styled', '@primeuix/utils'],
     alias: {
@@ -129,12 +131,6 @@ export default defineConfig({
       types: resolvePath('src/types'),
       utils: resolvePath('src/utils'),
     },
-  },
-  esbuild: {
-    minifyIdentifiers: false,
-    keepNames: true,
-    minifySyntax: true,
-    minifyWhitespace: true,
   },
 })
 
