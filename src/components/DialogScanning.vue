@@ -86,7 +86,7 @@
               :key="item.value"
               :label="item.label"
               :icon="item.icon"
-              @click="() => item.command()"
+              @click="() => item.command(item)"
             ></Button>
           </div>
         </StepPanel>
