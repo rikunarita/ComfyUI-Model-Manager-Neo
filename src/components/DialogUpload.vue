@@ -135,7 +135,7 @@ const typeOptions = computed(() => {
   const customBlackList =
     excludeScanTypes
       ?.split(',')
-      .map((type) => type.trim())
+      .map((type: string) => type.trim())
       .filter(Boolean) ?? []
   return Object.keys(folders.value)
     .filter((folder) => !customBlackList.includes(folder))
@@ -231,7 +231,7 @@ const uploadActions = ref([
           toast.add({
             severity: 'error',
             summary: 'Error',
-            detail: error.message,
+            detail: (error as Error).message,
             life: 5000,
           })
         }
@@ -251,7 +251,7 @@ const fetchSupportedExtensions = async () => {
     toast.add({
       severity: 'error',
       summary: 'Error',
-      detail: error.message,
+      detail: (error as Error).message,
       life: 5000,
     })
   }
