@@ -1,4 +1,4 @@
-import dayjs from 'dayjs'
+import { format } from 'date-fns'
 
 export const bytesToSize = (
   bytes: number | string | undefined | null,
@@ -24,7 +24,13 @@ export const bytesToSize = (
 }
 
 export const formatDate = (date: number | string | Date) => {
-  return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
+  const d = new Date(date)
+  // dayjs は不正日付で 'Invalid Date' 文字列を返したが、
+  // date-fns は例外を投げるため、同様のフォールバックで防ぐ
+  if (Number.isNaN(d.getTime())) {
+    return 'Unknown'
+  }
+  return format(d, 'yyyy-MM-dd HH:mm:ss')
 }
 
 export const previewUrlToFile = async (url: string) => {
