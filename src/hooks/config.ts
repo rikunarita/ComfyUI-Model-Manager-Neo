@@ -206,7 +206,7 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       name: t('setting.cardSize'),
       defaultValue: 'size.extraLarge',
       type: 'hidden',
-      onChange: (val) => {
+      onChange: (val: string) => {
         store.config.cardSizeFlag.value = val
       },
     })
@@ -217,7 +217,7 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       name: t('setting.cardSize'),
       defaultValue: JSON.stringify(defaultCardSize),
       type: 'hidden',
-      onChange(value) {
+      onChange(value: string) {
         store.config.cardSizeMap.value = JSON.parse(value)
       },
     })
@@ -228,7 +228,7 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       name: t('setting.useFlatUI'),
       type: 'boolean',
       defaultValue: false,
-      onChange(value) {
+      onChange(value: boolean) {
         store.dialog.closeAll()
         store.config.flat.value = value
       },
