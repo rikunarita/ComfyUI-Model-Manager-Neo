@@ -112,19 +112,19 @@ export const useDownload = defineStore('download', (store) => {
       refresh()
     })
 
-    api.addEventListener('fetch_download_task_list', (event) => {
+    api.addEventListener('fetch_download_task_list', (event: CustomEvent) => {
       const data = event.detail as DownloadTaskOptions[]
       taskList.value = data.map((item) => {
         return createTaskItem(item)
       })
     })
 
-    api.addEventListener('create_download_task', (event) => {
+    api.addEventListener('create_download_task', (event: CustomEvent) => {
       const item = event.detail as DownloadTaskOptions
       taskList.value.unshift(createTaskItem(item))
     })
 
-    api.addEventListener('update_download_task', (event) => {
+    api.addEventListener('update_download_task', (event: CustomEvent) => {
       const item = event.detail as DownloadTaskOptions
       for (const task of taskList.value) {
         if (task.taskId === item.taskId) {
@@ -142,12 +142,12 @@ export const useDownload = defineStore('download', (store) => {
       }
     })
 
-    api.addEventListener('delete_download_task', (event) => {
+    api.addEventListener('delete_download_task', (event: CustomEvent) => {
       const taskId = event.detail as string
       taskList.value = taskList.value.filter((item) => item.taskId !== taskId)
     })
 
-    api.addEventListener('complete_download_task', (event) => {
+    api.addEventListener('complete_download_task', (event: CustomEvent) => {
       const taskId = event.detail as string
       const task = taskList.value.find((item) => item.taskId === taskId)
       taskList.value = taskList.value.filter((item) => item.taskId !== taskId)
