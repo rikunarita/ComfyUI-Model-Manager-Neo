@@ -120,7 +120,6 @@ export default defineConfig({
     chunkSizeWarningLimit: 1024,
   },
   resolve: {
-    // #8126 回避策: PrimeVue のモジュール解決を dedupe し、CSS 変数注入の重複/欠落を防ぐ
     dedupe: ['primevue', '@primevue/themes', '@primeuix/styled', '@primeuix/utils'],
     alias: {
       src: resolvePath('src'),
