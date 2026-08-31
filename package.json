@@ -32,6 +32,8 @@
     "vue-tsc": "^2.2.12"
   },
   "dependencies": {
+    "@primeuix/styled": "^0.3.0",
+    "@primeuix/utils": "^0.3.0",
     "@primevue/themes": "4.2.5",
     "@vueuse/core": "^11.3.0",
     "dayjs": "^1.11.23",
