@@ -96,11 +96,13 @@ export const useModelExplorer = () => {
     list: ModelTreeNode[],
     feature: { basename: string; pathIndex: number },
   ) {
-    return find(list, { ...feature, isFolder: true }) as ModelFolder | undefined
+    return list.find((item: any) => 
+      Object.entries(feature).every(([k, v]) => item[k] === v) && item.isFolder
+    ) as ModelFolder | undefined
   }
 
   function findFolders(list: ModelTreeNode[]) {
-    return filter(list, { isFolder: true }) as ModelFolder[]
+    return list.filter((item: any) => item.isFolder) as ModelFolder[]
   }
 
   async function openFolder(item: BaseModel) {
