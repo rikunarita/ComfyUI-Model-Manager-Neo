@@ -55,7 +55,7 @@
             :key="`${currentModel.id}-${currentModel.currentFileId}`"
             :model="currentModel"
             :editable="true"
-            @submit="createDownTask"
+            @submit="(data: any) => createDownTask(data)"
           >
             <template #action>
               <div v-if="currentModel.files" class="flex-1">
@@ -268,7 +268,7 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
   const formData = new FormData()
   for (const key in data) {
     if (Object.prototype.hasOwnProperty.call(data, key)) {
-      let value = data[key]
+      let value = (data as any)[key]
 
       // set preview file
       if (key === 'preview') {
