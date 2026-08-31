@@ -51,6 +51,7 @@ export const MODEL_FILE_EXTENSIONS = [
   '.pt',
   '.pth',
   '.bin',
+  '.gguf',
   '.onnx',
   '.tflite',
   '.pb',
@@ -125,6 +126,7 @@ export const getModelTypeFromFilename = (filename: string): string => {
     case 'ckpt':
     case 'pt':
     case 'pth':
+    case 'gguf':
       return 'checkpoints' // Default for these extensions, but user can override
     case 'bin':
       return 'diffusers'
