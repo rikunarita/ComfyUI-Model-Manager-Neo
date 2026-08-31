@@ -4,12 +4,13 @@ import { useMarkdown } from 'hooks/markdown'
 import { request } from 'hooks/request'
 import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
-import { castArray, cloneDeep } from 'lodash'
+import { cloneDeep } from 'es-toolkit'
+import { castArray } from 'es-toolkit/compat'
+import { dragAddModel } from 'utils/modelGrid'
 import { TreeNode } from 'primevue/treenode'
 import { api, app } from 'scripts/comfyAPI'
 import { BaseModel, Model, SelectEvent, WithResolved } from 'types/typings'
 import { bytesToSize, formatDate, previewUrlToFile } from 'utils/common'
-import { ModelGrid } from 'utils/legacy'
 import { genModelKey, resolveModelTypeLoader } from 'utils/model'
 import {
   computed,
@@ -728,7 +729,7 @@ export const useModelNodeAction = () => {
       const strictDragToAdd = false
       const splitter = systemStat.value?.system.os === 'nt' ? '\\' : '/'
 
-      ModelGrid.dragAddModel(
+      dragAddModel(
         event,
         model.type,
         genModelFullName(model, splitter),
