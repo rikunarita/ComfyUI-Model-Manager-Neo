@@ -14,7 +14,7 @@ const CONTAINER_ID = 'comfyui-model-manager'
 
 const ComfyUIPreset = definePreset(Aura, {
   semantic: {
-    primary: Aura['primitive'].blue,
+    primary: (Aura as any)['primitive'].blue,
   },
 })
 
