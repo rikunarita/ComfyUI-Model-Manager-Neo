@@ -13,7 +13,7 @@
     pt:content:class="p-0 flex-1"
     :base-z-index="1000"
     :auto-z-index="isNil(zIndex)"
-    :pt:mask:style="isNil(zIndex) ? {} : { zIndex: 1000 + zIndex }"
+    :pt:mask:style="isNil(zIndex) ? {} : { zIndex: 1000 + (zIndex ?? 0) }"
     v-bind="$attrs"
   >
     <template #header>
