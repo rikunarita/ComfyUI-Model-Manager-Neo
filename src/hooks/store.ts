@@ -7,7 +7,7 @@ export const useStoreProvider = () => {
   // const storeEvent = {}
 
   for (const [key, useHook] of providerHooks) {
-    storeEvent[key] = useHook()
+    ;(storeEvent as any)[key] = useHook()
   }
 
   return storeEvent
@@ -38,7 +38,7 @@ export const defineStore = <T = any>(
   } else {
     providerHooks.set(key, () => {
       const result = useInitial(storeEvent)
-      provide(storeKey, result ?? storeEvent[key])
+      provide(storeKey, result ?? (storeEvent as any)[key])
       return result
     })
   }
