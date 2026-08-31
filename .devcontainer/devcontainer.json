@@ -1,7 +1,7 @@
 {
   "name": "ComfyUI-Model-Manager-Neo",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
-  "onCreateCommand": "corepack enable && corepack prepare pnpm@11.24.0 --activate && pnpm install --frozen-lockfile",
+  "onCreateCommand": "sudo corepack enable && sudo corepack prepare pnpm@11.24.0 --activate && pnpm install --frozen-lockfile",
   "postAttachCommand": "node -v && pnpm -v",
   "customizations": {
     "vscode": {
