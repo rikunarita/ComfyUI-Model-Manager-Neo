@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { useConfig } from 'hooks/config'
-import { clamp, isNil } from 'lodash'
+import { clamp, isNil } from 'es-toolkit'
 import Dialog from 'primevue/dialog'
 import { ContainerPosition, ContainerSize } from 'types/typings'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'

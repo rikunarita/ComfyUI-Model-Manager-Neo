@@ -37,7 +37,7 @@
 <script setup lang="ts">
 import ResponseDialog from 'components/ResponseDialog.vue'
 import { type DialogItem, useDialog } from 'hooks/dialog'
-import { omit } from 'lodash'
+import { omit } from 'es-toolkit'
 import Button from 'primevue/button'
 import { usePrimeVue } from 'primevue/config'
 import Dialog from 'primevue/dialog'

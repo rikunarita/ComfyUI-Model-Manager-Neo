@@ -42,7 +42,7 @@
 
 <script setup lang="ts" generic="T extends { key: string }">
 import { useDraggable, useElementSize, useScroll } from '@vueuse/core'
-import { clamp } from 'lodash'
+import { clamp } from 'es-toolkit'
 import { computed, ref } from 'vue'
 
 interface ScrollAreaProps {

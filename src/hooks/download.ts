@@ -2,7 +2,7 @@ import { useLoading } from 'hooks/loading'
 import { request } from 'hooks/request'
 import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
-import { upperFirst } from 'lodash'
+import { upperFirst } from 'es-toolkit/compat'
 import { api } from 'scripts/comfyAPI'
 import {
   DownloadTask,

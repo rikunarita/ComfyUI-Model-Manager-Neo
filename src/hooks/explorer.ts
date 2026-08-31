@@ -1,5 +1,5 @@
 import { genModelFullName, useModels } from 'hooks/model'
-import { cloneDeep, filter, find } from 'lodash'
+import { cloneDeep } from 'es-toolkit'
 import { BaseModel, Model, SelectOptions } from 'types/typings'
 import { computed, ref, watch } from 'vue'
 

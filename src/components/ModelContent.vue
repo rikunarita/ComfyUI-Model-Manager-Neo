@@ -56,7 +56,7 @@ import {
   useModelMetadataEditor,
   useModelPreviewEditor,
 } from 'hooks/model'
-import { cloneDeep } from 'lodash'
+import { cloneDeep } from 'es-toolkit'
 import Tab from 'primevue/tab'
 import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
