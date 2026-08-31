@@ -21,7 +21,7 @@ const loader = {
 }
 
 export const resolveModelTypeLoader = (type: string) => {
-  return loader[type]
+  return (loader as Record<string, string | undefined>)[type]
 }
 
 export const genModelKey = (model: BaseModel) => {
