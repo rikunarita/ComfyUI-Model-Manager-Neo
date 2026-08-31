@@ -20,8 +20,6 @@ const ComfyUIPreset = definePreset(Aura, {
 
 function createVueApp(rootContainer: string | HTMLElement) {
   const vueApp = createApp(App)
-  // スコープ化ディレクティブを廃止し、標準のTooltipを使用
-  // レイヤー隔離により、body直下にテレポートされても正しくスタイルが適用される
   vueApp.directive('tooltip', Tooltip)
   vueApp
     .use(PrimeVue, {
@@ -29,12 +27,12 @@ function createVueApp(rootContainer: string | HTMLElement) {
         preset: ComfyUIPreset,
         options: {
           prefix: 'mm',
-          // CSSレイヤーを有効化。style.cssで定義したレイヤー順序と整合させる
+          // cssLayer re-enabled: with PrimeVue pinned at 4.2.5, #8126 does not apply.
+          // Layered CSS prevents the extension from leaking styles into ComfyUI.
           cssLayer: {
             name: 'mm-primevue',
             order: 'mm-base, mm-primevue, mm-utilities',
           },
-          // ComfyUI本体のダークモードクラスに追従
           darkModeSelector: '.dark-theme, :root:has(.dark-theme)',
         },
       },
@@ -68,7 +66,6 @@ app.registerExtension({
     container.id = CONTAINER_ID
     document.body.appendChild(container)
 
-    // syncThemeClass, installStyleScoper 等は全て不要になったため削除
     createVueApp(container)
   },
 })
