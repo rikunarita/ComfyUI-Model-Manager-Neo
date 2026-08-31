@@ -137,6 +137,7 @@ const renderedItems = computed(() => {
 </script>
 
 <style scoped>
+@reference "tailwindcss";
 .breadcrumb-container {
   @apply flex overflow-hidden rounded-lg bg-gray-500/30 px-2 py-1;
 }
