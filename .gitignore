@@ -196,4 +196,4 @@ node_modules/
 config/
 
 # private info
-private.key
+private.keypackage-lock.json
