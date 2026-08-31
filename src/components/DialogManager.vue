@@ -165,7 +165,7 @@ const typeOptions = computed(() => {
   const customBlackList =
     excludeScanTypes
       ?.split(',')
-      .map((type) => type.trim())
+      .map((type: string) => type.trim())
       .filter(Boolean) ?? []
   return [
     allType,
