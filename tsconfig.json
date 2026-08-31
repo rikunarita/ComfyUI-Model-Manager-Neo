@@ -12,9 +12,9 @@
     "resolveJsonModule": true,
     "types": ["node"],
 
-    /* Linting */
-    "strict": false,
+    "strict": true,
     "strictNullChecks": true,
+    "noImplicitAny": true,
     "noFallthroughCasesInSwitch": true,
 
     "paths": {
