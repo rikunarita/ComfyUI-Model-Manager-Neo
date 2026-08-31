@@ -1,27 +1,28 @@
-import pluginJs from '@eslint/js'
-import pluginVue from 'eslint-plugin-vue'
+import vue from 'eslint-plugin-vue'
+import tseslint from 'typescript-eslint'
 import globals from 'globals'
-import tsEslint from 'typescript-eslint'
 
-/** @type {import('eslint').Linter.Config[]} */
-export default [
+export default tseslint.config(
   {
-    files: ['src/**/*.{js,mjs,cjs,ts,vue}'],
+    ignores: ['web/**', 'node_modules/**', 'dist/**'],
   },
+  ...tseslint.configs.recommended,
+  ...vue.configs['flat/recommended'],
   {
-    ignores: ['src/scripts/*', 'src/types/shims.d.ts', 'src/utils/legacy.ts'],
-  },
-  { languageOptions: { globals: globals.browser } },
-  pluginJs.configs.recommended,
-  ...tsEslint.configs.recommended,
-  ...pluginVue.configs['flat/essential'],
-  {
-    files: ['src/**/*.vue'],
-    languageOptions: { parserOptions: { parser: tsEslint.parser } },
-  },
-  {
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+      parserOptions: {
+        parser: tseslint.parser,
+      },
+    },
     rules: {
+      'vue/multi-word-component-names': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'vue/no-v-html': 'off',
     },
   },
-]
+)
