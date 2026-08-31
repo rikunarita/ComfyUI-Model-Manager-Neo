@@ -46,7 +46,7 @@
           :style="contentStyle"
         >
           <ModelCard
-            v-for="model in item.row"
+            v-for="model in (item as any).row"
             :key="genModelKey(model)"
             :model="model"
             :style="{
