@@ -244,10 +244,10 @@ const currentDataList = computed(() => {
         created: 'createdAt',
         modified: 'updatedAt',
       }
-      const sortField = sortFieldMap[sortOrder.value]
+      const sortField = (sortFieldMap as Record<string, string>)[sortOrder.value]
 
-      const aValue = a[sortField]
-      const bValue = b[sortField]
+      const aValue = a[sortField as keyof ModelTreeNode]
+      const bValue = b[sortField as keyof ModelTreeNode]
 
       const result =
         typeof aValue === 'string'
