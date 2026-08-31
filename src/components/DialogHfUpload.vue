@@ -186,7 +186,7 @@ const typeOptions = computed(() => {
   const customBlackList =
     excludeScanTypes
       ?.split(',')
-      .map((type) => type.trim())
+      .map((type: string) => type.trim())
       .filter(Boolean) ?? []
   return Object.keys(folders.value)
     .filter((folder) => !customBlackList.includes(folder))
@@ -214,7 +214,7 @@ const fetchModels = async (type: string) => {
     toast.add({
       severity: 'error',
       summary: 'Error',
-      detail: error.message,
+      detail: (error as Error).message,
       life: 5000,
     })
   } finally {
@@ -253,7 +253,7 @@ const fetchWhoami = async () => {
     const result = await request('/hf/whoami')
     whoamiName.value = result?.name
   } catch (error) {
-    whoamiError.value = error.message
+    whoamiError.value = (error as Error).message
   }
 }
 
@@ -290,7 +290,7 @@ const handleUpload = async () => {
     toast.add({
       severity: 'error',
       summary: 'Error',
-      detail: error.message,
+      detail: (error as Error).message,
       life: 15000,
     })
   } finally {
