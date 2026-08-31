@@ -86,7 +86,7 @@
               :key="item.value"
               :label="item.label"
               :icon="item.icon"
-              @click="item.command.call(item)"
+              @click="() => item.command()"
             ></Button>
           </div>
         </StepPanel>
@@ -149,7 +149,7 @@ const typeOptions = computed(() => {
   const customBlackList =
     excludeScanTypes
       ?.split(',')
-      .map((type) => type.trim())
+      .map((type: string) => type.trim())
       .filter(Boolean) ?? []
   return [
     allType,
@@ -215,9 +215,9 @@ const scanProgress = computed(() => {
   return Number(progress.toFixed(4)) * 100
 })
 
-const handleScanModelInformation = async function () {
+const handleScanModelInformation = async (item: { value: string }) => {
   batchScanningStep.value = 0
-  const mode = this.value
+  const mode = item.value
   const path = selectedModelFolder.value
 
   try {
@@ -263,7 +263,7 @@ const refreshTaskContent = async () => {
 onMounted(() => {
   refreshTaskContent()
 
-  api.addEventListener('update_scan_information_task', (event) => {
+  api.addEventListener('update_scan_information_task', (event: CustomEvent) => {
     const content = event.detail
     scanModelsList.value = content.models
   })
