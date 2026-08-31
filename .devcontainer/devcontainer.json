@@ -1,8 +1,8 @@
 {
   "name": "ComfyUI-Model-Manager-Neo",
-  "image": "cgr.dev/chainguard/wolfi-base:latest-dev",
+  "image": "cgr.dev/chainguard/node:latest-dev",
   "remoteUser": "root",
-  "onCreateCommand": "apk add --no-cache nodejs npm git && npm install -g pnpm@11.24.0",
+  "onCreateCommand": "apk add --no-cache git && npm install -g pnpm@11.24.0",
   "postAttachCommand": "node -v && pnpm -v && echo 'Ready. Run: pnpm build'",
   "customizations": {
     "vscode": {
