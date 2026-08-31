@@ -134,8 +134,7 @@ export default defineConfig({
   },
 
   resolve: {
-    // Prevent multiple primevue instances in the bundle, which breaks CSS
-    // variable injection (primefaces/primevue#8126 workaround).
+    // Prevent multiple primevue instances (primefaces/primevue#8126 workaround)
     dedupe: ['primevue', '@primevue/themes', 'vue'],
     alias: {
       src: resolvePath('src'),
