@@ -1,6 +1,2 @@
-@layer primevue, tailwind-utilities;
-
-@layer tailwind-utilities {
-  @tailwind components;
-  @tailwind utilities;
-}
+@tailwind components;
+@tailwind utilities;
