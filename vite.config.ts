@@ -94,7 +94,7 @@ function createWebVersion(): Plugin {
 export default defineConfig({
   plugins: [vue(), cssLoader(), output(), dev(), createWebVersion()],
 
-  // vue-i18n feature flags（tree-shaking 最適化。v11 公式推奨）
+  // vue-i18n tree-shaking optimization (v11 official recommendation)
   define: {
     __VUE_I18N_FULL_INSTALL__: false,
     __VUE_I18N_LEGACY_API__: false,
@@ -106,9 +106,7 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
     cssCodeSplit: false,
-    // Vite 8: rollupOptions → rolldownOptions へ移行
-    // manualChunks は Vite 8 で削除/非推奨のため廃止（単一チャンク化。
-    // ComfyUI WEB_DIRECTORY が全 .js を読む仕様上、別チャンクを持たない方が安全）
+    // Vite 8: rollupOptions → rolldownOptions, manualChunks removed (single chunk)
     rolldownOptions: {
       treeshake: true,
       output: {
