@@ -148,22 +148,21 @@
   --color-orange-950: #431407;
 }
 
-@layer mm-tailwind-utilities {
-  @utility text-shadow {
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-  }
+/* カスタムユーティリティ — @utility はトップレベルに配置（@layer 内にネスト不可） */
+@utility text-shadow {
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
 
-  @utility scrollbar-none {
-    scrollbar-width: none;
-  }
+@utility scrollbar-none {
+  scrollbar-width: none;
+}
 
-  @utility preview-aspect {
-    aspect-ratio: 7/9;
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
+@utility preview-aspect {
+  aspect-ratio: 7/9;
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 }
