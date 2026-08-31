@@ -3,7 +3,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig, Plugin } from 'vite'
 
-// CSS を別ファイル出力しつつ、JS の先頭で fetch + <style> 注入するコードを付加するプラグイン
 function cssLoader(): Plugin {
   return {
     name: 'vite-plugin-css-loader',
@@ -11,24 +10,17 @@ function cssLoader(): Plugin {
     enforce: 'post',
     generateBundle(_, bundle) {
       let cssFileName = ''
-      
-      // 1. CSS アセットのファイル名を特定
       for (const key in bundle) {
         const chunk = bundle[key]
         if (chunk.type === 'asset' && chunk.fileName.endsWith('.css')) {
           cssFileName = chunk.fileName
-          // CSS ファイル自体は削除せず、web/ に残す（fetch 対象にするため）
         }
       }
-
       if (!cssFileName) return
-
-      // 2. manager.js の先頭に CSS ローダーコードを注入
       for (const key in bundle) {
         const chunk = bundle[key]
         if (chunk.type === 'chunk' && chunk.fileName === 'manager.js') {
           const originalCode = chunk.code
-          // fetch で CSS を取得し、<style> タグとして head に追加
           const loaderCode = `
 (async()=>{try{const c=await fetch(new URL("./${cssFileName}",import.meta.url).href);if(c.ok){const s=document.createElement("style");s.textContent=await c.text();document.head.appendChild(s)}}catch(e){console.warn("Model Manager Neo: CSS load failed",e)}})();
 `
@@ -128,6 +120,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 1024,
   },
   resolve: {
+    // #8126 回避策: PrimeVue のモジュール解決を dedupe し、CSS 変数注入の重複/欠落を防ぐ
+    dedupe: ['primevue', '@primevue/themes', '@primeuix/styled', '@primeuix/utils'],
     alias: {
       src: resolvePath('src'),
       components: resolvePath('src/components'),
