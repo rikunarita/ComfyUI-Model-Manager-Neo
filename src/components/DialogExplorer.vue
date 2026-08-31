@@ -244,17 +244,18 @@ const currentDataList = computed(() => {
         created: 'createdAt',
         modified: 'updatedAt',
       }
-      const sortField = (sortFieldMap as Record<string, string>)[sortOrder.value]
+      const sortField = (sortFieldMap as Record<string, keyof ModelTreeNode>)[sortOrder.value]
 
-      const aValue = a[sortField as keyof ModelTreeNode]
-      const bValue = b[sortField as keyof ModelTreeNode]
+      const aValue = a[sortField]
+      const bValue = b[sortField]
 
-      const result =
-        typeof aValue === 'string'
-          ? aValue.localeCompare(bValue)
-          : aValue - bValue
-
-      return result
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return aValue.localeCompare(bValue)
+      }
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return aValue - bValue
+      }
+      return 0
     })
     renderedList = [...folderItems, ...modelItems]
   }
