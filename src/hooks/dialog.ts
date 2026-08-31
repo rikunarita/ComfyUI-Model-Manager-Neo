@@ -24,6 +24,7 @@ export interface DialogItem {
   minHeight?: number
   maxHeight?: number
   modal?: boolean
+  visible?: boolean  // ← 追加
 }
 
 export const useDialog = defineStore('dialog', () => {
