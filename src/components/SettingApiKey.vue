@@ -61,7 +61,7 @@ const saveKeybinding = async () => {
     toast.add({
       severity: 'error',
       summary: 'Error',
-      detail: error.message,
+      detail: (error as Error).message,
       life: 3000,
     })
   }
