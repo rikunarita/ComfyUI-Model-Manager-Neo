@@ -1,18 +1,15 @@
 {
-  "name": "ComfyUI-Model-Manager-Neo",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
-  "onCreateCommand": "sudo corepack enable && sudo corepack prepare pnpm@11.24.0 --activate && pnpm install --frozen-lockfile --config.minimumReleaseAge=0",
-  "postAttachCommand": "node -v && pnpm -v",
-  "customizations": {
-    "vscode": {
-      "settings": {
-        "npm.packageManager": "pnpm"
-      },
-      "extensions": [
-        "Vue.volar",
-        "dbaeumer.vscode-eslint",
-        "esbenp.prettier-vscode"
-      ]
-    }
+  "scripts": {
+    "ensure:deps": "pnpm install --no-frozen-lockfile --config.minimumReleaseAge=0",
+    "ensure:deps:ci": "pnpm install --frozen-lockfile --config.minimumReleaseAge=0",
+    "dev": "pnpm run ensure:deps && vite",
+    "build": "pnpm run ensure:deps && vite build",
+    "build:ci": "pnpm run ensure:deps:ci && vite build",
+    "build:clean": "rm -rf web && pnpm run ensure:deps && vite build",
+    "rebuild": "rm -rf node_modules web && pnpm run ensure:deps && vite build",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "typecheck": "vue-tsc --noEmit",
+    "prepare": "husky"
   }
 }
