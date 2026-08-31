@@ -68,7 +68,7 @@
             }"
           >
             <ModelCard
-              v-for="rowItem in item.row"
+              v-for="rowItem in (item as any).row"
               :model="rowItem"
               :key="genModelKey(rowItem)"
               :style="{
