@@ -32,7 +32,7 @@ function createVueApp(rootContainer: string | HTMLElement) {
           // CSSレイヤーを有効化。style.cssで定義したレイヤー順序と整合させる
           cssLayer: {
             name: 'mm-primevue',
-            order: 'mm-tailwind-base, mm-primevue, mm-tailwind-utilities',
+            order: 'mm-base, mm-primevue, mm-utilities',
           },
           // ComfyUI本体のダークモードクラスに追従
           darkModeSelector: '.dark-theme, :root:has(.dark-theme)',
