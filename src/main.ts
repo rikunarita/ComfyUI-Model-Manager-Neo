@@ -18,141 +18,24 @@ const ComfyUIPreset = definePreset(Aura, {
   },
 })
 
-/**
- * Sync the extension's dark/light mode with ComfyUI's active color palette.
- * ComfyUI_frontend built-in palettes: dark, light, solarized, arc, nord, github.
- * Only "light" has light_theme: true; everything else is treated as dark.
- */
-function syncThemeClass(container: HTMLElement) {
-  const palette =
-    app.ui?.settings.getSettingValue<string>('Comfy.ColorPalette') ?? 'dark'
-  const isDark = palette !== 'light'
-  container.classList.toggle('mm-dark', isDark)
-  container.classList.toggle('mm-light', !isDark)
-}
-
-/**
- * Runtime CSS scoping (core isolation mechanism).
- * Rewrites every stylesheet that belongs to the extension (detected via
- * data-style-id="model-manager" or the --mm- variable prefix) using CSS
- * nesting, so ALL of its rules only apply inside #comfyui-model-manager.
- * This prevents both:
- *  - the extension leaking styles into ComfyUI (.p-button, tailwind classes),
- *  - ComfyUI leaking its theme into the extension.
- */
-let rescoping = false
-
-function scopeCss(css: string): string {
-  const cleaned = css.replace(/@layer[^;{]+[;{]/g, '')
-  const rewritten = cleaned
-    .replaceAll(':root', '&')
-    .replaceAll('.mm-dark', '&.mm-dark')
-  return `#${CONTAINER_ID}{${rewritten}}`
-}
-
-function isExtensionStyle(style: HTMLStyleElement): boolean {
-  return (
-    style.dataset.styleId === 'model-manager' ||
-    (style.textContent?.includes('--mm-') ?? false)
-  )
-}
-
-function scopeStyle(style: HTMLStyleElement) {
-  if (rescoping) return
-  const css = style.textContent ?? ''
-  if (!css || css.startsWith(`#${CONTAINER_ID}{`)) return
-  rescoping = true
-  style.textContent = scopeCss(css)
-  rescoping = false
-}
-
-function scanAndScope() {
-  document.querySelectorAll('style').forEach((s) => {
-    if (isExtensionStyle(s as HTMLStyleElement)) {
-      scopeStyle(s as HTMLStyleElement)
-    }
-  })
-}
-
-function installStyleScoper() {
-  scanAndScope()
-
-  // Watch the WHOLE document (some PrimeVue versions inject into body).
-  const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (mutation.type === 'characterData') {
-        const parent = mutation.target.parentElement
-        if (
-          parent &&
-          parent.tagName === 'STYLE' &&
-          isExtensionStyle(parent as HTMLStyleElement)
-        ) {
-          scopeStyle(parent as HTMLStyleElement)
-        }
-      }
-      mutation.addedNodes.forEach((node) => {
-        if (node instanceof HTMLStyleElement && isExtensionStyle(node)) {
-          scopeStyle(node)
-        }
-      })
-    }
-  })
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-  })
-
-  // Belt-and-suspenders: periodic rescan during startup.
-  let count = 0
-  const timer = setInterval(() => {
-    scanAndScope()
-    if (++count >= 10) clearInterval(timer)
-  }, 300)
-}
-
-/**
- * Wrap PrimeVue's Tooltip directive so tooltip elements are appended inside
- * the extension container and stay within the scoped CSS region.
- */
-function createScopedTooltipDirective(container: HTMLElement) {
-  const wrap = (binding: any) => {
-    const value =
-      typeof binding.value === 'object' && binding.value !== null
-        ? { ...binding.value }
-        : { value: binding.value }
-    if (!value.appendTo) value.appendTo = container
-    return { ...binding, value }
-  }
-  const tooltip = Tooltip as any
-  return {
-    mounted: (el: any, binding: any, vnode: any) =>
-      tooltip.mounted?.(el, wrap(binding), vnode),
-    updated: (el: any, binding: any, vnode: any) =>
-      tooltip.updated?.(el, wrap(binding), vnode),
-    unmounted: (el: any, binding: any, vnode: any) =>
-      tooltip.unmounted?.(el, binding, vnode),
-  }
-}
-
-function createVueApp(
-  rootContainer: string | HTMLElement,
-  container: HTMLElement,
-) {
+function createVueApp(rootContainer: string | HTMLElement) {
   const vueApp = createApp(App)
-  vueApp.directive('tooltip', createScopedTooltipDirective(container))
+  vueApp.directive('tooltip', Tooltip)
   vueApp
     .use(PrimeVue, {
       theme: {
         preset: ComfyUIPreset,
         options: {
-          // Custom prefix: doubles as the marker for the style scoper and
-          // guarantees no --p-* collision with ComfyUI.
+          // Neoの独自機能を維持（ComfyUI本体の .p-* との衝突回避）
           prefix: 'mm',
-          // NOTE: cssLayer is intentionally disabled. With PrimeVue >= 4.3,
-          // enabling it drops dark-mode/component CSS variables (#8126).
-          // Isolation is handled by the runtime scoper instead.
-          darkModeSelector: '.mm-dark',
+          // カスケードレイヤーを有効化。レイヤードCSSはアンレイヤード（ComfyUI本体）に
+          // 常に勝たないため、Tailwindユーティリティのグローバル漏洩が原理的に起きなくなる。
+          cssLayer: {
+            name: 'mm-primevue',
+            order: 'mm-tailwind-base, mm-primevue, mm-tailwind-utilities',
+          },
+          // ComfyUIの公式ルートクラスに追従。Neo独自の mm-dark/mm-light は不要。
+          darkModeSelector: '.dark-theme, :root:has(.dark-theme)',
         },
       },
     })
@@ -186,18 +69,6 @@ app.registerExtension({
     container.id = CONTAINER_ID
     document.body.appendChild(container)
 
-    syncThemeClass(container)
-
-    try {
-      app.ui?.settings.addEventListener('Comfy.ColorPalette.changed', () => {
-        syncThemeClass(container)
-      })
-    } catch (e) {
-      console.warn('Model Manager Neo: failed to listen palette changes:', e)
-    }
-
-    installStyleScoper()
-
-    createVueApp(container, container)
+    createVueApp(container)
   },
 })
