@@ -3,14 +3,20 @@
   "private": true,
   "version": "2.2.0",
   "type": "module",
+  "packageManager": "pnpm@11.24.0",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "pnpm install --frozen-lockfile && vite",
+    "build": "pnpm install --frozen-lockfile && vite build",
+    "build:clean": "rm -rf web && pnpm install --frozen-lockfile && vite build",
+    "rebuild": "rm -rf node_modules web && pnpm install --frozen-lockfile && vite build",
     "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "typecheck": "vue-tsc --noEmit",
     "prepare": "husky"
   },
   "devDependencies": {
+    "@comfyorg/comfyui-frontend-types": "^1.53.4",
+    "@comfyorg/litegraph": "^0.16.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.20.1",
@@ -26,6 +32,7 @@
     "prettier-plugin-organize-imports": "^4.3.0",
     "prettier-plugin-tailwindcss": "^0.6.14",
     "tailwindcss": "^4.3.3",
+    "type-fest": "^4.41.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.68.0",
     "vite": "^8.2.2",
@@ -42,6 +49,7 @@
     "markdown-it": "^15.0.1",
     "markdown-it-metadata-block": "^1.0.6",
     "primevue": "4.2.5",
+    "valibot": "^1.2.0",
     "vue": "^3.5.42",
     "vue-i18n": "^11.4.10",
     "yaml": "^2.9.0"
