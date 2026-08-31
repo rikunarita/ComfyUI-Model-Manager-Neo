@@ -1,2 +1,6 @@
-@tailwind components;
-@tailwind utilities;
+@layer mm-tailwind-base, mm-primevue, mm-tailwind-utilities;
+
+@layer mm-tailwind-utilities {
+  @tailwind components;
+  @tailwind utilities;
+}
