@@ -20,12 +20,8 @@ const ComfyUIPreset = definePreset(Aura, {
 
 /**
  * Sync the extension's dark/light mode with ComfyUI's active color palette.
- *
- * ComfyUI_frontend built-in palettes (coreColorPalettes.ts):
- *   dark, light, solarized, arc, nord, github
- * Only "light" has light_theme: true; all others are dark.
- * This approach does NOT depend on ComfyUI's DOM class names or PrimeVue's
- * darkModeSelector CSS matching, making it immune to future version changes.
+ * ComfyUI_frontend built-in palettes: dark, light, solarized, arc, nord, github.
+ * Only "light" has light_theme: true; everything else is treated as dark.
  */
 function syncThemeClass(container: HTMLElement) {
   const palette =
@@ -36,19 +32,13 @@ function syncThemeClass(container: HTMLElement) {
 }
 
 /**
- * Runtime CSS scoping (the core isolation mechanism).
- *
- * Both the extension's bundled stylesheet (injected by vite-plugin-css-inject)
- * and PrimeVue's runtime-injected theme stylesheets contain GLOBAL selectors
- * (.p-button, .flex, :root { --mm-* }, ...) that would otherwise leak into
- * ComfyUI's own DOM (which uses the same class names).
- *
- * Every stylesheet that belongs to the extension is therefore rewritten using
- * CSS nesting so that ALL of its rules only apply inside #comfyui-model-manager.
- * This makes the extension fully isolated regardless of PrimeVue or
- * ComfyUI_frontend versions, and fixes both:
- *  - the extension rendering in light mode (variables lost/overridden), and
- *  - ComfyUI's own UI being polluted by the extension's styles.
+ * Runtime CSS scoping (core isolation mechanism).
+ * Rewrites every stylesheet that belongs to the extension (detected via
+ * data-style-id="model-manager" or the --mm- variable prefix) using CSS
+ * nesting, so ALL of its rules only apply inside #comfyui-model-manager.
+ * This prevents both:
+ *  - the extension leaking styles into ComfyUI (.p-button, tailwind classes),
+ *  - ComfyUI leaking its theme into the extension.
  */
 let rescoping = false
 
@@ -76,13 +66,18 @@ function scopeStyle(style: HTMLStyleElement) {
   rescoping = false
 }
 
-function installStyleScoper() {
-  document.head.querySelectorAll('style').forEach((s) => {
+function scanAndScope() {
+  document.querySelectorAll('style').forEach((s) => {
     if (isExtensionStyle(s as HTMLStyleElement)) {
       scopeStyle(s as HTMLStyleElement)
     }
   })
+}
 
+function installStyleScoper() {
+  scanAndScope()
+
+  // Watch the WHOLE document (some PrimeVue versions inject into body).
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       if (mutation.type === 'characterData') {
@@ -102,18 +97,23 @@ function installStyleScoper() {
       })
     }
   })
-
-  observer.observe(document.head, {
+  observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
     characterData: true,
   })
+
+  // Belt-and-suspenders: periodic rescan during startup.
+  let count = 0
+  const timer = setInterval(() => {
+    scanAndScope()
+    if (++count >= 10) clearInterval(timer)
+  }, 300)
 }
 
 /**
- * Wrap PrimeVue's Tooltip directive so that tooltip elements are appended
- * inside the extension container (instead of document.body). This keeps them
- * inside the scoped CSS region so they remain styled.
+ * Wrap PrimeVue's Tooltip directive so tooltip elements are appended inside
+ * the extension container and stay within the scoped CSS region.
  */
 function createScopedTooltipDirective(container: HTMLElement) {
   const wrap = (binding: any) => {
@@ -135,7 +135,10 @@ function createScopedTooltipDirective(container: HTMLElement) {
   }
 }
 
-function createVueApp(rootContainer: string | HTMLElement, container: HTMLElement) {
+function createVueApp(
+  rootContainer: string | HTMLElement,
+  container: HTMLElement,
+) {
   const vueApp = createApp(App)
   vueApp.directive('tooltip', createScopedTooltipDirective(container))
   vueApp
@@ -143,14 +146,12 @@ function createVueApp(rootContainer: string | HTMLElement, container: HTMLElemen
       theme: {
         preset: ComfyUIPreset,
         options: {
-          // Custom prefix: extension variables become --mm-*, never colliding
-          // with ComfyUI's own --p-* variables. Also used by the style scoper
-          // to detect PrimeVue-injected stylesheets that belong to us.
+          // Custom prefix: doubles as the marker for the style scoper and
+          // guarantees no --p-* collision with ComfyUI.
           prefix: 'mm',
-          // NOTE: cssLayer is intentionally NOT used. Enabling it triggers a
-          // known PrimeVue bug where CSS variables of dynamically rendered
-          // components are never injected (primefaces/primevue#8126, still
-          // open). Isolation is instead achieved by the runtime style scoper.
+          // NOTE: cssLayer is intentionally disabled. With PrimeVue >= 4.3,
+          // enabling it drops dark-mode/component CSS variables (#8126).
+          // Isolation is handled by the runtime scoper instead.
           darkModeSelector: '.mm-dark',
         },
       },
@@ -185,10 +186,8 @@ app.registerExtension({
     container.id = CONTAINER_ID
     document.body.appendChild(container)
 
-    // Apply the correct theme class before mounting Vue
     syncThemeClass(container)
 
-    // Re-sync whenever the user changes the palette in ComfyUI settings
     try {
       app.ui?.settings.addEventListener('Comfy.ColorPalette.changed', () => {
         syncThemeClass(container)
@@ -197,7 +196,6 @@ app.registerExtension({
       console.warn('Model Manager Neo: failed to listen palette changes:', e)
     }
 
-    // Install the runtime CSS scoper BEFORE PrimeVue injects its styles
     installStyleScoper()
 
     createVueApp(container, container)
