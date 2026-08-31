@@ -32,14 +32,14 @@
     "vue-tsc": "^2.2.12"
   },
   "dependencies": {
-    "@primevue/themes": "^4.5.4",
+    "@primevue/themes": "4.2.5",
     "@vueuse/core": "^11.3.0",
     "dayjs": "^1.11.23",
     "js-yaml": "^4.3.2",
     "lodash": "^4.18.1",
     "markdown-it": "^14.3.1",
     "markdown-it-metadata-block": "^1.0.6",
-    "primevue": "^4.5.5",
+    "primevue": "4.2.5",
     "vue": "^3.5.42",
     "vue-i18n": "^9.14.5",
     "yaml": "^2.9.0"
