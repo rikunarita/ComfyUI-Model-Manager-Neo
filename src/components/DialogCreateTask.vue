@@ -23,13 +23,24 @@
         <span>Direct file download detected</span>
       </div>
 
-      <!-- Model Type/Folder Selection for direct downloads -->
+      <!-- Model Type/Folder Selection for direct downloads (REQUIRED) -->
       <div class="flex items-center gap-2">
         <label class="text-sm font-medium">{{ $t('modelType') }}:</label>
         <ResponseSelect
           v-model="selectedModelType"
           :items="modelTypeOptions"
           :type="'drop'"
+          class="flex-1"
+          required
+        />
+      </div>
+
+      <!-- Custom Subfolder Input (NEW) -->
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-medium">Subfolder (optional):</label>
+        <ResponseInput
+          v-model="customSubFolder"
+          placeholder="e.g., subfolder/path"
           class="flex-1"
         />
       </div>
@@ -70,6 +81,7 @@
                 icon="pi pi-download"
                 :label="$t('download')"
                 type="submit"
+                :disabled="isDirectFile && !selectedModelType"
               ></Button>
             </template>
           </ModelContent>
@@ -102,7 +114,6 @@ import Button from 'primevue/button'
 import { VersionModel, WithResolved } from 'types/typings'
 import {
   getFilenameFromUrl,
-  getModelTypeFromFilename,
   isDirectFileUrl,
   previewUrlToFile,
 } from 'utils/common'
@@ -115,8 +126,11 @@ const dialog = useDialog()
 
 const modelUrl = ref<string>()
 
-// Model type selection for direct downloads
-const selectedModelType = ref<string>('checkpoints')
+// Model type selection for direct downloads (REQUIRED, no default)
+const selectedModelType = ref<string>()
+
+// Custom subfolder input (NEW)
+const customSubFolder = ref<string>('')
 
 const modelTypeOptions = computed(() => [
   {
@@ -246,18 +260,18 @@ const searchModelsByUrl = async () => {
   }
 }
 
-// Watch for direct file URL changes and set intelligent default
+// Watch for direct file URL changes (NO auto-detection anymore)
 watch(modelUrl, (newUrl) => {
   if (newUrl && isDirectFileUrl(newUrl)) {
-    const filename = getFilenameFromUrl(newUrl)
-    const suggestedType = getModelTypeFromFilename(filename)
-    selectedModelType.value = suggestedType
+    // Reset to empty — user must manually select
+    selectedModelType.value = undefined
+    customSubFolder.value = ''
   }
 })
 
 // Watch for model type changes on direct files and refresh the model
 watch(selectedModelType, async () => {
-  if (isDirectFile.value && modelUrl.value) {
+  if (isDirectFile.value && modelUrl.value && selectedModelType.value) {
     await search(modelUrl.value, selectedModelType.value)
   }
 })
@@ -304,6 +318,11 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
 
   const fullname = genModelFullName(data as VersionModel)
   formData.append('fullname', fullname)
+
+  // Add custom subfolder if provided (NEW)
+  if (customSubFolder.value) {
+    formData.append('subFolder', customSubFolder.value)
+  }
 
   await request('/model', {
     method: 'POST',
