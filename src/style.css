@@ -9,7 +9,8 @@
 @layer mm-base, mm-components, mm-utilities;
 
 @import "tailwindcss/utilities" layer(mm-utilities);
-@import "tw-animate-css" layer(mm-utilities);
+/* tw-animate-css uses @utility internally and cannot be nested in @layer */
+@import "tw-animate-css";
 
 /* Dark mode follows ComfyUI's palette class on <html>. */
 @custom-variant dark (&:where(.dark-theme, .dark-theme *));
