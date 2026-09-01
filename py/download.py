@@ -119,6 +119,7 @@ class TaskContent:
     hashes: Optional[dict[str, str]] = None
     revision: Optional[str] = None
     source: str = "remote"
+    subFolder: Optional[str] = None  # ← 追加
 
     def __init__(self, **kwargs):
         self.type = kwargs.get("type", None)
@@ -131,6 +132,7 @@ class TaskContent:
         self.hashes = kwargs.get("hashes", None)
         self.revision = kwargs.get("revision", None)
         self.source = kwargs.get("source", "remote")
+        self.subFolder = kwargs.get("subFolder", None)  # ← 追加
 
     def to_dict(self):
         return {
@@ -144,6 +146,7 @@ class TaskContent:
             "hashes": self.hashes,
             "revision": self.revision,
             "source": self.source,
+            "subFolder": self.subFolder,  # ← 追加
         }
 
 class ModelDownload:
@@ -292,6 +295,11 @@ class ModelDownload:
         model_type = task_data.get("type", None)
         path_index = int(task_data.get("pathIndex", None))
         fullname = task_data.get("fullname", None)
+        sub_folder = task_data.get("subFolder", None)  # ← 追加
+
+        # サブフォルダを fullname に結合
+        if sub_folder:
+            fullname = utils.join_path(sub_folder, fullname)  # ← 追加
 
         model_path = utils.get_full_path(model_type, path_index, fullname)
         if os.path.exists(model_path):
@@ -628,6 +636,11 @@ class ModelDownload:
                     if self.total:
                         task_status.totalSize = float(self.total)
                     task_status.progress = (self.n / self.total * 100) if self.total > 0 else 0
+                    
+                    # bps を tqdm の組み込みレートから取得（出処から直接）
+                    rate = self.format_dict.get('rate') if base_tqdm else None
+                    task_status.bps = float(rate) if rate else 0.0  # ← 修正
+                    
                     asyncio.run_coroutine_threadsafe(
                         progress_callback(task_status),
                         loop
