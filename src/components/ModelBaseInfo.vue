@@ -131,9 +131,17 @@ const {
   modelFolders,
 } = useModelBaseInfo()
 
+// 既存の watch(type) の後に追加
 watch(type, () => {
   subFolder.value = ''
 })
+
+// ↓ 追加
+watch(editable, (newVal) => {
+  if (newVal) {
+    type.value = ''  // 編集モード時は常に空から開始（自動検出値を無視）
+  }
+}, { immediate: true })
 
 const typeOptions = computed(() => {
   return Object.keys(modelFolders.value).map((curr) => {
