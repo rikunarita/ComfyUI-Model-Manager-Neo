@@ -1,7 +1,8 @@
 <template>
   <div class="flex flex-col gap-4">
     <div v-if="editable" class="flex flex-col gap-4">
-      <ResponseSelect v-if="!baseInfo.type" v-model="type" :items="typeOptions">
+      <!-- v-if="!baseInfo.type" を削除 → 編集モード時は常に表示 -->
+      <ResponseSelect v-model="type" :items="typeOptions">
         <template #prefix>
           <span>{{ $t('modelType') }}</span>
         </template>
