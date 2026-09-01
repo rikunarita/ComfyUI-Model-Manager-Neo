@@ -14,7 +14,6 @@ import {
 import {
   bytesToSize,
   getFilenameFromUrl,
-  getModelTypeFromFilename,
   isDirectFileUrl,
 } from 'utils/common'
 import { onBeforeMount, onMounted, ref, watch } from 'vue'
@@ -247,7 +246,12 @@ export const useModelSearch = () => {
       const parts = filename.split('.')
       const extension = `.${parts.pop()}`
       const basename = parts.join('.') || 'model'
-      const detectedModelType = modelType || getModelTypeFromFilename(filename)
+      
+      // 自動検出廃止・タイプ必須化
+      if (!modelType) {
+        throw new Error('Model type is required for direct file download')
+      }
+      const detectedModelType = modelType
 
       // Create a proper YAML metadata structure for direct files
       const yamlMetadata = {
@@ -299,8 +303,11 @@ export const useModelSearch = () => {
       }
     } catch (error) {
       console.error('Error creating direct file model:', error)
-      // Return a fallback model
-      const fallbackType = modelType || 'checkpoints'
+      // タイプ必須・デフォルトなし
+      if (!modelType) {
+        throw new Error('Model type is required')
+      }
+      const fallbackType = modelType
       return {
         id: `direct-${Date.now()}`,
         basename: 'model',
