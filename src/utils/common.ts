@@ -110,38 +110,4 @@ export const getFilenameFromUrl = (url: string): string => {
   }
 }
 
-/**
- * Determines model type based on file extension (fallback only)
- * Note: This is now primarily used as a fallback when no manual selection is made
- */
-export const getModelTypeFromFilename = (filename: string): string => {
-  if (!filename || typeof filename !== 'string') {
-    return 'checkpoints'
-  }
-
-  const extension = filename.toLowerCase().split('.').pop()
-
-  switch (extension) {
-    case 'safetensors':
-    case 'ckpt':
-    case 'pt':
-    case 'pth':
-    case 'gguf':
-      return 'checkpoints' // Default for these extensions, but user can override
-    case 'bin':
-      return 'diffusers'
-    case 'onnx':
-      return 'onnx'
-    case 'tflite':
-      return 'tflite'
-    case 'pb':
-      return 'tensorflow'
-    case 'h5':
-      return 'keras'
-    case 'pkl':
-    case 'pickle':
-      return 'embeddings'
-    default:
-      return 'checkpoints'
-  }
-}
+// getModelTypeFromFilename は削除済み（自動検出廃止・手動選択必須化）
