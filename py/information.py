@@ -117,7 +117,7 @@ class CivitaiModelSearcher(ModelSearcher):
                     "extension": extension,
                     "preview": metadata_info.get("preview"),
                     "sizeBytes": file.get("sizeKB", 0) * 1024,
-                    "type": self._resolve_model_type(res_data.get("type", "")),
+                    "type": "",
                     "pathIndex": 0,
                     "subFolder": "",
                     "description": "\n".join(description_parts),
@@ -153,19 +153,6 @@ class CivitaiModelSearcher(ModelSearcher):
                 return model
 
         return models[0]
-
-    def _resolve_model_type(self, model_type: str):
-        map_legacy = {
-            "TextualInversion": "embeddings",
-            "LoCon": "loras",
-            "DoRA": "loras",
-            "Controlnet": "controlnet",
-            "Upscaler": "upscale_models",
-            "VAE": "vae",
-            "unknown": "",
-        }
-        return map_legacy.get(model_type, f"{model_type.lower()}s")
-
 
 class HuggingfaceModelSearcher(ModelSearcher):
     def search_by_url(self, url: str):
