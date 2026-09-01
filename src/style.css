@@ -1,16 +1,15 @@
 /*
- * IMPORTANT: ComfyUI frontend (@comfyorg/design-system) already declares
- *   @layer theme, base, primevue, components, utilities;
- * We MUST use unique layer names to avoid merging into the host's layers
- * (which would let our rules override ComfyUI's same-named layers).
+ * ComfyUI-Model-Manager-Neo — design tokens & utilities (Tailwind v4)
+ *
+ * Layer names are unique (mm-*) so we never merge into the host's layers.
+ * Measured host layer order: mm-*, then theme, base, primevue, components —
+ * our layers have LOWER priority than the host's, so we can never override
+ * host component styles. All our selectors target our own elements only.
  */
 @layer mm-base, mm-components, mm-utilities;
 
-/* Do NOT import tailwindcss/theme — the host already provides theme vars on :root. */
-
-/* Preflight stays disabled (parity with legacy v3 config). */
-
 @import "tailwindcss/utilities" layer(mm-utilities);
+@import "tw-animate-css" layer(mm-utilities);
 
 /* Dark mode follows ComfyUI's palette class on <html>. */
 @custom-variant dark (&:where(.dark-theme, .dark-theme *));
@@ -22,7 +21,121 @@
   --breakpoint-5xl: 3200px;
 }
 
-/* Custom helper classes live in our own layer (not the shared utilities layer). */
+/* ---------------------------------------------------------------------------
+ * Semantic design tokens — scoped to our container ONLY (never :root).
+ * Layer 1 borrows the host's semantic variables (auto palette sync);
+ * fallbacks (--mm-fb-*) kick in only if a host variable is missing.
+ * ------------------------------------------------------------------------- */
+#comfyui-model-manager {
+  /* Light-mode fallbacks (overridden in dark below) */
+  --mm-fb-bg: oklch(0.985 0.002 260);
+  --mm-fb-surface: oklch(1 0 0);
+  --mm-fb-fg: oklch(0.2 0.01 260);
+  --mm-fb-muted-fg: oklch(0.45 0.01 260);
+  --mm-fb-border: oklch(0.2 0.01 260 / 0.12);
+  --mm-fb-border-strong: oklch(0.55 0.01 260);
+  --mm-fb-accent: oklch(0.55 0.16 235);
+  --mm-fb-accent-fg: oklch(0.98 0 0);
+
+  /* Layer 1: host borrow with fallback (Step 0 measured names) */
+  --mm-bg: var(--comfy-menu-bg, var(--mm-fb-bg));
+  --mm-surface: var(--comfy-input-bg, var(--mm-fb-surface));
+  --mm-surface-hover: var(
+    --interface-menu-component-surface-hovered,
+    color-mix(in oklab, var(--mm-fg) 6%, var(--mm-surface))
+  );
+  --mm-surface-selected: var(
+    --interface-menu-component-surface-selected,
+    color-mix(in oklab, var(--mm-accent) 18%, var(--mm-surface))
+  );
+  --mm-fg: var(--fg-color, var(--mm-fb-fg));
+  --mm-muted-fg: var(--color-muted-foreground, var(--mm-fb-muted-fg));
+  --mm-border: var(--border-subtle, var(--mm-fb-border));
+  --mm-border-strong: var(--border-color, var(--mm-fb-border-strong));
+  --mm-accent: var(--color-accent-primary, var(--mm-fb-accent));
+  --mm-accent-fg: var(--primary-fg, var(--mm-fb-accent-fg));
+  --mm-danger: var(--color-error, oklch(0.65 0.2 25));
+  --mm-success: var(--color-green-500, oklch(0.6 0.17 155));
+  --mm-ring: var(
+    --p-highlight-color,
+    color-mix(in oklab, var(--mm-accent) 60%, transparent)
+  );
+
+  /* Elevation — theme-following shadows */
+  --mm-shadow-1: 0 2px 8px -2px
+    color-mix(in oklab, var(--mm-fg) 12%, transparent);
+  --mm-shadow-2: 0 8px 24px -8px
+    color-mix(in oklab, var(--mm-fg) 18%, transparent);
+  --mm-shadow-3: 0 24px 48px -12px
+    color-mix(in oklab, var(--mm-fg) 28%, transparent);
+
+  /* Shape */
+  --mm-radius-ctl: 10px;
+  --mm-radius-card: 14px;
+  --mm-radius-dlg: 18px;
+
+  /* Motion */
+  --mm-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Dark-mode fallbacks (host vars, when present, always win) */
+.dark-theme #comfyui-model-manager {
+  --mm-fb-bg: oklch(0.16 0.01 260);
+  --mm-fb-surface: oklch(0.19 0.01 260);
+  --mm-fb-fg: oklch(0.98 0 0);
+  --mm-fb-muted-fg: oklch(0.7 0.01 260);
+  --mm-fb-border: oklch(1 0 0 / 0.08);
+  --mm-fb-border-strong: oklch(0.55 0.01 260);
+  --mm-fb-accent: oklch(0.74 0.12 225);
+  --mm-fb-accent-fg: oklch(0.18 0.02 230);
+}
+
+/* ---------------------------------------------------------------------------
+ * Tailwind theme mapping — `inline` so utilities compile to var(--mm-*)
+ * directly and NO theme variables are emitted to :root (zero host pollution).
+ * ------------------------------------------------------------------------- */
+@theme inline {
+  --color-mm-bg: var(--mm-bg);
+  --color-mm-surface: var(--mm-surface);
+  --color-mm-surface-hover: var(--mm-surface-hover);
+  --color-mm-surface-selected: var(--mm-surface-selected);
+  --color-mm-fg: var(--mm-fg);
+  --color-mm-muted-fg: var(--mm-muted-fg);
+  --color-mm-border: var(--mm-border);
+  --color-mm-border-strong: var(--mm-border-strong);
+  --color-mm-accent: var(--mm-accent);
+  --color-mm-accent-fg: var(--mm-accent-fg);
+  --color-mm-danger: var(--mm-danger);
+  --color-mm-success: var(--mm-success);
+  --color-mm-ring: var(--mm-ring);
+
+  --radius-mm-ctl: var(--mm-radius-ctl);
+  --radius-mm-card: var(--mm-radius-card);
+  --radius-mm-dlg: var(--mm-radius-dlg);
+
+  --shadow-mm-1: var(--mm-shadow-1);
+  --shadow-mm-2: var(--mm-shadow-2);
+  --shadow-mm-3: var(--mm-shadow-3);
+
+  --ease-mm: var(--mm-ease);
+}
+
+/* Base — scoped element normalization (our container only) */
+@layer mm-base {
+  #comfyui-model-manager {
+    color: var(--mm-fg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #comfyui-model-manager *,
+  #comfyui-model-manager *::before,
+  #comfyui-model-manager *::after {
+    border-color: var(--mm-border);
+  }
+}
+
+/* Custom helper classes live in our own layer. */
 @layer mm-components {
   .text-shadow {
     text-shadow: 2px 2px 4px rgb(0 0 0 / 0.5);
@@ -41,5 +154,26 @@
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+
+  /* Micro-interaction primitive (subtle, 120-160ms) */
+  .mm-transition {
+    transition:
+      color 120ms var(--mm-ease),
+      background-color 120ms var(--mm-ease),
+      border-color 120ms var(--mm-ease),
+      transform 160ms var(--mm-ease),
+      box-shadow 160ms var(--mm-ease),
+      opacity 160ms var(--mm-ease);
+  }
+}
+
+/* Accessibility: kill motion for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  #comfyui-model-manager *,
+  #comfyui-model-manager *::before,
+  #comfyui-model-manager *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }
