@@ -1,8 +1,10 @@
 <template>
-  <GlobalToast></GlobalToast>
-  <GlobalConfirm></GlobalConfirm>
-  <GlobalLoading></GlobalLoading>
-  <GlobalDialogStack></GlobalDialogStack>
+  <ConfigProvider teleport-to="#comfyui-model-manager">
+    <GlobalToast></GlobalToast>
+    <GlobalConfirm></GlobalConfirm>
+    <GlobalLoading></GlobalLoading>
+    <GlobalDialogStack></GlobalDialogStack>
+  </ConfigProvider>
 </template>
 
 <script setup lang="ts">
@@ -17,6 +19,7 @@ import GlobalToast from 'components/GlobalToast.vue'
 import { useStoreProvider } from 'hooks/store'
 import { useToast } from 'hooks/toast'
 import GlobalConfirm from 'primevue/confirmdialog'
+import { ConfigProvider } from 'reka-ui'
 import { $el, app, ComfyButton } from 'scripts/comfyAPI'
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
