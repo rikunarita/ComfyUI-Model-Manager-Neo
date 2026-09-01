@@ -246,33 +246,32 @@ export const useModelSearch = () => {
       const parts = filename.split('.')
       const extension = `.${parts.pop()}`
       const basename = parts.join('.') || 'model'
-      
+
       // 自動検出廃止・タイプ必須化
       if (!modelType) {
         throw new Error('Model type is required for direct file download')
       }
-      const detectedModelType = modelType
 
       // Create a proper YAML metadata structure for direct files
       const yamlMetadata = {
         source: 'direct-link',
         original_url: url,
         filename: filename,
-        modelType: detectedModelType,
+        modelType: modelType,
         downloadPlatform: 'Direct Link',
       }
       const description = `---\n${Object.entries(yamlMetadata)
         .map(([key, value]) => `${key}: ${value}`)
         .join(
           '\n',
-        )}\n---\n# Direct File Download\n\nThis is a direct download link to a model file. The file size will be determined during download.\n\n**Source:** ${url}\n**Filename:** ${filename}\n**Type:** ${detectedModelType}`
+        )}\n---\n# Direct File Download\n\nThis is a direct download link to a model file. The file size will be determined during download.\n\n**Source:** ${url}\n**Filename:** ${filename}\n**Type:** ${modelType}`
 
       return {
         id: `direct-${Date.now()}`,
         basename,
         extension,
         sizeBytes: 0, // Will be determined during download
-        type: detectedModelType,
+        type: modelType,
         subFolder: '',
         pathIndex: 0,
         isFolder: false,
@@ -307,18 +306,17 @@ export const useModelSearch = () => {
       if (!modelType) {
         throw new Error('Model type is required')
       }
-      const fallbackType = modelType
       return {
         id: `direct-${Date.now()}`,
         basename: 'model',
         extension: '.bin',
         sizeBytes: 0,
-        type: fallbackType,
+        type: modelType,
         subFolder: '',
         pathIndex: 0,
         isFolder: false,
         preview: '',
-        description: `---\nsource: direct-link\noriginal_url: ${url}\nfilename: model.bin\nmodelType: ${fallbackType}\ndownloadPlatform: Direct Link\n---\n# Direct File Download\n\nThis is a direct download link to a model file.`,
+        description: `---\nsource: direct-link\noriginal_url: ${url}\nfilename: model.bin\nmodelType: ${modelType}\ndownloadPlatform: Direct Link\n---\n# Direct File Download\n\nThis is a direct download link to a model file.`,
         metadata: {
           source: 'direct-link',
           original_url: url,
