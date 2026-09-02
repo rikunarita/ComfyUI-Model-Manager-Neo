@@ -1,44 +1,43 @@
 <template>
   <div
     :class="[
-      'p-component p-inputtext flex items-center gap-2 border',
-      'focus-within:border-[--p-inputtext-focus-border-color]',
+      'flex items-center gap-2 rounded-mm-ctl border px-3 py-2 mm-transition',
+      'border-mm-border-strong bg-mm-surface shadow-mm-1',
+      'focus-within:border-mm-accent focus-within:ring-2 focus-within:ring-mm-ring',
+      'hover:border-mm-accent/60',
     ]"
   >
     <slot name="prefix">
-      <span
-        v-if="prefixIcon"
-        :class="[prefixIcon, 'text-base opacity-60']"
-      ></span>
+      <span v-if="prefixIcon" :class="[prefixIcon, 'size-4 text-mm-muted-fg']"></span>
     </slot>
 
     <input
       ref="inputRef"
       v-model="inputValue"
-      class="flex-1 border-none bg-transparent text-base outline-none"
+      class="flex-1 border-none bg-transparent text-sm text-mm-fg outline-none placeholder:text-mm-muted-fg"
       type="text"
       :placeholder="placeholder"
-      @paste.stop
       v-bind="$attrs"
       @[trigger]="updateContent"
     />
 
-    <span
+    <button
       v-if="allowClear"
       v-show="content"
-      class="pi pi-times text-base opacity-60"
+      class="mm-transition size-4 text-mm-muted-fg hover:text-mm-fg hover:scale-110"
       @click="clearContent"
-    ></span>
+    >
+      <X class="size-4" />
+    </button>
+
     <slot name="suffix">
-      <span
-        v-if="suffixIcon"
-        :class="[suffixIcon, 'text-base opacity-60']"
-      ></span>
+      <span v-if="suffixIcon" :class="[suffixIcon, 'size-4 text-mm-muted-fg']"></span>
     </slot>
   </div>
 </template>
 
 <script setup lang="ts">
+import { X } from '@lucide/vue'
 import { computed, ref } from 'vue'
 
 interface Props {
@@ -53,18 +52,18 @@ interface Props {
 const props = defineProps<Props>()
 const [content, modifiers] = defineModel<string, 'trim' | 'valid'>()
 
-const inputRef = ref()
+const inputRef = ref<HTMLInputElement>()
 
 const innerValue = ref<string>()
 const inputValue = computed({
-  get: () => {
-    return innerValue.value ?? content.value
-  },
+  get: () => innerValue.value ?? content.value,
   set: (val) => {
     innerValue.value = val
   },
 })
+
 const trigger = computed(() => props.updateTrigger ?? 'change')
+
 const updateContent = () => {
   let value = inputValue.value
 
@@ -82,7 +81,9 @@ const updateContent = () => {
 
   innerValue.value = undefined
   content.value = value
-  inputRef.value.value = value
+  if (inputRef.value) {
+    inputRef.value.value = value ?? ''
+  }
 }
 
 defineOptions({
