@@ -10,7 +10,7 @@ const props = defineProps<ToasterProps>()
     unstyled
     position="top-right"
     :toast-options="{
-      classNames: {
+      classes: {
         toast: 'mm-glass-light pointer-events-auto group flex w-full items-center gap-3 rounded-mm-ctl border border-mm-border p-4 shadow-mm-2 mm-transition hover:shadow-mm-3',
         title: 'text-sm font-medium text-mm-fg',
         description: 'text-xs text-mm-muted-fg',

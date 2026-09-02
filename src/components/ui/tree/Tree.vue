@@ -1,4 +1,5 @@
 <script setup lang="ts" generic="T extends Record<string, any>">
+import type { FlattenedItem } from 'reka-ui'
 import { TreeItem, TreeRoot, TreeVirtualizer } from 'reka-ui'
 import { cn } from 'utils/cn'
 import TreeRow from './TreeRow.vue'
@@ -19,6 +20,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 const model = defineModel<T | T[]>()
 const expanded = defineModel<string[]>('expanded', { default: () => [] })
+
+// TreeRoot のデフォルトスロットスコープ型
+interface TreeSlotProps {
+  flattenItems: FlattenedItem<T>[]
+}
 </script>
 
 <template>
@@ -30,33 +36,35 @@ const expanded = defineModel<string[]>('expanded', { default: () => [] })
     :get-children="getChildren"
     :class="cn('space-y-0.5', props.class)"
   >
-    <template v-if="virtual">
-      <TreeVirtualizer
-        v-slot="{ item }"
-        :estimate-size="estimateSize"
-        :text-content="(opt: any) => getKey(opt)"
+    <!-- Virtual mode -->
+    <TreeVirtualizer
+      v-if="virtual"
+      v-slot="{ item }"
+      :estimate-size="estimateSize"
+      :text-content="(opt: any) => getKey(opt)"
+    >
+      <TreeItem
+        v-bind="item.bind"
+        v-slot="{ isExpanded, isSelected }"
+        as-child
+        :value="item.value"
+        :level="item.level"
       >
-        <TreeItem
-          v-bind="item.bind"
-          v-slot="{ isExpanded, isSelected }"
-          as-child
-          :value="item.value"
+        <TreeRow
+          :is-expanded="isExpanded"
+          :is-selected="isSelected as any"
+          :has-children="!!item.hasChildren"
           :level="item.level"
         >
-          <TreeRow
-            :is-expanded="isExpanded"
-            :is-selected="isSelected as any"
-            :has-children="!!item.hasChildren"
-            :level="item.level"
-          >
-            <slot name="item" :item="item" />
-          </TreeRow>
-        </TreeItem>
-      </TreeVirtualizer>
-    </template>
-    <template v-else="{ flattenItems }">
+          <slot name="item" :item="item" />
+        </TreeRow>
+      </TreeItem>
+    </TreeVirtualizer>
+
+    <!-- Non-virtual mode: v-slot でスロットスコープを受け取る -->
+    <template v-else #default="slotProps">
       <TreeItem
-        v-for="item in flattenItems"
+        v-for="item in (slotProps as TreeSlotProps).flattenItems"
         :key="item._id"
         v-bind="item.bind"
         v-slot="{ isExpanded, isSelected }"
