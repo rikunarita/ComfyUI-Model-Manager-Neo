@@ -19,11 +19,12 @@
             <td class="py-3 pr-4">
               <div class="flex items-center gap-4">
                 <Slider
-                  v-model="item.width"
+                  :model-value="[item.width]"
                   class="flex-1"
                   :step="10"
                   :min="80"
                   :max="320"
+                  @update:model-value="(val?: number[]) => { if (val) item.width = val[0] }"
                 />
                 <span class="w-10 text-right text-sm text-mm-muted-fg">{{ item.width }}</span>
               </div>
@@ -31,11 +32,12 @@
             <td class="py-3">
               <div class="flex items-center gap-4">
                 <Slider
-                  v-model="item.height"
+                  :model-value="[item.height]"
                   class="flex-1"
                   :step="10"
                   :min="80"
                   :max="320"
+                  @update:model-value="(val?: number[]) => { if (val) item.height = val[0] }"
                 />
                 <span class="w-10 text-right text-sm text-mm-muted-fg">{{ item.height }}</span>
               </div>
@@ -102,7 +104,7 @@ onMounted(() => {
 })
 
 const handleReset = () => {
-  sizeList.value = resolveSizeMap(defaultCardSizeMap.value)
+  sizeList.value = resolveSizeMap(defaultCardSizeMap)
 }
 
 const handleCancelEditor = () => {
