@@ -1,38 +1,48 @@
 <template>
+  <!-- Drop mode: DropdownMenu -->
   <slot
     v-if="type === 'drop'"
     name="target"
-    v-bind="{
-      toggle,
-      prefixIcon,
-      suffixIcon,
-      currentLabel,
-      current,
-      overlayVisible,
-    }"
+    v-bind="{ toggle, prefixIcon, suffixIcon, currentLabel, current, overlayVisible }"
   >
-    <div :class="['-my-1 py-1', $attrs.class]" @click="toggle">
-      <Button
-        v-bind="{ rounded, text, severity, size }"
-        class="w-full whitespace-nowrap"
-      >
-        <slot name="prefix">
-          <span v-if="prefixIcon" class="p-button-icon p-button-icon-left">
-            <i :class="prefixIcon"></i>
-          </span>
-        </slot>
-        <span class="flex-1 overflow-scroll text-right scrollbar-none">
-          <slot name="label">{{ currentLabel }}</slot>
-        </span>
-        <slot name="suffix">
-          <span v-if="suffixIcon" class="p-button-icon p-button-icon-right">
-            <i :class="suffixIcon"></i>
-          </span>
-        </slot>
-      </Button>
-    </div>
+    <DropdownMenu v-model:open="overlayVisible">
+      <DropdownMenuTrigger as-child>
+        <div :class="['-my-1 py-1', $attrs.class]" @click="toggle">
+          <Button
+            v-bind="{ rounded, text, severity, size }"
+            class="w-full whitespace-nowrap"
+          >
+            <slot name="prefix">
+              <span v-if="prefixIcon" class="size-4 text-mm-muted-fg">
+                <component :is="prefixIcon" />
+              </span>
+            </slot>
+            <span class="flex-1 overflow-scroll text-right scrollbar-none">
+              <slot name="label">{{ currentLabel }}</slot>
+            </span>
+            <slot name="suffix">
+              <ChevronDown class="size-4 text-mm-muted-fg mm-transition" :class="{ 'rotate-180': overlayVisible }" />
+            </slot>
+          </Button>
+        </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent class="w-[var(--reka-dropdown-menu-trigger-width)] min-w-[8rem]">
+        <DropdownMenuItem
+          v-for="item in items"
+          :key="item.value"
+          class="justify-between"
+          @select="item.command?.()"
+        >
+          <slot name="item" :item="item">
+            <span>{{ item.label }}</span>
+            <Check v-if="current === item.value" class="size-4 text-mm-accent" />
+          </slot>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   </slot>
 
+  <!-- Button mode: Segmented buttons -->
   <div v-else class="relative flex-1 overflow-hidden">
     <div ref="scrollArea" class="h-full w-full overflow-auto scrollbar-none">
       <div ref="contentArea" class="table max-w-full">
@@ -41,31 +51,32 @@
           :class="[
             'pointer-events-none absolute z-10 flex h-full items-center',
             'top-1/2 [transform:translateY(-50%)]',
-            'left-0 pr-16',
-            '[background-image:linear-gradient(to_right,currentColor,transparent)]',
+            'left-0 pr-4',
+            '[background-image:linear-gradient(to_right,var(--mm-bg),transparent)]',
           ]"
-          style="color: var(--p-dialog-background)"
         >
           <Button
             icon="pi pi-angle-left"
             class="pointer-events-auto border-none bg-transparent"
-            severity="secondary"
+            variant="ghost"
+            size="icon-xs"
             @click="scrollTo('prev')"
-            :size="size"
-          ></Button>
+          >
+            <ChevronLeft class="size-4" />
+          </Button>
         </div>
         <div class="flex h-10 items-center gap-2">
           <Button
             v-for="item in items"
-            severity="secondary"
             :key="item.value"
             :data-active="current === item.value"
             :active="current === item.value"
-            class="data-[active=true]:bg-blue-500 data-[active=true]:text-white"
+            class="whitespace-nowrap data-[active=true]:bg-mm-surface-selected data-[active=true]:text-mm-accent"
+            variant="secondary"
             :size="size"
-            @click="item.command"
+            @click="item.command?.()"
           >
-            <span class="whitespace-nowrap">{{ item.label }}</span>
+            <span>{{ item.label }}</span>
           </Button>
         </div>
         <div
@@ -73,114 +84,79 @@
           :class="[
             'pointer-events-none absolute z-10 flex h-full items-center',
             'top-1/2 [transform:translateY(-50%)]',
-            'right-0 pl-16',
-            '[background-image:linear-gradient(to_left,currentColor,transparent)]',
+            'right-0 pl-4',
+            '[background-image:linear-gradient(to_left,var(--mm-bg),transparent)]',
           ]"
-          style="color: var(--p-dialog-background)"
         >
           <Button
-            :size="size"
             icon="pi pi-angle-right"
             class="pointer-events-auto border-none bg-transparent"
-            severity="secondary"
+            variant="ghost"
+            size="icon-xs"
             @click="scrollTo('next')"
-          ></Button>
+          >
+            <ChevronRight class="size-4" />
+          </Button>
         </div>
       </div>
     </div>
   </div>
 
-  <slot v-if="isMobile" name="mobile">
-    <Drawer
-      v-model:visible="visible"
-      position="bottom"
-      style="height: auto; max-height: 80%"
-    >
-      <template #container>
-        <slot name="container">
-          <slot name="mobile:container">
-            <div class="h-full overflow-scroll scrollbar-none">
-              <Menu
-                :model="items"
-                pt:root:class="border-0 px-4 py-5"
-                :pt:list:onClick="toggle"
-              >
-                <template #item="{ item }">
-                  <slot name="item" :item="item">
-                    <slot name="mobile:container:item" :item="item">
-                      <a class="p-menu-item-link justify-between">
-                        <span
-                          class="p-menu-item-label overflow-hidden break-words"
-                        >
-                          {{ item.label }}
-                        </span>
-                        <span v-show="current === item.value">
-                          <i class="pi pi-check text-blue-400"></i>
-                        </span>
-                      </a>
-                    </slot>
-                  </slot>
-                </template>
-              </Menu>
-            </div>
-          </slot>
-        </slot>
-      </template>
-    </Drawer>
-  </slot>
-
-  <slot v-else name="desktop">
-    <slot name="container">
-      <slot name="desktop:container">
-        <Menu
-          ref="menu"
-          :model="items"
-          :popup="true"
-          :base-z-index="1000"
-          :pt:root:style="{ maxHeight: '300px', overflowX: 'hidden' }"
+  <!-- Mobile: Sheet (bottom drawer) -->
+  <Sheet v-if="isMobile" v-model:open="visible">
+    <SheetContent side="bottom" class="h-auto max-h-[80%]">
+      <SheetHeader class="sr-only">
+        <SheetTitle>Menu</SheetTitle>
+      </SheetHeader>
+      <div class="h-full overflow-scroll scrollbar-none">
+        <button
+          v-for="item in items"
+          :key="item.value"
+          class="flex w-full items-center justify-between rounded-mm-ctl px-4 py-3 text-left mm-transition hover:bg-mm-surface-hover"
+          @click="item.command?.(); visible = false"
         >
-          <template #item="{ item }">
-            <slot name="item" :item="item">
-              <slot name="desktop:container:item" :item="item">
-                <a class="p-menu-item-link justify-between">
-                  <span class="p-menu-item-label">{{ item.label }}</span>
-                  <span v-show="current === item.value">
-                    <i class="pi pi-check text-blue-400"></i>
-                  </span>
-                </a>
-              </slot>
-            </slot>
-          </template>
-        </Menu>
-      </slot>
-    </slot>
-  </slot>
+          <span class="overflow-hidden break-words text-mm-fg">{{ item.label }}</span>
+          <Check v-if="current === item.value" class="size-4 text-mm-accent" />
+        </button>
+      </div>
+    </SheetContent>
+  </Sheet>
 </template>
 
 <script setup lang="ts">
-import { useElementSize, useScroll } from '@vueuse/core'
+import { Check, ChevronDown, ChevronLeft, ChevronRight } from '@lucide/vue'
+import { Button } from 'components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from 'components/ui/dropdown-menu'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from 'components/ui/sheet'
 import { useConfig } from 'hooks/config'
-import Button, { ButtonProps } from 'primevue/button'
-import Drawer from 'primevue/drawer'
-import Menu from 'primevue/menu'
-import { SelectOptions } from 'types/typings'
+import type { SelectOptions } from 'types/typings'
+import { useElementSize, useScroll } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
-
-const current = defineModel()
 
 interface Props {
   items?: SelectOptions[]
   rounded?: boolean
   text?: boolean
-  severity?: ButtonProps['severity']
-  size?: ButtonProps['size']
+  severity?: 'secondary' | 'info' | 'success' | 'warning' | 'danger' | 'help'
+  size?: 'small' | 'large'
   type?: 'button' | 'drop'
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  severity: 'secondary',
-  type: 'drop',
+  type: 'button',
 })
+
+const current = defineModel()
 
 const suffixIcon = ref('pi pi-angle-down')
 const prefixIcon = computed(() => {
@@ -200,12 +176,12 @@ const toggle = (event: MouseEvent) => {
   if (isMobile.value) {
     visible.value = !visible.value
   } else {
-    menu.value.toggle(event)
+    // DropdownMenu handles its own toggle
   }
 }
 
 const overlayVisible = computed(() => {
-  return isMobile.value ? visible.value : (menu.value?.overlayVisible ?? false)
+  return isMobile.value ? visible.value : false
 })
 
 // Select Button Type
@@ -214,51 +190,32 @@ const contentArea = ref()
 
 type ScrollPosition = 'left' | 'right'
 
-const scrollPosition = ref<ScrollPosition | undefined>('left')
-const showControlButton = ref<boolean>(true)
+const { width, height } = useElementSize(scrollArea)
+const { x: scrollX } = useScroll(scrollArea)
 
-const scrollTo = (type: 'prev' | 'next') => {
-  const container = scrollArea.value as HTMLDivElement
-  const scrollLeft = container.scrollLeft
-  const direction = type === 'prev' ? -1 : 1
-  const distance = (container.clientWidth / 3) * 2
-  container.scrollTo({
-    left: scrollLeft + direction * distance,
+const showControlButton = computed(() => {
+  if (!contentArea.value || !scrollArea.value) return false
+  return contentArea.value.scrollWidth > scrollArea.value.clientWidth
+})
+
+const scrollPosition = computed<ScrollPosition>(() => {
+  if (!scrollArea.value) return 'left'
+  const maxScroll = scrollArea.value.scrollWidth - scrollArea.value.clientWidth
+  if (scrollX.value <= 0) return 'left'
+  if (scrollX.value >= maxScroll) return 'right'
+  return 'left'
+})
+
+const scrollTo = (direction: 'prev' | 'next') => {
+  if (!scrollArea.value) return
+  const step = 100
+  scrollArea.value.scrollBy({
+    left: direction === 'prev' ? -step : step,
     behavior: 'smooth',
   })
 }
 
-const checkScrollPosition = () => {
-  const container = scrollArea.value as HTMLDivElement
-  const content = contentArea.value as HTMLDivElement
-
-  const scrollLeft = container.scrollLeft
-
-  const containerWidth = container.clientWidth
-  const contentWidth = content.clientWidth
-
-  let position: ScrollPosition | undefined = undefined
-
-  if (scrollLeft === 0) {
-    position = 'left'
-  }
-  if (Math.ceil(scrollLeft) >= contentWidth - containerWidth) {
-    position = 'right'
-  }
-
-  scrollPosition.value = position
-  showControlButton.value = contentWidth > containerWidth
-}
-
-const { width, height } = useElementSize(scrollArea)
-
 watch([width, height], () => {
-  checkScrollPosition()
-})
-
-useScroll(scrollArea, {
-  onScroll: () => {
-    checkScrollPosition()
-  },
+  // checkScrollPosition handled by useScroll
 })
 </script>
