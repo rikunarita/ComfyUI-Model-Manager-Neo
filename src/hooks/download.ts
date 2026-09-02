@@ -216,7 +216,9 @@ export const useModelSearch = () => {
         const yamlContent = `---\n${yaml.stringify(yamlMetadata)}\n---`
         const description = item.description.replace(regexp, yamlContent)
         return {
-          label: file.type === 'Model' ? upperFirst(item.type) : file.type,
+          label: file.type === 'Model'
+            ? (item.type ? upperFirst(item.type) : 'UNet')
+            : file.type,
           value: file.id,
           item: file,
           command() {
@@ -270,7 +272,7 @@ export const useModelSearch = () => {
         id: `direct-${Date.now()}`,
         basename,
         extension,
-        sizeBytes: 0, // Will be determined during download
+        sizeBytes: 0,
         type: modelType,
         subFolder: '',
         pathIndex: 0,
@@ -288,7 +290,7 @@ export const useModelSearch = () => {
         files: [
           {
             id: 1,
-            sizeKB: 0, // Unknown until download starts
+            sizeKB: 0,
             name: filename,
             type: 'Model',
             metadata: {
