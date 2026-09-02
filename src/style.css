@@ -178,3 +178,25 @@
     animation-duration: 0.01ms !important;
   }
 }
+
+@layer mm-components {
+  /* Glassmorphism — strong (dialogs, sheets) */
+  .mm-glass {
+    background: color-mix(in oklab, var(--mm-bg) 82%, transparent);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    box-shadow:
+      var(--mm-shadow-3),
+      inset 0 1px 0 color-mix(in oklab, var(--mm-fg) 7%, transparent);
+  }
+
+  /* Glassmorphism — light (tooltips, selects, dropdowns) */
+  .mm-glass-light {
+    background: color-mix(in oklab, var(--mm-bg) 88%, transparent);
+    backdrop-filter: blur(12px) saturate(1.3);
+    -webkit-backdrop-filter: blur(12px) saturate(1.3);
+    box-shadow:
+      var(--mm-shadow-2),
+      inset 0 1px 0 color-mix(in oklab, var(--mm-fg) 6%, transparent);
+  }
+}
