@@ -1,46 +1,46 @@
 <template>
-  <li class="rounded-lg border border-gray-500 p-4">
+  <li class="rounded-mm-card border border-mm-border p-4 mm-transition hover:shadow-mm-1">
     <div class="flex gap-4 overflow-hidden whitespace-nowrap">
       <div class="h-18 preview-aspect">
         <div v-if="isVideoUrl(item.preview)" class="h-full w-full">
           <PreviewVideo :src="item.preview" />
         </div>
-        <img v-else :src="item.preview" />
+        <img v-else :src="item.preview" class="h-full w-full object-cover rounded-mm-ctl" />
       </div>
       <div class="flex flex-1 flex-col gap-3 overflow-hidden">
         <div class="flex items-center gap-3 overflow-hidden">
-          <span class="flex-1 overflow-hidden text-ellipsis">
+          <span class="flex-1 overflow-hidden text-ellipsis text-mm-fg">
             {{ item.fullname }}
           </span>
           <span v-show="item.status === 'waiting'" class="h-4">
-            <i class="pi pi-spinner pi-spin"></i>
+            <Loader2 class="size-4 animate-spin text-mm-muted-fg" />
           </span>
-          <span
+          <button
             v-show="item.status === 'doing' && !isLocal"
-            class="h-4 cursor-pointer"
+            class="h-4 cursor-pointer mm-transition hover:scale-110"
             @click="item.pauseTask"
           >
-            <i class="pi pi-pause-circle"></i>
-          </span>
-          <span
+            <PauseCircle class="size-4 text-mm-muted-fg hover:text-mm-fg" />
+          </button>
+          <button
             v-show="item.status === 'pause' && !isLocal"
-            class="h-4 cursor-pointer"
+            class="h-4 cursor-pointer mm-transition hover:scale-110"
             @click="item.resumeTask"
           >
-            <i class="pi pi-play-circle"></i>
-          </span>
-          <span class="h-4 cursor-pointer" @click="item.deleteTask">
-            <i class="pi pi-trash text-red-400"></i>
-          </span>
+            <PlayCircle class="size-4 text-mm-muted-fg hover:text-mm-fg" />
+          </button>
+          <button class="h-4 cursor-pointer mm-transition hover:scale-110" @click="item.deleteTask">
+            <Trash2 class="size-4 text-mm-danger hover:brightness-110" />
+          </button>
         </div>
-        <div class="h-2 overflow-hidden rounded bg-gray-200">
+        <div class="h-2 overflow-hidden rounded-full bg-mm-surface">
           <div
-            class="h-full bg-blue-500 transition-[width]"
+            class="h-full rounded-full bg-mm-accent mm-transition"
             :class="{ 'animate-pulse': isLocal && item.status === 'doing' }"
             :style="{ width: `${barWidth}%` }"
           ></div>
         </div>
-        <div class="flex justify-between">
+        <div class="flex justify-between text-xs text-mm-muted-fg">
           <div>{{ progressText }}</div>
           <div v-show="item.status === 'doing'">
             {{ item.downloadSpeed }}
@@ -52,8 +52,9 @@
 </template>
 
 <script setup lang="ts">
+import { Loader2, PauseCircle, PlayCircle, Trash2 } from '@lucide/vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
-import { DownloadTask } from 'types/typings'
+import type { DownloadTask } from 'types/typings'
 import { bytesToSize } from 'utils/common'
 import { isVideoUrl } from 'utils/media'
 import { computed } from 'vue'
