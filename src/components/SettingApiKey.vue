@@ -1,28 +1,28 @@
 <template>
   <div class="p-4">
-    <InputText
-      class="w-full"
+    <Input
       v-model="content"
+      class="w-full"
       placeholder="Set New API Key"
       autocomplete="off"
-    ></InputText>
+    />
     <div class="mt-4 flex items-center justify-between">
       <div>
-        <span v-show="showError" class="text-red-400">
+        <span v-show="showError" class="text-sm text-mm-danger">
           API Key Not Allow Empty
         </span>
       </div>
-      <Button label="Save" autofocus @click="saveKeybinding"></Button>
+      <Button autofocus @click="saveKeybinding">Save</Button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { Button } from 'components/ui/button'
+import { Input } from 'components/ui/input'
 import { useDialog } from 'hooks/dialog'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
-import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
 import { ref, toValue } from 'vue'
 
 interface Props {
