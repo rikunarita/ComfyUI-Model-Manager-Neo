@@ -1,16 +1,20 @@
 <template>
   <div
-    class="rounded-lg border border-gray-500 p-4 text-gray-500"
-    @dragenter.stop.prevent
-    @dragover.stop.prevent
-    @dragleave.stop.prevent
+    class="rounded-mm-card border-2 border-dashed border-mm-border p-4 text-mm-muted-fg mm-transition cursor-pointer"
+    :class="{
+      'border-mm-accent bg-mm-surface-hover ring-2 ring-mm-ring/30': isDragOver,
+      'hover:border-mm-accent/60 hover:bg-mm-surface-hover': !isDragOver,
+    }"
+    @dragenter.stop.prevent="isDragOver = true"
+    @dragover.stop.prevent="isDragOver = true"
+    @dragleave.stop.prevent="isDragOver = false"
     @drop.stop.prevent="handleDropFile"
     @click="handleClick"
   >
     <slot name="default">
       <div class="flex h-full flex-col items-center justify-center gap-2">
-        <i class="pi pi-cloud-upload text-2xl"></i>
-        <p class="m-0 select-none overflow-hidden text-ellipsis">
+        <UploadCloud class="size-8 text-mm-accent" />
+        <p class="m-0 select-none overflow-hidden text-ellipsis text-sm">
           {{ $t('uploadFile') }}
         </p>
       </div>
@@ -19,13 +23,17 @@
 </template>
 
 <script setup lang="ts">
-import { SelectEvent, SelectFile } from 'types/typings'
+import { UploadCloud } from '@lucide/vue'
+import type { SelectEvent, SelectFile } from 'types/typings'
+import { ref } from 'vue'
 
 const emits = defineEmits<{
   select: [event: SelectEvent]
 }>()
 
-const covertFileList = (fileList: FileList) => {
+const isDragOver = ref(false)
+
+const convertFileList = (fileList: FileList) => {
   const files: SelectFile[] = []
   for (const file of fileList) {
     const selectFile = file as SelectFile
@@ -36,10 +44,11 @@ const covertFileList = (fileList: FileList) => {
 }
 
 const handleDropFile = (event: DragEvent) => {
+  isDragOver.value = false
   const files = event.dataTransfer?.files
 
   if (files) {
-    emits('select', { originalEvent: event, files: covertFileList(files) })
+    emits('select', { originalEvent: event, files: convertFileList(files) })
   }
 }
 
@@ -50,7 +59,7 @@ const handleClick = (event: MouseEvent) => {
   input.onchange = () => {
     const files = input.files
     if (files) {
-      emits('select', { originalEvent: event, files: covertFileList(files) })
+      emits('select', { originalEvent: event, files: convertFileList(files) })
     }
   }
   input.click()
