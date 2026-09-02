@@ -19,7 +19,7 @@
         <ResponseBreadcrumb
           v-show="!showToolbar"
           class="h-10 flex-1"
-          :items="folderPaths"
+          :items="breadcrumbItems"
         ></ResponseBreadcrumb>
       </div>
 
@@ -128,6 +128,7 @@ import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
 import { useConfig } from 'hooks/config'
 import { type ModelTreeNode, useModelExplorer } from 'hooks/explorer'
+import type { BreadcrumbItem } from 'types/breadcrumb'
 import { chunk } from 'es-toolkit'
 import Button from 'primevue/button'
 import ConfirmDialog from 'primevue/confirmdialog'
@@ -154,6 +155,22 @@ const {
   getFullPath,
 } = useModelExplorer()
 const { cardSize, cardSizeMap, cardSizeFlag, dialog: settings } = useConfig()
+
+// folderPaths を BreadcrumbItem[] に変換
+const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
+  return folderPaths.value.map((folder) => ({
+    label: folder.name,
+    command: () => {
+      // folderPaths から該当フォルダ以降を削除（パンくずクリックで遡る）
+      const index = folderPaths.value.findIndex(
+        (f) => f.name === folder.name && f.pathIndex === folder.pathIndex
+      )
+      if (index >= 0) {
+        folderPaths.value.splice(index + 1)
+      }
+    },
+  }))
+})
 
 const showToolbar = ref(false)
 const toggleToolbar = () => {

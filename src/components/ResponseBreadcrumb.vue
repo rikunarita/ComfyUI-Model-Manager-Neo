@@ -7,7 +7,7 @@
       >
         {{ firstItem.label }}
       </button>
-      <ChevronRight v-if="items.length > 1" class="size-4 shrink-0 text-mm-muted-fg" />
+      <ChevronRight v-if="(items?.length ?? 0) > 1" class="size-4 shrink-0 text-mm-muted-fg" />
     </div>
 
     <div
@@ -32,11 +32,11 @@
 
 <script setup lang="ts">
 import { ChevronRight } from '@lucide/vue'
-import type { SelectOptions } from 'types/typings'
+import type { BreadcrumbItem } from 'types/breadcrumb'
 import { computed, ref } from 'vue'
 
 interface Props {
-  items?: SelectOptions[]
+  items?: BreadcrumbItem[]
 }
 
 const props = defineProps<Props>()

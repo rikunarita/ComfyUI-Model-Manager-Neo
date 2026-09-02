@@ -5,10 +5,13 @@
   >
     <!-- Preview area with gradient scrim -->
     <div class="preview-aspect relative overflow-hidden">
-      <div v-if="isVideoUrl(model.preview)" class="h-full w-full">
-        <PreviewVideo :src="model.preview" />
-      </div>
-      <img v-else :src="model.preview" class="h-full w-full object-cover" />
+      <!-- previewPreview が配列の場合は最初の要素を使用 -->
+      <template v-if="previewUrl">
+        <div v-if="isVideoUrl(previewUrl)" class="h-full w-full">
+          <PreviewVideo :src="previewUrl" />
+        </div>
+        <img v-else :src="previewUrl" class="h-full w-full object-cover" />
+      </template>
       
       <!-- Gradient scrim for name readability -->
       <div class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent"></div>
@@ -80,6 +83,15 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   click: [model: VersionModel]
 }>()
+
+// preview が配列の場合は最初の要素を抽出
+const previewUrl = computed(() => {
+  const preview = props.model.preview
+  if (Array.isArray(preview)) {
+    return preview[0] || ''
+  }
+  return preview || ''
+})
 
 const handleClick = () => {
   emit('click', props.model)
