@@ -4,7 +4,7 @@
       <div ref="content">
         <slot name="default">
           <slot v-if="renderedItems.length === 0" name="empty">
-            <div class="absolute w-full py-20 text-center">No Data</div>
+            <div class="absolute w-full py-20 text-center text-mm-muted-fg">No Data</div>
           </slot>
 
           <div :style="{ height: `${headHeight}px` }"></div>
@@ -27,13 +27,13 @@
       <div
         ref="thumb"
         :class="[
-          'absolute w-full cursor-pointer rounded-full bg-gray-500',
-          'opacity-0 transition-opacity duration-300 group-hover/scroll:opacity-30',
+          'absolute w-full cursor-pointer rounded-full bg-mm-border-strong',
+          'opacity-0 transition-opacity duration-300 group-hover/scroll:opacity-30 hover:opacity-50',
         ]"
         :style="{
           height: `${thumbSize}px`,
           top: `${thumbOffset}px`,
-          opacity: isDragging ? '0.3' : undefined,
+          opacity: isDragging ? '0.5' : undefined,
         }"
       ></div>
     </div>
@@ -61,22 +61,14 @@ const { y: scrollY } = useScroll(viewport)
 
 const itemSize = computed(() => props.itemSize || 0)
 
-const viewRows = computed(() =>
-  Math.ceil(viewportHeight.value / itemSize.value),
-)
+const viewRows = computed(() => Math.ceil(viewportHeight.value / itemSize.value))
 const offsetRows = computed(() => Math.floor(scrollY.value / itemSize.value))
-
-const items = computed(() => {
-  return props.items ?? []
-})
 
 const state = computed(() => {
   const bufferRows = viewRows.value
-
   const fromRow = offsetRows.value - bufferRows
   const toRow = offsetRows.value + bufferRows + viewRows.value
-
-  const itemCount = items.value.length
+  const itemCount = props.items?.length ?? 0
 
   return {
     start: clamp(fromRow, 0, itemCount),
@@ -86,38 +78,24 @@ const state = computed(() => {
 
 const renderedItems = computed(() => {
   const { start, end } = state.value
-
   return props.items?.slice(start, end) ?? []
 })
 
-const headHeight = computed(() => {
-  return state.value.start * itemSize.value
-})
-
-const tailHeight = computed(() => {
-  return (items.value.length - state.value.end) * itemSize.value
-})
+const headHeight = computed(() => state.value.start * itemSize.value)
+const tailHeight = computed(() => ((props.items?.length ?? 0) - state.value.end) * itemSize.value)
 
 const thumbSize = computed(() => {
-  if (viewportHeight.value >= contentHeight.value) {
-    return 0
-  }
-
+  if (viewportHeight.value >= contentHeight.value) return 0
   const thumbHeight = Math.pow(viewportHeight.value, 2) / contentHeight.value
   return Math.max(thumbHeight, 16)
 })
 
 const thumbOffset = computed({
   get: () => {
-    return (
-      (scrollY.value / (contentHeight.value - viewportHeight.value)) *
-      (viewportHeight.value - thumbSize.value)
-    )
+    return (scrollY.value / (contentHeight.value - viewportHeight.value)) * (viewportHeight.value - thumbSize.value)
   },
   set: (offset) => {
-    scrollY.value =
-      (offset / (viewportHeight.value - thumbSize.value)) *
-      (contentHeight.value - viewportHeight.value)
+    scrollY.value = (offset / (viewportHeight.value - thumbSize.value)) * (contentHeight.value - viewportHeight.value)
   },
 })
 
