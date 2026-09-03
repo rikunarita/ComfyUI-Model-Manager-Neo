@@ -50,17 +50,23 @@
       @dragend.stop="dragToAddModelNode(model, $event)"
     ></div>
 
+    <!-- Glassmorphism badges (right-top) -->
     <div
       v-if="!model.isFolder"
-      data-mode-type
-      class="pointer-events-none absolute left-2 top-2"
+      class="pointer-events-none absolute right-2 top-2 flex flex-col items-end gap-1"
       :style="{
-        transform: `scale(${typeLabelScale})`,
-        transformOrigin: 'left top',
+        transform: `scale(${badgeScale})`,
+        transformOrigin: 'right top',
       }"
     >
-      <div class="rounded-full bg-black/50 px-3 py-1 backdrop-blur-sm">
-        <span>{{ model.type }}</span>
+      <div class="rounded-full bg-mm-accent/30 px-2.5 py-0.5 text-xs text-white backdrop-blur-md">
+        {{ model.type }}
+      </div>
+      <div
+        v-if="model.sizeBytes"
+        class="rounded-full bg-black/35 px-2.5 py-0.5 text-xs text-white backdrop-blur-md"
+      >
+        {{ bytesToSize(model.sizeBytes) }}
       </div>
     </div>
 
@@ -73,6 +79,7 @@ import { useElementSize } from '@vueuse/core'
 import PreviewVideo from 'components/PreviewVideo.vue'
 import { useModelNodeAction } from 'hooks/model'
 import { BaseModel } from 'types/typings'
+import { bytesToSize } from 'utils/common'
 import { isVideoUrl } from 'utils/media'
 import { computed, ref } from 'vue'
 
@@ -92,7 +99,7 @@ const container = ref<HTMLElement | null>(null)
 
 const { width } = useElementSize(container)
 
-const typeLabelScale = computed(() => {
+const badgeScale = computed(() => {
   return width.value / 200
 })
 
