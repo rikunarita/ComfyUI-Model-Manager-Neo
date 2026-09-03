@@ -25,7 +25,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     <DropdownMenuContent
       v-bind="{ ...forwarded, ...$attrs }"
       :class="cn(
-        'mm-glass-light z-50 min-w-[8rem] overflow-hidden rounded-mm-ctl border border-mm-border p-1 shadow-mm-2',
+        'mm-glass-light z-[2500] min-w-[8rem] overflow-hidden rounded-mm-ctl border border-mm-border p-1 shadow-mm-2',
         'animate-in fade-in-0 zoom-in-95 duration-160',
         'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
         'data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2',
