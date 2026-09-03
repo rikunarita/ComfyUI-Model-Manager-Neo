@@ -28,7 +28,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  type: 'button',
+  severity: 'secondary',
+  type: 'drop',
 })
 
 const current = defineModel()
