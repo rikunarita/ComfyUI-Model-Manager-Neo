@@ -1,5 +1,5 @@
 <template>
-  <ConfigProvider teleport-to="#comfyui-model-manager">
+  <ConfigProvider teleport-to="body">
     <GlobalToast></GlobalToast>
     <GlobalConfirm></GlobalConfirm>
     <GlobalLoading></GlobalLoading>
