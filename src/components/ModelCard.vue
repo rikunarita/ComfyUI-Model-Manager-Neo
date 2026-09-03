@@ -1,99 +1,100 @@
 <template>
   <div
-    class="group relative flex flex-col overflow-hidden rounded-mm-card border border-mm-border bg-mm-surface mm-transition hover:-translate-y-0.5 hover:shadow-mm-2 hover:border-mm-accent/30"
-    @click="handleClick"
+    ref="container"
+    class="relative h-full select-none rounded-mm-card mm-transition hover:-translate-y-0.5 hover:bg-mm-surface-hover hover:shadow-mm-2"
   >
-    <!-- Preview area with gradient scrim -->
-    <div class="preview-aspect relative overflow-hidden">
-      <!-- previewPreview が配列の場合は最初の要素を使用 -->
-      <template v-if="previewUrl">
-        <div v-if="isVideoUrl(previewUrl)" class="h-full w-full">
-          <PreviewVideo :src="previewUrl" />
+    <div data-card-main class="flex h-full w-full flex-col">
+      <div data-card-preview class="flex-1 overflow-hidden">
+        <div v-if="model.isFolder" class="h-full w-full">
+          <svg
+            class="icon"
+            viewBox="0 0 1024 1024"
+            version="1.1"
+            height="100%"
+          >
+            <path
+              d="M853.333333 256H469.333333l-85.333333-85.333333H170.666667c-46.933333 0-85.333333 38.4-85.333334 85.333333v170.666667h853.333334v-85.333334c0-46.933333-38.4-85.333333-85.333334-85.333333z"
+              fill="#FFA000"
+            ></path>
+            <path
+              d="M853.333333 256H170.666667c-46.933333 0-85.333333 38.4-85.333334 85.333333v426.666667c0 46.933333 38.4 85.333333 85.333334 85.333333h682.666666c46.933333 0 85.333333-38.4 85.333334-85.333333V341.333333c0-46.933333-38.4-85.333333-85.333334-85.333333z"
+              fill="#FFCA28"
+            ></path>
+          </svg>
         </div>
-        <img v-else :src="previewUrl" class="h-full w-full object-cover" />
-      </template>
-      
-      <!-- Gradient scrim for name readability -->
-      <div class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent"></div>
-      
-      <!-- Badges (type/size) -->
-      <div class="absolute right-2 top-2 flex flex-col gap-1">
-        <Badge variant="default" class="backdrop-blur-sm">
-          {{ model.type }}
-        </Badge>
-        <Badge v-if="model.sizeBytes" variant="secondary" class="backdrop-blur-sm">
-          {{ bytesToSize(model.sizeBytes) }}
-        </Badge>
-      </div>
-
-      <!-- Hover actions (revealed on hover) -->
-      <div class="absolute right-2 top-1/2 flex -translate-y-1/2 flex-col gap-1 opacity-0 mm-transition group-hover:opacity-100 group-hover:translate-x-0 translate-x-1">
-        <Button
-          v-for="action in actions"
-          :key="action.key"
-          variant="secondary"
-          size="icon-xs"
-          class="backdrop-blur-sm bg-mm-bg/80 hover:bg-mm-surface-hover"
-          @click.stop="action.command?.()"
+        <div
+          v-else-if="isVideoUrl(preview)"
+          class="h-full w-full p-1 hover:p-0"
         >
-          <component :is="action.icon" class="size-3" />
-        </Button>
+          <PreviewVideo :src="preview" />
+        </div>
+        <div v-else class="h-full w-full p-1 hover:p-0">
+          <img class="h-full w-full rounded-mm-ctl object-cover" :src="preview" />
+        </div>
       </div>
+
+      <slot name="name">
+        <div class="flex justify-center overflow-hidden px-1">
+          <span class="overflow-hidden text-ellipsis whitespace-nowrap">
+            {{ model.basename }}
+          </span>
+        </div>
+      </slot>
     </div>
 
-    <!-- Name overlay -->
-    <div class="absolute inset-x-0 bottom-0 p-2">
-      <div class="text-shadow text-sm font-medium text-white line-clamp-2">
-        {{ model.shortname || model.basename }}
-      </div>
-    </div>
-
-    <!-- Selection ring -->
     <div
-      v-if="isSelected"
-      class="pointer-events-none absolute inset-0 rounded-mm-card ring-2 ring-mm-accent/60"
+      v-if="!model.isFolder"
+      data-draggable-overlay
+      class="absolute left-0 top-0 h-full w-full"
+      draggable="true"
+      @dragend.stop="dragToAddModelNode(model, $event)"
     ></div>
+
+    <div
+      v-if="!model.isFolder"
+      data-mode-type
+      class="pointer-events-none absolute left-2 top-2"
+      :style="{
+        transform: `scale(${typeLabelScale})`,
+        transformOrigin: 'left top',
+      }"
+    >
+      <div class="rounded-full bg-black/50 px-3 py-1 backdrop-blur-sm">
+        <span>{{ model.type }}</span>
+      </div>
+    </div>
+
+    <slot name="extra"></slot>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Plus, Copy, Workflow } from '@lucide/vue'
-import { Badge } from 'components/ui/badge'
-import { Button } from 'components/ui/button'
+import { useElementSize } from '@vueuse/core'
 import PreviewVideo from 'components/PreviewVideo.vue'
-import type { VersionModel } from 'types/typings'
-import { bytesToSize } from 'utils/common'
+import { useModelNodeAction } from 'hooks/model'
+import { BaseModel } from 'types/typings'
 import { isVideoUrl } from 'utils/media'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 interface Props {
-  model: VersionModel
-  isSelected?: boolean
-  actions?: Array<{ key: string; icon: any; command?: () => void }>
+  model: BaseModel
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  actions: () => [
-    { key: 'add', icon: Plus, command: () => {} },
-    { key: 'copy', icon: Copy, command: () => {} },
-    { key: 'workflow', icon: Workflow, command: () => {} },
-  ],
+const props = defineProps<Props>()
+
+const preview = computed(() =>
+  Array.isArray(props.model.preview)
+    ? props.model.preview[0]
+    : props.model.preview,
+)
+
+const container = ref<HTMLElement | null>(null)
+
+const { width } = useElementSize(container)
+
+const typeLabelScale = computed(() => {
+  return width.value / 200
 })
 
-const emit = defineEmits<{
-  click: [model: VersionModel]
-}>()
-
-// preview が配列の場合は最初の要素を抽出
-const previewUrl = computed(() => {
-  const preview = props.model.preview
-  if (Array.isArray(preview)) {
-    return preview[0] || ''
-  }
-  return preview || ''
-})
-
-const handleClick = () => {
-  emit('click', props.model)
-}
+const { dragToAddModelNode } = useModelNodeAction()
 </script>
