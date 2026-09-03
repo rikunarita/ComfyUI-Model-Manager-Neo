@@ -11,7 +11,6 @@
       <span v-if="prefixIcon" :class="[prefixIcon, 'size-4 text-mm-muted-fg']"></span>
     </slot>
 
-<!-- input 要素に追加 -->
     <input
       ref="inputRef"
       v-model="inputValue"
@@ -24,7 +23,6 @@
       @[trigger]="updateContent"
     />
 
-<!-- クリアボタンにリセットクラス追加 -->
     <button
       v-if="allowClear"
       v-show="content"
