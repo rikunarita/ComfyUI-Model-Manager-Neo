@@ -9,10 +9,14 @@
       </ResponseSelect>
 
       <div class="flex gap-2 overflow-hidden">
+        <!-- フォルダパス表示部分 -->
         <div class="flex-1 overflow-hidden rounded bg-gray-500/30">
           <div class="flex h-full items-center justify-end">
-            <span class="overflow-hidden text-ellipsis whitespace-nowrap px-2">
+            <span v-if="renderedModelFolder" class="overflow-hidden text-ellipsis whitespace-nowrap px-2">
               {{ renderedModelFolder }}
+            </span>
+            <span v-else class="px-2 text-sm text-mm-muted-fg italic">
+              Select model type first
             </span>
           </div>
         </div>
