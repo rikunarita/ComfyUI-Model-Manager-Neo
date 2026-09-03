@@ -187,8 +187,7 @@ const itemSize = computed(() => {
 const cols = computed(() => {
   const containerWidth = contentSize.width.value + gutter.x
   const itemWidth = cardSize.value.width + gutter.x
-
-  return Math.floor(containerWidth / itemWidth)
+  return Math.max(1, Math.floor(containerWidth / itemWidth))
 })
 
 const searchContent = ref<string>()
