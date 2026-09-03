@@ -12,25 +12,28 @@
           <span class="flex-1 overflow-hidden text-ellipsis text-mm-fg">
             {{ item.fullname }}
           </span>
-          <span v-show="item.status === 'waiting'" class="h-4">
-            <Loader2 class="size-4 animate-spin text-mm-muted-fg" />
+          <span v-show="item.status === 'waiting'" class="h-6">
+            <Loader2 class="size-5 animate-spin text-mm-muted-fg" />
           </span>
           <button
             v-show="item.status === 'doing' && !isLocal"
-            class="h-4 cursor-pointer mm-transition hover:scale-110"
+            class="h-6 cursor-pointer border-0 bg-transparent p-0 mm-transition hover:scale-110"
             @click="item.pauseTask"
           >
-            <PauseCircle class="size-4 text-mm-muted-fg hover:text-mm-fg" />
+            <PauseCircle class="size-5 text-mm-muted-fg hover:text-mm-fg" />
           </button>
           <button
             v-show="item.status === 'pause' && !isLocal"
-            class="h-4 cursor-pointer mm-transition hover:scale-110"
+            class="h-6 cursor-pointer border-0 bg-transparent p-0 mm-transition hover:scale-110"
             @click="item.resumeTask"
           >
-            <PlayCircle class="size-4 text-mm-muted-fg hover:text-mm-fg" />
+            <PlayCircle class="size-5 text-mm-muted-fg hover:text-mm-fg" />
           </button>
-          <button class="h-4 cursor-pointer mm-transition hover:scale-110" @click="item.deleteTask">
-            <Trash2 class="size-4 text-mm-danger hover:brightness-110" />
+          <button
+            class="h-6 cursor-pointer border-0 bg-transparent p-0 mm-transition hover:scale-110"
+            @click="item.deleteTask"
+          >
+            <Trash2 class="size-5 text-mm-danger hover:brightness-110" />
           </button>
         </div>
         <div class="h-2 overflow-hidden rounded-full bg-mm-surface">
