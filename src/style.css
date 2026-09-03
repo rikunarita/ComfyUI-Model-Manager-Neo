@@ -1,12 +1,14 @@
 /*
  * ComfyUI-Model-Manager-Neo — design tokens & utilities (Tailwind v4)
  *
- * Layer names are unique (mm-*) so we never merge into the host's layers.
- * Measured host layer order: mm-*, then theme, base, primevue, components —
- * our layers have LOWER priority than the host's, so we can never override
- * host component styles. All our selectors target our own elements only.
+ * LAYER ORDER FIX:
+ * Our CSS is injected BEFORE the host's stylesheets, and the first @layer
+ * statement fixes the global cascade order. By re-declaring the host's layer
+ * names BEFORE ours, our layers get HIGHER priority than the host's
+ * preflight/base (which resets border-width etc.). This only affects elements
+ * that carry our classes — host UI elements never match our rules.
  */
-@layer mm-base, mm-components, mm-utilities;
+@layer theme, base, primevue, components, utilities, mm-base, mm-components, mm-utilities;
 
 @import "tailwindcss/utilities" layer(mm-utilities);
 /* tw-animate-css uses @utility internally and cannot be nested in @layer */
@@ -23,11 +25,15 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Semantic design tokens — scoped to our container ONLY (never :root).
- * Layer 1 borrows the host's semantic variables (auto palette sync);
- * fallbacks (--mm-fb-*) kick in only if a host variable is missing.
+ * TOKEN SCOPE FIX:
+ * Tokens are defined on :root because PrimeVue dialogs/portals teleport
+ * OUTSIDE #comfyui-model-manager and must inherit them too.
+ * Names are uniquely prefixed (mm-) so they can never collide with or
+ * override host variables (the host never reads/writes --mm-*).
+ * Layer 1 borrows host semantic variables (auto palette sync); fallbacks
+ * (--mm-fb-*) kick in only if a host variable is missing.
  * ------------------------------------------------------------------------- */
-#comfyui-model-manager {
+:root {
   /* Light-mode fallbacks (overridden in dark below) */
   --mm-fb-bg: oklch(0.985 0.002 260);
   --mm-fb-surface: oklch(1 0 0);
@@ -38,7 +44,7 @@
   --mm-fb-accent: oklch(0.55 0.16 235);
   --mm-fb-accent-fg: oklch(0.98 0 0);
 
-  /* Layer 1: host borrow with fallback (Step 0 measured names) */
+  /* Layer 1: host borrow with fallback */
   --mm-bg: var(--comfy-menu-bg, var(--mm-fb-bg));
   --mm-surface: var(--comfy-input-bg, var(--mm-fb-surface));
   --mm-surface-hover: var(
@@ -79,8 +85,8 @@
   --mm-ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Dark-mode fallbacks (host vars, when present, always win) */
-.dark-theme #comfyui-model-manager {
+/* Dark-mode fallbacks (.dark-theme is on <html>; host vars switch on their own) */
+.dark-theme {
   --mm-fb-bg: oklch(0.16 0.01 260);
   --mm-fb-surface: oklch(0.19 0.01 260);
   --mm-fb-fg: oklch(0.98 0 0);
@@ -93,7 +99,7 @@
 
 /* ---------------------------------------------------------------------------
  * Tailwind theme mapping — `inline` so utilities compile to var(--mm-*)
- * directly and NO theme variables are emitted to :root (zero host pollution).
+ * directly (resolved against :root where the tokens now live).
  * ------------------------------------------------------------------------- */
 @theme inline {
   --color-mm-bg: var(--mm-bg);
@@ -167,19 +173,7 @@
       box-shadow 160ms var(--mm-ease),
       opacity 160ms var(--mm-ease);
   }
-}
 
-/* Accessibility: kill motion for users who prefer reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  #comfyui-model-manager *,
-  #comfyui-model-manager *::before,
-  #comfyui-model-manager *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-  }
-}
-
-@layer mm-components {
   /* Glassmorphism — strong (dialogs, sheets) */
   .mm-glass {
     background: color-mix(in oklab, var(--mm-bg) 82%, transparent);
@@ -198,5 +192,15 @@
     box-shadow:
       var(--mm-shadow-2),
       inset 0 1px 0 color-mix(in oklab, var(--mm-fg) 6%, transparent);
+  }
+}
+
+/* Accessibility: kill motion for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  #comfyui-model-manager *,
+  #comfyui-model-manager *::before,
+  #comfyui-model-manager *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }
