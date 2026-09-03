@@ -69,13 +69,10 @@
   );
 
   /* Elevation — theme-following shadows */
-  --mm-shadow-1: 0 2px 8px -2px
-    color-mix(in oklab, var(--mm-fg) 12%, transparent);
-  --mm-shadow-2: 0 8px 24px -8px
-    color-mix(in oklab, var(--mm-fg) 18%, transparent);
-  --mm-shadow-3: 0 24px 48px -12px
-    color-mix(in oklab, var(--mm-fg) 28%, transparent);
-
+  --mm-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 2px 8px -2px rgb(0 0 0 / 0.35);
+  --mm-shadow-2: 2px 6px 12px -4px rgb(0 0 0 / 0.45), 4px 12px 24px -8px rgb(0 0 0 / 0.4);
+  --mm-shadow-3: 4px 12px 24px -8px rgb(0 0 0 / 0.5), 8px 24px 48px -16px rgb(0 0 0 / 0.45);
+  
   /* Shape */
   --mm-radius-ctl: 10px;
   --mm-radius-card: 14px;
