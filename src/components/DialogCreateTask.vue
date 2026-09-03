@@ -277,6 +277,16 @@ watch(selectedModelType, async () => {
 })
 
 const createDownTask = async (data: WithResolved<VersionModel>) => {
+  // type 未選択時は送信を拒否
+  if (!data.type) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Warning',
+      detail: 'Please select model type first',
+      life: 5000,
+    })
+    return
+  }
   loading.show()
 
   const formData = new FormData()
