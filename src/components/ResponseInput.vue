@@ -11,25 +11,29 @@
       <span v-if="prefixIcon" :class="[prefixIcon, 'size-4 text-mm-muted-fg']"></span>
     </slot>
 
+<!-- input 要素に追加 -->
     <input
       ref="inputRef"
       v-model="inputValue"
       class="flex-1 border-none bg-transparent text-sm text-mm-fg outline-none placeholder:text-mm-muted-fg"
       type="text"
       :placeholder="placeholder"
+      spellcheck="false"
+      autocomplete="off"
       v-bind="$attrs"
       @[trigger]="updateContent"
     />
 
+<!-- クリアボタンにリセットクラス追加 -->
     <button
       v-if="allowClear"
       v-show="content"
-      class="mm-transition size-4 text-mm-muted-fg hover:text-mm-fg hover:scale-110"
+      class="mm-transition size-4 border-0 bg-transparent p-0 text-mm-muted-fg hover:text-mm-fg hover:scale-110"
       @click="clearContent"
     >
       <X class="size-4" />
     </button>
-
+    
     <slot name="suffix">
       <span v-if="suffixIcon" :class="[suffixIcon, 'size-4 text-mm-muted-fg']"></span>
     </slot>
