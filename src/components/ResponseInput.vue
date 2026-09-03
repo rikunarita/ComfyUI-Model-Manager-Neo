@@ -3,8 +3,7 @@
     :class="[
       'flex items-center gap-2 rounded-mm-ctl border px-3 py-2 mm-transition',
       'border-mm-border-strong bg-mm-surface shadow-mm-1',
-      'focus-within:border-mm-accent focus-within:ring-2 focus-within:ring-mm-ring',
-      'hover:border-mm-accent/60',
+      'focus-within:border-mm-border-strong',
     ]"
   >
     <slot name="prefix">
