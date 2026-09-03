@@ -1,36 +1,43 @@
 <template>
   <!-- Drop mode: DropdownMenu (self-managed open state) -->
-  <DropdownMenu v-if="type === 'drop'">
-    <DropdownMenuTrigger as-child :class="$attrs.class">
-      <Button variant="secondary" class="-my-1 w-full whitespace-nowrap py-1">
-        <slot name="prefix">
-          <span v-if="prefixIcon" :class="[prefixIcon, 'text-base opacity-60']"></span>
-        </slot>
-        <span class="flex-1 overflow-scroll text-right scrollbar-none">
-          <slot name="label">{{ currentLabel }}</slot>
-        </span>
-        <slot name="suffix">
-          <ChevronDown class="size-4 opacity-60" />
-        </slot>
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent
-      align="end"
-      class="max-h-[300px] w-[var(--reka-dropdown-menu-trigger-width)] min-w-[8rem] overflow-y-auto"
-    >
-      <DropdownMenuItem
-        v-for="item in items"
-        :key="item.value"
-        class="justify-between"
-        @select="item.command?.()"
+  <slot
+    v-if="type === 'drop'"
+    name="target"
+    v-bind="{ prefixIcon, currentLabel, current }"
+  >
+    <DropdownMenu>
+      <DropdownMenuTrigger as-child :class="$attrs.class">
+        <Button variant="secondary" class="-my-1 w-full whitespace-nowrap py-1">
+          <slot name="prefix">
+            <!-- 修正: クラス文字列は <i> の class として描画（元実装の方式） -->
+            <i v-if="prefixIcon" :class="prefixIcon" class="text-base opacity-60"></i>
+          </slot>
+          <span class="flex-1 overflow-scroll text-right scrollbar-none">
+            <slot name="label">{{ currentLabel }}</slot>
+          </span>
+          <slot name="suffix">
+            <ChevronDown class="size-4 opacity-60" />
+          </slot>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        class="max-h-[300px] min-w-[8rem] overflow-y-auto"
       >
-        <slot name="item" :item="item">
-          <span>{{ item.label }}</span>
-        </slot>
-        <Check v-if="current === item.value" class="size-4 text-mm-accent" />
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
+        <DropdownMenuItem
+          v-for="item in items"
+          :key="item.value"
+          class="justify-between"
+          @select="item.command?.()"
+        >
+          <slot name="item" :item="item">
+            <span>{{ item.label }}</span>
+          </slot>
+          <Check v-if="current === item.value" class="size-4 text-mm-accent" />
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  </slot>
 
   <!-- Button mode: segmented buttons with horizontal scroll -->
   <div v-else class="relative flex-1 overflow-hidden">
