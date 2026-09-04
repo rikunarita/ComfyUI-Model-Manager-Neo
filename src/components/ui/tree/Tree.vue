@@ -36,6 +36,7 @@ interface TreeSlotProps {
     :get-children="getChildren"
     :class="cn('space-y-0.5', props.class)"
   >
+    <!-- Virtual mode -->
     <TreeVirtualizer
       v-if="virtual"
       v-slot="{ item }"
@@ -59,7 +60,9 @@ interface TreeSlotProps {
         </TreeRow>
       </TreeItem>
     </TreeVirtualizer>
-    <template v-else #default="slotProps">
+
+    <!-- Non-virtual mode -->
+    <template v-if="!virtual" #default="slotProps">
       <TreeItem
         v-for="item in (slotProps as TreeSlotProps).flattenItems"
         :key="item._id"
