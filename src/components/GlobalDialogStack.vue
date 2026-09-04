@@ -11,8 +11,11 @@
       :class="cn('flex max-h-full max-w-full flex-col p-0')"
       :style="{
         zIndex: 2400 + index,
-        width: `${sizeOf(item).width}px`,
-        height: `${sizeOf(item).height}px`,
+        width: `${containerSize.width}px`,
+        height: `${containerSize.height}px`,
+        left: `${containerPosition.left}px`,
+        top: `${containerPosition.top}px`,
+        transform: 'none',
       }"
       @mousedown="rise(item)"
     >
@@ -33,6 +36,15 @@
           >
             <i :class="action.icon" />
           </Button>
+          <Button
+            v-if="allowResize"
+            variant="ghost"
+            size="icon-sm"
+            @click="toggleMaximize"
+          >
+            <Maximize2 v-if="!isMaximized" class="size-4" />
+            <Minimize2 v-else class="size-4" />
+          </Button>
           <Button variant="ghost" size="icon-sm" @click="close(item)">
             <X class="size-4" />
           </Button>
@@ -41,12 +53,64 @@
       <div class="min-h-0 flex-1 overflow-auto">
         <component :is="item.content" v-bind="item.contentProps" />
       </div>
+
+      <!-- Resize handles -->
+      <div v-if="allowResize && !isMaximized" data-dialog-resizer>
+        <div
+          v-if="resizeAllow?.x"
+          data-resize-pos="left"
+          class="absolute -left-1 top-0 h-full w-2 cursor-ew-resize"
+          @mousedown="startResize"
+        ></div>
+        <div
+          v-if="resizeAllow?.x"
+          data-resize-pos="right"
+          class="absolute -right-1 top-0 h-full w-2 cursor-ew-resize"
+          @mousedown="startResize"
+        ></div>
+        <div
+          v-if="resizeAllow?.y"
+          data-resize-pos="top"
+          class="absolute -top-1 left-0 h-2 w-full cursor-ns-resize"
+          @mousedown="startResize"
+        ></div>
+        <div
+          v-if="resizeAllow?.y"
+          data-resize-pos="bottom"
+          class="absolute -bottom-1 left-0 h-2 w-full cursor-ns-resize"
+          @mousedown="startResize"
+        ></div>
+        <div
+          v-if="resizeAllow?.x && resizeAllow?.y"
+          data-resize-pos="top-left"
+          class="absolute -left-1 -top-1 h-2 w-2 cursor-se-resize"
+          @mousedown="startResize"
+        ></div>
+        <div
+          v-if="resizeAllow?.x && resizeAllow?.y"
+          data-resize-pos="top-right"
+          class="absolute -right-1 -top-1 h-2 w-2 cursor-sw-resize"
+          @mousedown="startResize"
+        ></div>
+        <div
+          v-if="resizeAllow?.x && resizeAllow?.y"
+          data-resize-pos="bottom-left"
+          class="absolute -bottom-1 -left-1 h-2 w-2 cursor-sw-resize"
+          @mousedown="startResize"
+        ></div>
+        <div
+          v-if="resizeAllow?.x && resizeAllow?.y"
+          data-resize-pos="bottom-right"
+          class="absolute -bottom-1 -right-1 h-2 w-2 cursor-se-resize"
+          @mousedown="startResize"
+        ></div>
+      </div>
     </DialogContent>
   </Dialog>
 </template>
 
 <script setup lang="ts">
-import { X } from '@lucide/vue'
+import { Maximize2, Minimize2, X } from '@lucide/vue'
 import { Button } from 'components/ui/button'
 import {
   Dialog,
@@ -59,6 +123,7 @@ import type { DialogItem } from 'hooks/dialog'
 import { useDialog } from 'hooks/dialog'
 import { clamp } from 'es-toolkit'
 import { cn } from 'utils/cn'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const { stack, rise, close } = useDialog()
 const { isMobile } = useConfig()
@@ -67,27 +132,194 @@ const handleOpenChange = (item: DialogItem, val: boolean) => {
   if (!val) close(item)
 }
 
-// 旧 ResponseDialog のサイズ機構を復元
-const sizeOf = (item: DialogItem) => {
-  if (isMobile.value) {
-    return {
-      width: item.defaultMobileSize?.width ?? window.innerWidth,
-      height: item.defaultMobileSize?.height ?? window.innerHeight,
-    }
+const allowResize = computed(() => !isMobile.value)
+const resizeAllow = computed(() => ({ x: true, y: true }))
+
+const isMaximized = ref(false)
+const isResizing = ref(false)
+const resizeDirection = ref<string[]>([])
+
+const defaultWidth = window.innerWidth * 0.6
+const defaultHeight = window.innerHeight * 0.8
+
+const containerSize = ref({
+  width: defaultWidth,
+  height: defaultHeight,
+})
+const containerPosition = ref({ left: 0, top: 0 })
+
+const minWidth = computed(() => 390)
+const maxWidth = computed(() => window.innerWidth)
+const minHeight = computed(() => 390)
+const maxHeight = computed(() => window.innerHeight)
+
+const updateContainerSize = (size: { width: number; height: number }) => {
+  containerSize.value = size
+}
+
+const updateContainerPosition = (position: { left: number; top: number }) => {
+  containerPosition.value = position
+}
+
+const recordContainerPosition = () => {
+  // Position is managed via reactive state
+}
+
+const updateGlobalStyle = (direction?: string) => {
+  let cursor = ''
+  let select = ''
+  switch (direction) {
+    case 'left':
+    case 'right':
+      cursor = 'ew-resize'
+      select = 'none'
+      break
+    case 'top':
+    case 'bottom':
+      cursor = 'ns-resize'
+      select = 'none'
+      break
+    case 'top-left':
+    case 'bottom-right':
+      cursor = 'se-resize'
+      select = 'none'
+      break
+    case 'top-right':
+    case 'bottom-left':
+      cursor = 'sw-resize'
+      select = 'none'
+      break
+    default:
+      break
   }
-  const defW = window.innerWidth * 0.6
-  const defH = window.innerHeight * 0.8
-  return {
-    width: clamp(
-      item.defaultSize?.width ?? defW,
-      item.minWidth ?? 390,
-      item.maxWidth ?? window.innerWidth,
-    ),
-    height: clamp(
-      item.defaultSize?.height ?? defH,
-      item.minHeight ?? 390,
-      item.maxHeight ?? window.innerHeight,
-    ),
+  document.body.style.cursor = cursor
+  document.body.style.userSelect = select
+}
+
+const resize = (event: MouseEvent) => {
+  if (isResizing.value) {
+    for (const direction of resizeDirection.value) {
+      if (direction === 'left') {
+        if (event.clientX > 0) {
+          containerSize.value.width = clamp(
+            containerPosition.value.left + containerSize.value.width - event.clientX,
+            minWidth.value,
+            maxWidth.value,
+          )
+        }
+        if (
+          containerSize.value.width > minWidth.value &&
+          containerSize.value.width < maxWidth.value
+        ) {
+          containerPosition.value.left = clamp(
+            event.clientX,
+            0,
+            window.innerWidth - containerSize.value.width,
+          )
+        }
+      }
+
+      if (direction === 'right') {
+        containerSize.value.width = clamp(
+          event.clientX - containerPosition.value.left,
+          minWidth.value,
+          maxWidth.value,
+        )
+      }
+
+      if (direction === 'top') {
+        if (event.clientY > 0) {
+          containerSize.value.height = clamp(
+            containerPosition.value.top + containerSize.value.height - event.clientY,
+            minHeight.value,
+            maxHeight.value,
+          )
+        }
+        if (
+          containerSize.value.height > minHeight.value &&
+          containerSize.value.height < maxHeight.value
+        ) {
+          containerPosition.value.top = clamp(
+            event.clientY,
+            0,
+            window.innerHeight - containerSize.value.height,
+          )
+        }
+      }
+
+      if (direction === 'bottom') {
+        containerSize.value.height = clamp(
+          event.clientY - containerPosition.value.top,
+          minHeight.value,
+          maxHeight.value,
+        )
+      }
+    }
+    updateContainerSize(containerSize.value)
+    updateContainerPosition(containerPosition.value)
   }
 }
+
+const stopResize = () => {
+  isResizing.value = false
+  resizeDirection.value = []
+  document.removeEventListener('mousemove', resize)
+  document.removeEventListener('mouseup', stopResize)
+  updateGlobalStyle()
+}
+
+const startResize = (event: MouseEvent) => {
+  isResizing.value = true
+  const direction =
+    (event.target as HTMLElement).getAttribute('data-resize-pos') ?? ''
+  resizeDirection.value = direction.split('-')
+  recordContainerPosition()
+  updateGlobalStyle(direction)
+  document.addEventListener('mousemove', resize)
+  document.addEventListener('mouseup', stopResize)
+}
+
+const toggleMaximize = () => {
+  if (isMaximized.value) {
+    updateContainerSize({ width: defaultWidth, height: defaultHeight })
+    updateContainerPosition({ left: 0, top: 0 })
+    isMaximized.value = false
+  } else {
+    updateContainerSize({ width: window.innerWidth, height: window.innerHeight })
+    updateContainerPosition({ left: 0, top: 0 })
+    isMaximized.value = true
+  }
+}
+
+onMounted(() => {
+  nextTick(() => {
+    if (allowResize.value) {
+      updateContainerSize(containerSize.value)
+    } else {
+      updateContainerSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })
+    }
+    recordContainerPosition()
+    updateContainerPosition(containerPosition.value)
+  })
+})
+
+onBeforeUnmount(() => {
+  stopResize()
+})
+
+watch(allowResize, (allowResize) => {
+  if (allowResize) {
+    updateContainerSize(containerSize.value)
+    updateContainerPosition(containerPosition.value)
+  } else {
+    updateContainerSize({
+      width: window.innerWidth,
+      height: window.innerHeight,
+    })
+    updateContainerPosition({ left: 0, top: 0 })
+  }
+})
 </script>
