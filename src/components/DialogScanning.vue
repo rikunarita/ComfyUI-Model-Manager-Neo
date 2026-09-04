@@ -38,12 +38,12 @@
           <div class="flex h-full flex-col overflow-hidden">
             <ResponseScroll class="flex-1">
               <Tree
+                :items="pathOptions"
+                :get-key="(item: any) => item.key"
+                :get-children="(item: any) => item.children"
+                v-model="selectedFolder"
                 class="h-full"
-                v-model:selection-keys="selectedKey"
-                :value="pathOptions"
-                selectionMode="single"
-                :pt:nodeLabel:class="'text-ellipsis overflow-hidden'"
-              ></Tree>
+              />
             </ResponseScroll>
 
             <div class="flex justify-between pt-6">
@@ -129,7 +129,7 @@ import StepList from 'primevue/steplist'
 import StepPanel from 'primevue/steppanel'
 import StepPanels from 'primevue/steppanels'
 import Stepper from 'primevue/stepper'
-import Tree from 'primevue/tree'
+import { Tree } from 'components/ui/tree'
 import { api, app } from 'scripts/comfyAPI'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -171,15 +171,9 @@ const typeOptions = computed(() => {
 const { pathOptions } = useModelFolder({ type: currentType })
 
 const selectedModelFolder = ref<string>()
-const selectedKey = computed({
-  get: () => {
-    const key = selectedModelFolder.value
-    return key ? { [key]: true } : {}
-  },
-  set: (val) => {
-    const key = Object.keys(val)[0]
-    selectedModelFolder.value = key
-  },
+const selectedFolder = computed({
+  get: () => selectedModelFolder.value ? { key: selectedModelFolder.value } : undefined,
+  set: (val: any) => { selectedModelFolder.value = val?.key },
 })
 
 const enabledScan = computed(() => {
