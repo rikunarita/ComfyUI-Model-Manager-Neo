@@ -7,13 +7,13 @@
       <div :class="['flex gap-4 overflow-hidden', showToolbar || 'flex-1']">
         <div class="flex overflow-hidden">
           <Button
-            icon="pi pi-arrow-up"
-            text
-            rounded
-            severity="secondary"
+            variant="ghost"
+            size="icon-sm"
             :disabled="folderPaths.length < 2"
             @click="handleGoBackParentFolder"
-          ></Button>
+          >
+            <ChevronUp class="size-4" />
+          </Button>
         </div>
 
         <ResponseBreadcrumb
@@ -44,11 +44,12 @@
         </div>
 
         <Button
-          :icon="`mdi mdi-menu-${showToolbar ? 'close' : 'open'}`"
-          text
-          severity="secondary"
+          variant="ghost"
+          size="icon-sm"
           @click="toggleToolbar"
-        ></Button>
+        >
+          <component :is="showToolbar ? Menu : MenuOpen" class="size-4" />
+        </Button>
       </div>
     </div>
 
@@ -97,44 +98,38 @@
       <div></div>
     </div>
 
-    <ContextMenu ref="menu" :model="contextItems"></ContextMenu>
-
-    <ConfirmDialog group="confirm-name">
-      <template #container="{ acceptCallback: accept, rejectCallback: reject }">
-        <div class="flex w-90 flex-col items-end rounded px-4 pb-4 pt-8">
-          <InputText
-            class="w-full"
-            type="text"
-            v-model="confirmName"
-            v-focus
-            @keyup.enter="accept"
-          ></InputText>
-          <div class="mt-6 flex items-center gap-2">
-            <Button :label="$t('cancel')" @click="reject" outlined></Button>
-            <Button :label="$t('confirm')" @click="accept"></Button>
-          </div>
-        </div>
-      </template>
-    </ConfirmDialog>
+    <!-- Context Menu (reka-ui DropdownMenu) -->
+    <DropdownMenu v-model:open="contextMenuVisible">
+      <DropdownMenuContent>
+        <DropdownMenuItem
+          v-for="item in contextItems"
+          :key="item.label"
+          @select="item.command"
+        >
+          {{ item.label }}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ChevronUp, Menu, MenuOpen } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseBreadcrumb from 'components/ResponseBreadcrumb.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
+import { Button } from 'components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from 'components/ui/dropdown-menu'
 import { useConfig } from 'hooks/config'
 import { type ModelTreeNode, useModelExplorer } from 'hooks/explorer'
-import type { BreadcrumbItem } from 'types/breadcrumb'
 import { chunk } from 'es-toolkit'
-import Button from 'primevue/button'
-import ConfirmDialog from 'primevue/confirmdialog'
-import ContextMenu from 'primevue/contextmenu'
-import InputText from 'primevue/inputtext'
-import type { MenuItem } from 'primevue/menuitem'
 import { genModelKey } from 'utils/model'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -157,11 +152,10 @@ const {
 const { cardSize, cardSizeMap, cardSizeFlag, dialog: settings } = useConfig()
 
 // folderPaths を BreadcrumbItem[] に変換
-const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
+const breadcrumbItems = computed(() => {
   return folderPaths.value.map((folder) => ({
     label: folder.name,
     command: () => {
-      // folderPaths から該当フォルダ以降を削除（パンくずクリックで遡る）
       const index = folderPaths.value.findIndex(
         (f) => f.name === folder.name && f.pathIndex === folder.pathIndex
       )
@@ -187,6 +181,7 @@ const itemSize = computed(() => {
 const cols = computed(() => {
   const containerWidth = contentSize.width.value + gutter.x
   const itemWidth = cardSize.value.width + gutter.x
+
   return Math.max(1, Math.floor(containerWidth / itemWidth))
 })
 
@@ -308,12 +303,18 @@ const cardSizeOptions = computed(() => {
   })
 })
 
-const menu = ref()
-const contextItems = ref<MenuItem[]>([])
-const confirmName = ref('')
+// Context menu state
+interface ContextMenuItem {
+  label: string
+  icon?: string
+  command: () => void
+}
+
+const contextMenuVisible = ref(false)
+const contextItems = ref<ContextMenuItem[]>([])
 
 const openItem = (item: ModelTreeNode, e: Event) => {
-  menu.value.hide(e)
+  contextMenuVisible.value = false
   if (item.isFolder) {
     searchContent.value = undefined
     openFolder(item)
@@ -337,15 +338,11 @@ const openItemContext = (item: ModelTreeNode, e: Event) => {
     },
   ]
 
-  menu.value?.show(e)
+  contextMenuVisible.value = true
 }
 
 const nonContextMenu = (e: Event) => {
-  menu.value.hide(e)
-}
-
-const vFocus = {
-  mounted: (el: HTMLInputElement) => el.focus(),
+  contextMenuVisible.value = false
 }
 
 const handleGoBackParentFolder = () => {
