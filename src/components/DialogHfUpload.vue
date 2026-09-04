@@ -1,215 +1,159 @@
 <template>
-  <div class="h-full px-4">
-    <Stepper v-model:value="stepValue" class="flex h-full flex-col" linear>
-      <StepList>
-        <Step :value="1">{{ $t('selectModelType') }}</Step>
-        <Step :value="2">{{ $t('selectModel') }}</Step>
-        <Step :value="3">{{ $t('uploadToHuggingFace') }}</Step>
-      </StepList>
-      <StepPanels class="flex-1 overflow-hidden">
-        <StepPanel :value="1" class="h-full">
-          <div class="flex h-full flex-col overflow-hidden">
-            <ResponseScroll>
-              <div class="flex flex-wrap gap-4">
-                <Button
-                  v-for="item in typeOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  @click="item.command"
-                ></Button>
-              </div>
-            </ResponseScroll>
+  <div class="flex h-full flex-col">
+    <Tabs v-model="stepValue" class="flex flex-1 flex-col overflow-hidden">
+      <TabsList class="grid w-full grid-cols-3">
+        <TabsTrigger value="1">{{ $t('selectRepoType') }}</TabsTrigger>
+        <TabsTrigger value="2" :disabled="stepValue === '1'">{{ $t('inputRepoInfo') }}</TabsTrigger>
+        <TabsTrigger value="3" :disabled="stepValue === '1' || stepValue === '2'">{{ $t('selectFiles') }}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="1" class="flex-1 overflow-hidden">
+        <div class="flex h-full flex-col gap-4 px-4">
+          <div class="flex flex-wrap gap-4">
+            <Button
+              v-for="item in repoTypeOptions"
+              :key="item.value"
+              :variant="repoType === item.value ? 'default' : 'secondary'"
+              @click="item.command"
+            >
+              {{ item.label }}
+            </Button>
           </div>
-        </StepPanel>
-        <StepPanel :value="2" class="h-full">
-          <div class="flex h-full flex-col overflow-hidden">
-            <ResponseScroll class="flex-1">
+        </div>
+      </TabsContent>
+      <TabsContent value="2" class="flex-1 overflow-hidden">
+        <div class="flex h-full flex-col gap-4 px-4">
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium">{{ $t('repoId') }}</label>
+            <Input v-model="repoId" class="w-full" :placeholder="$t('repoIdPlaceholder')" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium">{{ $t('revision') }}</label>
+            <Input v-model="revision" class="w-full" :placeholder="$t('revisionPlaceholder')" />
+          </div>
+          <div v-if="repoType === 'model'" class="flex items-center gap-2">
+            <Checkbox v-model="privateRepo" id="hf-private-repo" />
+            <label for="hf-private-repo" class="text-sm">{{ $t('privateRepo') }}</label>
+          </div>
+          <div class="flex justify-between pt-4">
+            <Button variant="secondary" @click="handleBackRepoType">
+              <ChevronLeft class="size-4" />
+              {{ $t('back') }}
+            </Button>
+            <Button :disabled="!repoId" @click="handleConfirmRepoInfo">
+              {{ $t('next') }}
+              <ChevronRight class="size-4" />
+            </Button>
+          </div>
+        </div>
+      </TabsContent>
+      <TabsContent value="3" class="flex-1 overflow-hidden">
+        <div class="flex h-full flex-col overflow-hidden">
+          <ResponseScroll class="flex-1">
+            <div class="flex flex-col gap-2">
               <div
-                v-if="modelList.length === 0"
-                class="flex flex-col items-center gap-4 py-8 opacity-60"
+                v-for="file in fileList"
+                :key="file.rfilename"
+                class="flex items-center gap-2 rounded-mm-ctl border border-mm-border p-2"
               >
-                <i class="pi pi-box text-3xl"></i>
-                <div>{{ $t('noModelsInCurrentPath') }}</div>
+                <Checkbox
+                  :model-value="selectedFiles.includes(file.rfilename)"
+                  @update:model-value="(checked: boolean) => toggleFile(file.rfilename, checked)"
+                />
+                <span class="flex-1 text-sm">{{ file.rfilename }}</span>
+                <span class="text-xs text-mm-muted-fg">{{ bytesToSize(file.size) }}</span>
               </div>
-              <div v-else class="grid grid-cols-3 gap-4 md:grid-cols-4">
-                <div
-                  v-for="model in modelList"
-                  :key="genModelKey(model)"
-                  class="cursor-pointer overflow-hidden rounded-lg border border-gray-500"
-                  @click="handleSelectModel(model)"
-                >
-                  <div class="preview-aspect w-full">
-                    <img
-                      :src="getPreviewUrl(model.preview)"
-                      class="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div
-                    class="overflow-hidden text-ellipsis whitespace-nowrap p-2 text-sm"
-                  >
-                    {{ model.basename }}
-                  </div>
-                </div>
-              </div>
-            </ResponseScroll>
-            <div class="flex justify-between pt-6">
-              <Button
-                :label="$t('back')"
-                severity="secondary"
-                icon="pi pi-arrow-left"
-                @click="handleBackTypeSelect"
-              ></Button>
             </div>
+          </ResponseScroll>
+          <div class="flex justify-between pt-4">
+            <Button variant="secondary" @click="handleBackRepoInfo">
+              <ChevronLeft class="size-4" />
+              {{ $t('back') }}
+            </Button>
+            <Button :disabled="selectedFiles.length === 0" @click="handleStartUpload">
+              {{ $t('upload') }}
+            </Button>
           </div>
-        </StepPanel>
-        <StepPanel :value="3" class="h-full">
-          <div class="flex h-full flex-col gap-4 overflow-hidden">
-            <ResponseScroll class="min-h-0 flex-1">
-              <div class="flex flex-col gap-4 py-2">
-                <div class="rounded-lg border border-gray-500 p-3">
-                  <div
-                    class="overflow-hidden text-ellipsis whitespace-nowrap font-bold"
-                  >
-                    {{ selectedModel?.basename }}{{ selectedModel?.extension }}
-                  </div>
-                  <div class="text-sm opacity-60">
-                    {{ selectedModel?.type }} ·
-                    {{ formatSize(selectedModel?.sizeBytes) }}
-                  </div>
-                </div>
-                <div
-                  v-if="whoamiName"
-                  class="text-sm opacity-60"
-                >
-                  {{ $t('hfAccount') }}: {{ whoamiName }}
-                </div>
-                <div
-                  v-if="whoamiError"
-                  class="rounded bg-yellow-500/20 p-2 text-sm text-yellow-500"
-                >
-                  {{ whoamiError }}
-                </div>
-                <div class="flex flex-col gap-2">
-                  <label class="text-sm font-medium">{{ $t('repoId') }}</label>
-                  <ResponseInput
-                    v-model="repoId"
-                    :allow-clear="true"
-                    placeholder="username/repo-name"
-                  />
-                </div>
-                <div class="flex items-center gap-2">
-                  <Checkbox
-                    v-model="privateRepo"
-                    :binary="true"
-                    input-id="hf-private-repo"
-                  />
-                  <label for="hf-private-repo" class="text-sm">
-                    {{ $t('privateRepoIfCreate') }}
-                  </label>
-                </div>
-                <div class="flex flex-col gap-2">
-                  <label class="text-sm font-medium">
-                    {{ $t('pathInRepo') }}
-                  </label>
-                  <ResponseInput
-                    v-model="pathInRepo"
-                    :allow-clear="true"
-                    placeholder="folder/model.safetensors"
-                  />
-                </div>
-              </div>
-            </ResponseScroll>
-            <div v-show="uploading" class="w-full">
-              <ProgressBar
-                :value="uploadProgress"
-                :mode="uploadProgress === 0 ? 'indeterminate' : 'determinate'"
-                :pt:value:style="{ transition: 'width .1s linear' }"
-              ></ProgressBar>
-            </div>
-            <div class="flex justify-between pt-6">
-              <Button
-                :label="$t('back')"
-                severity="secondary"
-                icon="pi pi-arrow-left"
-                @click="handleBackModelSelect"
-              ></Button>
-              <Button
-                :label="$t('upload')"
-                icon="pi pi-upload"
-                :disabled="!repoId || !pathInRepo"
-                :loading="uploading"
-                @click="handleUpload"
-              ></Button>
-            </div>
-          </div>
-        </StepPanel>
-      </StepPanels>
-    </Stepper>
+        </div>
+      </TabsContent>
+    </Tabs>
+
+    <div v-if="uploading" class="border-t border-mm-border px-4 py-4">
+      <div class="flex flex-col gap-2">
+        <div class="flex justify-between text-sm">
+          <span>{{ currentFile }}</span>
+          <span>{{ uploadProgress }}%</span>
+        </div>
+        <Progress :model-value="uploadProgress" />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import ResponseInput from 'components/ResponseInput.vue'
+import { ChevronLeft, ChevronRight } from '@lucide/vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
-import { configSetting } from 'hooks/config'
-import { useLoading } from 'hooks/loading'
-import { genModelFullName, useModels } from 'hooks/model'
+import { Button } from 'components/ui/button'
+import { Checkbox } from 'components/ui/checkbox'
+import { Input } from 'components/ui/input'
+import { Progress } from 'components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
+import { useDialog } from 'hooks/dialog'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
-import Button from 'primevue/button'
-import Checkbox from 'primevue/checkbox'
-import ProgressBar from 'primevue/progressbar'
-import Step from 'primevue/step'
-import StepList from 'primevue/steplist'
-import StepPanel from 'primevue/steppanel'
-import StepPanels from 'primevue/steppanels'
-import Stepper from 'primevue/stepper'
-import { api, app } from 'scripts/comfyAPI'
-import { Model } from 'types/typings'
 import { bytesToSize } from 'utils/common'
-import { genModelKey } from 'utils/model'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const { toast } = useToast()
-const loading = useLoading()
-const { folders } = useModels()
+const { close } = useDialog()
 
-const stepValue = ref(1)
-const currentType = ref<string>()
+const stepValue = ref('1')
 
-const typeOptions = computed(() => {
-  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(
-    configSetting.excludeScanTypes,
-  )
-  const customBlackList =
-    excludeScanTypes
-      ?.split(',')
-      .map((type: string) => type.trim())
-      .filter(Boolean) ?? []
-  return Object.keys(folders.value)
-    .filter((folder) => !customBlackList.includes(folder))
-    .map((type) => {
-      return {
-        label: type,
-        value: type,
-        command: () => {
-          currentType.value = type
-          stepValue.value++
-          fetchModels(type)
-        },
-      }
-    })
-})
+const repoType = ref<'model' | 'dataset'>('model')
+const repoTypeOptions = [
+  {
+    label: t('model'),
+    value: 'model' as const,
+    command: () => {
+      repoType.value = 'model'
+      stepValue.value = '2'
+    },
+  },
+  {
+    label: t('dataset'),
+    value: 'dataset' as const,
+    command: () => {
+      repoType.value = 'dataset'
+      stepValue.value = '2'
+    },
+  },
+]
 
-const modelList = ref<Model[]>([])
+const repoId = ref('')
+const revision = ref('main')
+const privateRepo = ref(false)
 
-const fetchModels = async (type: string) => {
-  loading.show()
+const handleBackRepoType = () => {
+  repoId.value = ''
+  revision.value = 'main'
+  privateRepo.value = false
+  stepValue.value = '1'
+}
+
+const handleConfirmRepoInfo = async () => {
   try {
-    const resData = (await request(`/models/${type}`)) as Model[]
-    modelList.value = (resData ?? []).filter((item) => !item.isFolder)
+    const result = await request('/hf/upload/files', {
+      method: 'POST',
+      body: JSON.stringify({
+        repoType: repoType.value,
+        repoId: repoId.value,
+        revision: revision.value,
+        private: privateRepo.value,
+      }),
+    })
+    fileList.value = result?.files ?? []
+    stepValue.value = '3'
   } catch (error) {
     toast.add({
       severity: 'error',
@@ -217,109 +161,63 @@ const fetchModels = async (type: string) => {
       detail: (error as Error).message,
       life: 5000,
     })
-  } finally {
-    loading.hide()
   }
 }
 
-const selectedModel = ref<Model>()
-
-const handleSelectModel = (model: Model) => {
-  selectedModel.value = model
-  pathInRepo.value = genModelFullName(model)
-  stepValue.value++
+const handleBackRepoInfo = () => {
+  fileList.value = []
+  selectedFiles.value = []
+  stepValue.value = '2'
 }
 
-const handleBackTypeSelect = () => {
-  currentType.value = undefined
-  modelList.value = []
-  stepValue.value--
-}
+const fileList = ref<Array<{ rfilename: string; size: number }>>([])
+const selectedFiles = ref<string[]>([])
 
-const handleBackModelSelect = () => {
-  selectedModel.value = undefined
-  stepValue.value--
-}
-
-const repoId = ref<string>()
-const privateRepo = ref(false)
-const pathInRepo = ref<string>()
-
-const whoamiName = ref<string>()
-const whoamiError = ref<string>()
-
-const fetchWhoami = async () => {
-  try {
-    const result = await request('/hf/whoami')
-    whoamiName.value = result?.name
-  } catch (error) {
-    whoamiError.value = (error as Error).message
+const toggleFile = (filename: string, checked: boolean) => {
+  if (checked) {
+    selectedFiles.value.push(filename)
+  } else {
+    selectedFiles.value = selectedFiles.value.filter((f) => f !== filename)
   }
 }
 
 const uploading = ref(false)
+const currentFile = ref('')
 const uploadProgress = ref(0)
 
-const handleUpload = async () => {
-  if (!selectedModel.value) {
-    return
-  }
+const handleStartUpload = async () => {
   uploading.value = true
-  uploadProgress.value = 0
   try {
-    await request('/hf/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: selectedModel.value.type,
-        pathIndex: selectedModel.value.pathIndex,
-        fullname: genModelFullName(selectedModel.value),
-        repoId: repoId.value,
-        pathInRepo: pathInRepo.value,
-        private: privateRepo.value,
-      }),
-    })
-    uploadProgress.value = 100
+    for (const file of selectedFiles.value) {
+      currentFile.value = file
+      uploadProgress.value = 0
+      await request('/hf/upload', {
+        method: 'POST',
+        body: JSON.stringify({
+          repoType: repoType.value,
+          repoId: repoId.value,
+          revision: revision.value,
+          file,
+        }),
+      })
+      uploadProgress.value = 100
+    }
     toast.add({
       severity: 'success',
       summary: 'Success',
-      detail: `${selectedModel.value.basename} -> ${repoId.value}`,
-      life: 5000,
+      detail: 'Upload completed',
+      life: 3000,
     })
+    close()
   } catch (error) {
     toast.add({
       severity: 'error',
       summary: 'Error',
       detail: (error as Error).message,
-      life: 15000,
+      life: 5000,
     })
   } finally {
     uploading.value = false
   }
 }
-
-const formatSize = (size?: number) => {
-  return size ? bytesToSize(size) : 'Unknown'
-}
-
-// Helper to safely handle preview URLs which can be string or string[]
-const getPreviewUrl = (preview: string | string[] | undefined): string => {
-  if (!preview) return ''
-  if (Array.isArray(preview)) return preview[0] || ''
-  return preview
-}
-
-const updateHfProgress = (event: CustomEvent) => {
-  const detail = event.detail
-  uploadProgress.value = Math.floor(detail.progress ?? 0)
-}
-
-onMounted(() => {
-  fetchWhoami()
-  api.addEventListener('update_hf_upload_progress', updateHfProgress)
-})
-
-onUnmounted(() => {
-  api.removeEventListener('update_hf_upload_progress', updateHfProgress)
-})
 </script>
