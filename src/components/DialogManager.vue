@@ -126,6 +126,7 @@
 </template>
 
 <script setup lang="ts" name="manager-dialog">
+import { Copy, Plus, Workflow } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseInput from 'components/ResponseInput.vue'
