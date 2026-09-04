@@ -6,22 +6,19 @@
     @update:open="(val) => handleOpenChange(item, val)"
   >
     <DialogContent
-      :class="cn(
-        'mm-glass max-h-[90vh] max-w-[90vw] p-0',
-        item.modal === false && 'pointer-events-auto',
-      )"
+      :show-close-button="false"
+      :force-mount="item.keepAlive"
+      :class="cn('flex max-h-full max-w-full flex-col p-0')"
       :style="{
         zIndex: 2400 + index,
-        width: item.defaultSize?.width ? `${item.defaultSize.width}px` : undefined,
-        height: item.defaultSize?.height ? `${item.defaultSize.height}px` : undefined,
-        minWidth: item.minWidth ? `${item.minWidth}px` : undefined,
-        maxWidth: item.maxWidth ? `${item.maxWidth}px` : undefined,
-        minHeight: item.minHeight ? `${item.minHeight}px` : undefined,
-        maxHeight: item.maxHeight ? `${item.maxHeight}px` : undefined,
+        width: `${sizeOf(item).width}px`,
+        height: `${sizeOf(item).height}px`,
       }"
       @mousedown="rise(item)"
     >
-      <DialogHeader class="flex flex-row items-center justify-between space-y-0 border-b border-mm-border p-4">
+      <DialogHeader
+        class="flex flex-row items-center justify-between space-y-0 border-b border-mm-border px-4 py-3"
+      >
         <DialogTitle class="select-none text-base font-medium">
           {{ item.title }}
         </DialogTitle>
@@ -30,20 +27,18 @@
             v-for="action in item.headerButtons"
             :key="action.key"
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
             :title="action.tooltip"
             @click.stop="action.command"
           >
-            <component :is="getIcon(action.icon)" class="size-4" />
+            <i :class="action.icon" />
           </Button>
-          <DialogClose as-child>
-            <Button variant="ghost" size="icon-xs" @click="close(item)">
-              <X class="size-4" />
-            </Button>
-          </DialogClose>
+          <Button variant="ghost" size="icon-sm" @click="close(item)">
+            <X class="size-4" />
+          </Button>
         </div>
       </DialogHeader>
-      <div class="flex-1 overflow-auto p-4">
+      <div class="min-h-0 flex-1 overflow-auto">
         <component :is="item.content" v-bind="item.contentProps" />
       </div>
     </DialogContent>
@@ -55,38 +50,44 @@ import { X } from '@lucide/vue'
 import { Button } from 'components/ui/button'
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from 'components/ui/dialog'
+import { useConfig } from 'hooks/config'
 import type { DialogItem } from 'hooks/dialog'
 import { useDialog } from 'hooks/dialog'
+import { clamp } from 'es-toolkit'
 import { cn } from 'utils/cn'
-import { computed, h } from 'vue'
 
 const { stack, rise, close } = useDialog()
+const { isMobile } = useConfig()
 
-const handleOpenChange = (item: DialogItem & { visible?: boolean }, val: boolean) => {
-  if (!val) {
-    close(item)
-  }
+const handleOpenChange = (item: DialogItem, val: boolean) => {
+  if (!val) close(item)
 }
 
-// Icon mapping: PrimeIcons/MaterialDesign → Lucide
-const getIcon = (icon: string) => {
-  // Simple mapping for common icons
-  const map: Record<string, any> = {
-    'pi pi-refresh': 'RefreshCw',
-    'pi pi-download': 'Download',
-    'pi pi-upload': 'Upload',
-    'pi pi-folder-search-out': 'FolderSearch',
-    'md md-folder-search-out': 'FolderSearch',
+// 旧 ResponseDialog のサイズ機構を復元
+const sizeOf = (item: DialogItem) => {
+  if (isMobile.value) {
+    return {
+      width: item.defaultMobileSize?.width ?? window.innerWidth,
+      height: item.defaultMobileSize?.height ?? window.innerHeight,
+    }
   }
-  // For now, return a simple span with the icon class (PrimeIcons still loaded)
-  // In 3+5-7, replace with actual Lucide components
+  const defW = window.innerWidth * 0.6
+  const defH = window.innerHeight * 0.8
   return {
-    render: () => h('i', { class: icon }),
+    width: clamp(
+      item.defaultSize?.width ?? defW,
+      item.minWidth ?? 390,
+      item.maxWidth ?? window.innerWidth,
+    ),
+    height: clamp(
+      item.defaultSize?.height ?? defH,
+      item.minHeight ?? 390,
+      item.maxHeight ?? window.innerHeight,
+    ),
   }
 }
 </script>
