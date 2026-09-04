@@ -78,11 +78,13 @@
                 </ResponseSelect>
               </div>
               <Button
-                icon="pi pi-download"
-                :label="$t('download')"
                 type="submit"
                 :disabled="isDirectFile && !selectedModelType"
-              ></Button>
+                @click="createDownTask(currentModel)"
+              >
+                <Download class="size-4" />
+                {{ $t('download') }}
+              </Button>
             </template>
           </ModelContent>
         </KeepAlive>
@@ -99,10 +101,12 @@
 </template>
 
 <script setup lang="ts">
+import { Download } from '@lucide/vue'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
+import { Button } from 'components/ui/button'
 import { useConfig } from 'hooks/config'
 import { useDialog } from 'hooks/dialog'
 import { useModelSearch } from 'hooks/download'
@@ -110,7 +114,6 @@ import { useLoading } from 'hooks/loading'
 import { genModelFullName } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
-import Button from 'primevue/button'
 import { VersionModel, WithResolved } from 'types/typings'
 import {
   getFilenameFromUrl,
@@ -277,7 +280,7 @@ watch(selectedModelType, async () => {
 })
 
 const createDownTask = async (data: WithResolved<VersionModel>) => {
-  // type 未選択時は送信を拒否
+  // type が未選択の場合は送信を拒否
   if (!data.type) {
     toast.add({
       severity: 'warn',
