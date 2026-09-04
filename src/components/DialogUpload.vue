@@ -1,121 +1,101 @@
 <template>
   <div class="h-full px-4">
-    <!-- <div v-show="batchScanningStep === 0" class="h-full">
-      <div class="flex h-full items-center px-8">
-        <div class="h-20 w-full opacity-60">
-          <ProgressBar mode="indeterminate" style="height: 6px"></ProgressBar>
-        </div>
-      </div>
-    </div> -->
-
-    <Stepper v-model:value="stepValue" class="flex h-full flex-col" linear>
-      <StepList>
-        <Step :value="1">{{ $t('selectModelType') }}</Step>
-        <Step :value="2">{{ $t('selectSubdirectory') }}</Step>
-        <Step :value="3">{{ $t('chooseFile') }}</Step>
-      </StepList>
-      <StepPanels class="flex-1 overflow-hidden">
-        <StepPanel :value="1" class="h-full">
-          <div class="flex h-full flex-col overflow-hidden">
-            <ResponseScroll>
-              <div class="flex flex-wrap gap-4">
-                <Button
-                  v-for="item in typeOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  @click="item.command"
-                ></Button>
-              </div>
-            </ResponseScroll>
-          </div>
-        </StepPanel>
-        <StepPanel :value="2" class="h-full">
-          <div class="flex h-full flex-col overflow-hidden">
-            <ResponseScroll class="flex-1">
-              <Tree
-                class="h-full"
-                v-model:selection-keys="selectedKey"
-                :value="pathOptions"
-                selectionMode="single"
-                :pt:nodeLabel:class="'text-ellipsis overflow-hidden'"
-              ></Tree>
-            </ResponseScroll>
-
-            <div class="flex justify-between pt-6">
+    <Tabs v-model="stepValue" class="flex h-full flex-col">
+      <TabsList class="grid w-full grid-cols-3">
+        <TabsTrigger :value="1">{{ $t('selectModelType') }}</TabsTrigger>
+        <TabsTrigger :value="2" :disabled="stepValue === 1">{{ $t('selectSubdirectory') }}</TabsTrigger>
+        <TabsTrigger :value="3" :disabled="stepValue === 1 || stepValue === 2">{{ $t('chooseFile') }}</TabsTrigger>
+      </TabsList>
+      <TabsContent :value="1" class="flex-1 overflow-hidden">
+        <div class="flex h-full flex-col overflow-hidden">
+          <ResponseScroll>
+            <div class="flex flex-wrap gap-4">
               <Button
-                :label="$t('back')"
-                severity="secondary"
-                icon="pi pi-arrow-left"
-                @click="handleBackTypeSelect"
-              ></Button>
-              <Button
-                :label="$t('next')"
-                icon="pi pi-arrow-right"
-                icon-pos="right"
-                :disabled="!enabledUpload"
-                @click="handleConfirmSubdir"
-              ></Button>
+                v-for="item in typeOptions"
+                :key="item.value"
+                @click="item.command"
+              >
+                {{ item.label }}
+              </Button>
             </div>
-          </div>
-        </StepPanel>
-        <StepPanel :value="3" class="h-full">
-          <div class="flex h-full flex-col items-center justify-center">
-            <template v-if="showUploadProgress">
-              <div class="w-4/5">
-                <ProgressBar
-                  :value="uploadProgress"
-                  :pt:value:style="{ transition: 'width .1s linear' }"
-                ></ProgressBar>
-              </div>
-            </template>
+          </ResponseScroll>
+        </div>
+      </TabsContent>
+      <TabsContent :value="2" class="flex-1 overflow-hidden">
+        <div class="flex h-full flex-col overflow-hidden">
+          <ResponseScroll class="flex-1">
+            <Tree
+              :items="pathOptions"
+              :get-key="(item: any) => item.key"
+              :get-children="(item: any) => item.children"
+              v-model="selectedFolder"
+              class="h-full"
+            />
+          </ResponseScroll>
 
-            <template v-else>
-              <div class="overflow-hidden break-words py-8">
-                <div class="overflow-hidden px-8">
-                  <div class="text-center">
-                    <div class="pb-2">
-                      {{ $t('selectedSpecialPath') }}
-                    </div>
-                    <div class="leading-5 opacity-60">
-                      {{ selectedModelFolder }}
-                    </div>
+          <div class="flex justify-between pt-6">
+            <Button variant="secondary" @click="handleBackTypeSelect">
+              <ChevronLeft class="size-4" />
+              {{ $t('back') }}
+            </Button>
+            <Button :disabled="!enabledUpload" @click="handleConfirmSubdir">
+              {{ $t('next') }}
+              <ChevronRight class="size-4" />
+            </Button>
+          </div>
+        </div>
+      </TabsContent>
+      <TabsContent :value="3" class="flex-1 overflow-hidden">
+        <div class="flex h-full flex-col items-center justify-center">
+          <template v-if="showUploadProgress">
+            <div class="w-4/5">
+              <Progress :model-value="uploadProgress" />
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="overflow-hidden break-words py-8">
+              <div class="overflow-hidden px-8">
+                <div class="text-center">
+                  <div class="pb-2">
+                    {{ $t('selectedSpecialPath') }}
+                  </div>
+                  <div class="leading-5 opacity-60">
+                    {{ selectedModelFolder }}
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div class="flex items-center justify-center gap-4">
-                <Button
-                  v-for="item in uploadActions"
-                  :key="item.value"
-                  :label="item.label"
-                  :icon="item.icon"
-                  @click="item.command.call(item)"
-                ></Button>
-              </div>
-            </template>
+            <div class="flex items-center justify-center gap-4">
+              <Button
+                v-for="item in uploadActions"
+                :key="item.value"
+                @click="item.command.call(item)"
+              >
+                {{ item.label }}
+              </Button>
+            </div>
+          </template>
 
-            <div class="h-1/4"></div>
-          </div>
-        </StepPanel>
-      </StepPanels>
-    </Stepper>
+          <div class="h-1/4"></div>
+        </div>
+      </TabsContent>
+    </Tabs>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ChevronLeft, ChevronRight } from '@lucide/vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
+import { Button } from 'components/ui/button'
+import { Progress } from 'components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
+import { Tree } from 'components/ui/tree'
 import { configSetting } from 'hooks/config'
 import { useModelFolder, useModels } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
-import Button from 'primevue/button'
-import ProgressBar from 'primevue/progressbar'
-import Step from 'primevue/step'
-import StepList from 'primevue/steplist'
-import StepPanel from 'primevue/steppanel'
-import StepPanels from 'primevue/steppanels'
-import Stepper from 'primevue/stepper'
-import Tree from 'primevue/tree'
 import { api, app } from 'scripts/comfyAPI'
 import { computed, onMounted, onUnmounted, ref, toValue } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -154,15 +134,9 @@ const typeOptions = computed(() => {
 const { pathOptions } = useModelFolder({ type: currentType })
 
 const selectedModelFolder = ref<string>()
-const selectedKey = computed({
-  get: () => {
-    const key = selectedModelFolder.value
-    return key ? { [key]: true } : {}
-  },
-  set: (val) => {
-    const key = Object.keys(val)[0]
-    selectedModelFolder.value = key
-  },
+const selectedFolder = computed({
+  get: () => selectedModelFolder.value ? { key: selectedModelFolder.value } : undefined,
+  set: (val: any) => { selectedModelFolder.value = val?.key },
 })
 
 const enabledUpload = computed(() => {
@@ -197,7 +171,6 @@ const uploadActions = ref([
   {
     value: 'back',
     label: t('back'),
-    icon: 'pi pi-arrow-left',
     command: () => {
       stepValue.value--
     },
@@ -241,7 +214,7 @@ const uploadActions = ref([
   },
 ])
 
-const supportedExtensions = ref([])
+const supportedExtensions = ref<string[]>([])
 
 const fetchSupportedExtensions = async () => {
   try {
