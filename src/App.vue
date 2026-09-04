@@ -1,9 +1,8 @@
 <template>
   <ConfigProvider teleport-to="body">
-    <GlobalToast></GlobalToast>
-    <GlobalConfirm></GlobalConfirm>
-    <GlobalLoading></GlobalLoading>
-    <GlobalDialogStack></GlobalDialogStack>
+    <Sonner position="top-right" :toast-options="{ classNames: { toast: 'mm-glass-light' } }" />
+    <GlobalConfirm />
+    <GlobalDialogStack />
   </ConfigProvider>
 </template>
 
