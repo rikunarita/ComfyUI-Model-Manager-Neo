@@ -3,112 +3,99 @@
     <div v-show="batchScanningStep === 0" class="h-full">
       <div class="flex h-full items-center px-8">
         <div class="h-20 w-full opacity-60">
-          <ProgressBar mode="indeterminate" style="height: 6px"></ProgressBar>
+          <Progress mode="indeterminate" style="height: 6px"></Progress>
         </div>
       </div>
     </div>
 
-    <Stepper
-      v-show="batchScanningStep === 1"
-      v-model:value="stepValue"
-      class="flex h-full flex-col"
-      linear
-    >
-      <StepList>
-        <Step value="1">{{ $t('selectModelType') }}</Step>
-        <Step value="2">{{ $t('selectSubdirectory') }}</Step>
-        <Step value="3">{{ $t('scanModelInformation') }}</Step>
-      </StepList>
-      <StepPanels class="flex-1 overflow-hidden">
-        <StepPanel value="1" class="h-full">
-          <div class="flex h-full flex-col overflow-hidden">
-            <ResponseScroll>
-              <div class="flex flex-wrap gap-4">
-                <Button
-                  v-for="item in typeOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  @click="item.command"
-                ></Button>
-              </div>
-            </ResponseScroll>
-          </div>
-        </StepPanel>
-        <StepPanel value="2" class="h-full">
-          <div class="flex h-full flex-col overflow-hidden">
-            <ResponseScroll class="flex-1">
-              <Tree
-                :items="pathOptions"
-                :get-key="(item: any) => item.key"
-                :get-children="(item: any) => item.children"
-                v-model="selectedFolder"
-                class="h-full"
-              />
-            </ResponseScroll>
-
-            <div class="flex justify-between pt-6">
+    <Tabs v-show="batchScanningStep === 1" v-model="stepValue" class="flex h-full flex-col">
+      <TabsList class="grid w-full grid-cols-3">
+        <TabsTrigger value="1">{{ $t('selectModelType') }}</TabsTrigger>
+        <TabsTrigger value="2" :disabled="stepValue === '1'">{{ $t('selectSubdirectory') }}</TabsTrigger>
+        <TabsTrigger value="3" :disabled="stepValue === '1' || stepValue === '2'">{{ $t('scanModelInformation') }}</TabsTrigger>
+      </TabsList>
+      <TabsContent value="1" class="flex-1 overflow-hidden">
+        <div class="flex h-full flex-col overflow-hidden">
+          <ResponseScroll>
+            <div class="flex flex-wrap gap-4">
               <Button
-                :label="$t('back')"
-                severity="secondary"
-                icon="pi pi-arrow-left"
-                @click="handleBackTypeSelect"
-              ></Button>
-              <Button
-                :label="$t('next')"
-                icon="pi pi-arrow-right"
-                icon-pos="right"
-                :disabled="!enabledScan"
-                @click="handleConfirmSubdir"
-              ></Button>
+                v-for="item in typeOptions"
+                :key="item.value"
+                @click="item.command"
+              >
+                {{ item.label }}
+              </Button>
             </div>
+          </ResponseScroll>
+        </div>
+      </TabsContent>
+      <TabsContent value="2" class="flex-1 overflow-hidden">
+        <div class="flex h-full flex-col overflow-hidden">
+          <ResponseScroll class="flex-1">
+            <Tree
+              :items="pathOptions"
+              :get-key="(item: any) => item.key"
+              :get-children="(item: any) => item.children"
+              v-model="selectedFolder"
+              class="h-full"
+            />
+          </ResponseScroll>
+
+          <div class="flex justify-between pt-6">
+            <Button variant="secondary" @click="handleBackTypeSelect">
+              <ChevronLeft class="size-4" />
+              {{ $t('back') }}
+            </Button>
+            <Button :disabled="!enabledScan" @click="handleConfirmSubdir">
+              {{ $t('next') }}
+              <ChevronRight class="size-4" />
+            </Button>
           </div>
-        </StepPanel>
-        <StepPanel value="3" class="h-full">
-          <div class="overflow-hidden break-words py-8">
-            <div class="overflow-hidden px-8">
-              <div v-show="currentType === allType" class="text-center">
-                {{ $t('selectedAllPaths') }}
+        </div>
+      </TabsContent>
+      <TabsContent value="3" class="flex-1 overflow-hidden">
+        <div class="overflow-hidden break-words py-8">
+          <div class="overflow-hidden px-8">
+            <div v-show="currentType === allType" class="text-center">
+              {{ $t('selectedAllPaths') }}
+            </div>
+            <div v-show="currentType !== allType" class="text-center">
+              <div class="pb-2">
+                {{ $t('selectedSpecialPath') }}
               </div>
-              <div v-show="currentType !== allType" class="text-center">
-                <div class="pb-2">
-                  {{ $t('selectedSpecialPath') }}
-                </div>
-                <div class="leading-5 opacity-60">
-                  {{ selectedModelFolder }}
-                </div>
+              <div class="leading-5 opacity-60">
+                {{ selectedModelFolder }}
               </div>
             </div>
           </div>
+        </div>
 
-          <div class="flex items-center justify-center gap-4">
-            <Button
-              v-for="item in scanActions"
-              :key="item.value"
-              :label="item.label"
-              :icon="item.icon"
-              @click="() => item.command(item)"
-            ></Button>
-          </div>
-        </StepPanel>
-      </StepPanels>
-    </Stepper>
+        <div class="flex items-center justify-center gap-4">
+          <Button
+            v-for="item in scanActions"
+            :key="item.value"
+            @click="() => item.command(item)"
+          >
+            {{ item.label }}
+          </Button>
+        </div>
+      </TabsContent>
+    </Tabs>
 
     <div v-show="batchScanningStep === 2" class="h-full">
       <div class="flex h-full items-center px-8">
         <div class="h-20 w-full">
           <div v-show="scanProgress > -1">
-            <ProgressBar :value="scanProgress">
+            <Progress :model-value="scanProgress">
               {{ scanCompleteCount }} / {{ scanTotalCount }}
-            </ProgressBar>
+            </Progress>
           </div>
 
           <div v-show="scanProgress === -1" class="text-center">
-            <Button
-              severity="secondary"
-              :label="$t('back')"
-              icon="pi pi-arrow-left"
-              @click="handleBackTypeSelect"
-            ></Button>
+            <Button variant="secondary" @click="handleBackTypeSelect">
+              <ChevronLeft class="size-4" />
+              {{ $t('back') }}
+            </Button>
             <span class="pl-2">{{ $t('noModelsInCurrentPath') }}</span>
           </div>
         </div>
@@ -118,18 +105,15 @@
 </template>
 
 <script setup lang="ts">
+import { ChevronLeft, ChevronRight } from '@lucide/vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
+import { Button } from 'components/ui/button'
+import { Progress } from 'components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
+import { Tree } from 'components/ui/tree'
 import { configSetting } from 'hooks/config'
 import { useModelFolder, useModels } from 'hooks/model'
 import { request } from 'hooks/request'
-import Button from 'primevue/button'
-import ProgressBar from 'primevue/progressbar'
-import Step from 'primevue/step'
-import StepList from 'primevue/steplist'
-import StepPanel from 'primevue/steppanel'
-import StepPanels from 'primevue/steppanels'
-import Stepper from 'primevue/stepper'
-import { Tree } from 'components/ui/tree'
 import { api, app } from 'scripts/comfyAPI'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -230,7 +214,6 @@ const scanActions = ref([
   {
     value: 'back',
     label: t('back'),
-    icon: 'pi pi-arrow-left',
     command: () => {
       stepValue.value = currentType.value === allType ? '1' : '2'
     },
