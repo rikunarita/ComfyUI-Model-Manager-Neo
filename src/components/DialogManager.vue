@@ -83,24 +83,30 @@
               >
                 <div class="flex flex-col gap-2">
                   <Button
-                    icon="pi pi-plus"
-                    severity="secondary"
-                    rounded
+                    variant="secondary"
+                    size="icon-sm"
+                    class="rounded-full"
                     @click.stop="addModelNode(model)"
-                  ></Button>
+                  >
+                    <Plus class="size-4" />
+                  </Button>
                   <Button
-                    icon="pi pi-copy"
-                    severity="secondary"
-                    rounded
+                    variant="secondary"
+                    size="icon-sm"
+                    class="rounded-full"
                     @click.stop="copyModelNode(model)"
-                  ></Button>
+                  >
+                    <Copy class="size-4" />
+                  </Button>
                   <Button
                     v-show="model.preview"
-                    icon="pi pi-file-import"
-                    severity="secondary"
-                    rounded
+                    variant="secondary"
+                    size="icon-sm"
+                    class="rounded-full"
                     @click.stop="loadPreviewWorkflow(model)"
-                  ></Button>
+                  >
+                    <Workflow class="size-4" />
+                  </Button>
                 </div>
               </div>
             </template>
