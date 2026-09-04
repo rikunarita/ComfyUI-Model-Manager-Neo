@@ -57,7 +57,7 @@
               >
                 <Checkbox
                   :model-value="selectedFiles.includes(file.rfilename)"
-                  @update:model-value="(checked: boolean) => toggleFile(file.rfilename, checked)"
+                  @update:model-value="(checked: boolean | 'indeterminate') => toggleFile(file.rfilename, checked === true)"
                 />
                 <span class="flex-1 text-sm">{{ file.rfilename }}</span>
                 <span class="text-xs text-mm-muted-fg">{{ bytesToSize(file.size) }}</span>
