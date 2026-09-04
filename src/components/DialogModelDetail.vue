@@ -9,37 +9,53 @@
       >
         <template #action="{ metadata }">
           <template v-if="editable">
-            <Button :label="$t('cancel')" type="reset"></Button>
-            <Button :label="$t('save')" type="submit"></Button>
+            <Button variant="secondary" type="reset">{{ $t('cancel') }}</Button>
+            <Button type="submit">{{ $t('save') }}</Button>
           </template>
           <template v-else>
             <Button
               v-show="metadata.modelPage"
-              icon="pi pi-eye"
+              variant="ghost"
+              size="icon-sm"
               @click="openModelPage(metadata.modelPage)"
-            ></Button>
+            >
+              <Eye class="size-4" />
+            </Button>
             <Button
-              icon="pi pi-plus"
+              variant="ghost"
+              size="icon-sm"
               @click.stop="addModelNode(model)"
-            ></Button>
+            >
+              <Plus class="size-4" />
+            </Button>
             <Button
-              icon="pi pi-copy"
+              variant="ghost"
+              size="icon-sm"
               @click.stop="copyModelNode(model)"
-            ></Button>
+            >
+              <Copy class="size-4" />
+            </Button>
             <Button
-              v-show="model.preview"
-              icon="pi pi-file-import"
+              variant="ghost"
+              size="icon-sm"
               @click.stop="loadPreviewWorkflow(model)"
-            ></Button>
+            >
+              <Workflow class="size-4" />
+            </Button>
             <Button
-              icon="pi pi-pen-to-square"
+              variant="ghost"
+              size="icon-sm"
               @click="editable = true"
-            ></Button>
+            >
+              <PenSquare class="size-4" />
+            </Button>
             <Button
-              severity="danger"
-              icon="pi pi-trash"
+              variant="destructive"
+              size="icon-sm"
               @click="handleDelete"
-            ></Button>
+            >
+              <Trash2 class="size-4" />
+            </Button>
           </template>
         </template>
       </ModelContent>
@@ -48,11 +64,12 @@
 </template>
 
 <script setup lang="ts">
+import { Copy, Eye, PenSquare, Plus, Trash2, Workflow } from '@lucide/vue'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
+import { Button } from 'components/ui/button'
 import { genModelUrl, useModelNodeAction, useModels } from 'hooks/model'
 import { useRequest } from 'hooks/request'
-import Button from 'primevue/button'
 import { BaseModel, Model, WithResolved } from 'types/typings'
 import { computed, ref } from 'vue'
 
