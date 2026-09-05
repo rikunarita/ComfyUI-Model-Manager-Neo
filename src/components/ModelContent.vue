@@ -25,19 +25,19 @@
         </div>
       </div>
 
-      <Tabs value="0" class="mt-4">
-        <TabList>
-          <Tab value="0">Description</Tab>
-          <Tab value="1">Metadata</Tab>
-        </TabList>
-        <TabPanels pt:root:class="p-0 py-4">
-          <TabPanel value="0">
+      <Tabs default-value="0" class="mt-4">
+        <TabsList class="grid w-full grid-cols-2">
+          <TabsTrigger value="0">Description</TabsTrigger>
+          <TabsTrigger value="1">Metadata</TabsTrigger>
+        </TabsList>
+        <div class="py-4">
+          <TabsContent value="0">
             <ModelDescription v-model:editable="editable"></ModelDescription>
-          </TabPanel>
-          <TabPanel value="1">
+          </TabsContent>
+          <TabsContent value="1">
             <ModelMetadata></ModelMetadata>
-          </TabPanel>
-        </TabPanels>
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   </form>
@@ -48,6 +48,7 @@ import ModelBaseInfo from 'components/ModelBaseInfo.vue'
 import ModelDescription from 'components/ModelDescription.vue'
 import ModelMetadata from 'components/ModelMetadata.vue'
 import ModelPreview from 'components/ModelPreview.vue'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
 import { useContainerQueries } from 'hooks/container'
 import {
   useModelBaseInfoEditor,
@@ -57,11 +58,6 @@ import {
   useModelPreviewEditor,
 } from 'hooks/model'
 import { cloneDeep } from 'es-toolkit'
-import Tab from 'primevue/tab'
-import TabList from 'primevue/tablist'
-import TabPanel from 'primevue/tabpanel'
-import TabPanels from 'primevue/tabpanels'
-import Tabs from 'primevue/tabs'
 import { BaseModel, WithResolved } from 'types/typings'
 import { ref, toRaw, watch } from 'vue'
 
