@@ -1,4 +1,7 @@
-# comfyui-model-manager
+# ComfyUI-Model-Manager-Neo
+
+> [!CAUTION]
+> Currently under development. Please do not use.
 
 Download, browse and delete models in ComfyUI.
 
