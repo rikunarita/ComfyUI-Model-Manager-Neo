@@ -15,7 +15,7 @@
         height: `${containerSize.height}px`,
         left: `${containerPosition.left}px`,
         top: `${containerPosition.top}px`,
-        transform: 'none',
+        translate: '0 0',
       }"
       @mousedown="rise(item)"
     >
@@ -142,11 +142,19 @@ const resizeDirection = ref<string[]>([])
 const defaultWidth = window.innerWidth * 0.6
 const defaultHeight = window.innerHeight * 0.8
 
+// 修正1: 初期サイズ
 const containerSize = ref({
   width: defaultWidth,
   height: defaultHeight,
 })
-const containerPosition = ref({ left: 0, top: 0 })
+
+// 修正2: 初期位置を画面中央に（left/top=0 ＋ translate残存による偏移を根絶）
+const centerPosition = (size: { width: number; height: number }) => ({
+  left: (window.innerWidth - size.width) / 2,
+  top: (window.innerHeight - size.height) / 2,
+})
+
+const containerPosition = ref(centerPosition(containerSize.value))
 
 const minWidth = computed(() => 390)
 const maxWidth = computed(() => window.innerWidth)
@@ -159,10 +167,6 @@ const updateContainerSize = (size: { width: number; height: number }) => {
 
 const updateContainerPosition = (position: { left: number; top: number }) => {
   containerPosition.value = position
-}
-
-const recordContainerPosition = () => {
-  // Position is managed via reactive state
 }
 
 const updateGlobalStyle = (direction?: string) => {
@@ -273,16 +277,16 @@ const startResize = (event: MouseEvent) => {
   const direction =
     (event.target as HTMLElement).getAttribute('data-resize-pos') ?? ''
   resizeDirection.value = direction.split('-')
-  recordContainerPosition()
   updateGlobalStyle(direction)
   document.addEventListener('mousemove', resize)
   document.addEventListener('mouseup', stopResize)
 }
 
+// 修正3: 最大化復元時も中央へ戻す
 const toggleMaximize = () => {
   if (isMaximized.value) {
     updateContainerSize({ width: defaultWidth, height: defaultHeight })
-    updateContainerPosition({ left: 0, top: 0 })
+    updateContainerPosition(centerPosition({ width: defaultWidth, height: defaultHeight }))
     isMaximized.value = false
   } else {
     updateContainerSize({ width: window.innerWidth, height: window.innerHeight })
@@ -295,14 +299,14 @@ onMounted(() => {
   nextTick(() => {
     if (allowResize.value) {
       updateContainerSize(containerSize.value)
+      updateContainerPosition(centerPosition(containerSize.value))
     } else {
       updateContainerSize({
         width: window.innerWidth,
         height: window.innerHeight,
       })
+      updateContainerPosition({ left: 0, top: 0 })
     }
-    recordContainerPosition()
-    updateContainerPosition(containerPosition.value)
   })
 })
 
@@ -313,7 +317,7 @@ onBeforeUnmount(() => {
 watch(allowResize, (allowResize) => {
   if (allowResize) {
     updateContainerSize(containerSize.value)
-    updateContainerPosition(containerPosition.value)
+    updateContainerPosition(centerPosition(containerSize.value))
   } else {
     updateContainerSize({
       width: window.innerWidth,
