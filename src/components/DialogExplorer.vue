@@ -48,7 +48,8 @@
           size="icon-sm"
           @click="toggleToolbar"
         >
-          <component :is="showToolbar ? Menu : PanelLeftOpen" class="size-4" />
+          <X v-if="showToolbar" class="size-4" />
+          <Menu v-else class="size-4" />
         </Button>
       </div>
     </div>
