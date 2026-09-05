@@ -56,7 +56,9 @@ interface TreeSlotProps {
           :has-children="!!item.hasChildren"
           :level="item.level"
         >
-          <slot name="item" :item="item" />
+          <slot name="item" :item="item">
+            <span class="text-ellipsis overflow-hidden">{{ (item as any).label }}</span>
+          </slot>
         </TreeRow>
       </TreeItem>
     </TreeVirtualizer>
