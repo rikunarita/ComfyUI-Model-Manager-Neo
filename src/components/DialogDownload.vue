@@ -1,98 +1,72 @@
 <template>
-  <div class="flex h-full flex-col gap-4">
-    <div ref="container" class="whitespace-nowrap px-4">
-      <div :class="['flex gap-4', $sm('justify-end')]">
-        <Button
-          :class="[$sm('w-auto', 'w-full')]"
-          :label="$t('createDownloadTask')"
-          @click="openCreateTask"
-        ></Button>
-        <Button
-          :class="[$sm('w-auto', 'w-full')]"
-          :label="$t('uploadFromLocalFile')"
-          @click="openLocalUpload"
-        ></Button>
-      </div>
+  <div class="h-full px-4">
+    <div class="flex justify-end gap-2 py-4">
+      <Button @click="openCreateDownload">
+        <Plus class="size-4" />
+        {{ $t('createDownloadTask') }}
+      </Button>
+      <Button @click="openLocalUpload">
+        <Upload class="size-4" />
+        {{ $t('uploadFromLocalFile') }}
+      </Button>
     </div>
-    <div class="flex min-h-0 flex-1 flex-col gap-4">
-      <div class="flex min-h-0 flex-1 flex-col gap-2">
-        <div class="px-4 text-sm font-bold opacity-60">
+
+    <div class="flex h-full flex-col gap-4 overflow-hidden">
+      <div v-if="externalDownloads.length > 0" class="flex flex-col gap-2">
+        <div class="text-sm font-medium text-mm-muted-fg">
           {{ $t('externalDownloads') }}
         </div>
-        <ResponseScroll class="min-h-0 flex-1">
-          <div class="w-full px-4">
-            <ul class="m-0 flex list-none flex-col gap-4 p-0">
-              <DownloadTaskItem
-                v-for="item in remoteTasks"
-                :key="item.taskId"
-                :item="item"
-              />
-            </ul>
-          </div>
-        </ResponseScroll>
+        <div class="flex flex-col gap-2">
+          <DownloadTaskItem
+            v-for="item in externalDownloads"
+            :key="item.taskId"
+            :item="item"
+          />
+        </div>
       </div>
-      <div class="border-t border-gray-600"></div>
-      <div class="flex min-h-0 flex-1 flex-col gap-2">
-        <div class="px-4 text-sm font-bold opacity-60">
+
+      <div v-if="localUploads.length > 0" class="flex flex-col gap-2">
+        <div class="text-sm font-medium text-mm-muted-fg">
           {{ $t('localUploads') }}
         </div>
-        <ResponseScroll class="min-h-0 flex-1">
-          <div class="w-full px-4">
-            <ul class="m-0 flex list-none flex-col gap-4 p-0">
-              <DownloadTaskItem
-                v-for="item in localTasks"
-                :key="item.taskId"
-                :item="item"
-              />
-            </ul>
-          </div>
-        </ResponseScroll>
+        <div class="flex flex-col gap-2">
+          <DownloadTaskItem
+            v-for="item in localUploads"
+            :key="item.taskId"
+            :item="item"
+          />
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import DialogCreateTask from 'components/DialogCreateTask.vue'
-import DialogUpload from 'components/DialogUpload.vue'
+import { Plus, Upload } from '@lucide/vue'
 import DownloadTaskItem from 'components/DownloadTaskItem.vue'
-import ResponseScroll from 'components/ResponseScroll.vue'
-import { useContainerQueries } from 'hooks/container'
+import { Button } from 'components/ui/button'
 import { useDialog } from 'hooks/dialog'
 import { useDownload } from 'hooks/download'
-import { useModels } from 'hooks/model'
-import { useToast } from 'hooks/toast'
-import { Button } from 'components/ui/button'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-const { data } = useDownload()
-const models = useModels()
 const { t } = useI18n()
-const { toast } = useToast()
 const dialog = useDialog()
+const { data } = useDownload()
 
-const remoteTasks = computed(() =>
-  data.value.filter((item) => item.source !== 'local'),
-)
-const localTasks = computed(() =>
-  data.value.filter((item) => item.source === 'local'),
-)
+const externalDownloads = computed(() => {
+  return data.value.filter((item) => item.source !== 'local')
+})
 
-const openCreateTask = () => {
+const localUploads = computed(() => {
+  return data.value.filter((item) => item.source === 'local')
+})
+
+const openCreateDownload = () => {
   dialog.open({
-    key: `model-manager-create-task-${Date.now()}`,
-    title: t('parseModelUrl'),
+    key: 'model-manager-create-download',
+    title: t('createDownloadTask'),
     content: DialogCreateTask,
-  })
-}
-
-const refreshModelsAndConfig = async () => {
-  await Promise.all([models.refresh(true)])
-  toast.add({
-    severity: 'success',
-    summary: 'Refreshed Models',
-    life: 2000,
   })
 }
 
@@ -110,8 +84,4 @@ const openLocalUpload = () => {
     ],
   })
 }
-
-const container = ref<HTMLElement | null>(null)
-
-const { $sm } = useContainerQueries(container)
 </script>
