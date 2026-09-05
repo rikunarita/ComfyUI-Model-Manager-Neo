@@ -72,7 +72,7 @@
 
                   <template #extra>
                     <div
-                      v-show="showModelAction"
+                      v-show="showModelName"
                       class="pointer-events-none absolute right-2 top-2 opacity-0 duration-300 group-hover/card:opacity-100"
                     >
                       <div class="flex flex-col gap-2">
