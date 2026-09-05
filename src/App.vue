@@ -1,8 +1,11 @@
 <template>
   <ConfigProvider teleport-to="body">
-    <Sonner position="top-right" :toast-options="{ classes: { toast: 'mm-glass-light' } }" />
-    <GlobalConfirm />
-    <GlobalDialogStack />
+    <TooltipProvider :delay-duration="400">
+      <GlobalToast />
+      <GlobalConfirm />
+      <GlobalLoading />
+      <GlobalDialogStack />
+    </TooltipProvider>
   </ConfigProvider>
 </template>
 
@@ -14,12 +17,12 @@ import DialogManager from 'components/DialogManager.vue'
 import DialogScanning from 'components/DialogScanning.vue'
 import GlobalDialogStack from 'components/GlobalDialogStack.vue'
 import GlobalLoading from 'components/GlobalLoading.vue'
-import { Sonner } from 'components/ui/sonner'
+import GlobalToast from 'components/GlobalToast.vue'
+import GlobalConfirm from 'components/GlobalConfirm.vue'
+import { TooltipProvider } from 'components/ui/tooltip'
 import { useStoreProvider } from 'hooks/store'
 import { useToast } from 'hooks/toast'
-import GlobalConfirm from 'components/GlobalConfirm.vue'
-import { ConfigProvider } from 'reka-ui'
-import { $el, app, ComfyButton } from 'scripts/comfyAPI'
+import { app } from 'scripts/comfyAPI'
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
