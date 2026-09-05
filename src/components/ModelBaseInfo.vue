@@ -1,7 +1,6 @@
 <template>
   <div class="flex flex-col gap-4">
     <div v-if="editable" class="flex flex-col gap-4">
-      <!-- v-if="!baseInfo.type" を削除 → 編集モード時は常に表示 -->
       <ResponseSelect v-model="type" :items="typeOptions">
         <template #prefix>
           <span>{{ $t('modelType') }}</span>
@@ -9,10 +8,12 @@
       </ResponseSelect>
 
       <div class="flex gap-2 overflow-hidden">
-        <!-- フォルダパス表示部分 -->
         <div class="flex-1 overflow-hidden rounded bg-gray-500/30">
           <div class="flex h-full items-center justify-end">
-            <span v-if="renderedModelFolder" class="overflow-hidden text-ellipsis whitespace-nowrap px-2">
+            <span
+              v-if="renderedModelFolder"
+              class="overflow-hidden text-ellipsis whitespace-nowrap px-2"
+            >
               {{ renderedModelFolder }}
             </span>
             <span v-else class="px-2 text-sm text-mm-muted-fg italic">
@@ -21,43 +22,42 @@
           </div>
         </div>
         <Button
-          icon="pi pi-folder"
+          variant="ghost"
+          size="icon-sm"
           :disabled="!type"
           @click="handleSelectFolder"
-        ></Button>
-
-        <Dialog
-          v-model:visible="folderSelectVisible"
-          :header="$t('folder')"
-          :auto-z-index="false"
-          :pt:mask:style="{ zIndex }"
-          :pt:root:style="{ height: '50vh', maxWidth: '50vw' }"
-          pt:content:class="flex-1"
         >
-          <div class="flex h-full flex-col overflow-hidden">
-            <div class="flex-1 overflow-hidden">
-              <ResponseScroll>
-                <Tree
-                  class="h-full"
-                  v-model:selection-keys="modelFolder"
-                  :value="pathOptions"
-                  selectionMode="single"
-                  :pt:nodeLabel:class="'text-ellipsis overflow-hidden'"
-                ></Tree>
-              </ResponseScroll>
+          <FolderOpen class="size-4" />
+        </Button>
+
+        <!-- Folder select dialog (reka-ui Dialog) -->
+        <Dialog :open="folderSelectVisible" @update:open="folderSelectVisible = $event">
+          <DialogContent class="flex max-h-[50vh] max-w-[50vw] flex-col">
+            <DialogHeader>
+              <DialogTitle>{{ $t('folder') }}</DialogTitle>
+            </DialogHeader>
+            <div class="flex flex-1 flex-col overflow-hidden">
+              <div class="flex-1 overflow-hidden">
+                <ResponseScroll>
+                  <Tree
+                    :items="pathOptions"
+                    :get-key="(item: any) => item.key ?? ''"
+                    :get-children="(item: any) => item.children"
+                    v-model="selectedFolderItem"
+                    class="h-full"
+                  />
+                </ResponseScroll>
+              </div>
+              <div class="flex justify-end gap-2 pt-4">
+                <Button variant="secondary" @click="handleCancelSelectFolder">
+                  {{ $t('cancel') }}
+                </Button>
+                <Button @click="handleConfirmSelectFolder">
+                  {{ $t('select') }}
+                </Button>
+              </div>
             </div>
-            <div class="flex justify-end gap-2">
-              <Button
-                :label="$t('cancel')"
-                severity="secondary"
-                @click="handleCancelSelectFolder"
-              ></Button>
-              <Button
-                :label="$t('select')"
-                @click="handleConfirmSelectFolder"
-              ></Button>
-            </div>
-          </div>
+          </DialogContent>
         </Dialog>
       </div>
 
@@ -89,18 +89,20 @@
           <td class="border-r bg-gray-300 px-4 dark:bg-gray-800">
             {{ $t(`info.${item.key}`) }}
           </td>
-          <td
-            class="overflow-hidden text-ellipsis break-all px-4"
-            v-tooltip.top="{
-              value: item.display,
-              disabled: !['pathIndex', 'basename'].includes(item.key),
-              autoHide: false,
-              showDelay: 800,
-              hideDelay: 300,
-              pt: { root: { style: { zIndex: 2100, maxWidth: '32rem' } } },
-            }"
-          >
-            {{ item.display }}
+          <td class="overflow-hidden text-ellipsis break-all px-4">
+            <Tooltip :delay-duration="800">
+              <TooltipTrigger as-child>
+                <span>{{ item.display }}</span>
+              </TooltipTrigger>
+              <TooltipContent
+                v-if="!['pathIndex', 'basename'].includes(item.key)"
+                side="top"
+                class="max-w-[32rem]"
+                :style="{ zIndex: 2100 }"
+              >
+                {{ item.display }}
+              </TooltipContent>
+            </Tooltip>
           </td>
         </tr>
       </tbody>
@@ -109,16 +111,22 @@
 </template>
 
 <script setup lang="ts">
+import { FolderOpen } from '@lucide/vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
+import { Button } from 'components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from 'components/ui/dialog'
+import { Tree } from 'components/ui/tree'
+import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { useDialog } from 'hooks/dialog'
 import { useModelBaseInfo, useModelFolder } from 'hooks/model'
 import { useToast } from 'hooks/toast'
-import Button from 'primevue/button'
-import { usePrimeVue } from 'primevue/config'
-import Dialog from 'primevue/dialog'
-import Tree from 'primevue/tree'
 import { computed, ref, watch } from 'vue'
 
 const editable = defineModel<boolean>('editable')
@@ -135,15 +143,13 @@ const {
   modelFolders,
 } = useModelBaseInfo()
 
-// 既存の watch(type) の後に追加
 watch(type, () => {
   subFolder.value = ''
 })
 
-// ↓ 追加
 watch(editable, (newVal) => {
   if (newVal) {
-    type.value = ''  // 編集モード時は常に空から開始（自動検出値を無視）
+    type.value = ''
   }
 }, { immediate: true })
 
@@ -194,11 +200,6 @@ const validateBasename = (val: string | undefined) => {
 const folderSelectVisible = ref(false)
 
 const { stack } = useDialog()
-const { config } = usePrimeVue()
-const zIndex = computed(() => {
-  const baseZIndex = config.zIndex?.modal ?? 1100
-  return baseZIndex + stack.value.length + 1
-})
 
 const handleSelectFolder = () => {
   if (!type.value) {
@@ -217,14 +218,14 @@ const { pathOptions } = useModelFolder({ type })
 
 const selectedModelFolder = ref<string>()
 
-const modelFolder = computed({
+const selectedFolderItem = computed({
   get: () => {
-    const folderPath = baseInfo.value.pathIndex.display
+    const folderPath = baseInfo.value.pathIndex?.display
     const selectedKey = selectedModelFolder.value ?? folderPath
-    return { [selectedKey]: true }
+    return selectedKey ? { key: selectedKey } : undefined
   },
-  set: (val) => {
-    const folderPath = Object.keys(val)[0]
+  set: (val: any) => {
+    const folderPath = val?.key
     selectedModelFolder.value = folderPath
   },
 })
@@ -239,11 +240,11 @@ const handleCancelSelectFolder = () => {
 }
 
 const handleConfirmSelectFolder = () => {
-  const folderPath = Object.keys(modelFolder.value)[0]
+  const folderPath = selectedFolderItem.value?.key
 
   const folders = modelFolders.value[type.value]
-  pathIndex.value = folders.findIndex((item) => folderPath.includes(item))
-  if (pathIndex.value < 0) {
+  const idx = folders.findIndex((item) => folderPath?.includes(item))
+  if (idx < 0) {
     toast.add({
       severity: 'error',
       detail: 'Folder not found',
@@ -251,11 +252,12 @@ const handleConfirmSelectFolder = () => {
     })
     return
   }
-  const prefixPath = folders[pathIndex.value]
-  subFolder.value = folderPath.replace(prefixPath, '')
+  const prefixPath = folders[idx]
+  subFolder.value = folderPath!.replace(prefixPath, '')
   if (subFolder.value.startsWith('/')) {
     subFolder.value = subFolder.value.replace('/', '')
   }
+  pathIndex.value = idx
 
   selectedModelFolder.value = undefined
   folderSelectVisible.value = false
