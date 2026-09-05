@@ -21,7 +21,6 @@ const props = withDefaults(defineProps<Props>(), {
 const model = defineModel<T | T[]>()
 const expanded = defineModel<string[]>('expanded', { default: () => [] })
 
-// TreeRoot のデフォルトスロットスコープ型
 interface TreeSlotProps {
   flattenItems: FlattenedItem<T>[]
 }
@@ -46,7 +45,6 @@ interface TreeSlotProps {
       <TreeItem
         v-bind="item.bind"
         v-slot="{ isExpanded, isSelected }"
-        as-child
         :value="item.value"
         :level="item.level"
       >
@@ -70,7 +68,6 @@ interface TreeSlotProps {
         :key="item._id"
         v-bind="item.bind"
         v-slot="{ isExpanded, isSelected }"
-        as-child
         :value="item.value"
         :level="item.level"
       >
@@ -80,7 +77,9 @@ interface TreeSlotProps {
           :has-children="!!item.hasChildren"
           :level="item.level"
         >
-          <slot name="item" :item="item" />
+          <slot name="item" :item="item">
+            <span class="text-ellipsis overflow-hidden">{{ (item as any).label }}</span>
+          </slot>
         </TreeRow>
       </TreeItem>
     </template>
