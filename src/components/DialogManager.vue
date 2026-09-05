@@ -45,24 +45,30 @@
           class="grid grid-cols-1 justify-center gap-8 px-8"
           :style="contentStyle"
         >
-          <ModelCard
+          <Tooltip
             v-for="model in (item as any).row"
             :key="genModelKey(model)"
-            :model="model"
-            :style="{
-              width: `${cardSize.width}px`,
-              height: `${cardSize.height}px`,
-            }"
-            class="group/card cursor-pointer !p-0"
-            @click="openModelDetail(model)"
-            v-tooltip.top="{
-              value: getFullPath(model),
-              autoHide: false,
-              showDelay: 800,
-              hideDelay: 300,
-              pt: { root: { style: { zIndex: 2100, maxWidth: '32rem' } } },
-            }"
+            :delay-duration="800"
           >
+            <TooltipTrigger as-child>
+              <ModelCard
+                :model="model"
+                :style="{
+                  width: `${cardSize.width}px`,
+                  height: `${cardSize.height}px`,
+                }"
+                class="group/card cursor-pointer !p-0"
+                @click="openModelDetail(model)"
+              />
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              class="max-w-[32rem]"
+              :style="{ zIndex: 2100 }"
+            >
+              {{ getFullPath(model) }}
+            </TooltipContent>
+          </Tooltip>
             <template #name>
               <div
                 v-show="showModelName"
@@ -126,6 +132,7 @@
 </template>
 
 <script setup lang="ts" name="manager-dialog">
+import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { Copy, Plus, Workflow } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import ModelCard from 'components/ModelCard.vue'
