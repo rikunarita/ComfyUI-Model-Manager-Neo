@@ -43,16 +43,20 @@
 
 <script setup lang="ts">
 import { Plus, Upload } from '@lucide/vue'
+import DialogCreateTask from 'components/DialogCreateTask.vue'
+import DialogUpload from 'components/DialogUpload.vue'
 import DownloadTaskItem from 'components/DownloadTaskItem.vue'
 import { Button } from 'components/ui/button'
 import { useDialog } from 'hooks/dialog'
 import { useDownload } from 'hooks/download'
+import { useModels } from 'hooks/model'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const dialog = useDialog()
 const { data } = useDownload()
+const { refresh: refreshModelsAndConfig } = useModels()
 
 const externalDownloads = computed(() => {
   return data.value.filter((item) => item.source !== 'local')
