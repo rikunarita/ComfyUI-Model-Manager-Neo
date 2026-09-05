@@ -48,7 +48,7 @@
           size="icon-sm"
           @click="toggleToolbar"
         >
-          <component :is="showToolbar ? Menu : MenuOpen" class="size-4" />
+          <component :is="showToolbar ? Menu : PanelLeftOpen" class="size-4" />
         </Button>
       </div>
     </div>
@@ -114,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronUp, Menu, MenuOpen } from '@lucide/vue'
+import { ChevronUp, Menu, X } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseBreadcrumb from 'components/ResponseBreadcrumb.vue'
