@@ -503,6 +503,7 @@ export const useModelFolder = (
 
       for (const item of items) {
         const key = item.key
+        if (!key) continue
         const parentKey = key.split('/').slice(0, -1).join('/')
 
         if (parentKey === folder) {
