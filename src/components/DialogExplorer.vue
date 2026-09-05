@@ -69,25 +69,31 @@
               rowGap: `${gutter.y}px`,
             }"
           >
-            <ModelCard
+            <Tooltip
               v-for="rowItem in (item as any).row"
-              :model="rowItem"
               :key="genModelKey(rowItem)"
-              :style="{
-                width: `${cardSize.width}px`,
-                height: `${cardSize.height}px`,
-              }"
-              v-tooltip.top="{
-                value: getFullPath(rowItem),
-                disabled: folderPaths.length < 2,
-                autoHide: false,
-                showDelay: 800,
-                hideDelay: 300,
-                pt: { root: { style: { zIndex: 2100, maxWidth: '32rem' } } },
-              }"
-              @dblclick="openItem(rowItem, $event)"
-              @contextmenu.stop.prevent="openItemContext(rowItem, $event)"
-            ></ModelCard>
+              :delay-duration="800"
+            >
+              <TooltipTrigger as-child>
+                <ModelCard
+                  :model="rowItem"
+                  :style="{
+                    width: `${cardSize.width}px`,
+                    height: `${cardSize.height}px`,
+                  }"
+                  @dblclick="openItem(rowItem, $event)"
+                  @contextmenu.stop.prevent="openItemContext(rowItem, $event)"
+                />
+              </TooltipTrigger>
+              <TooltipContent
+                v-if="folderPaths.length >= 2"
+                side="top"
+                class="max-w-[32rem]"
+                :style="{ zIndex: 2100 }"
+              >
+                {{ getFullPath(rowItem) }}
+              </TooltipContent>
+            </Tooltip>
             <div class="col-span-full"></div>
           </div>
         </template>
