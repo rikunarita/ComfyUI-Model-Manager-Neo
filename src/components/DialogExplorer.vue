@@ -121,6 +121,7 @@
 </template>
 
 <script setup lang="ts">
+import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { ChevronUp, Menu, X } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import ModelCard from 'components/ModelCard.vue'
