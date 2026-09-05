@@ -80,7 +80,7 @@
               <Button
                 type="submit"
                 :disabled="isDirectFile && !selectedModelType"
-                @click="createDownTask(currentModel)"
+                @click="createDownTask(currentModel as any)"
               >
                 <Download class="size-4" />
                 {{ $t('download') }}
