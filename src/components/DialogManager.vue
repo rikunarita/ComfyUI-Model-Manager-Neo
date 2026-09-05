@@ -45,78 +45,76 @@
           class="grid grid-cols-1 justify-center gap-8 px-8"
           :style="contentStyle"
         >
-          <Tooltip
-            v-for="model in (item as any).row"
-            :key="genModelKey(model)"
-            :delay-duration="800"
-          >
-            <TooltipTrigger as-child>
-              <ModelCard
-                :model="model"
-                :style="{
-                  width: `${cardSize.width}px`,
-                  height: `${cardSize.height}px`,
-                }"
-                class="group/card cursor-pointer !p-0"
-                @click="openModelDetail(model)"
-              />
-            </TooltipTrigger>
-            <TooltipContent
-              side="top"
-              class="max-w-[32rem]"
-              :style="{ zIndex: 2100 }"
-            >
-              {{ getFullPath(model) }}
-            </TooltipContent>
-          </Tooltip>
-            <template #name>
-              <div
-                v-show="showModelName"
-                class="absolute top-0 h-full w-full p-2"
-              >
-                <div class="flex h-full flex-col justify-end text-lg">
-                  <div class="line-clamp-3 break-all font-bold text-shadow">
-                    {{ model.basename }}
-                  </div>
-                </div>
-              </div>
-            </template>
+          <template v-for="model in (item as any).row" :key="genModelKey(model)">
+            <Tooltip :delay-duration="800">
+              <TooltipTrigger as-child>
+                <ModelCard
+                  :model="model"
+                  :style="{
+                    width: `${cardSize.width}px`,
+                    height: `${cardSize.height}px`,
+                  }"
+                  class="group/card cursor-pointer !p-0"
+                  @click="openModelDetail(model)"
+                >
+                  <template #name>
+                    <div
+                      v-show="showModelName"
+                      class="absolute top-0 h-full w-full p-2"
+                    >
+                      <div class="flex h-full flex-col justify-end text-lg">
+                        <div class="line-clamp-3 break-all font-bold text-shadow">
+                          {{ model.basename }}
+                        </div>
+                      </div>
+                    </div>
+                  </template>
 
-            <template #extra>
-              <div
-                v-show="showModeAction"
-                class="pointer-events-none absolute right-2 top-2 opacity-0 duration-300 group-hover/card:opacity-100"
+                  <template #extra>
+                    <div
+                      v-show="showModelAction"
+                      class="pointer-events-none absolute right-2 top-2 opacity-0 duration-300 group-hover/card:opacity-100"
+                    >
+                      <div class="flex flex-col gap-2">
+                        <Button
+                          variant="secondary"
+                          size="icon-sm"
+                          class="rounded-full"
+                          @click.stop="addModelNode(model)"
+                        >
+                          <Plus class="size-4" />
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="icon-sm"
+                          class="rounded-full"
+                          @click.stop="copyModelNode(model)"
+                        >
+                          <Copy class="size-4" />
+                        </Button>
+                        <Button
+                          v-show="model.preview"
+                          variant="secondary"
+                          size="icon-sm"
+                          class="rounded-full"
+                          @click.stop="loadPreviewWorkflow(model)"
+                        >
+                          <Workflow class="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </template>
+                </ModelCard>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                class="max-w-[32rem]"
+                :style="{ zIndex: 2100 }"
               >
-                <div class="flex flex-col gap-2">
-                  <Button
-                    variant="secondary"
-                    size="icon-sm"
-                    class="rounded-full"
-                    @click.stop="addModelNode(model)"
-                  >
-                    <Plus class="size-4" />
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="icon-sm"
-                    class="rounded-full"
-                    @click.stop="copyModelNode(model)"
-                  >
-                    <Copy class="size-4" />
-                  </Button>
-                  <Button
-                    v-show="model.preview"
-                    variant="secondary"
-                    size="icon-sm"
-                    class="rounded-full"
-                    @click.stop="loadPreviewWorkflow(model)"
-                  >
-                    <Workflow class="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </template>
-          </ModelCard>
+                {{ getFullPath(model) }}
+              </TooltipContent>
+            </Tooltip>
+          </template>
           <div class="col-span-full"></div>
         </div>
       </template>
