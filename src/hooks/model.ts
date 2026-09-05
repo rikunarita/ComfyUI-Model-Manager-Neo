@@ -7,7 +7,15 @@ import { useToast } from 'hooks/toast'
 import { cloneDeep } from 'es-toolkit'
 import { castArray } from 'es-toolkit/compat'
 import { dragAddModel } from 'utils/modelGrid'
-import { TreeNode } from 'primevue/treenode'
+export interface TreeNode {
+  key?: string
+  label?: string
+  data?: any
+  children?: TreeNode[]
+  icon?: string
+  expanded?: boolean
+  leaf?: boolean
+}
 import { api, app } from 'scripts/comfyAPI'
 import { BaseModel, Model, SelectEvent, WithResolved } from 'types/typings'
 import { bytesToSize, formatDate, previewUrlToFile } from 'utils/common'
