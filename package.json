@@ -13,6 +13,9 @@
     "lint:fix": "eslint src --fix",
     "typecheck": "vue-tsc --noEmit",
     "prepare": "husky"
+    "format": "biome format --write src/",
+    "lint:biome": "biome lint src/",
+    "check": "biome check src/"
   },
   "devDependencies": {
     "@comfyorg/comfyui-frontend-types": "1.49.3",
