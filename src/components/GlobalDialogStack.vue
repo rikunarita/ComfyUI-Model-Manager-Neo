@@ -114,6 +114,8 @@
 </template>
 
 <script setup lang="ts">
+import { Info } from '@lucide/vue'
+import { resolveIcon } from 'utils/iconMap'
 import { Maximize2, Minimize2, X } from '@lucide/vue'
 import { Button } from 'components/ui/button'
 import {
