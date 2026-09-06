@@ -8,7 +8,7 @@
  * preflight/base (which resets border-width etc.). This only affects elements
  * that carry our classes — host UI elements never match our rules.
  */
-@layer theme, base, primevue, components, utilities, mm-base, mm-components, mm-utilities;
+@layer theme, base, components, utilities, mm-base, mm-components, mm-utilities;
 
 @import "tailwindcss/utilities" layer(mm-utilities);
 /* tw-animate-css uses @utility internally and cannot be nested in @layer */
