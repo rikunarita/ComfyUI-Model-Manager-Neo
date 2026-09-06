@@ -4,7 +4,7 @@
  * All global references ($el, SearchPath, ComfyButton, etc.) are replaced
  * with proper imports. No dependency on the archived @comfyorg/litegraph.
  */
-import { $el, app, ComfyButton } from 'scripts/comfyAPI'
+import { app } from 'scripts/comfyAPI'
 
 export const MODEL_NODE_TYPE: Record<string, string | undefined> = {
   checkpoints: 'CheckpointLoaderSimple',
@@ -165,30 +165,4 @@ export function dragAddModel(
   }
 
   flashButton(event.target, true)
-}
-
-/** Create a topbar button element (legacy container fallback). */
-export function createTopbarButton(
-  label: string,
-  onClick: () => void,
-): HTMLElement {
-  return $el('button', {
-    id: 'comfyui-model-manager-button',
-    textContent: label,
-    onclick: onClick,
-  })
-}
-
-/** Create a ComfyButton instance for the Vue-based topbar. */
-export function createManagerComfyButton(
-  tooltip: string,
-  label: string,
-  action: () => void,
-): InstanceType<typeof ComfyButton> {
-  return new ComfyButton({
-    icon: 'folder-search',
-    tooltip,
-    content: label,
-    action,
-  })
 }
