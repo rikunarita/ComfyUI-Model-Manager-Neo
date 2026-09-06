@@ -9,6 +9,7 @@
 </template>
 
 <script setup lang="ts">
+import { Download, Eye, EyeOff, FolderOpen, FolderSearch, LayoutGrid, RefreshCw, Upload } from '@lucide/vue'
 import DialogDownload from 'components/DialogDownload.vue'
 import DialogExplorer from 'components/DialogExplorer.vue'
 import DialogHfUpload from 'components/DialogHfUpload.vue'
@@ -22,9 +23,10 @@ import { useStoreProvider } from 'hooks/store'
 import { useToast } from 'hooks/toast'
 import GlobalConfirm from 'components/GlobalConfirm.vue'
 import { ConfigProvider } from 'reka-ui'
-import { $el, app, ComfyButton } from 'scripts/comfyAPI'
+import { app } from 'scripts/comfyAPI'
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { resolveIcon } from 'utils/iconMap'
 
 const { t } = useI18n()
 
@@ -138,7 +140,7 @@ onMounted(() => {
               'ModelManager.Scan.IncludeHiddenFiles',
               newValue,
             )
-            await refreshModelsAndConfig() // ensure updated model list
+            await refreshModelsAndConfig()
             dialog.closeAll()
             openManagerDialog()
           },
@@ -165,36 +167,6 @@ onMounted(() => {
     })
   }
 
-  // Topbar Menu API からのイベントをリッスンしてダイアログを開く
   window.addEventListener('open-model-manager', openManagerDialog)
-
-  // 1. 従来のレガシーUI用コンテナへの追加
-  app.ui?.menuContainer?.appendChild(
-    $el('button', {
-      id: 'comfyui-model-manager-button',
-      textContent: t('modelManager'),
-      onclick: openManagerDialog,
-    }),
-  )
-
-  // 2. ComfyButton インスタンスの生成
-  const managerButton = new ComfyButton({
-    icon: 'folder-search',
-    tooltip: t('openModelManager'),
-    content: t('modelManager'),
-    action: openManagerDialog,
-  })
-
-  try {
-    // 3. 新しいVueベースフロントエンドのトップバー（設定ボタングループの直前）へ確実に挿入する
-    if (app.menu?.settingsGroup?.element) {
-      app.menu.settingsGroup.element.before(managerButton.element)
-    } else {
-      // 古いフロントエンド向けのフォールバック
-      app.menu?.settingsGroup?.insert?.(managerButton.element)
-    }
-  } catch (e) {
-    console.warn('Failed to add Model Manager button to topbar:', e)
-  }
 })
 </script>
