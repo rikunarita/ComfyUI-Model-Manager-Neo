@@ -34,7 +34,11 @@
             :title="action.tooltip"
             @click.stop="action.command"
           >
-            <i :class="action.icon" />
+            <component
+              :is="resolveIcon(action.icon) || Info"
+              class="size-4"
+              :class="{ 'animate-spin': action.icon === 'pi pi-spinner pi-spin' }"
+            />
           </Button>
           <Button
             v-if="allowResize"
