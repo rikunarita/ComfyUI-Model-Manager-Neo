@@ -89,9 +89,7 @@ const resolveSizeMap = (sizeMap: Record<string, string>) => {
   })
 }
 
-const resolveSizeList = (
-  sizeList: { name: string; width: number; height: number }[],
-) => {
+const resolveSizeList = (sizeList: { name: string; width: number; height: number }[]) => {
   return Object.fromEntries(
     sizeList.map(({ name, width, height }) => {
       return [name, [width, height].join('x')]

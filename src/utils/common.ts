@@ -1,9 +1,6 @@
 import { format } from 'date-fns'
 
-export const bytesToSize = (
-  bytes: number | string | undefined | null,
-  decimals = 2,
-) => {
+export const bytesToSize = (bytes: number | string | undefined | null, decimals = 2) => {
   if (typeof bytes === 'undefined' || bytes === null) {
     bytes = 0
   }
@@ -20,7 +17,7 @@ export const bytesToSize = (
   const dm = decimals < 0 ? 0 : decimals
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
+  return parseFloat((bytes / k ** i).toFixed(dm)) + ' ' + sizes[i]
 }
 
 export const formatDate = (date: number | string | Date) => {
@@ -35,8 +32,8 @@ export const formatDate = (date: number | string | Date) => {
 
 export const previewUrlToFile = async (url: string) => {
   return fetch(url)
-    .then((res) => res.blob())
-    .then((blob) => {
+    .then(res => res.blob())
+    .then(blob => {
       const type = blob.type
       const extension = type.split('/')[1]
       const file = new File([blob], `preview.${extension}`, { type })
@@ -76,7 +73,7 @@ export const isDirectFileUrl = (url: string): boolean => {
     const pathname = urlObj.pathname.toLowerCase()
 
     // Check if the URL ends with a model file extension
-    return MODEL_FILE_EXTENSIONS.some((ext) => pathname.endsWith(ext))
+    return MODEL_FILE_EXTENSIONS.some(ext => pathname.endsWith(ext))
   } catch {
     return false
   }
@@ -98,9 +95,7 @@ export const getFilenameFromUrl = (url: string): string => {
     // If no filename with extension found, generate one
     if (!filename || !filename.includes('.')) {
       const extension =
-        MODEL_FILE_EXTENSIONS.find((ext) =>
-          pathname.toLowerCase().endsWith(ext),
-        ) || '.bin'
+        MODEL_FILE_EXTENSIONS.find(ext => pathname.toLowerCase().endsWith(ext)) || '.bin'
       return `model${extension}`
     }
 

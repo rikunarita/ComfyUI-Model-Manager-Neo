@@ -78,7 +78,7 @@
 import { useElementSize } from '@vueuse/core'
 import PreviewVideo from 'components/PreviewVideo.vue'
 import { useModelNodeAction } from 'hooks/model'
-import { BaseModel } from 'types/typings'
+import type { BaseModel } from 'types/typings'
 import { bytesToSize } from 'utils/common'
 import { isVideoUrl } from 'utils/media'
 import { computed, ref } from 'vue'
@@ -90,9 +90,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const preview = computed(() =>
-  Array.isArray(props.model.preview)
-    ? props.model.preview[0]
-    : props.model.preview,
+  Array.isArray(props.model.preview) ? props.model.preview[0] : props.model.preview,
 )
 
 const container = ref<HTMLElement | null>(null)

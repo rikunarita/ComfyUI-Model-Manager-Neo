@@ -130,32 +130,25 @@
 </template>
 
 <script setup lang="ts" name="manager-dialog">
-import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { Copy, Plus, Workflow } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
+import { Button } from 'components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
+import { chunk } from 'es-toolkit'
 import { configSetting, useConfig } from 'hooks/config'
 import { useContainerQueries } from 'hooks/container'
 import { useModelNodeAction, useModels } from 'hooks/model'
-import { chunk } from 'es-toolkit'
-import { Button } from 'components/ui/button'
 import { app } from 'scripts/comfyAPI'
-import { Model } from 'types/typings'
+import type { Model } from 'types/typings'
 import { genModelKey } from 'utils/model'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-const {
-  isMobile,
-  gutter,
-  cardSize,
-  cardSizeMap,
-  cardSizeFlag,
-  dialog: settings,
-} = useConfig()
+const { isMobile, gutter, cardSize, cardSizeMap, cardSizeFlag, dialog: settings } = useConfig()
 
 const { data, folders, openModelDetail, getFullPath } = useModels()
 const { t } = useI18n()
@@ -171,9 +164,7 @@ const searchContent = ref<string>()
 const allType = 'All'
 const currentType = ref(allType)
 const typeOptions = computed(() => {
-  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(
-    configSetting.excludeScanTypes,
-  )
+  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(configSetting.excludeScanTypes)
   const customBlackList =
     excludeScanTypes
       ?.split(',')
@@ -181,10 +172,8 @@ const typeOptions = computed(() => {
       .filter(Boolean) ?? []
   return [
     allType,
-    ...Object.keys(folders.value).filter(
-      (folder) => !customBlackList.includes(folder),
-    ),
-  ].map((type) => {
+    ...Object.keys(folders.value).filter(folder => !customBlackList.includes(folder)),
+  ].map(type => {
     return {
       label: type,
       value: type,
@@ -197,7 +186,7 @@ const typeOptions = computed(() => {
 
 const sortOrder = ref('name')
 const sortOrderOptions = ref(
-  ['name', 'size', 'created', 'modified'].map((key) => {
+  ['name', 'size', 'created', 'modified'].map(key => {
     return {
       label: t(`sort.${key}`),
       value: key,
@@ -233,23 +222,21 @@ const cols = computed(() => {
 
 const list = computed(() => {
   const mergedList = Object.values(data.value).flat()
-  const pureModels = mergedList.filter((item) => {
+  const pureModels = mergedList.filter(item => {
     return !item.isFolder
   })
 
   function buildRegex(raw: string): RegExp {
     try {
       // Escape regex specials, then restore * wildcards as .*
-      const escaped = raw
-        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        .replace(/\\\*/g, '.*')
+      const escaped = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*')
       return new RegExp(escaped, 'i') // case-insensitive
     } catch {
       return new RegExp(raw, 'i')
     }
   }
 
-  const filterList = pureModels.filter((model) => {
+  const filterList = pureModels.filter(model => {
     const showAllModel = currentType.value === allType
     const matchType = showAllModel || model.type === currentType.value
 
@@ -258,9 +245,7 @@ const list = computed(() => {
     const regexes = tokens.map(buildRegex)
 
     // Require every token to match either the folder or the name
-    const matchesAll = regexes.every(
-      (re) => re.test(model.subFolder) || re.test(model.basename),
-    )
+    const matchesAll = regexes.every(re => re.test(model.subFolder) || re.test(model.basename))
 
     return matchType && matchesAll
   })
@@ -285,11 +270,10 @@ const list = computed(() => {
 
   const sortedList = filterList.sort(sortStrategy)
 
-  return chunk(sortedList, cols.value).map((row) => {
+  return chunk(sortedList, cols.value).map(row => {
     return { key: row.map(genModelKey).join(','), row }
   })
 })
-
 
 const contentStyle = computed(() => ({
   gridTemplateColumns: `repeat(auto-fit, ${cardSize.value.width}px)`,
@@ -306,7 +290,7 @@ const cardSizeOptions = computed(() => {
     [customSize]: 'custom',
   }
 
-  return Object.keys(customOptionMap).map((key) => {
+  return Object.keys(customOptionMap).map(key => {
     return {
       label: t(key),
       value: key,
@@ -329,6 +313,5 @@ const showModeAction = computed(() => {
   return cardSize.value.width > 120 && cardSize.value.height > 160
 })
 
-const { addModelNode, copyModelNode, loadPreviewWorkflow } =
-  useModelNodeAction()
+const { addModelNode, copyModelNode, loadPreviewWorkflow } = useModelNodeAction()
 </script>

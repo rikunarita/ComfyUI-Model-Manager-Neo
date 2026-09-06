@@ -1,26 +1,22 @@
+import { upperFirst } from 'es-toolkit/compat'
 import { useLoading } from 'hooks/loading'
 import { request } from 'hooks/request'
 import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
-import { upperFirst } from 'es-toolkit/compat'
 import { api } from 'scripts/comfyAPI'
-import {
+import type {
   DownloadTask,
   DownloadTaskOptions,
   SelectOptions,
   VersionModel,
   VersionModelFile,
 } from 'types/typings'
-import {
-  bytesToSize,
-  getFilenameFromUrl,
-  isDirectFileUrl,
-} from 'utils/common'
+import { bytesToSize, getFilenameFromUrl, isDirectFileUrl } from 'utils/common'
 import { onBeforeMount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import yaml from 'yaml'
 
-export const useDownload = defineStore('download', (store) => {
+export const useDownload = defineStore('download', store => {
   const { toast, confirm, wrapperToastError } = useToast()
 
   const { t } = useI18n()
@@ -86,7 +82,7 @@ export const useDownload = defineStore('download', (store) => {
 
   const refresh = wrapperToastError(async () => {
     return request('/download/task').then((resData: DownloadTaskOptions[]) => {
-      taskList.value = resData.map((item) => createTaskItem(item))
+      taskList.value = resData.map(item => createTaskItem(item))
       return taskList.value
     })
   })
@@ -113,7 +109,7 @@ export const useDownload = defineStore('download', (store) => {
 
     api.addEventListener('fetch_download_task_list', (event: CustomEvent) => {
       const data = event.detail as DownloadTaskOptions[]
-      taskList.value = data.map((item) => {
+      taskList.value = data.map(item => {
         return createTaskItem(item)
       })
     })
@@ -143,15 +139,14 @@ export const useDownload = defineStore('download', (store) => {
 
     api.addEventListener('delete_download_task', (event: CustomEvent) => {
       const taskId = event.detail as string
-      taskList.value = taskList.value.filter((item) => item.taskId !== taskId)
+      taskList.value = taskList.value.filter(item => item.taskId !== taskId)
     })
 
     api.addEventListener('complete_download_task', (event: CustomEvent) => {
       const taskId = event.detail as string
-      const task = taskList.value.find((item) => item.taskId === taskId)
-      taskList.value = taskList.value.filter((item) => item.taskId !== taskId)
-      const completeLabel =
-        task?.source === 'local' ? 'Upload completed' : 'Download completed'
+      const task = taskList.value.find(item => item.taskId === taskId)
+      taskList.value = taskList.value.filter(item => item.taskId !== taskId)
+      const completeLabel = task?.source === 'local' ? 'Upload completed' : 'Download completed'
       toast.add({
         severity: 'success',
         summary: 'Success',
@@ -192,13 +187,11 @@ export const useModelSearch = () => {
 
   const currentModel = ref<FileSelectionVersionModel>()
 
-  const genFileSelectionItem = (
-    item: VersionModel,
-  ): FileSelectionVersionModel => {
+  const genFileSelectionItem = (item: VersionModel): FileSelectionVersionModel => {
     const fileSelectionItem: FileSelectionVersionModel = { ...item }
     fileSelectionItem.selectionFiles = fileSelectionItem.files
-      ?.sort((file) => (file.type === 'Model' ? -1 : 1))
-      .map((file) => {
+      ?.sort(file => (file.type === 'Model' ? -1 : 1))
+      .map(file => {
         const parts = file.name.split('.')
         const extension = `.${parts.pop()}`
         const basename = parts.join('.')
@@ -216,9 +209,7 @@ export const useModelSearch = () => {
         const yamlContent = `---\n${yaml.stringify(yamlMetadata)}\n---`
         const description = item.description.replace(regexp, yamlContent)
         return {
-          label: file.type === 'Model'
-            ? (item.type ? upperFirst(item.type) : 'UNet')
-            : file.type,
+          label: file.type === 'Model' ? (item.type ? upperFirst(item.type) : 'UNet') : file.type,
           value: file.id,
           item: file,
           command() {
@@ -239,10 +230,7 @@ export const useModelSearch = () => {
     return fileSelectionItem
   }
 
-  const createDirectFileModel = (
-    url: string,
-    modelType?: string,
-  ): VersionModel => {
+  const createDirectFileModel = (url: string, modelType?: string): VersionModel => {
     try {
       const filename = getFilenameFromUrl(url)
       const parts = filename.split('.')
@@ -388,7 +376,7 @@ export const useModelSearch = () => {
     // Original logic for model page URLs
     return request(`/model-info?model-page=${encodeURIComponent(url)}`, {})
       .then((resData: VersionModel[]) => {
-        data.value = resData.map((item) => {
+        data.value = resData.map(item => {
           const resolvedItem = genFileSelectionItem(item)
           return {
             label: item.shortname,
@@ -411,7 +399,7 @@ export const useModelSearch = () => {
         }
         return resData
       })
-      .catch((err) => {
+      .catch(err => {
         toast.add({
           severity: 'error',
           summary: 'Error',
@@ -424,9 +412,7 @@ export const useModelSearch = () => {
   }
 
   watch(current, () => {
-    currentModel.value = data.value.find(
-      (option) => option.value === current.value,
-    )?.item
+    currentModel.value = data.value.find(option => option.value === current.value)?.item
   })
 
   return { data, current, currentModel, search: handleSearchByUrl }

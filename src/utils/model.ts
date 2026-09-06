@@ -1,4 +1,4 @@
-import { BaseModel } from 'types/typings'
+import type { BaseModel } from 'types/typings'
 
 const loader = {
   checkpoints: 'CheckpointLoaderSimple',

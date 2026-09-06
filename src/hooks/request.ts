@@ -48,19 +48,14 @@ export interface RequestOptions<T> {
   manual?: boolean
 }
 
-export const useRequest = <T = any>(
-  url: string,
-  options: RequestOptions<T> = {},
-) => {
+export const useRequest = <T = any>(url: string, options: RequestOptions<T> = {}) => {
   const loading = useLoading()
 
-  const postData = options.postData ?? ((data) => data)
+  const postData = options.postData ?? (data => data)
   const data = ref<T>(options.defaultValue)
   const lastParams = ref()
 
-  const fetch = async (
-    params: Record<string, any> = options.defaultParams ?? {},
-  ) => {
+  const fetch = async (params: Record<string, any> = options.defaultParams ?? {}) => {
     loading.show()
     lastParams.value = params
 
@@ -93,8 +88,8 @@ export const useRequest = <T = any>(
     }
 
     return request(requestUrl, requestOptions)
-      .then((resData) => (data.value = postData(resData)))
-      .catch((err) => {
+      .then(resData => (data.value = postData(resData)))
+      .catch(err => {
         console.error(`[Request Error] ${requestUrl}:`, err)
         throw err // 呼び出し元でハンドリングできるよう再スロー
       })

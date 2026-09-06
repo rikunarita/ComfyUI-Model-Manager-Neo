@@ -70,7 +70,7 @@ import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
 import { genModelUrl, useModelNodeAction, useModels } from 'hooks/model'
 import { useRequest } from 'hooks/request'
-import { BaseModel, Model, WithResolved } from 'types/typings'
+import type { BaseModel, Model, WithResolved } from 'types/typings'
 import { computed, ref } from 'vue'
 
 interface Props {
@@ -108,6 +108,5 @@ const openModelPage = (url: string) => {
   window.open(url, '_blank')
 }
 
-const { addModelNode, copyModelNode, loadPreviewWorkflow } =
-  useModelNodeAction()
+const { addModelNode, copyModelNode, loadPreviewWorkflow } = useModelNodeAction()
 </script>

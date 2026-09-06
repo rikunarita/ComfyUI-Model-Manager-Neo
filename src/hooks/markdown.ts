@@ -18,7 +18,7 @@ export const useMarkdown = (opts?: MarkdownOptions) => {
     meta: opts?.metadata ?? {},
   })
 
-  md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
+  md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
     const aIndex = tokens[idx].attrIndex('target')
 
     if (aIndex < 0) {

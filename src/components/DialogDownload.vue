@@ -59,11 +59,11 @@ const { data } = useDownload()
 const { refresh: refreshModelsAndConfig } = useModels()
 
 const externalDownloads = computed(() => {
-  return data.value.filter((item) => item.source !== 'local')
+  return data.value.filter(item => item.source !== 'local')
 })
 
 const localUploads = computed(() => {
-  return data.value.filter((item) => item.source === 'local')
+  return data.value.filter(item => item.source === 'local')
 })
 
 const openCreateDownload = () => {

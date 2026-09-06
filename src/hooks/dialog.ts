@@ -1,6 +1,6 @@
 import { defineStore } from 'hooks/store'
-import { ContainerSize } from 'types/typings'
-import { Component, markRaw, ref } from 'vue'
+import type { ContainerSize } from 'types/typings'
+import { type Component, markRaw, ref } from 'vue'
 
 interface HeaderButton {
   key: string
@@ -24,14 +24,14 @@ export interface DialogItem {
   minHeight?: number
   maxHeight?: number
   modal?: boolean
-  visible?: boolean  // ← 追加
+  visible?: boolean // ← 追加
 }
 
 export const useDialog = defineStore('dialog', () => {
   const stack = ref<(DialogItem & { visible?: boolean })[]>([])
 
   const rise = (dialog: { key: string }) => {
-    const index = stack.value.findIndex((item) => item.key === dialog.key)
+    const index = stack.value.findIndex(item => item.key === dialog.key)
     if (index !== -1) {
       const item = stack.value.splice(index, 1)
       stack.value.push(...item)
@@ -39,7 +39,7 @@ export const useDialog = defineStore('dialog', () => {
   }
 
   const open = (dialog: DialogItem) => {
-    const item = stack.value.find((item) => item.key === dialog.key)
+    const item = stack.value.find(item => item.key === dialog.key)
     if (item) {
       item.visible = true
       rise(dialog)
@@ -58,11 +58,11 @@ export const useDialog = defineStore('dialog', () => {
       return
     }
 
-    const item = stack.value.find((item) => item.key === dialog.key)
+    const item = stack.value.find(item => item.key === dialog.key)
     if (item?.keepAlive) {
       item.visible = false
     } else {
-      stack.value = stack.value.filter((item) => item.key !== dialog.key)
+      stack.value = stack.value.filter(item => item.key !== dialog.key)
     }
   }
 

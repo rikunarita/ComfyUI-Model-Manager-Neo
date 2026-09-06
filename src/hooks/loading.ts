@@ -1,5 +1,5 @@
 import { defineStore } from 'hooks/store'
-import { Ref, ref } from 'vue'
+import { type Ref, ref } from 'vue'
 
 class GlobalLoading {
   loading: Ref<boolean> = ref(false)

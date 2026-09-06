@@ -57,10 +57,7 @@ function flashButton(target: EventTarget | null, success: boolean): void {
   }, 600)
 }
 
-function getWidgetComboIndices(
-  node: LGraphNode | null,
-  value: string,
-): number[] {
+function getWidgetComboIndices(node: LGraphNode | null, value: string): number[] {
   const indices: number[] = []
   node?.widgets?.forEach((widget: any, index: number) => {
     if (widget.type === 'combo' && widget.options?.values?.includes(value)) {
@@ -79,42 +76,23 @@ export function dragAddModel(
 ): void {
   const target = document.elementFromPoint(event.clientX, event.clientY)
 
-  if (
-    modelType !== 'embeddings' &&
-    (target as HTMLElement)?.id === 'graph-canvas'
-  ) {
-    const pos = (app.canvas as any).convertEventToCanvasOffset(
-      event,
-    ) as [number, number]
-    const node = app.graph.getNodeOnPos(
-      pos[0],
-      pos[1],
-      (app.canvas as any).visible_nodes,
-    )
+  if (modelType !== 'embeddings' && (target as HTMLElement)?.id === 'graph-canvas') {
+    const pos = (app.canvas as any).convertEventToCanvasOffset(event) as [number, number]
+    const node = app.graph.getNodeOnPos(pos[0], pos[1], (app.canvas as any).visible_nodes)
 
     let widgetIndex = -1
     const widgetIndices = getWidgetComboIndices(node, path)
     if (widgetIndices.length === 1) {
       widgetIndex = widgetIndices[0]
       if (strictlyOnWidget) {
-        const draggedWidget = (app.canvas as any).processNodeWidgets(
-          node,
-          pos,
-          event,
-        )
+        const draggedWidget = (app.canvas as any).processNodeWidgets(node, pos, event)
         if (draggedWidget != node!.widgets[widgetIndex]) {
           widgetIndex = -1
         }
       }
     } else if (widgetIndices.length > 1) {
-      const draggedWidget = (app.canvas as any).processNodeWidgets(
-        node,
-        pos,
-        event,
-      )
-      widgetIndex = widgetIndices.findIndex(
-        (index) => draggedWidget == node!.widgets[index],
-      )
+      const draggedWidget = (app.canvas as any).processNodeWidgets(node, pos, event)
+      widgetIndex = widgetIndices.findIndex(index => draggedWidget == node!.widgets[index])
     }
 
     if (widgetIndex !== -1 && node) {
@@ -122,11 +100,7 @@ export function dragAddModel(
       app.canvas.selectNode(node)
     } else {
       const expectedNodeType = MODEL_NODE_TYPE[modelType]
-      const newNode = (window.LiteGraph as any).createNode(
-        expectedNodeType,
-        null,
-        {},
-      )
+      const newNode = (window.LiteGraph as any).createNode(expectedNodeType, null, {})
       let newWidgetIndex = modelWidgetIndex(expectedNodeType)
       if (newWidgetIndex === -1) {
         newWidgetIndex = getWidgetComboIndices(newNode, path)[0] ?? -1
@@ -140,18 +114,9 @@ export function dragAddModel(
       }
     }
     event.stopPropagation()
-  } else if (
-    modelType === 'embeddings' &&
-    (target as HTMLTextAreaElement)?.type === 'textarea'
-  ) {
-    const pos = (app.canvas as any).convertEventToCanvasOffset(
-      event,
-    ) as [number, number]
-    const nodeAtPos = app.graph.getNodeOnPos(
-      pos[0],
-      pos[1],
-      (app.canvas as any).visible_nodes,
-    )
+  } else if (modelType === 'embeddings' && (target as HTMLTextAreaElement)?.type === 'textarea') {
+    const pos = (app.canvas as any).convertEventToCanvasOffset(event) as [number, number]
+    const nodeAtPos = app.graph.getNodeOnPos(pos[0], pos[1], (app.canvas as any).visible_nodes)
     if (nodeAtPos) {
       app.canvas.selectNode(nodeAtPos)
       const [, embeddingFile] = splitExtension(path)

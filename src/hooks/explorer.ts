@@ -1,6 +1,6 @@
-import { genModelFullName, useModels } from 'hooks/model'
 import { cloneDeep } from 'es-toolkit'
-import { BaseModel, Model, SelectOptions } from 'types/typings'
+import { genModelFullName, useModels } from 'hooks/model'
+import type { BaseModel, Model, SelectOptions } from 'types/typings'
 import { computed, ref, watch } from 'vue'
 
 export interface FolderPathItem {
@@ -31,11 +31,7 @@ export const useModelExplorer = () => {
 
   const folderPaths = ref<FolderPathItem[]>([])
 
-  const genFolderItem = (
-    basename: string,
-    folder?: string,
-    subFolder?: string,
-  ): ModelFolder => {
+  const genFolderItem = (basename: string, folder?: string, subFolder?: string): ModelFolder => {
     return {
       id: basename,
       basename: basename,
@@ -56,16 +52,13 @@ export const useModelExplorer = () => {
     const rootChildren: ModelTreeNode[] = []
 
     for (const folder in folders.value) {
-      if (Object.prototype.hasOwnProperty.call(folders.value, folder)) {
+      if (Object.hasOwn(folders.value, folder)) {
         const folderItem = genFolderItem(folder)
 
         const folderModels = cloneDeep(data.value[folder]) ?? []
 
         const pathMap: Record<string, ModelTreeNode> = Object.fromEntries(
-          folderModels.map((item) => [
-            `${item.pathIndex}-${genModelFullName(item)}`,
-            item,
-          ]),
+          folderModels.map(item => [`${item.pathIndex}-${genModelFullName(item)}`, item]),
         )
 
         for (const item of folderModels) {
@@ -92,12 +85,9 @@ export const useModelExplorer = () => {
     return [root]
   })
 
-  function findFolder(
-    list: ModelTreeNode[],
-    feature: { basename: string; pathIndex: number },
-  ) {
-    return list.find((item: any) => 
-      Object.entries(feature).every(([k, v]) => item[k] === v) && item.isFolder
+  function findFolder(list: ModelTreeNode[], feature: { basename: string; pathIndex: number }) {
+    return list.find(
+      (item: any) => Object.entries(feature).every(([k, v]) => item[k] === v) && item.isFolder,
     ) as ModelFolder | undefined
   }
 
@@ -140,7 +130,7 @@ export const useModelExplorer = () => {
         onClick: () => {
           openFolder(currentFolder)
         },
-        children: levelFolders.map((child) => {
+        children: levelFolders.map(child => {
           const name = child.basename
           return {
             value: name,
@@ -154,7 +144,7 @@ export const useModelExplorer = () => {
     folderPaths.value = folderItems
   }
 
-  watch(initialized, (val) => {
+  watch(initialized, val => {
     if (val) {
       openFolder(dataTreeList.value[0])
     }

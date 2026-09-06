@@ -30,10 +30,7 @@ export const DownloadTaskSchema = v.object({
 export type DownloadTask = v.InferOutput<typeof DownloadTaskSchema>
 
 /** Safely parse an API response, returning null on failure. */
-export function safeParse<T>(
-  schema: v.BaseSchema<T, any, any>,
-  data: unknown,
-): T | null {
+export function safeParse<T>(schema: v.BaseSchema<T, any, any>, data: unknown): T | null {
   const result = v.safeParse(schema, data)
   return result.success ? result.output : null
 }

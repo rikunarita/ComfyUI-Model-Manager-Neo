@@ -1,15 +1,11 @@
 import { useElementSize } from '@vueuse/core'
-import { type InjectionKey, type Ref, inject, provide, toRef } from 'vue'
+import { type InjectionKey, inject, provide, type Ref, toRef } from 'vue'
 
 const rem = parseFloat(getComputedStyle(document.documentElement).fontSize)
 
-const containerKey = Symbol('container') as InjectionKey<
-  Ref<HTMLElement | null>
->
+const containerKey = Symbol('container') as InjectionKey<Ref<HTMLElement | null>>
 
-export const useContainerQueries = (
-  el?: HTMLElement | null | Ref<HTMLElement | null>,
-) => {
+export const useContainerQueries = (el?: HTMLElement | null | Ref<HTMLElement | null>) => {
   const container = inject(containerKey, el ? toRef(el) : toRef(document.body))
 
   provide(containerKey, container)

@@ -114,12 +114,8 @@ import { useLoading } from 'hooks/loading'
 import { genModelFullName } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
-import { VersionModel, WithResolved } from 'types/typings'
-import {
-  getFilenameFromUrl,
-  isDirectFileUrl,
-  previewUrlToFile,
-} from 'utils/common'
+import type { VersionModel, WithResolved } from 'types/typings'
+import { getFilenameFromUrl, isDirectFileUrl, previewUrlToFile } from 'utils/common'
 import { computed, ref, watch } from 'vue'
 
 const { isMobile } = useConfig()
@@ -250,9 +246,7 @@ const modelTypeOptions = computed(() => [
   },
 ])
 
-const isDirectFile = computed(() =>
-  modelUrl.value ? isDirectFileUrl(modelUrl.value) : false,
-)
+const isDirectFile = computed(() => (modelUrl.value ? isDirectFileUrl(modelUrl.value) : false))
 
 const { current, currentModel, data, search } = useModelSearch()
 
@@ -264,7 +258,7 @@ const searchModelsByUrl = async () => {
 }
 
 // Watch for direct file URL changes (NO auto-detection anymore)
-watch(modelUrl, (newUrl) => {
+watch(modelUrl, newUrl => {
   if (newUrl && isDirectFileUrl(newUrl)) {
     // Reset to empty — user must manually select
     selectedModelType.value = undefined
@@ -294,7 +288,7 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
 
   const formData = new FormData()
   for (const key in data) {
-    if (Object.prototype.hasOwnProperty.call(data, key)) {
+    if (Object.hasOwn(data, key)) {
       let value = (data as any)[key]
 
       // set preview file
@@ -344,7 +338,7 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
     .then(() => {
       dialog.close()
     })
-    .catch((e) => {
+    .catch(e => {
       toast.add({
         severity: 'error',
         summary: 'Error',

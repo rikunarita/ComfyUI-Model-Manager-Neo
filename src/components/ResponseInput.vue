@@ -46,8 +46,8 @@
 </template>
 
 <script setup lang="ts">
-import { resolveIcon } from 'utils/iconMap'
 import { X } from '@lucide/vue'
+import { resolveIcon } from 'utils/iconMap'
 import { computed, ref } from 'vue'
 
 interface Props {
@@ -67,7 +67,7 @@ const inputRef = ref<HTMLInputElement>()
 const innerValue = ref<string>()
 const inputValue = computed({
   get: () => innerValue.value ?? content.value,
-  set: (val) => {
+  set: val => {
     innerValue.value = val
   },
 })

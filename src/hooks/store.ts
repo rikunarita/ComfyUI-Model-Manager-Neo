@@ -1,4 +1,4 @@
-import { inject, InjectionKey, provide } from 'vue'
+import { type InjectionKey, inject, provide } from 'vue'
 
 const providerHooks = new Map<string, any>()
 const storeEvent = {} as StoreProvider
@@ -27,10 +27,7 @@ const getStoreKey = (key: string) => {
 /**
  * Using vue provide and inject to implement a simple store
  */
-export const defineStore = <T = any>(
-  key: string,
-  useInitial: (event: StoreProvider) => T,
-) => {
+export const defineStore = <T = any>(key: string, useInitial: (event: StoreProvider) => T) => {
   const storeKey = getStoreKey(key) as InjectionKey<T>
 
   if (providerHooks.has(key) && !import.meta.hot) {

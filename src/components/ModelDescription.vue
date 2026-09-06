@@ -57,7 +57,7 @@ const innerValue = ref<string>()
 
 watch(
   description,
-  (value) => {
+  value => {
     innerValue.value = value
   },
   { immediate: true },

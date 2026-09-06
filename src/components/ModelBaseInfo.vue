@@ -116,14 +116,9 @@ import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
 import { Button } from 'components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from 'components/ui/dialog'
-import { Tree } from 'components/ui/tree'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
+import { Tree } from 'components/ui/tree'
 import { useDialog } from 'hooks/dialog'
 import { useModelBaseInfo, useModelFolder } from 'hooks/model'
 import { useToast } from 'hooks/toast'
@@ -133,28 +128,25 @@ const editable = defineModel<boolean>('editable')
 
 const { toast } = useToast()
 
-const {
-  baseInfo,
-  pathIndex,
-  subFolder,
-  basename,
-  extension,
-  type,
-  modelFolders,
-} = useModelBaseInfo()
+const { baseInfo, pathIndex, subFolder, basename, extension, type, modelFolders } =
+  useModelBaseInfo()
 
 watch(type, () => {
   subFolder.value = ''
 })
 
-watch(editable, (newVal) => {
-  if (newVal) {
-    type.value = ''
-  }
-}, { immediate: true })
+watch(
+  editable,
+  newVal => {
+    if (newVal) {
+      type.value = ''
+    }
+  },
+  { immediate: true },
+)
 
 const typeOptions = computed(() => {
-  return Object.keys(modelFolders.value).map((curr) => {
+  return Object.keys(modelFolders.value).map(curr => {
     return {
       value: curr,
       label: curr,
@@ -167,7 +159,7 @@ const typeOptions = computed(() => {
 })
 
 const information = computed(() => {
-  return Object.values(baseInfo.value).filter((row) => {
+  return Object.values(baseInfo.value).filter(row => {
     if (editable.value) {
       const hiddenKeys = ['basename', 'pathIndex']
       return !hiddenKeys.includes(row.key)
@@ -243,7 +235,7 @@ const handleConfirmSelectFolder = () => {
   const folderPath = selectedFolderItem.value?.key
 
   const folders = modelFolders.value[type.value]
-  const idx = folders.findIndex((item) => folderPath?.includes(item))
+  const idx = folders.findIndex(item => folderPath?.includes(item))
   if (idx < 0) {
     toast.add({
       severity: 'error',

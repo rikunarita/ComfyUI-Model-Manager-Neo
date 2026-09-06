@@ -14,13 +14,13 @@ import DialogExplorer from 'components/DialogExplorer.vue'
 import DialogHfUpload from 'components/DialogHfUpload.vue'
 import DialogManager from 'components/DialogManager.vue'
 import DialogScanning from 'components/DialogScanning.vue'
+import GlobalConfirm from 'components/GlobalConfirm.vue'
 import GlobalDialogStack from 'components/GlobalDialogStack.vue'
 import GlobalLoading from 'components/GlobalLoading.vue'
 import { Sonner } from 'components/ui/sonner'
 import { TooltipProvider } from 'components/ui/tooltip'
 import { useStoreProvider } from 'hooks/store'
 import { useToast } from 'hooks/toast'
-import GlobalConfirm from 'components/GlobalConfirm.vue'
 import { ConfigProvider } from 'reka-ui'
 import { $el, app, ComfyButton } from 'scripts/comfyAPI'
 import { onMounted, ref } from 'vue'
@@ -99,13 +99,9 @@ onMounted(() => {
     const { cardWidth, gutter, aspect, flat } = config
     const layoutIcon = flat.value ? 'pi pi-th-large' : 'pi pi-folder-open'
     const includeHidden =
-      app.ui?.settings.getSettingValue(
-        'ModelManager.Scan.IncludeHiddenFiles',
-      ) ?? false
+      app.ui?.settings.getSettingValue('ModelManager.Scan.IncludeHiddenFiles') ?? false
     const hiddenIcon = includeHidden ? 'pi pi-eye' : 'pi pi-eye-slash'
-    const hiddenTooltip = includeHidden
-      ? t('hideHiddenFiles')
-      : t('showHiddenFiles')
+    const hiddenTooltip = includeHidden ? t('hideHiddenFiles') : t('showHiddenFiles')
 
     if (firstOpenManager.value) {
       models.refresh(true)
@@ -134,10 +130,7 @@ onMounted(() => {
           icon: hiddenIcon,
           command: async () => {
             const newValue = !includeHidden
-            app.ui?.settings.setSettingValue(
-              'ModelManager.Scan.IncludeHiddenFiles',
-              newValue,
-            )
+            app.ui?.settings.setSettingValue('ModelManager.Scan.IncludeHiddenFiles', newValue)
             await refreshModelsAndConfig()
             dialog.closeAll()
             openManagerDialog()

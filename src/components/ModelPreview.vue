@@ -131,12 +131,10 @@ const { $sm, $xl } = useContainerQueries()
 
 const prevPage = () => {
   defaultContentPage.value =
-    (defaultContentPage.value - 1 + defaultContent.value.length) %
-    defaultContent.value.length
+    (defaultContentPage.value - 1 + defaultContent.value.length) % defaultContent.value.length
 }
 
 const nextPage = () => {
-  defaultContentPage.value =
-    (defaultContentPage.value + 1) % defaultContent.value.length
+  defaultContentPage.value = (defaultContentPage.value + 1) % defaultContent.value.length
 }
 </script>

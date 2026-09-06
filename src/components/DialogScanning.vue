@@ -127,9 +127,7 @@ const { folders } = useModels()
 const allType = 'All'
 const currentType = ref<string>()
 const typeOptions = computed(() => {
-  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(
-    configSetting.excludeScanTypes,
-  )
+  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(configSetting.excludeScanTypes)
   const customBlackList =
     excludeScanTypes
       ?.split(',')
@@ -137,10 +135,8 @@ const typeOptions = computed(() => {
       .filter(Boolean) ?? []
   return [
     allType,
-    ...Object.keys(folders.value).filter(
-      (folder) => !customBlackList.includes(folder),
-    ),
-  ].map((type) => {
+    ...Object.keys(folders.value).filter(folder => !customBlackList.includes(folder)),
+  ].map(type => {
     return {
       label: type,
       value: type,
@@ -156,8 +152,10 @@ const { pathOptions } = useModelFolder({ type: currentType })
 
 const selectedModelFolder = ref<string>()
 const selectedFolder = computed({
-  get: () => selectedModelFolder.value ? { key: selectedModelFolder.value } : undefined,
-  set: (val: any) => { selectedModelFolder.value = val?.key },
+  get: () => (selectedModelFolder.value ? { key: selectedModelFolder.value } : undefined),
+  set: (val: any) => {
+    selectedModelFolder.value = val?.key
+  },
 })
 
 const enabledScan = computed(() => {
@@ -181,9 +179,7 @@ const scanTotalCount = computed(() => {
   return Object.keys(scanModelsList.value).length
 })
 const scanCompleteCount = computed(() => {
-  return Object.keys(scanModelsList.value).filter(
-    (key) => scanModelsList.value[key],
-  ).length
+  return Object.keys(scanModelsList.value).filter(key => scanModelsList.value[key]).length
 })
 const scanProgress = computed(() => {
   if (scanTotalCount.value === 0) {

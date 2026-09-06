@@ -49,6 +49,7 @@ import ModelDescription from 'components/ModelDescription.vue'
 import ModelMetadata from 'components/ModelMetadata.vue'
 import ModelPreview from 'components/ModelPreview.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
+import { cloneDeep } from 'es-toolkit'
 import { useContainerQueries } from 'hooks/container'
 import {
   useModelBaseInfoEditor,
@@ -57,8 +58,7 @@ import {
   useModelMetadataEditor,
   useModelPreviewEditor,
 } from 'hooks/model'
-import { cloneDeep } from 'es-toolkit'
-import { BaseModel, WithResolved } from 'types/typings'
+import type { BaseModel, WithResolved } from 'types/typings'
 import { ref, toRaw, watch } from 'vue'
 
 interface Props {

@@ -109,17 +109,15 @@ const { folders } = useModels()
 
 const currentType = ref<string>()
 const typeOptions = computed(() => {
-  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(
-    configSetting.excludeScanTypes,
-  )
+  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(configSetting.excludeScanTypes)
   const customBlackList =
     excludeScanTypes
       ?.split(',')
       .map((type: string) => type.trim())
       .filter(Boolean) ?? []
   return Object.keys(folders.value)
-    .filter((folder) => !customBlackList.includes(folder))
-    .map((type) => {
+    .filter(folder => !customBlackList.includes(folder))
+    .map(type => {
       return {
         label: type,
         value: type,
@@ -135,8 +133,10 @@ const { pathOptions } = useModelFolder({ type: currentType })
 
 const selectedModelFolder = ref<string>()
 const selectedFolder = computed({
-  get: () => selectedModelFolder.value ? { key: selectedModelFolder.value } : undefined,
-  set: (val: any) => { selectedModelFolder.value = val?.key },
+  get: () => (selectedModelFolder.value ? { key: selectedModelFolder.value } : undefined),
+  set: (val: any) => {
+    selectedModelFolder.value = val?.key
+  },
 })
 
 const enabledUpload = computed(() => {

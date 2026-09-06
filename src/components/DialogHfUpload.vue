@@ -137,7 +137,7 @@ import { genModelFullName, useModels } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
 import { api, app } from 'scripts/comfyAPI'
-import { Model } from 'types/typings'
+import type { Model } from 'types/typings'
 import { bytesToSize } from 'utils/common'
 import { genModelKey } from 'utils/model'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -152,17 +152,15 @@ const stepValue = ref('1')
 const currentType = ref<string>()
 
 const typeOptions = computed(() => {
-  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(
-    configSetting.excludeScanTypes,
-  )
+  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(configSetting.excludeScanTypes)
   const customBlackList =
     excludeScanTypes
       ?.split(',')
       .map((type: string) => type.trim())
       .filter(Boolean) ?? []
   return Object.keys(folders.value)
-    .filter((folder) => !customBlackList.includes(folder))
-    .map((type) => {
+    .filter(folder => !customBlackList.includes(folder))
+    .map(type => {
       return {
         label: type,
         value: type,
@@ -181,7 +179,7 @@ const fetchModels = async (type: string) => {
   loading.show()
   try {
     const resData = (await request(`/models/${type}`)) as Model[]
-    modelList.value = (resData ?? []).filter((item) => !item.isFolder)
+    modelList.value = (resData ?? []).filter(item => !item.isFolder)
   } catch (error) {
     toast.add({
       severity: 'error',

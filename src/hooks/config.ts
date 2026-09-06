@@ -7,7 +7,7 @@ import { $el, app } from 'scripts/comfyAPI'
 import { computed, onMounted, onUnmounted, readonly, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-export const useConfig = defineStore('config', (store) => {
+export const useConfig = defineStore('config', store => {
   const { t } = useI18n()
 
   const mobileDeviceBreakPoint = 759
@@ -71,15 +71,12 @@ export const useConfig = defineStore('config', (store) => {
     apiKeyInfo: ref<Record<string, string>>({}),
   }
 
-  watch(cardSizeFlag, (val) => {
+  watch(cardSizeFlag, val => {
     app.ui?.settings.setSettingValue('ModelManager.UI.CardSize', val)
   })
 
-  watch(cardSizeMap, (val) => {
-    app.ui?.settings.setSettingValue(
-      'ModelManager.UI.CardSizeMap',
-      JSON.stringify(val),
-    )
+  watch(cardSizeMap, val => {
+    app.ui?.settings.setSettingValue('ModelManager.UI.CardSizeMap', JSON.stringify(val))
   })
 
   useAddConfigSettings(store)
@@ -103,10 +100,7 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
   const { t } = useI18n()
   const { confirm } = useToast()
 
-  const iconButton = (opt: {
-    icon: string
-    onClick: () => void | Promise<void>
-  }) => {
+  const iconButton = (opt: { icon: string; onClick: () => void | Promise<void> }) => {
     return $el(
       'span.h-4.cursor-pointer',
       { onclick: opt.onClick },

@@ -136,11 +136,11 @@ const mappedSize = computed(() => {
 })
 
 const prefixIcon = computed(() => {
-  return props.items?.find((item) => item.value === current.value)?.icon
+  return props.items?.find(item => item.value === current.value)?.icon
 })
 
 const currentLabel = computed(() => {
-  return props.items?.find((item) => item.value === current.value)?.label
+  return props.items?.find(item => item.value === current.value)?.label
 })
 
 // Button mode: horizontal scroll controls

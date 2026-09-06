@@ -86,16 +86,21 @@ const tailHeight = computed(() => ((props.items?.length ?? 0) - state.value.end)
 
 const thumbSize = computed(() => {
   if (viewportHeight.value >= contentHeight.value) return 0
-  const thumbHeight = Math.pow(viewportHeight.value, 2) / contentHeight.value
+  const thumbHeight = viewportHeight.value ** 2 / contentHeight.value
   return Math.max(thumbHeight, 16)
 })
 
 const thumbOffset = computed({
   get: () => {
-    return (scrollY.value / (contentHeight.value - viewportHeight.value)) * (viewportHeight.value - thumbSize.value)
+    return (
+      (scrollY.value / (contentHeight.value - viewportHeight.value)) *
+      (viewportHeight.value - thumbSize.value)
+    )
   },
-  set: (offset) => {
-    scrollY.value = (offset / (viewportHeight.value - thumbSize.value)) * (contentHeight.value - viewportHeight.value)
+  set: offset => {
+    scrollY.value =
+      (offset / (viewportHeight.value - thumbSize.value)) *
+      (contentHeight.value - viewportHeight.value)
   },
 })
 
@@ -108,7 +113,7 @@ const { isDragging } = useDraggable(thumb, {
   onStart: () => {
     document.body.style.userSelect = 'none'
   },
-  onMove: (position) => {
+  onMove: position => {
     thumbOffset.value = position.y
   },
   onEnd: () => {

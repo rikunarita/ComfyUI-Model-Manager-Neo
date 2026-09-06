@@ -121,7 +121,6 @@
 </template>
 
 <script setup lang="ts">
-import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { ChevronUp, Menu, X } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import ModelCard from 'components/ModelCard.vue'
@@ -130,14 +129,11 @@ import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
 import { Button } from 'components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from 'components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from 'components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
+import { chunk } from 'es-toolkit'
 import { useConfig } from 'hooks/config'
 import { type ModelTreeNode, useModelExplorer } from 'hooks/explorer'
-import { chunk } from 'es-toolkit'
 import { genModelKey } from 'utils/model'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -149,23 +145,17 @@ const gutter = {
   y: 32,
 }
 
-const {
-  dataTreeList,
-  folderPaths,
-  findFolder,
-  openFolder,
-  openModelDetail,
-  getFullPath,
-} = useModelExplorer()
+const { dataTreeList, folderPaths, findFolder, openFolder, openModelDetail, getFullPath } =
+  useModelExplorer()
 const { cardSize, cardSizeMap, cardSizeFlag, dialog: settings } = useConfig()
 
 // folderPaths を BreadcrumbItem[] に変換
 const breadcrumbItems = computed(() => {
-  return folderPaths.value.map((folder) => ({
+  return folderPaths.value.map(folder => ({
     label: folder.name,
     command: () => {
       const index = folderPaths.value.findIndex(
-        (f) => f.name === folder.name && f.pathIndex === folder.pathIndex
+        f => f.name === folder.name && f.pathIndex === folder.pathIndex,
       )
       if (index >= 0) {
         folderPaths.value.splice(index + 1)
@@ -197,7 +187,7 @@ const searchContent = ref<string>()
 
 const sortOrder = ref('name')
 const sortOrderOptions = ref(
-  ['name', 'size', 'created', 'modified'].map((key) => {
+  ['name', 'size', 'created', 'modified'].map(key => {
     return {
       label: t(`sort.${key}`),
       value: key,
@@ -283,8 +273,8 @@ const currentDataList = computed(() => {
 })
 
 const renderedList = computed(() => {
-  return chunk(currentDataList.value, cols.value).map((row) => {
-    return { key: row.map((o) => o.basename).join('#'), row }
+  return chunk(currentDataList.value, cols.value).map(row => {
+    return { key: row.map(o => o.basename).join('#'), row }
   })
 })
 
@@ -296,7 +286,7 @@ const cardSizeOptions = computed(() => {
     [customSize]: 'custom',
   }
 
-  return Object.keys(customOptionMap).map((key) => {
+  return Object.keys(customOptionMap).map(key => {
     return {
       label: t(key),
       value: key,

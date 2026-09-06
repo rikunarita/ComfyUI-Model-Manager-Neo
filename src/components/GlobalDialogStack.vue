@@ -114,21 +114,15 @@
 </template>
 
 <script setup lang="ts">
-import { Info } from '@lucide/vue'
-import { resolveIcon } from 'utils/iconMap'
-import { Maximize2, Minimize2, X } from '@lucide/vue'
+import { Info, Maximize2, Minimize2, X } from '@lucide/vue'
 import { Button } from 'components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from 'components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
+import { clamp } from 'es-toolkit'
 import { useConfig } from 'hooks/config'
 import type { DialogItem } from 'hooks/dialog'
 import { useDialog } from 'hooks/dialog'
-import { clamp } from 'es-toolkit'
 import { cn } from 'utils/cn'
+import { resolveIcon } from 'utils/iconMap'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const { stack, rise, close } = useDialog()
@@ -280,8 +274,7 @@ const stopResize = () => {
 
 const startResize = (event: MouseEvent) => {
   isResizing.value = true
-  const direction =
-    (event.target as HTMLElement).getAttribute('data-resize-pos') ?? ''
+  const direction = (event.target as HTMLElement).getAttribute('data-resize-pos') ?? ''
   resizeDirection.value = direction.split('-')
   updateGlobalStyle(direction)
   document.addEventListener('mousemove', resize)
@@ -320,7 +313,7 @@ onBeforeUnmount(() => {
   stopResize()
 })
 
-watch(allowResize, (allowResize) => {
+watch(allowResize, allowResize => {
   if (allowResize) {
     updateContainerSize(containerSize.value)
     updateContainerPosition(centerPosition(containerSize.value))

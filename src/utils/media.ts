@@ -2,17 +2,7 @@
  * Media file utility functions
  */
 
-const VIDEO_EXTENSIONS = [
-  '.mp4',
-  '.webm',
-  '.mov',
-  '.avi',
-  '.mkv',
-  '.flv',
-  '.wmv',
-  '.m4v',
-  '.ogv',
-]
+const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.m4v', '.ogv']
 
 const VIDEO_HOST_PATTERNS = [
   '/video', // Civitai video URLs often end with /video
@@ -44,10 +34,10 @@ export const isVideoUrl = (url: string, localContentType?: string): boolean => {
   }
 
   // Check if URL contains a video extension anywhere (for complex URLs like Civitai)
-  if (VIDEO_EXTENSIONS.some((ext) => urlLower.includes(ext))) {
+  if (VIDEO_EXTENSIONS.some(ext => urlLower.includes(ext))) {
     return true
   }
 
   // Check for specific video hosting patterns
-  return VIDEO_HOST_PATTERNS.some((pattern) => urlLower.includes(pattern))
+  return VIDEO_HOST_PATTERNS.some(pattern => urlLower.includes(pattern))
 }

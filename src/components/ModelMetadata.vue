@@ -27,7 +27,7 @@ const dataSource = computed(() => {
   const dataSource: { key: string; value: any }[] = []
 
   for (const key in metadata.value) {
-    if (Object.prototype.hasOwnProperty.call(metadata.value, key)) {
+    if (Object.hasOwn(metadata.value, key)) {
       const value = metadata.value[key]
       dataSource.push({ key, value })
     }

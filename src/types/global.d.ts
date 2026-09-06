@@ -6,9 +6,9 @@
  * The archived @comfyorg/litegraph package is NOT used.
  */
 import type {
+  ComfyApi as ComfyApiType,
   ComfyApp as ComfyAppType,
   ComfyExtension as ComfyExtensionBase,
-  ComfyApi as ComfyApiType,
   ComfyNodeDef as ComfyNodeDefType,
 } from '@comfyorg/comfyui-frontend-types'
 
@@ -78,13 +78,7 @@ declare global {
         dialog: dialog.ComfyDialog
       }
 
-      type SettingInputType =
-        | 'boolean'
-        | 'number'
-        | 'slider'
-        | 'combo'
-        | 'text'
-        | 'hidden'
+      type SettingInputType = 'boolean' | 'number' | 'slider' | 'combo' | 'text' | 'hidden'
 
       type SettingCustomRenderer = (
         name: string,
@@ -106,9 +100,7 @@ declare global {
         onChange?: (newValue: any, oldValue?: any) => void
         attrs?: any
         tooltip?: string
-        options?:
-          | Array<string | SettingOption>
-          | ((value: any) => SettingOption[])
+        options?: Array<string | SettingOption> | ((value: any) => SettingOption[])
         category?: string[]
         experimental?: boolean
         deprecated?: boolean
@@ -190,11 +182,7 @@ declare global {
     selectNode: (node: LGraphNode) => void
     copyToClipboard: (nodes: LGraphNode[]) => void
     convertEventToCanvasOffset: (event: MouseEvent) => [number, number]
-    processNodeWidgets: (
-      node: LGraphNode,
-      pos: [number, number],
-      event: MouseEvent,
-    ) => any
+    processNodeWidgets: (node: LGraphNode, pos: [number, number], event: MouseEvent) => any
   }
 
   interface LGraph {
@@ -212,13 +200,7 @@ declare global {
   interface Window {
     comfyAPI: typeof ComfyAPI
     LiteGraph: {
-      createNode: (
-        type: string,
-        title: string | null,
-        options: object,
-      ) => LGraphNode
+      createNode: (type: string, title: string | null, options: object) => LGraphNode
     }
   }
 }
-
-export {}
