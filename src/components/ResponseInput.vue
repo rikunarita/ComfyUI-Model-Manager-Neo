@@ -36,7 +36,11 @@
     </button>
     
     <slot name="suffix">
-      <span v-if="suffixIcon" :class="[suffixIcon, 'size-4 text-mm-muted-fg']"></span>
+      <component
+        v-if="suffixIcon && resolveIcon(suffixIcon)"
+        :is="resolveIcon(suffixIcon)"
+        class="size-4 text-mm-muted-fg"
+      />
     </slot>
   </div>
 </template>
