@@ -7,7 +7,11 @@
     ]"
   >
     <slot name="prefix">
-      <span v-if="prefixIcon" :class="[prefixIcon, 'size-4 text-mm-muted-fg']"></span>
+      <component
+        v-if="prefixIcon && resolveIcon(prefixIcon)"
+        :is="resolveIcon(prefixIcon)"
+        class="size-4 text-mm-muted-fg"
+      />
     </slot>
 
     <input
