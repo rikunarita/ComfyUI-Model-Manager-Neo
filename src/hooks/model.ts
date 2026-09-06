@@ -400,7 +400,7 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
       },
       {
         key: 'sizeBytes',
-        formatter: val => (val == 0 ? 'Unknown' : bytesToSize(val)),
+        formatter: val => (val === 0 ? 'Unknown' : bytesToSize(val)),
       },
       {
         key: 'createdAt',

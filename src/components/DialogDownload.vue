@@ -17,11 +17,7 @@
           {{ $t('externalDownloads') }}
         </div>
         <div class="flex flex-col gap-2">
-          <DownloadTaskItem
-            v-for="item in externalDownloads"
-            :key="item.taskId"
-            :item="item"
-          />
+          <DownloadTaskItem v-for="item in externalDownloads" :key="item.taskId" :item="item" />
         </div>
       </div>
 
@@ -30,11 +26,7 @@
           {{ $t('localUploads') }}
         </div>
         <div class="flex flex-col gap-2">
-          <DownloadTaskItem
-            v-for="item in localUploads"
-            :key="item.taskId"
-            :item="item"
-          />
+          <DownloadTaskItem v-for="item in localUploads" :key="item.taskId" :item="item" />
         </div>
       </div>
     </div>

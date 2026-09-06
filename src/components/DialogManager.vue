@@ -1,12 +1,6 @@
 <template>
-  <div
-    ref="contentContainer"
-    class="flex h-full flex-col gap-4 overflow-hidden"
-  >
-    <div
-      class="grid grid-cols-1 justify-center gap-4 px-8"
-      :style="$content_lg(contentStyle)"
-    >
+  <div ref="contentContainer" class="flex h-full flex-col gap-4 overflow-hidden">
+    <div class="grid grid-cols-1 justify-center gap-4 px-8" :style="$content_lg(contentStyle)">
       <div ref="toolbarContainer" class="col-span-full">
         <div :class="['flex gap-4', $toolbar_2xl('flex-row', 'flex-col')]">
           <div class="flex-1">
@@ -41,10 +35,7 @@
 
     <ResponseScroll :items="list" :itemSize="itemSize" class="h-full flex-1">
       <template #item="{ item }">
-        <div
-          class="grid grid-cols-1 justify-center gap-8 px-8"
-          :style="contentStyle"
-        >
+        <div class="grid grid-cols-1 justify-center gap-8 px-8" :style="contentStyle">
           <template v-for="model in (item as any).row" :key="genModelKey(model)">
             <Tooltip :delay-duration="800">
               <TooltipTrigger as-child>
@@ -58,10 +49,7 @@
                   @click="openModelDetail(model)"
                 >
                   <template #name>
-                    <div
-                      v-show="showModelName"
-                      class="absolute top-0 h-full w-full p-2"
-                    >
+                    <div v-show="showModelName" class="absolute top-0 h-full w-full p-2">
                       <div class="flex h-full flex-col justify-end text-lg">
                         <div class="line-clamp-3 break-all font-bold text-shadow">
                           {{ model.basename }}
@@ -106,11 +94,7 @@
                   </template>
                 </ModelCard>
               </TooltipTrigger>
-              <TooltipContent
-                side="top"
-                class="max-w-[32rem]"
-                :style="{ zIndex: 2100 }"
-              >
+              <TooltipContent side="top" class="max-w-[32rem]" :style="{ zIndex: 2100 }">
                 {{ getFullPath(model) }}
               </TooltipContent>
             </Tooltip>

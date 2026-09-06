@@ -1,10 +1,6 @@
 <template>
   <!-- Drop mode: DropdownMenu (self-managed open state) -->
-  <slot
-    v-if="type === 'drop'"
-    name="target"
-    v-bind="{ prefixIcon, currentLabel, current }"
-  >
+  <slot v-if="type === 'drop'" name="target" v-bind="{ prefixIcon, currentLabel, current }">
     <DropdownMenu>
       <DropdownMenuTrigger as-child :class="$attrs.class">
         <Button variant="secondary" class="-my-1 w-full whitespace-nowrap py-1">
@@ -20,10 +16,7 @@
           </slot>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        class="max-h-[300px] min-w-[8rem] overflow-y-auto"
-      >
+      <DropdownMenuContent align="end" class="max-h-[300px] min-w-[8rem] overflow-y-auto">
         <DropdownMenuItem
           v-for="item in items"
           :key="item.value"

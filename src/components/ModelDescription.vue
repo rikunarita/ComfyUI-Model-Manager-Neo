@@ -92,20 +92,20 @@ const exitEditMode = () => {
 
 <style lang="less" module>
 .markdown-body {
-  font-family: theme('fontFamily.sans');
-  font-size: theme('fontSize.base');
-  line-height: theme('lineHeight.relaxed');
+  font-family: theme("fontFamily.sans");
+  font-size: theme("fontSize.base");
+  line-height: theme("lineHeight.relaxed");
   word-break: break-word;
   margin: 0;
 
   &::before {
     display: table;
-    content: '';
+    content: "";
   }
 
   &::after {
     display: table;
-    content: '';
+    content: "";
     clear: both;
   }
 

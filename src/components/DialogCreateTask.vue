@@ -7,18 +7,13 @@
       @keypress.enter="searchModelsByUrl"
     >
       <template #suffix>
-        <span
-          class="pi pi-search text-base opacity-60"
-          @click="searchModelsByUrl"
-        ></span>
+        <span class="pi pi-search text-base opacity-60" @click="searchModelsByUrl"></span>
       </template>
     </ResponseInput>
 
     <!-- Direct file URL indicator with folder selection -->
     <div v-if="isDirectFile && modelUrl" class="flex flex-col gap-2">
-      <div
-        class="flex items-center gap-2 rounded bg-green-50 p-2 text-sm text-green-600"
-      >
+      <div class="flex items-center gap-2 rounded bg-green-50 p-2 text-sm text-green-600">
         <i class="pi pi-check-circle"></i>
         <span>Direct file download detected</span>
       </div>
@@ -47,11 +42,7 @@
     </div>
 
     <div v-show="data.length > 0">
-      <ResponseSelect
-        v-model="current"
-        :items="data"
-        :type="isMobile ? 'drop' : 'button'"
-      >
+      <ResponseSelect v-model="current" :items="data" :type="isMobile ? 'drop' : 'button'">
         <template #prefix>
           <span>version:</span>
         </template>
@@ -74,8 +65,7 @@
                   :model-value="currentModel.currentFileId"
                   :items="currentModel.selectionFiles"
                   :type="isMobile ? 'drop' : 'button'"
-                >
-                </ResponseSelect>
+                > </ResponseSelect>
               </div>
               <Button
                 type="submit"

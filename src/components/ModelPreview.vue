@@ -18,11 +18,7 @@
           <PreviewVideo :src="preview" />
         </div>
 
-        <ResponseImage
-          v-else
-          :src="preview"
-          :error="noPreviewContent"
-        ></ResponseImage>
+        <ResponseImage v-else :src="preview" :error="noPreviewContent"></ResponseImage>
 
         <!-- Carousel replacement: simple slider -->
         <div
@@ -92,8 +88,7 @@
         <ResponseFileUpload
           class="absolute left-0 h-24 w-full"
           @select="updateLocalContent"
-        >
-        </ResponseFileUpload>
+        > </ResponseFileUpload>
         <div class="h-24"></div>
       </div>
     </div>

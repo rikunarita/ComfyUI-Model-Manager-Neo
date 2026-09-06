@@ -66,6 +66,17 @@
   },
   "overrides": [
     {
+      "includes": ["src/components/ui/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["**/*.vue"],
       "linter": {
         "rules": {
@@ -75,16 +86,6 @@
           },
           "style": {
             "useVueMultiWordComponentNames": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["**/*.css"],
-      "linter": {
-        "rules": {
-          "complexity": {
-            "noImportantStyles": "off"
           }
         }
       }

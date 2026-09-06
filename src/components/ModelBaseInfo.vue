@@ -21,12 +21,7 @@
             </span>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          :disabled="!type"
-          @click="handleSelectFolder"
-        >
+        <Button variant="ghost" size="icon-sm" :disabled="!type" @click="handleSelectFolder">
           <FolderOpen class="size-4" />
         </Button>
 
@@ -77,15 +72,11 @@
 
     <table class="w-full table-fixed border-collapse border">
       <colgroup>
-        <col class="w-32" />
-        <col />
+        <col class="w-32">
+        <col>
       </colgroup>
       <tbody>
-        <tr
-          v-for="item in information"
-          :key="item.key"
-          class="h-8 whitespace-nowrap border-b"
-        >
+        <tr v-for="item in information" :key="item.key" class="h-8 whitespace-nowrap border-b">
           <td class="border-r bg-gray-300 px-4 dark:bg-gray-800">
             {{ $t(`info.${item.key}`) }}
           </td>

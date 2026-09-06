@@ -21,39 +21,19 @@
             >
               <Eye class="size-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              @click.stop="addModelNode(model)"
-            >
+            <Button variant="ghost" size="icon-sm" @click.stop="addModelNode(model)">
               <Plus class="size-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              @click.stop="copyModelNode(model)"
-            >
+            <Button variant="ghost" size="icon-sm" @click.stop="copyModelNode(model)">
               <Copy class="size-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              @click.stop="loadPreviewWorkflow(model)"
-            >
+            <Button variant="ghost" size="icon-sm" @click.stop="loadPreviewWorkflow(model)">
               <Workflow class="size-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              @click="editable = true"
-            >
+            <Button variant="ghost" size="icon-sm" @click="editable = true">
               <PenSquare class="size-4" />
             </Button>
-            <Button
-              variant="destructive"
-              size="icon-sm"
-              @click="handleDelete"
-            >
+            <Button variant="destructive" size="icon-sm" @click="handleDelete">
               <Trash2 class="size-4" />
             </Button>
           </template>

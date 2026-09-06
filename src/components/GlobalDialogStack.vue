@@ -40,12 +40,7 @@
               :class="{ 'animate-spin': action.icon === 'pi pi-spinner pi-spin' }"
             />
           </Button>
-          <Button
-            v-if="allowResize"
-            variant="ghost"
-            size="icon-sm"
-            @click="toggleMaximize"
-          >
+          <Button v-if="allowResize" variant="ghost" size="icon-sm" @click="toggleMaximize">
             <Maximize2 v-if="!isMaximized" class="size-4" />
             <Minimize2 v-else class="size-4" />
           </Button>

@@ -1,9 +1,5 @@
 <template>
-  <form
-    ref="container"
-    @submit.prevent="handleSubmit"
-    @reset.prevent="handleReset"
-  >
+  <form ref="container" @submit.prevent="handleSubmit" @reset.prevent="handleReset">
     <div class="mx-auto w-full max-w-[50rem]">
       <div
         :class="[
@@ -11,10 +7,7 @@
           $xl('flex-row', 'flex-col'),
         ]"
       >
-        <ModelPreview
-          class="shrink-0"
-          v-model:editable="editable"
-        ></ModelPreview>
+        <ModelPreview class="shrink-0" v-model:editable="editable"></ModelPreview>
 
         <div class="flex flex-col gap-4 overflow-hidden">
           <div class="flex h-10 items-center justify-end gap-4">

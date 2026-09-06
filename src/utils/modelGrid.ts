@@ -86,13 +86,13 @@ export function dragAddModel(
       widgetIndex = widgetIndices[0]
       if (strictlyOnWidget) {
         const draggedWidget = (app.canvas as any).processNodeWidgets(node, pos, event)
-        if (draggedWidget != node!.widgets[widgetIndex]) {
+        if (draggedWidget !== node!.widgets[widgetIndex]) {
           widgetIndex = -1
         }
       }
     } else if (widgetIndices.length > 1) {
       const draggedWidget = (app.canvas as any).processNodeWidgets(node, pos, event)
-      widgetIndex = widgetIndices.findIndex(index => draggedWidget == node!.widgets[index])
+      widgetIndex = widgetIndices.findIndex(index => draggedWidget === node!.widgets[index])
     }
 
     if (widgetIndex !== -1 && node) {

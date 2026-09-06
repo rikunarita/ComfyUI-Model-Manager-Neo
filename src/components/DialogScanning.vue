@@ -11,18 +11,18 @@
     <Tabs v-show="batchScanningStep === 1" v-model="stepValue" class="flex h-full flex-col">
       <TabsList class="grid w-full grid-cols-3">
         <TabsTrigger value="1">{{ $t('selectModelType') }}</TabsTrigger>
-        <TabsTrigger value="2" :disabled="stepValue === '1'">{{ $t('selectSubdirectory') }}</TabsTrigger>
-        <TabsTrigger value="3" :disabled="stepValue === '1' || stepValue === '2'">{{ $t('scanModelInformation') }}</TabsTrigger>
+        <TabsTrigger value="2" :disabled="stepValue === '1'">{{
+          $t('selectSubdirectory')
+        }}</TabsTrigger>
+        <TabsTrigger value="3" :disabled="stepValue === '1' || stepValue === '2'">{{
+          $t('scanModelInformation')
+        }}</TabsTrigger>
       </TabsList>
       <TabsContent value="1" class="flex-1 overflow-hidden">
         <div class="flex h-full flex-col overflow-hidden">
           <ResponseScroll>
             <div class="flex flex-wrap gap-4">
-              <Button
-                v-for="item in typeOptions"
-                :key="item.value"
-                @click="item.command"
-              >
+              <Button v-for="item in typeOptions" :key="item.value" @click="item.command">
                 {{ item.label }}
               </Button>
             </div>
@@ -71,11 +71,7 @@
         </div>
 
         <div class="flex items-center justify-center gap-4">
-          <Button
-            v-for="item in scanActions"
-            :key="item.value"
-            @click="() => item.command(item)"
-          >
+          <Button v-for="item in scanActions" :key="item.value" @click="() => item.command(item)">
             {{ item.label }}
           </Button>
         </div>
@@ -87,7 +83,8 @@
         <div class="h-20 w-full">
           <div v-show="scanProgress > -1">
             <Progress :model-value="scanProgress">
-              {{ scanCompleteCount }} / {{ scanTotalCount }}
+              {{ scanCompleteCount }}
+              / {{ scanTotalCount }}
             </Progress>
           </div>
 

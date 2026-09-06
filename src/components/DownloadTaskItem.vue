@@ -5,7 +5,7 @@
         <div v-if="isVideoUrl(item.preview)" class="h-full w-full">
           <PreviewVideo :src="item.preview" />
         </div>
-        <img v-else :src="item.preview" class="h-full w-full object-cover rounded-mm-ctl" />
+        <img v-else :src="item.preview" class="h-full w-full object-cover rounded-mm-ctl">
       </div>
       <div class="flex flex-1 flex-col gap-3 overflow-hidden">
         <div class="flex items-center gap-3 overflow-hidden">

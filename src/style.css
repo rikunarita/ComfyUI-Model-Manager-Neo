@@ -63,16 +63,13 @@
   --mm-accent-fg: var(--primary-fg, var(--mm-fb-accent-fg));
   --mm-danger: var(--color-error, oklch(0.65 0.2 25));
   --mm-success: var(--color-green-500, oklch(0.6 0.17 155));
-  --mm-ring: var(
-    --p-highlight-color,
-    color-mix(in oklab, var(--mm-accent) 60%, transparent)
-  );
+  --mm-ring: var(--p-highlight-color, color-mix(in oklab, var(--mm-accent) 60%, transparent));
 
   /* Elevation — theme-following shadows */
   --mm-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 2px 8px -2px rgb(0 0 0 / 0.35);
   --mm-shadow-2: 2px 6px 12px -4px rgb(0 0 0 / 0.45), 4px 12px 24px -8px rgb(0 0 0 / 0.4);
   --mm-shadow-3: 4px 12px 24px -8px rgb(0 0 0 / 0.5), 8px 24px 48px -16px rgb(0 0 0 / 0.45);
-  
+
   /* Shape */
   --mm-radius-ctl: 10px;
   --mm-radius-card: 14px;

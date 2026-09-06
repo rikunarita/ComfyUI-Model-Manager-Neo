@@ -8,8 +8,8 @@
     disablepictureinpicture
     :preload="preload"
   >
-    <source :src="src" type="video/mp4" />
-    <source :src="src" type="video/webm" />
+    <source :src="src" type="video/mp4">
+    <source :src="src" type="video/webm">
   </video>
 </template>
 

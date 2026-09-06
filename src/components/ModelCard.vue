@@ -6,12 +6,7 @@
     <div data-card-main class="flex h-full w-full flex-col">
       <div data-card-preview class="flex-1 overflow-hidden">
         <div v-if="model.isFolder" class="h-full w-full">
-          <svg
-            class="icon"
-            viewBox="0 0 1024 1024"
-            version="1.1"
-            height="100%"
-          >
+          <svg class="icon" viewBox="0 0 1024 1024" version="1.1" height="100%">
             <path
               d="M853.333333 256H469.333333l-85.333333-85.333333H170.666667c-46.933333 0-85.333333 38.4-85.333334 85.333333v170.666667h853.333334v-85.333334c0-46.933333-38.4-85.333333-85.333334-85.333333z"
               fill="#FFA000"
@@ -22,14 +17,11 @@
             ></path>
           </svg>
         </div>
-        <div
-          v-else-if="isVideoUrl(preview)"
-          class="h-full w-full p-1 hover:p-0"
-        >
+        <div v-else-if="isVideoUrl(preview)" class="h-full w-full p-1 hover:p-0">
           <PreviewVideo :src="preview" />
         </div>
         <div v-else class="h-full w-full p-1 hover:p-0">
-          <img class="h-full w-full rounded-mm-ctl object-cover" :src="preview" />
+          <img class="h-full w-full rounded-mm-ctl object-cover" :src="preview">
         </div>
       </div>
 

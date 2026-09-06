@@ -27,5 +27,5 @@ const modelValue = useVModel(props, 'modelValue', emits, {
       'disabled:cursor-not-allowed disabled:opacity-50',
       props.class,
     )"
-  />
+  >
 </template>

@@ -1,16 +1,9 @@
 <template>
   <div class="p-4">
-    <Input
-      v-model="content"
-      class="w-full"
-      placeholder="Set New API Key"
-      autocomplete="off"
-    />
+    <Input v-model="content" class="w-full" placeholder="Set New API Key" autocomplete="off" />
     <div class="mt-4 flex items-center justify-between">
       <div>
-        <span v-show="showError" class="text-sm text-mm-danger">
-          API Key Not Allow Empty
-        </span>
+        <span v-show="showError" class="text-sm text-mm-danger"> API Key Not Allow Empty </span>
       </div>
       <Button autofocus @click="saveKeybinding">Save</Button>
     </div>

@@ -1,7 +1,7 @@
 <template>
   <span class="relative">
-    <img :src="src" :alt="alt" v-bind="$attrs" @error="onError" />
-    <img v-if="error" v-show="loadError" :src="error" class="absolute top-0" />
+    <img :src="src" :alt="alt" v-bind="$attrs" @error="onError">
+    <img v-if="error" v-show="loadError" :src="error" class="absolute top-0">
   </span>
 </template>
 

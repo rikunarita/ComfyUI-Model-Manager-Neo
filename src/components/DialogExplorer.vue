@@ -24,30 +24,14 @@
       </div>
 
       <div :class="['flex gap-4', showToolbar && 'flex-1']">
-        <ResponseInput
-          v-model="searchContent"
-          :placeholder="$t('searchModels')"
-        ></ResponseInput>
+        <ResponseInput v-model="searchContent" :placeholder="$t('searchModels')"></ResponseInput>
 
-        <div
-          v-show="showToolbar"
-          class="flex flex-1 items-center justify-end gap-2"
-        >
-          <ResponseSelect
-            v-model="sortOrder"
-            :items="sortOrderOptions"
-          ></ResponseSelect>
-          <ResponseSelect
-            v-model="cardSizeFlag"
-            :items="cardSizeOptions"
-          ></ResponseSelect>
+        <div v-show="showToolbar" class="flex flex-1 items-center justify-end gap-2">
+          <ResponseSelect v-model="sortOrder" :items="sortOrderOptions"></ResponseSelect>
+          <ResponseSelect v-model="cardSizeFlag" :items="cardSizeOptions"></ResponseSelect>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          @click="toggleToolbar"
-        >
+        <Button variant="ghost" size="icon-sm" @click="toggleToolbar">
           <X v-if="showToolbar" class="size-4" />
           <Menu v-else class="size-4" />
         </Button>
@@ -108,11 +92,7 @@
     <!-- Context Menu (reka-ui DropdownMenu) -->
     <DropdownMenu v-model:open="contextMenuVisible">
       <DropdownMenuContent>
-        <DropdownMenuItem
-          v-for="item in contextItems"
-          :key="item.label"
-          @select="item.command"
-        >
+        <DropdownMenuItem v-for="item in contextItems" :key="item.label" @select="item.command">
           {{ item.label }}
         </DropdownMenuItem>
       </DropdownMenuContent>

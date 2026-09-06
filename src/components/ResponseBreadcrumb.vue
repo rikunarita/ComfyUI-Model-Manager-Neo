@@ -1,8 +1,5 @@
 <template>
-  <div
-    ref="container"
-    class="breadcrumb-container flex items-center gap-1 overflow-hidden text-sm"
-  >
+  <div ref="container" class="breadcrumb-container flex items-center gap-1 overflow-hidden text-sm">
     <template v-for="(item, index) in (items ?? [])" :key="index">
       <button
         v-if="index < (items?.length ?? 0) - 1"

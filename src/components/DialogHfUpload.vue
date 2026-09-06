@@ -4,7 +4,9 @@
       <TabsList class="grid w-full grid-cols-3">
         <TabsTrigger value="1">{{ $t('selectModelType') }}</TabsTrigger>
         <TabsTrigger value="2" :disabled="stepValue === '1'">{{ $t('selectModel') }}</TabsTrigger>
-        <TabsTrigger value="3" :disabled="stepValue === '1' || stepValue === '2'">{{ $t('uploadToHuggingFace') }}</TabsTrigger>
+        <TabsTrigger value="3" :disabled="stepValue === '1' || stepValue === '2'">{{
+          $t('uploadToHuggingFace')
+        }}</TabsTrigger>
       </TabsList>
 
       <!-- Step 1: Select model type -->
@@ -12,11 +14,7 @@
         <div class="flex h-full flex-col overflow-hidden">
           <ResponseScroll>
             <div class="flex flex-wrap gap-4">
-              <Button
-                v-for="item in typeOptions"
-                :key="item.value"
-                @click="item.command"
-              >
+              <Button v-for="item in typeOptions" :key="item.value" @click="item.command">
                 {{ item.label }}
               </Button>
             </div>
@@ -43,10 +41,7 @@
                 @click="handleSelectModel(model)"
               >
                 <div class="preview-aspect w-full">
-                  <img
-                    :src="getPreviewUrl(model.preview)"
-                    class="h-full w-full object-cover"
-                  />
+                  <img :src="getPreviewUrl(model.preview)" class="h-full w-full object-cover">
                 </div>
                 <div class="overflow-hidden text-ellipsis whitespace-nowrap p-2 text-sm">
                   {{ model.basename }}
@@ -79,10 +74,7 @@
               <div v-if="whoamiName" class="text-sm opacity-60">
                 {{ $t('hfAccount') }}: {{ whoamiName }}
               </div>
-              <div
-                v-if="whoamiError"
-                class="rounded bg-yellow-500/20 p-2 text-sm text-yellow-500"
-              >
+              <div v-if="whoamiError" class="rounded bg-yellow-500/20 p-2 text-sm text-yellow-500">
                 {{ whoamiError }}
               </div>
               <div class="flex flex-col gap-2">
@@ -109,10 +101,7 @@
               <ChevronLeft class="size-4" />
               {{ $t('back') }}
             </Button>
-            <Button
-              :disabled="!repoId || !pathInRepo || uploading"
-              @click="handleUpload"
-            >
+            <Button :disabled="!repoId || !pathInRepo || uploading" @click="handleUpload">
               <Upload class="size-4" />
               {{ $t('upload') }}
             </Button>

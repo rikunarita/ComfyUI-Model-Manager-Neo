@@ -24,7 +24,7 @@
       autocomplete="off"
       v-bind="$attrs"
       @[trigger]="updateContent"
-    />
+    >
 
     <button
       v-if="allowClear"
@@ -34,7 +34,7 @@
     >
       <X class="size-4" />
     </button>
-    
+
     <slot name="suffix">
       <component
         v-if="suffixIcon && resolveIcon(suffixIcon)"
