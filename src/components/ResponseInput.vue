@@ -46,6 +46,7 @@
 </template>
 
 <script setup lang="ts">
+import { resolveIcon } from 'utils/iconMap'
 import { X } from '@lucide/vue'
 import { computed, ref } from 'vue'
 
