@@ -16,26 +16,12 @@
       "enabled": true
     }
   },
-  "html": {
-    "experimentalFullSupportEnabled": true,
-    "formatter": {
-      "enabled": true
-    }
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 100,
-    "lineEnding": "lf",
-    "formatWithErrors": true
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "single",
-      "semicolons": "asNeeded",
-      "trailingCommas": "all",
-      "arrowParentheses": "asNeeded"
+  "assist": {
+    "actions": {
+      "source": {
+        "recommended": true,
+        "organizeImports": "on"
+      }
     }
   },
   "linter": {
@@ -62,6 +48,22 @@
         "noExplicitAny": "off",
         "noConsole": "warn"
       }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf",
+    "formatWithErrors": true
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
+      "trailingCommas": "all",
+      "arrowParentheses": "asNeeded"
     }
   },
   "overrides": [
