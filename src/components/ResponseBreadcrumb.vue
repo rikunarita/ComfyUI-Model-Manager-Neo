@@ -3,9 +3,9 @@
     ref="container"
     class="breadcrumb-container flex items-center gap-1 overflow-hidden text-sm"
   >
-    <template v-for="(item, index) in items" :key="index">
+    <template v-for="(item, index) in (items ?? [])" :key="index">
       <button
-        v-if="index < items.length - 1"
+        v-if="index < (items?.length ?? 0) - 1"
         class="mm-transition text-mm-muted-fg hover:text-mm-accent"
         @click="item.command?.()"
       >
@@ -13,7 +13,7 @@
       </button>
       <span v-else class="font-medium text-mm-fg">{{ item.label }}</span>
       <ChevronRight
-        v-if="index < items.length - 1"
+        v-if="index < (items?.length ?? 0) - 1"
         class="size-4 shrink-0 text-mm-muted-fg"
       />
     </template>
