@@ -1,0 +1,7 @@
+allowBuilds:
+  esbuild: true
+  vue-demi: true
+  unrs-resolver: true
+
+overrides:
+  "@comfyorg/comfyui-desktop-bridge-types": "0.2.0"

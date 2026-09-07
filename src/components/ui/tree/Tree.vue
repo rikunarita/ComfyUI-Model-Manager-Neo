@@ -1,0 +1,87 @@
+<script setup lang="ts" generic="T extends Record<string, any>">
+import { TreeItem, TreeRoot, TreeVirtualizer } from 'reka-ui'
+import { type FlattenedItem } from 'reka-ui'
+import { cn } from 'utils/cn'
+import TreeRow from './TreeRow.vue'
+
+interface Props {
+  items: T[]
+  getKey: (item: T) => string
+  getChildren?: (item: T) => T[] | undefined
+  virtual?: boolean
+  estimateSize?: number
+  class?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  virtual: false,
+  estimateSize: 28,
+})
+
+const model = defineModel<T | T[]>()
+const expanded = defineModel<string[]>('expanded', { default: () => [] })
+
+interface TreeSlotProps {
+  flattenItems: FlattenedItem<T>[]
+}
+</script>
+
+<template>
+  <TreeRoot
+    v-model="model as any"
+    v-model:expanded="expanded"
+    :items="items"
+    :get-key="getKey"
+    :get-children="getChildren"
+    :class="cn('space-y-0.5', props.class)"
+  >
+    <!-- Virtual mode -->
+    <TreeVirtualizer
+      v-if="virtual"
+      v-slot="{ item }"
+      :estimate-size="estimateSize"
+      :text-content="(opt: any) => getKey(opt)"
+    >
+      <TreeItem
+        v-slot="{ isExpanded, isSelected }"
+        v-bind="item.bind"
+        :value="item.value"
+        :level="item.level"
+      >
+        <TreeRow
+          :is-expanded="isExpanded"
+          :is-selected="isSelected as any"
+          :has-children="!!item.hasChildren"
+          :level="item.level"
+        >
+          <slot name="item" :item="item">
+            <span class="overflow-hidden text-ellipsis">{{ (item as any).label }}</span>
+          </slot>
+        </TreeRow>
+      </TreeItem>
+    </TreeVirtualizer>
+
+    <!-- Non-virtual mode -->
+    <template v-if="!virtual" #default="slotProps">
+      <TreeItem
+        v-for="item in (slotProps as TreeSlotProps).flattenItems"
+        :key="item._id"
+        v-bind="item.bind"
+        v-slot="{ isExpanded, isSelected }"
+        :value="item.value"
+        :level="item.level"
+      >
+        <TreeRow
+          :is-expanded="isExpanded"
+          :is-selected="isSelected as any"
+          :has-children="!!item.hasChildren"
+          :level="item.level"
+        >
+          <slot name="item" :item="item">
+            <span class="overflow-hidden text-ellipsis">{{ (item as any).label }}</span>
+          </slot>
+        </TreeRow>
+      </TreeItem>
+    </template>
+  </TreeRoot>
+</template>

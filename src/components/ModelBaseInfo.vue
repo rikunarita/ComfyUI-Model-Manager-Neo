@@ -1,0 +1,242 @@
+<template>
+  <div class="flex flex-col gap-4">
+    <div v-if="editable" class="flex flex-col gap-4">
+      <ResponseSelect v-model="type" :items="typeOptions">
+        <template #prefix>
+          <span>{{ $t('modelType') }}</span>
+        </template>
+      </ResponseSelect>
+
+      <div class="flex gap-2 overflow-hidden">
+        <div class="flex-1 overflow-hidden rounded bg-gray-500/30">
+          <div class="flex h-full items-center justify-end">
+            <span v-if="renderedModelFolder" class="truncate px-2">
+              {{ renderedModelFolder }}
+            </span>
+            <span v-else class="px-2 text-sm text-mm-muted-fg italic">
+              Select model type first
+            </span>
+          </div>
+        </div>
+        <Button variant="ghost" size="icon-sm" :disabled="!type" @click="handleSelectFolder">
+          <FolderOpen class="size-4" />
+        </Button>
+
+        <!-- Folder select dialog (reka-ui Dialog) -->
+        <Dialog :open="folderSelectVisible" @update:open="folderSelectVisible = $event">
+          <DialogContent class="flex max-h-[50vh] max-w-[50vw] flex-col">
+            <DialogHeader>
+              <DialogTitle>{{ $t('folder') }}</DialogTitle>
+            </DialogHeader>
+            <div class="flex flex-1 flex-col overflow-hidden">
+              <div class="flex-1 overflow-hidden">
+                <ResponseScroll>
+                  <Tree
+                    v-model="selectedFolderItem"
+                    :items="pathOptions"
+                    :get-key="(item: any) => item.key ?? ''"
+                    :get-children="(item: any) => item.children"
+                    class="h-full"
+                  />
+                </ResponseScroll>
+              </div>
+              <div class="flex justify-end gap-2 pt-4">
+                <Button variant="secondary" @click="handleCancelSelectFolder">
+                  {{ $t('cancel') }}
+                </Button>
+                <Button @click="handleConfirmSelectFolder">
+                  {{ $t('select') }}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <ResponseInput
+        v-model.trim.valid="basename"
+        class="-mr-2 text-right"
+        update-trigger="blur"
+        :validate="validateBasename"
+      >
+        <template #suffix>
+          <span class="text-base opacity-60">
+            {{ extension }}
+          </span>
+        </template>
+      </ResponseInput>
+    </div>
+
+    <table class="w-full table-fixed border-collapse border">
+      <colgroup>
+        <col class="w-32" />
+        <col />
+      </colgroup>
+      <tbody>
+        <tr v-for="item in information" :key="item.key" class="h-8 border-b whitespace-nowrap">
+          <td class="border-r bg-gray-300 px-4 dark:bg-gray-800">
+            {{ $t(`info.${item.key}`) }}
+          </td>
+          <td class="overflow-hidden px-4 break-all text-ellipsis">
+            <Tooltip :delay-duration="800">
+              <TooltipTrigger as-child>
+                <span>{{ item.display }}</span>
+              </TooltipTrigger>
+              <TooltipContent
+                v-if="!['pathIndex', 'basename'].includes(item.key)"
+                side="top"
+                class="max-w-lg"
+                :style="{ zIndex: 2100 }"
+              >
+                {{ item.display }}
+              </TooltipContent>
+            </Tooltip>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { FolderOpen } from '@lucide/vue'
+import { computed, ref, watch } from 'vue'
+import ResponseInput from 'components/ResponseInput.vue'
+import ResponseScroll from 'components/ResponseScroll.vue'
+import ResponseSelect from 'components/ResponseSelect.vue'
+import { Button } from 'components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
+import { Tree } from 'components/ui/tree'
+import { useModelBaseInfo, useModelFolder } from 'hooks/model'
+import { useToast } from 'hooks/toast'
+
+const editable = defineModel<boolean>('editable')
+
+const { toast } = useToast()
+
+const { baseInfo, pathIndex, subFolder, basename, extension, type, modelFolders } =
+  useModelBaseInfo()
+
+watch(type, () => {
+  subFolder.value = ''
+})
+
+watch(
+  editable,
+  newVal => {
+    if (newVal) {
+      type.value = ''
+    }
+  },
+  { immediate: true },
+)
+
+const typeOptions = computed(() => {
+  return Object.keys(modelFolders.value).map(curr => {
+    return {
+      value: curr,
+      label: curr,
+      command: () => {
+        type.value = curr
+        pathIndex.value = 0
+      },
+    }
+  })
+})
+
+const information = computed(() => {
+  return Object.values(baseInfo.value).filter(row => {
+    if (editable.value) {
+      const hiddenKeys = ['basename', 'pathIndex']
+      return !hiddenKeys.includes(row.key)
+    }
+    return true
+  })
+})
+
+const validateBasename = (val: string | undefined) => {
+  if (!val) {
+    toast.add({
+      severity: 'error',
+      detail: 'basename is required',
+      life: 3000,
+    })
+    return false
+  }
+  const invalidChart = /[\\/:*?"<>|]/
+  if (invalidChart.test(val)) {
+    toast.add({
+      severity: 'error',
+      detail: 'basename is invalid, \\/:*?"<>|',
+      life: 3000,
+    })
+    return false
+  }
+  return true
+}
+
+const folderSelectVisible = ref(false)
+
+const handleSelectFolder = () => {
+  if (!type.value) {
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: 'Please select model type first',
+      life: 5000,
+    })
+    return
+  }
+  folderSelectVisible.value = true
+}
+
+const { pathOptions } = useModelFolder({ type })
+
+const selectedModelFolder = ref<string>()
+
+const selectedFolderItem = computed({
+  get: () => {
+    const folderPath = baseInfo.value.pathIndex?.display
+    const selectedKey = selectedModelFolder.value ?? folderPath
+    return selectedKey ? { key: selectedKey } : undefined
+  },
+  set: (val: any) => {
+    const folderPath = val?.key
+    selectedModelFolder.value = folderPath
+  },
+})
+
+const renderedModelFolder = computed(() => {
+  return baseInfo.value.pathIndex?.display
+})
+
+const handleCancelSelectFolder = () => {
+  selectedModelFolder.value = undefined
+  folderSelectVisible.value = false
+}
+
+const handleConfirmSelectFolder = () => {
+  const folderPath = selectedFolderItem.value?.key
+
+  const folders = modelFolders.value[type.value]
+  const idx = folders.findIndex(item => folderPath?.includes(item))
+  if (idx < 0) {
+    toast.add({
+      severity: 'error',
+      detail: 'Folder not found',
+      life: 3000,
+    })
+    return
+  }
+  const prefixPath = folders[idx]
+  subFolder.value = folderPath!.replace(prefixPath, '')
+  if (subFolder.value.startsWith('/')) {
+    subFolder.value = subFolder.value.replace('/', '')
+  }
+  pathIndex.value = idx
+
+  selectedModelFolder.value = undefined
+  folderSelectVisible.value = false
+}
+</script>

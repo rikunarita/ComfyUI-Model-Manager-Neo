@@ -1,0 +1,21 @@
+# Build artifacts
+web/
+dist/
+node_modules/
+coverage/
+*.tsbuildinfo
+
+# Binaries & media
+demo/
+assets/
+*.zip
+*.png
+*.gif
+
+# Lockfiles
+pnpm-lock.yaml
+package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
