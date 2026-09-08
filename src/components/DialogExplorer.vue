@@ -73,7 +73,7 @@
                 v-if="folderPaths.length >= 2"
                 side="top"
                 class="max-w-lg"
-                :style="{ zIndex: 2100 }"
+                :style="{ zIndex: 2600 }"
               >
                 {{ getFullPath(rowItem) }}
               </TooltipContent>

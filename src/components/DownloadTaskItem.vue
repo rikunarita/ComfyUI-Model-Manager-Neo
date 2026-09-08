@@ -59,24 +59,16 @@ import { Loader2, PauseCircle, PlayCircle, Trash2 } from '@lucide/vue'
 import { computed } from 'vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
 import { type DownloadTask } from 'types/typings'
-import { bytesToSize } from 'utils/common'
 import { isVideoUrl } from 'utils/media'
 
 const props = defineProps<{ item: DownloadTask }>()
 
 const isLocal = computed(() => props.item.source === 'local')
 
-const barWidth = computed(() => {
-  if (isLocal.value) {
-    return props.item.status === 'doing' ? 100 : props.item.progress
-  }
-  return props.item.progress
-})
+// The backend is now given the real file size for local uploads and reports an
+// accurate percentage, so local and remote tasks share the same progress fields
+// (previously local uploads were pinned to a fake 100% while "doing").
+const barWidth = computed(() => props.item.progress)
 
-const progressText = computed(() => {
-  if (isLocal.value) {
-    return bytesToSize(props.item.downloadedSize)
-  }
-  return props.item.downloadProgress
-})
+const progressText = computed(() => props.item.downloadProgress)
 </script>

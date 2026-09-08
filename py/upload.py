@@ -91,7 +91,7 @@ class ModelUploader:
                         best = (model_type, index, relative_dir)
         return best
 
-    def create_local_task(self, file_folder: str, filename: str):
+    def create_local_task(self, file_folder: str, filename: str, total_size: int = 0):
         """
         Register the local upload as a task in the shared download task
         system. Returns (task_id, task_status), or (None, None) when the
@@ -114,7 +114,7 @@ class ModelUploader:
             description="",
             downloadPlatform="local",
             downloadUrl=None,
-            sizeBytes=0,
+            sizeBytes=total_size,
             source="local",
         )
         model_download.set_task_content(task_id, task_content)
@@ -127,7 +127,7 @@ class ModelUploader:
             status="doing",
             platform="local",
             source="local",
-            totalSize=0,
+            totalSize=total_size,
         )
         model_download.download_model_task_status[task_id] = task_status
         return task_id, task_status
@@ -155,6 +155,7 @@ class ModelUploader:
         interval = 1.0
 
         file_folder = None
+        file_total_size = 0
         task_id = None
         task_status = None
         tmp_filepath = None
@@ -170,13 +171,23 @@ class ModelUploader:
                 if name == "folder":
                     file_folder = await part.text()
 
+                # The client sends the total byte count before the file part so
+                # the local task can report accurate progress.
+                if name == "size":
+                    try:
+                        file_total_size = int((await part.text()).strip() or 0)
+                    except (TypeError, ValueError):
+                        file_total_size = 0
+
                 if name == "file":
                     filename = part.filename
                     self.validate_upload_target(file_folder, filename)
                     filepath = f"{file_folder}/{filename}"
                     tmp_filepath = f"{file_folder}/{filename}.tmp"
 
-                    task_id, task_status = self.create_local_task(file_folder, filename)
+                    task_id, task_status = self.create_local_task(
+                        file_folder, filename, file_total_size
+                    )
                     if task_id is not None:
                         await utils.send_json("create_download_task", task_status.to_dict())
 
@@ -190,7 +201,13 @@ class ModelUploader:
 
                             if task_status is not None:
                                 task_status.downloadedSize = uploaded_size
-                                task_status.totalSize = uploaded_size
+                                if file_total_size > 0:
+                                    task_status.totalSize = file_total_size
+                                    task_status.progress = min(
+                                        100.0, uploaded_size / file_total_size * 100
+                                    )
+                                else:
+                                    task_status.totalSize = uploaded_size
 
                             if time.time() - last_update_time >= interval:
                                 update_upload_progress = {
@@ -225,7 +242,7 @@ class ModelUploader:
 
             if task_status is not None:
                 task_status.downloadedSize = uploaded_size
-                task_status.totalSize = uploaded_size
+                task_status.totalSize = file_total_size if file_total_size > 0 else uploaded_size
                 task_status.progress = 100
                 task_status.bps = 0
                 await utils.send_json("update_download_task", task_status.to_dict())

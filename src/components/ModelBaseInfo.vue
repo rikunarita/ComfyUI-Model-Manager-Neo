@@ -86,7 +86,7 @@
                 v-if="!['pathIndex', 'basename'].includes(item.key)"
                 side="top"
                 class="max-w-lg"
-                :style="{ zIndex: 2100 }"
+                :style="{ zIndex: 2600 }"
               >
                 {{ item.display }}
               </TooltipContent>

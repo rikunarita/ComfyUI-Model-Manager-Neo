@@ -94,7 +94,7 @@
                   </template>
                 </ModelCard>
               </TooltipTrigger>
-              <TooltipContent side="top" class="max-w-lg" :style="{ zIndex: 2100 }">
+              <TooltipContent side="top" class="max-w-lg" :style="{ zIndex: 2600 }">
                 {{ getFullPath(model) }}
               </TooltipContent>
             </Tooltip>

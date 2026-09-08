@@ -3,8 +3,9 @@
     <ResponseInput
       v-model="modelUrl"
       :allow-clear="true"
+      update-trigger="input"
       :placeholder="$t('pleaseInputModelUrl')"
-      @keypress.enter="searchModelsByUrl"
+      @keydown.enter="searchModelsByUrl"
     >
       <template #suffix>
         <span class="pi pi-search text-base opacity-60" @click="searchModelsByUrl"></span>

@@ -55,7 +55,7 @@ interface TreeSlotProps {
           :level="item.level"
         >
           <slot name="item" :item="item">
-            <span class="overflow-hidden text-ellipsis">{{ (item as any).label }}</span>
+            <span class="overflow-hidden text-ellipsis">{{ (item as any).value?.label }}</span>
           </slot>
         </TreeRow>
       </TreeItem>
@@ -78,7 +78,7 @@ interface TreeSlotProps {
           :level="item.level"
         >
           <slot name="item" :item="item">
-            <span class="overflow-hidden text-ellipsis">{{ (item as any).label }}</span>
+            <span class="overflow-hidden text-ellipsis">{{ (item as any).value?.label }}</span>
           </slot>
         </TreeRow>
       </TreeItem>

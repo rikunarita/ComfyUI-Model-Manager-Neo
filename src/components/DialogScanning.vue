@@ -81,7 +81,7 @@
     <div v-show="batchScanningStep === 2" class="h-full">
       <div class="flex h-full items-center px-8">
         <div class="h-20 w-full">
-          <div v-show="scanProgress > -1">
+          <div v-if="scanProgress > -1">
             <Progress :model-value="scanProgress">
               {{ scanCompleteCount }}
               / {{ scanTotalCount }}

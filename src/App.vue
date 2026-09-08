@@ -68,6 +68,7 @@ onMounted(() => {
           key: 'refresh',
           icon: 'pi pi-refresh',
           command: () => download.refresh(),
+          tooltip: t('refresh'),
         },
       ],
     })
@@ -83,6 +84,7 @@ onMounted(() => {
           key: 'refresh',
           icon: 'pi pi-refresh',
           command: refreshModelsAndConfig,
+          tooltip: t('refresh'),
         },
       ],
     })
@@ -119,6 +121,7 @@ onMounted(() => {
           key: 'scanning',
           icon: 'mdi mdi-folder-search-outline',
           command: openModelScanning,
+          tooltip: t('batchScanModelInformation'),
         },
         {
           key: 'toggle-layout',
@@ -142,16 +145,19 @@ onMounted(() => {
           key: 'refresh',
           icon: 'pi pi-refresh',
           command: refreshModelsAndConfig,
+          tooltip: t('refresh'),
         },
         {
           key: 'download',
           icon: 'pi pi-download',
           command: openDownloadDialog,
+          tooltip: t('downloadList'),
         },
         {
           key: 'upload',
           icon: 'pi pi-upload',
           command: openHfUploadDialog,
+          tooltip: t('uploadToHuggingFace'),
         },
       ],
       minWidth: cardWidth * 2 + gutter + 42,

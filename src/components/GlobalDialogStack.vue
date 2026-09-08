@@ -9,6 +9,7 @@
       <DialogContent
         :show-close-button="false"
         :show-overlay="item.modal ?? false"
+        :overlay-style="{ zIndex: 2400 + index }"
         :force-mount="item.keepAlive"
         :class="cn('flex max-h-full max-w-full flex-col p-0')"
         :style="{
@@ -48,11 +49,17 @@
                 :class="{ 'animate-spin': action.icon === 'pi pi-spinner pi-spin' }"
               />
             </Button>
-            <Button v-if="allowResize" variant="ghost" size="icon-sm" @click="toggleMaximize(item)">
+            <Button
+              v-if="allowResize"
+              variant="ghost"
+              size="icon-sm"
+              :title="states[item.key].isMaximized ? t('restore') : t('maximize')"
+              @click="toggleMaximize(item)"
+            >
               <Maximize2 v-if="!states[item.key].isMaximized" class="size-4" />
               <Minimize2 v-else class="size-4" />
             </Button>
-            <Button variant="ghost" size="icon-sm" @click="close(item)">
+            <Button variant="ghost" size="icon-sm" :title="t('close')" @click="close(item)">
               <X class="size-4" />
             </Button>
           </div>
@@ -121,6 +128,7 @@
 import { Info, Maximize2, Minimize2, X } from '@lucide/vue'
 import { clamp } from 'es-toolkit'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Button } from 'components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
 import { useConfig } from 'hooks/config'
@@ -151,6 +159,7 @@ interface DialogGeometry {
 
 const { stack, rise, close } = useDialog()
 const { isMobile } = useConfig()
+const { t } = useI18n()
 
 const handleOpenChange = (item: DialogItem, val: boolean) => {
   if (!val) close(item)

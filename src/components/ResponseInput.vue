@@ -91,7 +91,10 @@ const updateContent = () => {
 
   innerValue.value = undefined
   content.value = value
-  if (inputRef.value) {
+  // Only write back when the DOM value actually differs (e.g. after a failed
+  // validation or a trim). Rewriting an identical value resets the caret to the
+  // end, which is jarring while typing with update-trigger="input".
+  if (inputRef.value && inputRef.value.value !== (value ?? '')) {
     inputRef.value.value = value ?? ''
   }
 }

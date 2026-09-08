@@ -47,36 +47,33 @@
       </TabsContent>
       <TabsContent :value="3" class="flex-1 overflow-hidden">
         <div class="flex h-full flex-col items-center justify-center">
-          <template v-if="showUploadProgress">
-            <div class="w-4/5">
-              <Progress :model-value="uploadProgress" />
-            </div>
-          </template>
-
-          <template v-else>
-            <div class="overflow-hidden py-8 wrap-break-word">
-              <div class="overflow-hidden px-8">
-                <div class="text-center">
-                  <div class="pb-2">
-                    {{ $t('selectedSpecialPath') }}
-                  </div>
-                  <div class="leading-5 opacity-60">
-                    {{ selectedModelFolder }}
-                  </div>
+          <!--
+            The upload runs in the background and reports progress through the
+            shared download-task system, so this dialog closes as soon as a file
+            is picked. The accurate progress bar lives in the Download List.
+          -->
+          <div class="overflow-hidden py-8 wrap-break-word">
+            <div class="overflow-hidden px-8">
+              <div class="text-center">
+                <div class="pb-2">
+                  {{ $t('selectedSpecialPath') }}
+                </div>
+                <div class="leading-5 opacity-60">
+                  {{ selectedModelFolder }}
                 </div>
               </div>
             </div>
+          </div>
 
-            <div class="flex items-center justify-center gap-4">
-              <Button
-                v-for="item in uploadActions"
-                :key="item.value"
-                @click="item.command.call(item)"
-              >
-                {{ item.label }}
-              </Button>
-            </div>
-          </template>
+          <div class="flex items-center justify-center gap-4">
+            <Button
+              v-for="item in uploadActions"
+              :key="item.value"
+              @click="item.command.call(item)"
+            >
+              {{ item.label }}
+            </Button>
+          </div>
 
           <div class="h-1/4"></div>
         </div>
@@ -87,21 +84,22 @@
 
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight } from '@lucide/vue'
-import { computed, onMounted, onUnmounted, ref, toValue } from 'vue'
+import { computed, onMounted, ref, toValue } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
-import { Progress } from 'components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
 import { Tree } from 'components/ui/tree'
 import { configSetting } from 'hooks/config'
+import { useDialog } from 'hooks/dialog'
 import { useModelFolder, useModels } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
-import { api, app } from 'scripts/comfyAPI'
+import { app } from 'scripts/comfyAPI'
 
 const { t } = useI18n()
 const { toast } = useToast()
+const dialog = useDialog()
 
 const stepValue = ref(1)
 
@@ -153,18 +151,40 @@ const handleConfirmSubdir = () => {
   stepValue.value++
 }
 
-const uploadTotalSize = ref<number>()
-const uploadSize = ref<number>()
-const uploadProgress = computed(() => {
-  const total = toValue(uploadTotalSize)
-  const size = toValue(uploadSize)
-  if (typeof total === 'number' && typeof size === 'number') {
-    return Math.floor((size / total) * 100)
-  }
-  return undefined
-})
-const showUploadProgress = computed(() => {
-  return typeof uploadProgress.value !== 'undefined'
+const supportedExtensions = ref<string[]>([])
+
+// Beyond ComfyUI's model extensions (fetched from the backend) the picker also
+// accepts common dataset/config/companion files so uploads are not limited to
+// `.safetensors` (e.g. `.json`/`.jsonl` datasets, legacy `.bin`, archives).
+const EXTRA_ACCEPT = [
+  '.json',
+  '.jsonl',
+  '.txt',
+  '.csv',
+  '.tsv',
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.npz',
+  '.npy',
+  '.onnx',
+  '.pb',
+  '.h5',
+  '.tflite',
+  '.gguf',
+  '.pkl',
+  '.pt',
+  '.pth',
+  '.bin',
+  '.safetensors',
+  '.ckpt',
+  '.sft',
+  '.zip',
+]
+
+const acceptAttr = computed(() => {
+  const set = new Set<string>([...supportedExtensions.value, ...EXTRA_ACCEPT])
+  return [...set].join(',')
 })
 
 const uploadActions = ref([
@@ -181,40 +201,36 @@ const uploadActions = ref([
     command: () => {
       const input = document.createElement('input')
       input.type = 'file'
-      input.accept = supportedExtensions.value.join(',')
-      input.onchange = async () => {
-        const files = input.files
-        const file = files?.item(0)
+      input.accept = acceptAttr.value
+      input.onchange = () => {
+        const file = input.files?.item(0)
         if (!file) {
           return
         }
 
-        try {
-          uploadTotalSize.value = file.size
-          uploadSize.value = 0
-          const body = new FormData()
-          body.append('folder', toValue(selectedModelFolder)!)
-          body.append('file', file)
+        const body = new FormData()
+        body.append('folder', toValue(selectedModelFolder)!)
+        // Send the total size up-front so the backend can report accurate
+        // progress for the local task shown in the Download List.
+        body.append('size', String(file.size))
+        body.append('file', file)
 
-          await request('/upload', {
-            method: 'POST',
-            body: body,
-          })
-        } catch (error) {
+        // Fire the upload and close immediately; progress + completion are
+        // surfaced by the shared download-task system (Download List dialog).
+        request('/upload', { method: 'POST', body }).catch(error => {
           toast.add({
             severity: 'error',
             summary: 'Error',
             detail: (error as Error).message,
             life: 5000,
           })
-        }
+        })
+        dialog.close()
       }
       input.click()
     },
   },
 ])
-
-const supportedExtensions = ref<string[]>([])
 
 const fetchSupportedExtensions = async () => {
   try {
@@ -230,18 +246,7 @@ const fetchSupportedExtensions = async () => {
   }
 }
 
-const update_process = (event: CustomEvent) => {
-  const detail = event.detail
-  uploadSize.value = detail.uploaded_size
-}
-
 onMounted(() => {
   fetchSupportedExtensions()
-
-  api.addEventListener('update_upload_progress', update_process)
-})
-
-onUnmounted(() => {
-  api.removeEventListener('update_upload_progress', update_process)
 })
 </script>

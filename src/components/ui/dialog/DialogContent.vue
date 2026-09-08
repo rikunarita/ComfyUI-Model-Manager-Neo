@@ -21,18 +21,28 @@ const props = withDefaults(
        * behaviour) skip it so the ComfyUI canvas stays visible & interactive.
        */
       showOverlay?: boolean
+      /**
+       * Inline style for the overlay. The dialog stack passes a z-index that
+       * matches its window so a modal overlay correctly dims the dialogs below
+       * it (the default `z-50` sits under the 2400+ dialog windows).
+       */
+      overlayStyle?: HTMLAttributes['style']
     }
   >(),
   { showCloseButton: true, forceMount: false, showOverlay: true },
 )
 const emits = defineEmits<DialogContentEmits>()
-const delegatedProps = reactiveOmit(props, 'class', 'forceMount', 'showOverlay')
+const delegatedProps = reactiveOmit(props, 'class', 'forceMount', 'showOverlay', 'overlayStyle')
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
 
 <template>
   <DialogPortal :force-mount="forceMount">
-    <DialogOverlay v-if="showOverlay" :class="forceMount && 'data-[state=closed]:hidden'" />
+    <DialogOverlay
+      v-if="showOverlay"
+      :style="overlayStyle"
+      :class="forceMount && 'data-[state=closed]:hidden'"
+    />
     <DialogContent
       v-bind="{ ...forwarded, ...$attrs }"
       :class="

@@ -511,6 +511,12 @@ export const useModelFolder = (option: { type?: MaybeRefOrGetter<string | undefi
         }
       }
 
+      // Drop empty children arrays so leaf folders don't render a misleading
+      // expansion chevron (reka-ui treats `[]` as "has children").
+      if (pathIndexItem.children && pathIndexItem.children.length === 0) {
+        delete pathIndexItem.children
+      }
+
       root.push(pathIndexItem)
     }
 
