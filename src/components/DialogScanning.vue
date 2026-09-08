@@ -103,7 +103,7 @@
 
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight } from '@lucide/vue'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
@@ -113,7 +113,8 @@ import { Tree } from 'components/ui/tree'
 import { configSetting } from 'hooks/config'
 import { useModelFolder, useModels } from 'hooks/model'
 import { request } from 'hooks/request'
-import { api, app } from 'scripts/comfyAPI'
+import { useScan } from 'hooks/scan'
+import { app } from 'scripts/comfyAPI'
 
 const { t } = useI18n()
 
@@ -170,13 +171,16 @@ const handleConfirmSubdir = () => {
   stepValue.value = '3'
 }
 
+// Scan progress lives in an app-lifetime store so updates are never missed
+// while this dialog is closed (see hooks/scan.ts).
+const { scanModels, syncFromServer } = useScan()
+
 const batchScanningStep = ref(0)
-const scanModelsList = ref<Record<string, boolean>>({})
 const scanTotalCount = computed(() => {
-  return Object.keys(scanModelsList.value).length
+  return Object.keys(scanModels.value).length
 })
 const scanCompleteCount = computed(() => {
-  return Object.keys(scanModelsList.value).filter(key => scanModelsList.value[key]).length
+  return Object.keys(scanModels.value).filter(key => scanModels.value[key]).length
 })
 const scanProgress = computed(() => {
   if (scanTotalCount.value === 0) {
@@ -196,7 +200,7 @@ const handleScanModelInformation = async (item: { value: string }) => {
       method: 'POST',
       body: JSON.stringify({ mode, path }),
     })
-    scanModelsList.value = result?.models ?? {}
+    scanModels.value = result?.models ?? {}
     batchScanningStep.value = 2
   } catch {
     batchScanningStep.value = 1
@@ -224,26 +228,11 @@ const scanActions = ref([
 ])
 
 const refreshTaskContent = async () => {
-  const result = await request('/model-info/scan')
-  const listContent = result?.models ?? {}
-  scanModelsList.value = listContent
-  batchScanningStep.value = Object.keys(listContent).length ? 2 : 1
-}
-
-const handleScanTaskUpdate = (event: CustomEvent) => {
-  const content = event.detail
-  scanModelsList.value = content.models
+  const listContent = await syncFromServer()
+  batchScanningStep.value = listContent && Object.keys(listContent).length ? 2 : 1
 }
 
 onMounted(() => {
   refreshTaskContent()
-
-  api.addEventListener('update_scan_information_task', handleScanTaskUpdate)
-})
-
-onUnmounted(() => {
-  // This dialog is re-created every time it is opened; without removing the
-  // listener each open would leak a new subscription to the ComfyUI api.
-  api.removeEventListener('update_scan_information_task', handleScanTaskUpdate)
 })
 </script>

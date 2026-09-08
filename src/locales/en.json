@@ -55,6 +55,7 @@
   "selectedSpecialPath": "Selected special path",
   "scanMissInformation": "Download missing information",
   "scanFullInformation": "Override full information",
+  "scanCompleted": "Model information scan completed",
   "noModelsInCurrentPath": "There are no models available in the current path",
   "uploadModel": "Upload Model",
   "chooseFile": "Choose File",

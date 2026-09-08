@@ -1,6 +1,7 @@
+import asyncio
+import functools
 import os
 import re
-import uuid
 import math
 import yaml
 import requests
@@ -542,8 +543,14 @@ class Information:
 
     download_thread_pool = thread.DownloadThreadPool()
 
+    # Fixed id so a running scan can be detected: previously every dialog
+    # (re-)open that hit GET /model-info/scan submitted ANOTHER concurrent
+    # scanner for the same task file (uuid ids could never collide).
+    SCAN_TASK_ID = "model_info_scan"
+
     async def download_model_info(self, request):
         async def download_information_task(task_id: str):
+            loop = asyncio.get_running_loop()
             scan_info_task_file = self.get_scan_information_task_filepath()
             scan_info_task_content = utils.load_dict_pickle_file(scan_info_task_file)
             scan_mode = scan_info_task_content.get("mode", "diff")
@@ -572,9 +579,15 @@ class Information:
 
                     if scan_mode == "full" or not has_preview or not has_description:
                         utils.print_debug(f"Calculate sha256 for {abs_model_path}")
-                        hash_value = utils.calculate_sha256(abs_model_path)
+                        # BUG FIX: sha256 of multi-GB files, the Civitai lookup
+                        # and the preview download are blocking calls. Running
+                        # them directly froze the whole server event loop for
+                        # the duration (no websocket traffic, no other request
+                        # could be served). Offload them to the executor.
+                        hash_value = await loop.run_in_executor(None, utils.calculate_sha256, abs_model_path)
                         utils.print_info(f"Searching model info by hash {hash_value}")
-                        model_info = CivitaiModelSearcher().search_by_hash(hash_value)
+                        searcher = CivitaiModelSearcher()
+                        model_info = await loop.run_in_executor(None, searcher.search_by_hash, hash_value)
 
                         preview_url_list = model_info.get("preview", [])
                         preview_url = preview_url_list[0] if preview_url_list else None
@@ -585,7 +598,15 @@ class Information:
                                 preview_headers = auth.get_civitai_headers()
                             elif model_info.get("downloadPlatform") == "huggingface":
                                 preview_headers = auth.get_hf_headers()
-                            utils.save_model_preview(abs_model_path, preview_url, headers=preview_headers)
+                            await loop.run_in_executor(
+                                None,
+                                functools.partial(
+                                    utils.save_model_preview,
+                                    abs_model_path,
+                                    preview_url,
+                                    headers=preview_headers,
+                                ),
+                            )
 
                         description = model_info.get("description", None)
                         if description:
@@ -599,13 +620,20 @@ class Information:
                 except Exception as e:
                     utils.print_error(f"Failed to download model info for {abs_model_path}: {e}")
 
-            os.remove(scan_info_task_file)
+            if os.path.exists(scan_info_task_file):
+                os.remove(scan_info_task_file)
             utils.print_info("Completed scan model information.")
+            # Explicit completion signal carrying the final state, so the
+            # frontend can react (toast + refresh model previews) even if an
+            # earlier per-model update was missed.
+            await utils.send_json("complete_scan_information_task", {"models": scan_models})
 
         try:
-            task_id = uuid.uuid4().hex
-            # 【修正】関数オブジェクトではなく、実行したコルーチンオブジェクトを渡す
-            self.download_thread_pool.submit(download_information_task(task_id), task_id)
+            # Never stack concurrent scans on the same task file.
+            if self.SCAN_TASK_ID in self.download_thread_pool.running_tasks:
+                utils.print_debug("Scan model information task already running, skipping submit.")
+                return
+            self.download_thread_pool.submit(download_information_task(self.SCAN_TASK_ID), self.SCAN_TASK_ID)
         except Exception as e:
             utils.print_debug(str(e))
 

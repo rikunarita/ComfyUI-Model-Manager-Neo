@@ -32,21 +32,53 @@ import {
 } from 'components/ui/alert-dialog'
 import { confirmState } from 'hooks/toast'
 
-const handleAccept = () => {
-  confirmState.options?.accept()
+/**
+ * BUG FIX: reka-ui's AlertDialogAction / AlertDialogCancel wrap DialogClose,
+ * whose INTERNAL onClick (`onOpenChange(false)`) runs BEFORE our own @click
+ * handler. The resulting `update:open(false)` was treated as a rejection, so
+ * `options` was already nulled by the time `handleAccept` ran — the accept
+ * callback (delete task / delete model / remove API key ...) silently never
+ * fired.
+ *
+ * The settle logic below is order-independent:
+ *  - an explicit accept/reject click always settles the dialog synchronously;
+ *  - a bare close (Escape, programmatic) defers its fallback rejection by one
+ *    microtask and is invalidated (token) if a click settles the dialog first.
+ */
+let closeToken = 0
+
+const settle = (kind: 'accept' | 'reject') => {
+  closeToken++
+  const options = confirmState.options
   confirmState.visible = false
   confirmState.options = null
+  if (kind === 'accept') {
+    options?.accept()
+  } else {
+    options?.reject()
+  }
+}
+
+const handleAccept = () => {
+  settle('accept')
 }
 
 const handleReject = () => {
-  confirmState.options?.reject()
-  confirmState.visible = false
-  confirmState.options = null
+  settle('reject')
 }
 
 const handleOpenChange = (open: boolean) => {
-  if (!open) {
-    handleReject()
+  if (!open && confirmState.options) {
+    const token = ++closeToken
+    const optionsAtClose = confirmState.options
+    Promise.resolve().then(() => {
+      // Only run the fallback rejection if nothing else settled the dialog in
+      // the meantime (i.e. the close was not caused by a button click) and no
+      // NEW confirm was queued in the same tick.
+      if (token === closeToken && confirmState.options === optionsAtClose) {
+        settle('reject')
+      }
+    })
   }
 }
 </script>
