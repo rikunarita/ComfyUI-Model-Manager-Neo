@@ -56,6 +56,7 @@
   "scanMissInformation": "下载缺失信息",
   "scanFullInformation": "覆盖所有信息",
   "scanCompleted": "模型信息扫描完成",
+  "scanCompletedWithErrors": "模型信息扫描完成，但有 {0} 个模型扫描失败。详情请查看 ComfyUI 控制台。",
   "noModelsInCurrentPath": "当前路径中没有可用的模型",
   "uploadModel": "上传模型",
   "chooseFile": "选择文件",

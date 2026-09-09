@@ -27,22 +27,31 @@
  */
 @import 'tailwindcss/theme.css' layer(theme);
 
-@import 'tailwindcss/utilities' layer(mm-utilities);
+@import 'tailwindcss/utilities' layer(mm-utilities) source(none);
 /* tw-animate-css uses @utility internally and cannot be nested in @layer */
 @import 'tw-animate-css';
 
 /*
  * SOURCE-SCAN FIX (deterministic builds):
- * Tailwind v4 auto-detects source files across the project. The bundled
- * distribution in `web/` (manager.js) embeds tailwind-merge's entire utility
- * table, so scanning it injected hundreds of unused "garbage" utilities into
- * the stylesheet and made the output depend on whatever stale bundle happened
- * to be in `web/` at build time. Exclude build output from scanning — all real
- * classes live in `src/`.
+ * Tailwind v4 auto-detects source files across the whole project. That has two
+ * problems here:
+ *   1. the bundled distribution in `web/` (manager.js) embeds tailwind-merge's
+ *      entire utility table, so scanning it injected hundreds of unused
+ *      "garbage" utilities and made the output depend on whatever stale bundle
+ *      happened to be in `web/` at build time;
+ *   2. every other text file is scanned too, so ordinary PROSE becomes class
+ *      candidates — editing README.md or a Python comment really did emit
+ *      global `.paused{animation-play-state:paused}` and `.contents{display:
+ *      contents}` rules into the stylesheet this extension injects into
+ *      ComfyUI's page.
+ *
+ * `source(none)` turns automatic detection off and the two `@source` lines
+ * below declare the only places real class names live. The stylesheet is now a
+ * pure function of `src/` + `index.html`. Verified: the generated selector set
+ * is unchanged apart from the utilities this project actually stopped using.
  */
-@source not '../web';
-@source not '../demo';
-@source not '../assets';
+@source '../src';
+@source '../index.html';
 
 /* Dark mode follows ComfyUI's palette class on <html>. */
 @custom-variant dark (&:where(.dark-theme, .dark-theme *));

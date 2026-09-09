@@ -196,7 +196,12 @@ node_modules/
 config/
 
 # private info
-private.keypackage-lock.json
+# BUG FIX: these two patterns were concatenated onto a single line
+# ("private.keypackage-lock.json"), so NEITHER was ignored. `private.key` is the
+# pickle that stores the user's Civitai / Hugging Face API tokens — a plain
+# `git add .` in a checkout would have committed live credentials to the repo.
+private.key
+package-lock.json
 
 
 

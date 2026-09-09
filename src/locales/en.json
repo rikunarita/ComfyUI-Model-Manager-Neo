@@ -56,6 +56,7 @@
   "scanMissInformation": "Download missing information",
   "scanFullInformation": "Override full information",
   "scanCompleted": "Model information scan completed",
+  "scanCompletedWithErrors": "Model information scan completed, but {0} model(s) failed. See the ComfyUI console for details.",
   "noModelsInCurrentPath": "There are no models available in the current path",
   "uploadModel": "Upload Model",
   "chooseFile": "Choose File",

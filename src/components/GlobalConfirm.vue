@@ -2,16 +2,29 @@
   <AlertDialog :open="confirmState.visible" @update:open="handleOpenChange">
     <AlertDialogContent class="max-w-md">
       <AlertDialogHeader>
-        <AlertDialogTitle>{{ confirmState.options?.header || 'Confirm' }}</AlertDialogTitle>
+        <!--
+          BUG FIX: every caller passes `icon: 'pi pi-info-circle'` and
+          `acceptProps: { severity: 'danger' }` / `rejectProps: { severity:
+          'secondary', outlined: true }`, but this component ignored all three.
+          The icon was never rendered and, worse, a destructive confirmation
+          ("Delete this model?", "Delete this download task?", "Delete API
+          key?") looked exactly like the Cancel button next to it. Both are
+          honoured now: the icon resolves through the Lucide map (PrimeIcons is
+          gone) and `severity: 'danger'` maps to the `destructive` variant.
+        -->
+        <AlertDialogTitle class="flex items-center gap-2">
+          <component :is="confirmIcon" v-if="confirmIcon" class="size-5 shrink-0" />
+          {{ confirmState.options?.header || 'Confirm' }}
+        </AlertDialogTitle>
         <AlertDialogDescription>
           {{ confirmState.options?.message }}
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <AlertDialogCancel @click="handleReject">
+        <AlertDialogCancel :class="rejectClass" @click="handleReject">
           {{ confirmState.options?.rejectProps?.label || 'Cancel' }}
         </AlertDialogCancel>
-        <AlertDialogAction @click="handleAccept">
+        <AlertDialogAction :class="acceptClass" @click="handleAccept">
           {{ confirmState.options?.acceptProps?.label || 'Confirm' }}
         </AlertDialogAction>
       </AlertDialogFooter>
@@ -20,6 +33,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +44,44 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from 'components/ui/alert-dialog'
+import { buttonVariants } from 'components/ui/button'
 import { confirmState } from 'hooks/toast'
+import { resolveIcon } from 'utils/iconMap'
+
+const confirmIcon = computed(() => {
+  const icon = confirmState.options?.icon
+  return icon ? resolveIcon(icon) : undefined
+})
+
+/** PrimeVue severity -> Neo button variant. */
+const variantFor = (severity?: string, outlined?: boolean) => {
+  switch (severity) {
+    case 'danger':
+      return 'destructive' as const
+    case 'secondary':
+      return outlined ? ('outline' as const) : ('secondary' as const)
+    case 'info':
+    case 'success':
+    case 'warning':
+    case 'help':
+      return 'default' as const
+    default:
+      return undefined
+  }
+}
+
+const acceptClass = computed(() => {
+  const variant = variantFor(confirmState.options?.acceptProps?.severity)
+  return variant ? buttonVariants({ variant }) : undefined
+})
+
+const rejectClass = computed(() => {
+  const reject = confirmState.options?.rejectProps
+  const variant = variantFor(reject?.severity, reject?.outlined)
+  // AlertDialogCancel already defaults to `outline`; only override when the
+  // caller asked for something else.
+  return variant && variant !== 'outline' ? buttonVariants({ variant }) : undefined
+})
 
 /**
  * BUG FIX: reka-ui's AlertDialogAction / AlertDialogCancel wrap DialogClose,

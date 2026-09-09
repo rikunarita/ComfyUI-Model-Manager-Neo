@@ -1,4 +1,13 @@
-import { computed, onMounted, onUnmounted, readonly, ref, watch } from 'vue'
+import {
+  computed,
+  h,
+  onMounted,
+  onUnmounted,
+  readonly,
+  ref,
+  render as renderVNode,
+  watch,
+} from 'vue'
 import { useI18n } from 'vue-i18n'
 import SettingApiKey from 'components/SettingApiKey.vue'
 import SettingCardSize from 'components/SettingCardSize.vue'
@@ -6,6 +15,7 @@ import { request } from 'hooks/request'
 import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
 import { $el, app } from 'scripts/comfyAPI'
+import { resolveIcon } from 'utils/iconMap'
 
 export const useConfig = defineStore('config', store => {
   const { t } = useI18n()
@@ -100,12 +110,31 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
   const { t } = useI18n()
   const { confirm } = useToast()
 
-  const iconButton = (opt: { icon: string; onClick: () => void | Promise<void> }) => {
-    return $el(
-      'span.h-4.cursor-pointer',
+  /**
+   * BUG FIX: this used to build `<i class="pi pi-pencil text-blue-400">`.
+   * PrimeIcons shipped with PrimeVue, which this fork removed, and the ComfyUI
+   * host stylesheet does not provide it either — so the `<i>` was an empty
+   * 16px box that drew nothing. The "edit" and "delete" controls for the
+   * Civitai / Hugging Face API keys in ComfyUI's settings panel could not be
+   * seen at all (they were only clickable by guessing where the blank gap was).
+   *
+   * ComfyUI's settings dialog lives outside this extension's Vue app, so the
+   * Lucide icon is mounted into the element with Vue's low-level `render()`.
+   */
+  const iconButton = (opt: {
+    icon: string
+    colorClass?: string
+    onClick: () => void | Promise<void>
+  }) => {
+    const host = $el(
+      `span.inline-flex.h-4.cursor-pointer.items-center${opt.colorClass ? `.${opt.colorClass}` : ''}`,
       { onclick: opt.onClick },
-      $el(`i.${opt.icon.replace(/\s/g, '.')}`),
     )
+    const icon = resolveIcon(opt.icon)
+    if (icon) {
+      renderVNode(h(icon, { class: 'size-4' }), host)
+    }
+    return host
   }
 
   const setApiKey = async (key: string, setter: (val: string) => void) => {
@@ -172,13 +201,15 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       return $el('div.flex.gap-4', [
         apiKeyDisplayEl,
         iconButton({
-          icon: 'pi pi-pencil text-blue-400',
+          icon: 'pi pi-pencil',
+          colorClass: 'text-blue-400',
           onClick: () => {
             setApiKey(key, setter)
           },
         }),
         iconButton({
-          icon: 'pi pi-trash text-red-400',
+          icon: 'pi pi-trash',
+          colorClass: 'text-red-400',
           onClick: async () => {
             const value = store.config.apiKeyInfo.value[key]
             if (value) {

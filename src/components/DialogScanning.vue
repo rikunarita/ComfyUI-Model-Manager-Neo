@@ -103,7 +103,7 @@
 
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight } from '@lucide/vue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
@@ -114,9 +114,11 @@ import { configSetting } from 'hooks/config'
 import { useModelFolder, useModels } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useScan } from 'hooks/scan'
+import { useToast } from 'hooks/toast'
 import { app } from 'scripts/comfyAPI'
 
 const { t } = useI18n()
+const { toast } = useToast()
 
 const stepValue = ref('1')
 
@@ -190,6 +192,40 @@ const scanProgress = computed(() => {
   return Number(progress.toFixed(4)) * 100
 })
 
+/**
+ * BUG FIX — this is why "batch scan results were never displayed".
+ *
+ * The progress step (2) used to be reachable ONLY through a successful
+ * `POST /model-info/scan` response. That request cannot answer until the
+ * server has walked the entire model library (`create_scan_model_info_task`
+ * runs `os.walk` over every registered model folder before it replies), and
+ * ComfyUI's `api.fetchApi` aborts any request whose response headers have not
+ * arrived within 60 seconds (`FETCH_RESPONSE_HEADERS_TIMEOUT_MS = 60_000` in
+ * ComfyUI_frontend `src/scripts/api.ts`). On a large library — many files,
+ * slow/networked disk, antivirus, symlinked trees walked with
+ * `followlinks=True`, or the same base path registered by several model types
+ * — the walk exceeds that budget and the promise rejects.
+ *
+ * The rejection does NOT stop the server: aiohttp does not cancel the handler
+ * when the client disconnects, so the task file is still written and the scan
+ * still runs to completion, logging "Send update scan information task to
+ * frontend." and "Completed scan model information.". The websocket pushes
+ * were received by the scan store, but `catch { batchScanningStep.value = 1 }`
+ * had already parked the dialog on the type-selection step and nothing ever
+ * moved it forward again — so every result was silently discarded.
+ *
+ * The dialog now follows the *store* (the authoritative live state fed by the
+ * websocket pushes and by `syncFromServer`) instead of the round-trip, so a
+ * scan that starts, resumes or completes by any route is always displayed.
+ * `updates` is watched as well as `scanning` because a push that arrives while
+ * `scanning` is already true would not otherwise re-trigger the transition.
+ */
+watch([scanning, updates], ([running]) => {
+  if (running && batchScanningStep.value !== 2) {
+    batchScanningStep.value = 2
+  }
+})
+
 const handleScanModelInformation = async (item: { value: string }) => {
   batchScanningStep.value = 0
   const mode = item.value
@@ -207,7 +243,26 @@ const handleScanModelInformation = async (item: { value: string }) => {
     // whenever a push already arrived, otherwise seed from the response.
     beginScan(updates.value === updatesBefore ? (result?.models ?? {}) : undefined)
     batchScanningStep.value = 2
-  } catch {
+  } catch (error) {
+    // A rejected POST does not mean "no scan": the server keeps working after
+    // the client gives up (see the note above). Reconcile with the server
+    // before falling back, and never fail silently — the old bare
+    // `catch { batchScanningStep.value = 1 }` told the user nothing at all.
+    if (updates.value !== updatesBefore) {
+      batchScanningStep.value = 2
+      return
+    }
+    const live = await syncFromServer()
+    if (scanning.value || live) {
+      batchScanningStep.value = 2
+      return
+    }
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: error instanceof Error ? error.message : String(error),
+      life: 15000,
+    })
     batchScanningStep.value = 1
   }
 }

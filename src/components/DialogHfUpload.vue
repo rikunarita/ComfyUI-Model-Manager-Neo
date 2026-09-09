@@ -30,7 +30,8 @@
               v-if="modelList.length === 0"
               class="flex flex-col items-center gap-4 py-8 opacity-60"
             >
-              <i class="pi pi-box text-3xl"></i>
+              <!-- BUG FIX: `pi pi-box` rendered empty (PrimeIcons removed). -->
+              <Box class="size-8 opacity-60" />
               <div>{{ $t('noModelsInCurrentPath') }}</div>
             </div>
             <div v-else class="grid grid-cols-3 gap-4 md:grid-cols-4">
@@ -94,7 +95,17 @@
             </div>
           </ResponseScroll>
           <div v-show="uploading" class="w-full">
-            <Progress :model-value="uploadProgress" />
+            <!--
+              BUG FIX: the backend can only report 0% and then 100%
+              (huggingface_hub exposes no per-chunk callback), so the bar sat at
+              a motionless 0% for the whole transfer. Render it indeterminate
+              until a real percentage arrives; `Progress` already supports the
+              mode (it is what the scan dialog's "starting" bar uses).
+            -->
+            <Progress
+              :model-value="uploadProgress"
+              :mode="uploadProgress > 0 ? 'determinate' : 'indeterminate'"
+            />
           </div>
           <div class="flex justify-between pt-6">
             <Button variant="secondary" @click="handleBackModelSelect">
@@ -113,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronLeft, Upload } from '@lucide/vue'
+import { Box, ChevronLeft, Upload } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
@@ -217,39 +228,89 @@ const fetchWhoami = async () => {
 const uploading = ref(false)
 const uploadProgress = ref(0)
 
+/**
+ * BUG FIX — "Upload to Hugging Face" reported a FALSE FAILURE for every real
+ * model.
+ *
+ * `POST /hf/upload` only answers once the whole file has been transferred
+ * (`upload_to_hf` awaits the executor). ComfyUI's `api.fetchApi` aborts any
+ * request whose response headers have not arrived within 60 seconds
+ * (`FETCH_RESPONSE_HEADERS_TIMEOUT_MS = 60_000` in ComfyUI_frontend
+ * `src/scripts/api.ts`). Uploading a multi-GB model always exceeds that, so the
+ * promise rejected with `DOMException: Fetch timeout`, the catch showed a red
+ * "Error / Fetch timeout" toast and `finally` set `uploading = false` — which
+ * also hid the progress bar — while the server carried on and uploaded the file
+ * successfully (`update_hf_upload_progress` 100% + `hf_upload_complete` were
+ * both emitted and simply ignored; nothing listened for the latter).
+ *
+ * Completion is now driven by the websocket events, exactly like the batch
+ * scan. The POST's own rejection is still honoured, but ONLY when it is a real
+ * server error: a client-side abort/timeout after the server acknowledged the
+ * upload keeps the progress UI up and waits for `hf_upload_complete`.
+ */
+
+/** True once the server pushed its first progress event for this upload. */
+const serverStarted = ref(false)
+/** Guard so a late POST resolution cannot double-report success. */
+const settled = ref(false)
+
+/** ComfyUI aborts timed-out fetches with a DOMException named Timeout/Abort. */
+const isClientAbort = (error: unknown) => {
+  const name = (error as { name?: string } | null | undefined)?.name
+  return name === 'TimeoutError' || name === 'AbortError'
+}
+
+const finishSuccess = (detail?: { repoId?: string; pathInRepo?: string }) => {
+  if (settled.value) return
+  settled.value = true
+  uploading.value = false
+  uploadProgress.value = 100
+  toast.add({
+    severity: 'success',
+    summary: 'Success',
+    detail: `${selectedModel.value?.basename ?? detail?.pathInRepo ?? ''} -> ${
+      detail?.repoId ?? repoId.value ?? ''
+    }`,
+    life: 5000,
+  })
+}
+
+const finishError = (message: string) => {
+  if (settled.value) return
+  settled.value = true
+  uploading.value = false
+  toast.add({ severity: 'error', summary: 'Error', detail: message, life: 15000 })
+}
+
 const handleUpload = async () => {
   if (!selectedModel.value) return
   uploading.value = true
   uploadProgress.value = 0
+  serverStarted.value = false
+  settled.value = false
+  const payload = {
+    type: selectedModel.value.type,
+    pathIndex: selectedModel.value.pathIndex,
+    fullname: genModelFullName(selectedModel.value),
+    repoId: repoId.value,
+    pathInRepo: pathInRepo.value,
+    private: privateRepo.value,
+  }
   try {
     await request('/hf/upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: selectedModel.value.type,
-        pathIndex: selectedModel.value.pathIndex,
-        fullname: genModelFullName(selectedModel.value),
-        repoId: repoId.value,
-        pathInRepo: pathInRepo.value,
-        private: privateRepo.value,
-      }),
+      body: JSON.stringify(payload),
     })
-    uploadProgress.value = 100
-    toast.add({
-      severity: 'success',
-      summary: 'Success',
-      detail: `${selectedModel.value.basename} -> ${repoId.value}`,
-      life: 5000,
-    })
+    // Fast upload: the POST resolved before the client timeout. The websocket
+    // `hf_upload_complete` normally wins the race; only finalise if it did not.
+    finishSuccess()
   } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: (error as Error).message,
-      life: 15000,
-    })
-  } finally {
-    uploading.value = false
+    if (isClientAbort(error) && serverStarted.value) {
+      // The server is still uploading; `hf_upload_complete` will settle it.
+      return
+    }
+    finishError(error instanceof Error ? error.message : String(error))
   }
 }
 
@@ -265,15 +326,26 @@ const getPreviewUrl = (preview: string | string[] | undefined): string => {
 
 const updateHfProgress = (event: CustomEvent) => {
   const detail = event.detail
-  uploadProgress.value = Math.floor(detail.progress ?? 0)
+  // Any push proves the server accepted and started the upload, which is what
+  // lets handleUpload() tell a client timeout apart from a real failure.
+  serverStarted.value = true
+  uploadProgress.value = Math.floor(detail?.progress ?? 0)
+}
+
+const handleHfUploadComplete = (event: CustomEvent) => {
+  finishSuccess(event.detail ?? {})
 }
 
 onMounted(() => {
   fetchWhoami()
   api.addEventListener('update_hf_upload_progress', updateHfProgress)
+  // Emitted by py/upload_hf.py but never listened for before, so a successful
+  // upload that outlived the HTTP request was never reported.
+  api.addEventListener('hf_upload_complete', handleHfUploadComplete)
 })
 
 onUnmounted(() => {
   api.removeEventListener('update_hf_upload_progress', updateHfProgress)
+  api.removeEventListener('hf_upload_complete', handleHfUploadComplete)
 })
 </script>

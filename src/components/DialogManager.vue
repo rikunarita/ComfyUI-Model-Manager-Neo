@@ -105,7 +105,8 @@
 
       <template #empty>
         <div class="flex flex-col items-center gap-4 pt-20 opacity-70">
-          <i class="pi pi-box text-4xl"></i>
+          <!-- BUG FIX: `pi pi-box` rendered empty (PrimeIcons removed). -->
+          <Box class="size-10 opacity-60" />
           <div class="text-lg font-bold select-none">No models found</div>
         </div>
       </template>
@@ -114,7 +115,7 @@
 </template>
 
 <script setup lang="ts" name="manager-dialog">
-import { Copy, Plus, Workflow } from '@lucide/vue'
+import { Box, Copy, Plus, Workflow } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { computed, ref } from 'vue'

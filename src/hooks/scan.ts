@@ -41,6 +41,9 @@ export const useScan = defineStore('scan', store => {
   /** Bumped on every websocket update, so callers can detect a racing push. */
   const updates = ref(0)
 
+  /** How many models the last completed scan failed to fetch info for. */
+  const scanFailed = ref(0)
+
   /**
    * Bumped whenever a scan starts or finishes. An in-flight `syncFromServer()`
    * captures it before awaiting and discards its payload if it changed, which
@@ -51,18 +54,41 @@ export const useScan = defineStore('scan', store => {
   const allDone = (models: Record<string, boolean>) =>
     Object.fromEntries(Object.keys(models).map(key => [key, true]))
 
-  const notifyCompleted = (finalModels?: Record<string, boolean>) => {
+  /**
+   * BUG FIX — the "stuck at 11 / 12" report.
+   *
+   * A model that is not indexed on Civitai makes the hash lookup raise a 404.
+   * The backend used to only log that, so the model was never marked as
+   * processed: `scanCompleteCount` could never reach `scanTotalCount`, the bar
+   * never hit 100 % and the dialog stayed on N-1 / N forever — even though the
+   * completion event had already arrived (its model-list refresh spinner was
+   * the only hint the scan had ended). The backend now counts an attempted
+   * model as processed and reports how many lookups failed in the completion
+   * event, so the counter always reaches the total AND the failures are not
+   * silently swallowed.
+   */
+  const notifyCompleted = (finalModels?: Record<string, boolean>, failed = 0) => {
     generation++
     scanning.value = false
     if (finalModels) {
       scanModels.value = finalModels
     }
-    toast.add({
-      severity: 'success',
-      summary: 'Success',
-      detail: t('scanCompleted'),
-      life: 3000,
-    })
+    scanFailed.value = failed
+    if (failed > 0) {
+      toast.add({
+        severity: 'warn',
+        summary: 'Warning',
+        detail: t('scanCompletedWithErrors', [failed]),
+        life: 10000,
+      })
+    } else {
+      toast.add({
+        severity: 'success',
+        summary: 'Success',
+        detail: t('scanCompleted'),
+        life: 3000,
+      })
+    }
     // Make the results visible: refresh the model lists so freshly downloaded
     // previews/descriptions show up without a manual refresh.
     store.models.refresh().catch(() => {})
@@ -130,7 +156,7 @@ export const useScan = defineStore('scan', store => {
     })
 
     api.addEventListener('complete_scan_information_task', (event: CustomEvent) => {
-      notifyCompleted(event.detail?.models)
+      notifyCompleted(event.detail?.models, event.detail?.failed ?? 0)
     })
 
     api.addEventListener('reconnected', () => {
@@ -139,7 +165,7 @@ export const useScan = defineStore('scan', store => {
     })
   })
 
-  return { scanModels, scanning, updates, syncFromServer, beginScan }
+  return { scanModels, scanning, updates, scanFailed, syncFromServer, beginScan }
 })
 
 declare module 'hooks/store' {

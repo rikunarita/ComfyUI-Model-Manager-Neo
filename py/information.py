@@ -365,7 +365,15 @@ class Information:
             """
             try:
                 model_page = request.query.get("model-page", None)
-                result = self.fetch_model_info(model_page)
+                # BUG FIX: `search_by_url` performs one or more blocking
+                # `requests.get` round trips (Civitai model + version data, or
+                # the Hugging Face model info AND recursive file tree). Running
+                # them inline froze ComfyUI's event loop for the whole lookup -
+                # no websocket traffic, no other request served - which is the
+                # same defect already fixed for hashing, the Civitai hash
+                # lookup, the preview download and the model-library walks.
+                loop = asyncio.get_running_loop()
+                result = await loop.run_in_executor(None, self.fetch_model_info, model_page)
                 return web.json_response({"success": True, "data": result})
             except Exception as e:
                 error_msg = f"Fetch model info failed: {str(e)}"
@@ -546,9 +554,27 @@ class Information:
         scan_paths: list[str] = []
         if scan_path is None:
             model_base_paths = utils.resolve_model_base_paths()
+            # BUG FIX: ComfyUI registers the SAME directory under several model
+            # types (e.g. text_encoders -> [text_encoders, clip],
+            # diffusion_models -> [unet, diffusion_models]) and custom nodes add
+            # further aliases via add_model_folder_path(). The naive loop
+            # therefore walked identical trees once per alias. `scan_models` is
+            # keyed by absolute path, so visiting a tree twice can only re-set
+            # keys that already exist - de-duplicating produces a byte-identical
+            # result (same keys, same values, same insertion order) while
+            # removing whole redundant `os.walk` passes. That matters because
+            # this walk runs inside the POST handler: it is what pushed the
+            # request past ComfyUI's 60s api.fetchApi response timeout on large
+            # libraries (see DialogScanning.vue).
+            seen_paths: set[str] = set()
             for model_type in model_base_paths:
                 folders, *others = folder_paths.folder_names_and_paths[model_type]
-                for path_index, base_path in enumerate(folders):
+                for base_path in folders:
+                    normalized = utils.normalize_path(base_path)
+                    if normalized in seen_paths:
+                        utils.print_debug(f"Skipping duplicate scan path: {base_path}")
+                        continue
+                    seen_paths.add(normalized)
                     scan_paths.append(base_path)
         else:
             scan_paths = [scan_path]
@@ -592,23 +618,33 @@ class Information:
             scan_info_task_content = utils.load_dict_pickle_file(scan_info_task_file)
             scan_mode = scan_info_task_content.get("mode", "diff")
             scan_models: dict[str, bool] = scan_info_task_content.get("models", {})
+            failed_count = 0
             for key, value in scan_models.items():
                 if value is True:
                     continue
 
                 abs_model_path = key
-                base_path = os.path.dirname(abs_model_path)
-
-                image_name = utils.get_model_preview_name(abs_model_path)
-                abs_image_path = utils.join_path(base_path, image_name)
-
-                has_preview = os.path.isfile(abs_image_path)
-
-                description_name = utils.get_model_description_name(abs_model_path)
-                abs_description_path = utils.join_path(base_path, description_name) if description_name else None
-                has_description = os.path.isfile(abs_description_path) if abs_description_path else False
 
                 try:
+                    # BUG FIX: this prologue used to sit OUTSIDE the try, so an
+                    # error while merely *inspecting* one model - its folder was
+                    # deleted or moved mid-scan, or os.listdir() inside
+                    # get_model_description_name hit a permission error -
+                    # escaped the loop AND the whole task. The completion event
+                    # was never sent and the task file never removed, so the
+                    # dialog froze with no way to finish. Every per-model step is
+                    # guarded now; one bad model can only ever cost that model.
+                    base_path = os.path.dirname(abs_model_path)
+
+                    image_name = utils.get_model_preview_name(abs_model_path)
+                    abs_image_path = utils.join_path(base_path, image_name)
+
+                    has_preview = os.path.isfile(abs_image_path)
+
+                    description_name = utils.get_model_description_name(abs_model_path)
+                    abs_description_path = utils.join_path(base_path, description_name) if description_name else None
+                    has_description = os.path.isfile(abs_description_path) if abs_description_path else False
+
                     utils.print_info(f"Checking model {abs_model_path}")
                     utils.print_debug(f"Scan mode: {scan_mode}")
                     utils.print_debug(f"Has preview: {has_preview}")
@@ -656,14 +692,51 @@ class Information:
                     await utils.send_json("update_scan_information_task", scan_info_task_content)
                 except Exception as e:
                     utils.print_error(f"Failed to download model info for {abs_model_path}: {e}")
+                    # Only count it as a failure when the scan work itself broke;
+                    # if `scan_models` is already True the exception came from
+                    # the reporting step below and the model did get scanned.
+                    if scan_models.get(abs_model_path) is not True:
+                        failed_count += 1
+
+                    # BUG FIX - this is why the counter stalled at "11 / 12".
+                    # A model that is not indexed on Civitai makes
+                    # `search_by_hash` raise a 404, and the handler above only
+                    # logged it: the model was never marked as processed, so
+                    # `scanCompleteCount` could never reach `scanTotalCount`.
+                    # The dialog sat on N-1 / N forever - the progress bar never
+                    # hit 100% and the "complete" state was never shown - even
+                    # though `complete_scan_information_task` had already been
+                    # delivered (its model-list refresh spinner was the only
+                    # visible sign that the scan had ended).
+                    #
+                    # The counter measures how many models have been *attempted*,
+                    # not how many lookups succeeded, so a failed model counts as
+                    # processed. The failure is not hidden: it is logged above,
+                    # tallied into `failed_count`, and reported to the UI in the
+                    # completion event.
+                    scan_models[abs_model_path] = True
+                    try:
+                        scan_info_task_content["models"] = scan_models
+                        utils.save_dict_pickle_file(scan_info_task_file, scan_info_task_content)
+                        utils.print_debug("Send update scan information task to frontend.")
+                        await utils.send_json("update_scan_information_task", scan_info_task_content)
+                    except Exception as report_error:
+                        # Never let a reporting problem abort the remaining scan.
+                        utils.print_error(f"Failed to report scan progress for {abs_model_path}: {report_error}")
 
             if os.path.exists(scan_info_task_file):
                 os.remove(scan_info_task_file)
+            if failed_count:
+                utils.print_warning(
+                    f"{failed_count} model(s) failed to scan and were counted as processed "
+                    f"so the progress could complete. See the errors above for details."
+                )
             utils.print_info("Completed scan model information.")
             # Explicit completion signal carrying the final state, so the
             # frontend can react (toast + refresh model previews) even if an
-            # earlier per-model update was missed.
-            await utils.send_json("complete_scan_information_task", {"models": scan_models})
+            # earlier per-model update was missed. `failed` is additive: the
+            # frontend still reads `models` exactly as before.
+            await utils.send_json("complete_scan_information_task", {"models": scan_models, "failed": failed_count})
 
         try:
             # Never stack concurrent scans on the same task file.

@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import functools
 import os
 import shutil
 import time
@@ -298,6 +299,15 @@ class ModelDownload:
         task_status = self.get_task_status(task_id=task_id)
         task_status.status = "pause"
         self.download_thread_pool.cancel(task_id)
+        # BUG FIX: cancelling the task raises CancelledError at the download
+        # coroutine's next await, so it never reaches its own "paused" push at
+        # the end of the read loop. The Download List therefore kept showing the
+        # pause button and a live speed read-out for a task that had already
+        # stopped - the resume button only appeared after a manual refresh (or
+        # a websocket reconnect, which re-fetches the task list). Report the new
+        # state here; the push is idempotent if the coroutine ever does send its
+        # own.
+        await utils.send_json("update_download_task", task_status.to_dict())
 
     async def delete_model_download_task(self, task_id: str):
         task_status = self.get_task_status(task_id)
@@ -450,11 +460,32 @@ class ModelDownload:
         last_update_time = time.time()
         last_downloaded_size = downloaded_size
 
-        response = requests.get(
-            url=model_url,
-            headers=headers,
-            stream=True,
-            allow_redirects=True,
+        loop = asyncio.get_running_loop()
+
+        # BUG FIX (regression from the thread-pool -> asyncio rewrite):
+        # `requests.get(..., stream=True)` and the `iter_content()` read loop
+        # below are BLOCKING calls. Upstream ran every download task in a
+        # dedicated worker thread with its own event loop, so that was safe.
+        # `thread.DownloadThreadPool` now schedules the coroutine on ComfyUI's
+        # MAIN event loop, which meant:
+        #   - the connect/TLS/response-header phase blocked the whole server
+        #     with no socket timeout, so one unresponsive host froze ComfyUI
+        #     entirely (no prompt callbacks, no websocket, no UI);
+        #   - between chunks the loop only got control back once per `interval`,
+        #     starving every websocket push - including batch-scan progress;
+        #   - a download URL served by ComfyUI itself deadlocked permanently
+        #     (the server could not answer a request it was blocked on).
+        # The Hugging Face branch already offloads with `run_in_executor`; the
+        # plain HTTP branch was missed. Same treatment here.
+        response = await loop.run_in_executor(
+            None,
+            functools.partial(
+                requests.get,
+                url=model_url,
+                headers=headers,
+                stream=True,
+                allow_redirects=True,
+            ),
         )
 
         if response.status_code not in (200, 206):
@@ -482,16 +513,54 @@ class ModelDownload:
                 self.set_task_content(task_id, task_content)
                 await utils.send_json("update_download_task", task_status.to_dict())
 
-        with open(download_tmp_file, "ab") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if task_status.status == "pause":
-                    break
+        # Mutable holder so the worker thread can hand the counters back.
+        state = {
+            "downloaded": downloaded_size,
+            "last_update": last_update_time,
+            "last_size": last_downloaded_size,
+        }
 
-                f.write(chunk)
-                downloaded_size += len(chunk)
+        def pump_chunks():
+            # NOTE: the response MUST be closed from inside this worker thread.
+            # `pause_model_download_task` / `delete_model_download_task` cancel
+            # the asyncio task, which raises CancelledError at the
+            # `run_in_executor` await below; a `finally: response.close()` on
+            # the loop side then ran concurrently with this thread's
+            # `iter_content()` and blocked the event loop on urllib3's read
+            # lock for as long as the transfer had left (measured: the whole
+            # server stopped answering requests for 8s after a pause).
+            try:
+                with open(download_tmp_file, "ab") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        # Cooperative pause/cancel, checked exactly as before:
+                        # the callers flip `task_status.status`, the loop breaks
+                        # on the next chunk and the partially written
+                        # `.download` file stays resumable through the `Range`
+                        # header above.
+                        if task_status.status == "pause":
+                            break
 
-                if time.time() - last_update_time >= interval:
-                    await update_progress()
+                        f.write(chunk)
+                        state["downloaded"] += len(chunk)
+
+                        if time.time() - state["last_update"] >= interval:
+                            done = state["downloaded"]
+                            task_status.downloadedSize = done
+                            task_status.progress = (done / total_size) * 100 if total_size > 0 else 0
+                            task_status.bps = done - state["last_size"]
+                            # Marshal the websocket push back onto the main
+                            # loop - identical to the Hugging Face tqdm hook.
+                            asyncio.run_coroutine_threadsafe(progress_callback(task_status), loop)
+                            state["last_update"] = time.time()
+                            state["last_size"] = done
+            finally:
+                response.close()
+
+        await loop.run_in_executor(None, pump_chunks)
+
+        downloaded_size = state["downloaded"]
+        last_update_time = state["last_update"]
+        last_downloaded_size = state["last_size"]
 
         await update_progress()
 

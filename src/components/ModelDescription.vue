@@ -7,8 +7,16 @@
       :class="[
         'w-full resize-none overflow-hidden px-3 py-2 outline-none',
         'rounded-lg border',
-        'border-(--p-form-field-border-color)',
-        'focus:border-(--p-form-field-focus-border-color)',
+        /*
+         * BUG FIX: `--p-form-field-border-color` /
+         * `--p-form-field-focus-border-color` are PrimeVue theme variables.
+         * PrimeVue was removed from this fork and nothing defines them, so the
+         * declarations were invalid at computed-value time and the description
+         * textarea rendered with NO border and NO focus indication. Mapped to
+         * the Neo `--mm-*` tokens the rest of the UI uses.
+         */
+        'border-mm-border',
+        'focus:border-mm-accent',
         'relative z-10',
       ]"
       @input="resizeTextarea"
@@ -17,7 +25,8 @@
 
     <div v-show="!active">
       <div v-show="editable" class="mb-4 flex items-center gap-2 text-gray-600">
-        <i class="pi pi-info-circle"></i>
+        <!-- BUG FIX: `pi pi-info-circle` rendered empty (PrimeIcons removed). -->
+        <Info class="size-4 shrink-0" />
         <span>
           {{ $t('tapToChange') }}
         </span>
@@ -30,7 +39,8 @@
           v-html="renderedDescription"
         ></div>
         <div v-else class="flex flex-col items-center gap-2 py-5">
-          <i class="pi pi-info-circle text-lg"></i>
+          <!-- BUG FIX: `pi pi-info-circle` rendered empty (PrimeIcons removed). -->
+          <Info class="size-5 opacity-60" />
           <div>no description</div>
         </div>
         <div
@@ -44,6 +54,7 @@
 </template>
 
 <script setup lang="ts">
+import { Info } from '@lucide/vue'
 import { nextTick, ref, watch } from 'vue'
 import { useModelDescription } from 'hooks/model'
 
@@ -153,13 +164,13 @@ const exitEditMode = () => {
   h1 {
     font-size: 2em;
     padding-bottom: 0.3em;
-    border-bottom: 1px solid var(--p-surface-700);
+    border-bottom: 1px solid var(--mm-border);
   }
 
   h2 {
     font-size: 1.5em;
     padding-bottom: 0.3em;
-    border-bottom: 1px solid var(--p-surface-700);
+    border-bottom: 1px solid var(--mm-border);
   }
 
   h3 {
@@ -176,7 +187,7 @@ const exitEditMode = () => {
 
   h6 {
     font-size: 0.85em;
-    color: var(--p-surface-500);
+    color: var(--mm-muted-fg);
   }
 
   a {
@@ -218,8 +229,8 @@ const exitEditMode = () => {
 
   blockquote {
     padding: 0px 1em;
-    border-left: 0.25em solid var(--p-surface-500);
-    color: var(--p-surface-500);
+    border-left: 0.25em solid var(--mm-muted-fg);
+    color: var(--mm-muted-fg);
     margin: 1em 0;
   }
 
@@ -236,7 +247,7 @@ const exitEditMode = () => {
     border-radius: 6px;
     padding: 8px 16px;
     overflow-x: auto;
-    background: var(--p-dialog-background);
+    background: var(--mm-surface);
     filter: invert(10%);
   }
 

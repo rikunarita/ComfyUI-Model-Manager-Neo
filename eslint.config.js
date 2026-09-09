@@ -158,8 +158,6 @@ export default tseslint.config(
           whitelist: [
             // Design-system helpers defined in src/style.css (@layer mm-components)
             '^mm(-.+)?$',
-            // PrimeIcons classes rendered by the ComfyUI host stylesheet
-            '^(pi|md|mdi)(-.+)?$',
             // Misc project-scoped classes
             '^(preview-aspect|scrollbar-none|text-shadow|icon|dark-theme|markdown-body)$',
           ],

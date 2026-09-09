@@ -8,14 +8,21 @@
       @keydown.enter="searchModelsByUrl"
     >
       <template #suffix>
-        <span class="pi pi-search text-base opacity-60" @click="searchModelsByUrl"></span>
+        <!--
+          BUG FIX: was `<span class="pi pi-search text-base opacity-60">`.
+          PrimeIcons is gone, so the span rendered empty — the button that
+          starts the Civitai / Hugging Face / direct-link search was never drawn
+          at all (only the Enter key still worked). Lucide `Search` restores it.
+        -->
+        <Search class="size-4 cursor-pointer opacity-60" @click="searchModelsByUrl" />
       </template>
     </ResponseInput>
 
     <!-- Direct file URL indicator with folder selection -->
     <div v-if="isDirectFile && modelUrl" class="flex flex-col gap-2">
       <div class="flex items-center gap-2 rounded bg-green-50 p-2 text-sm text-green-600">
-        <i class="pi pi-check-circle"></i>
+        <!-- BUG FIX: `pi pi-check-circle` rendered empty (PrimeIcons removed). -->
+        <CheckCircle class="size-4 shrink-0" />
         <span>Direct file download detected</span>
       </div>
 
@@ -69,11 +76,25 @@
                 >
                 </ResponseSelect>
               </div>
-              <Button
-                type="submit"
-                :disabled="isDirectFile && !selectedModelType"
-                @click="createDownTask(currentModel as any)"
-              >
+              <!--
+                BUG FIX: this button carried BOTH `type="submit"` and an
+                `@click="createDownTask(currentModel)"` handler. It lives inside
+                ModelContent's `<form @submit.prevent="handleSubmit">`, so one
+                click fired twice:
+                  1. @click  -> createDownTask(currentModel)  (raw, UNEDITED model)
+                  2. submit  -> createDownTask(formData)      (the edited form data)
+                Two download tasks were created for a single click. The second
+                one failed with "File already exists: ..." (or, when they raced,
+                two tasks downloaded the same file into different
+                `<task>.download` files and both tried to move onto the same
+                model path), and the first one ignored every edit made in the
+                model editor (preview choice, description, type / sub-folder).
+                Upstream only had `type="submit"`; restoring that keeps the
+                single, form-driven path so the editor's values are honoured.
+                `:disabled` still blocks the submit for a direct link with no
+                model type chosen (a disabled button never submits).
+              -->
+              <Button type="submit" :disabled="isDirectFile && !selectedModelType">
                 <Download class="size-4" />
                 {{ $t('download') }}
               </Button>
@@ -83,7 +104,8 @@
 
         <div v-show="data.length === 0">
           <div class="flex flex-col items-center gap-4 py-8">
-            <i class="pi pi-box text-3xl"></i>
+            <!-- BUG FIX: `pi pi-box` rendered empty (PrimeIcons removed). -->
+            <Box class="size-8 opacity-60" />
             <div>No Models Found</div>
           </div>
         </div>
@@ -93,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { Download } from '@lucide/vue'
+import { Box, CheckCircle, Download, Search } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseInput from 'components/ResponseInput.vue'

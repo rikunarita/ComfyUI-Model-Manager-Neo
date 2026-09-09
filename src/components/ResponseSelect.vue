@@ -5,8 +5,19 @@
       <DropdownMenuTrigger as-child :class="$attrs.class">
         <Button variant="secondary" class="-my-1 w-full py-1 whitespace-nowrap">
           <slot name="prefix">
-            <!-- 修正: クラス文字列は <i> の class として描画（元実装の方式） -->
-            <i v-if="prefixIcon" :class="prefixIcon" class="text-base opacity-60"></i>
+            <!--
+              BUG FIX: this rendered `<i :class="prefixIcon">`, i.e. a raw
+              PrimeIcons element ("pi pi-sort-alpha-down"). PrimeVue/PrimeIcons
+              was removed from this fork, so the `<i>` was an empty box that
+              drew nothing and the sort-order indicator next to the dropdown
+              label never appeared. Resolve it through the Lucide icon map exactly like
+              ResponseInput already does for its prefix/suffix.
+            -->
+            <component
+              :is="resolveIcon(prefixIcon ?? '')"
+              v-if="prefixIcon && resolveIcon(prefixIcon)"
+              class="size-4 shrink-0 opacity-60"
+            />
           </slot>
           <span class="flex-1 scrollbar-none overflow-scroll text-right">
             <slot name="label">{{ currentLabel }}</slot>
@@ -102,6 +113,7 @@ import {
   DropdownMenuTrigger,
 } from 'components/ui/dropdown-menu'
 import { type SelectOptions } from 'types/typings'
+import { resolveIcon } from 'utils/iconMap'
 
 interface Props {
   items?: SelectOptions[]

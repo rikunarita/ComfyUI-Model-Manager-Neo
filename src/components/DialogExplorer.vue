@@ -93,6 +93,17 @@
     <DropdownMenu v-model:open="contextMenuVisible">
       <DropdownMenuContent :reference="contextMenuAnchor" align="start" :side-offset="2">
         <DropdownMenuItem v-for="item in contextItems" :key="item.label" @select="item.command">
+          <!--
+            BUG FIX: `contextItems` carries an `icon` (declared in the
+            ContextMenuItem interface and supplied by openItemContext) but it
+            was never rendered, so the right-click menu showed bare text.
+            Resolved through the Lucide map like every other icon in Neo.
+          -->
+          <component
+            :is="resolveIcon(item.icon ?? '')"
+            v-if="item.icon && resolveIcon(item.icon)"
+            class="size-4"
+          />
           {{ item.label }}
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -117,6 +128,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from 'components/
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { useConfig } from 'hooks/config'
 import { type ModelTreeNode, useModelExplorer } from 'hooks/explorer'
+import { resolveIcon } from 'utils/iconMap'
 import { genModelKey } from 'utils/model'
 
 const { t } = useI18n()
