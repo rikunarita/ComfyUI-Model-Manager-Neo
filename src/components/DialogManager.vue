@@ -149,9 +149,11 @@ const searchContent = ref<string>()
 const allType = 'All'
 const currentType = ref(allType)
 const typeOptions = computed(() => {
-  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(configSetting.excludeScanTypes)
+  const excludeModelTypes = app.ui?.settings.getSettingValue<string>(
+    configSetting.excludeModelTypes,
+  )
   const customBlackList =
-    excludeScanTypes
+    excludeModelTypes
       ?.split(',')
       .map((type: string) => type.trim())
       .filter(Boolean) ?? []

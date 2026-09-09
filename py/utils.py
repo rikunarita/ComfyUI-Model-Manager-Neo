@@ -178,37 +178,6 @@ def get_download_path():
         os.makedirs(download_path)
     return download_path
 
-def recursive_search_files(directory: str, include_hidden_files: bool = False):
-    """
-    Recursively list the files below `directory` (relative, "/"-separated).
-
-    NOTE: this walks the whole tree with `os.walk`, which for a large model
-    library takes long enough to stall the aiohttp event loop. Callers run it
-    through `loop.run_in_executor(...)`; the ComfyUI setting it depends on is
-    therefore resolved by the caller (in the request context) and passed in.
-    """
-    if not os.path.isdir(directory):
-        return []
-
-    excluded_dir_names = [".git"]
-    result = []
-
-    for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
-        subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
-        if not include_hidden_files:
-            subdirs[:] = [d for d in subdirs if not d.startswith(".")]
-            filenames[:] = [f for f in filenames if not f.startswith(".")]
-
-        for file_name in filenames:
-            try:
-                relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
-                result.append(relative_path)
-            except:
-                logging.warning(f"Warning: Unable to access {file_name}. Skipping this file.")
-                continue
-
-    return [normalize_path(f) for f in result]
-
 def search_files(directory: str):
     entries = os.listdir(directory)
     files = [f for f in entries if os.path.isfile(join_path(directory, f))]
@@ -527,15 +496,3 @@ def is_installed(package_name: str):
 
 def pip_install(package_name: str):
     subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)
-
-import hashlib
-
-def calculate_sha256(path, buffer_size=1024 * 1024):
-    sha256 = hashlib.sha256()
-    with open(path, "rb") as f:
-        while True:
-            data = f.read(buffer_size)
-            if not data:
-                break
-            sha256.update(data)
-    return sha256.hexdigest()

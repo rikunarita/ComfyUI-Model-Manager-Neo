@@ -22,11 +22,10 @@ appears automatically once the file exists.
 | 5   | `download.png`     | PNG          | **Create Download Task** dialog with a URL entered and results listed (Civitai / Hugging Face / direct link). |
 | 6   | `hf-upload.png`    | PNG          | **Upload to Hugging Face** dialog (step 3): repo id, private toggle, destination path, progress bar.          |
 | 7   | `model-info.png`   | PNG          | **Model info** view: preview image, base‑info table, and the Description / Metadata tabs.                     |
-| 8   | `scan.png`         | PNG          | **Batch scan model information** dialog (type/sub‑folder selection or the progress step).                     |
-| 9   | `settings.png`     | PNG          | ComfyUI **Settings → Model Manager Neo** showing the API‑key rows (Civitai / Hugging Face).                   |
+| 8   | `settings.png`     | PNG          | ComfyUI **Settings → Model Manager Neo** showing the API‑key rows (Civitai / Hugging Face).                   |
 
 > Only files 1–4 are referenced inline in the README's Screenshots section; the
-> rest (5–9) are listed so you can extend the gallery — add them wherever you
+> rest (5–8) are listed so you can extend the gallery — add them wherever you
 > like, or reference them from the matching feature bullet.
 
 Once you've added the images you can delete this manifest, or keep it as

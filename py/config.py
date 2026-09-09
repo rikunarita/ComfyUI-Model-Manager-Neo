@@ -11,7 +11,10 @@ setting_key = {
     "download": {
         "max_task_count": "ModelManager.Download.MaxTaskCount",
     },
-    "scan": {
+    # NOTE: the group name no longer says "scan" (the batch-scan feature was
+    # removed) but the ID string MUST stay `ModelManager.Scan.IncludeHiddenFiles`
+    # - it is the key ComfyUI persists the user's value under.
+    "model_list": {
         "include_hidden_files": "ModelManager.Scan.IncludeHiddenFiles"
     },
 }

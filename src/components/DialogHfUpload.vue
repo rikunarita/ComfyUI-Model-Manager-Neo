@@ -100,7 +100,7 @@
               (huggingface_hub exposes no per-chunk callback), so the bar sat at
               a motionless 0% for the whole transfer. Render it indeterminate
               until a real percentage arrives; `Progress` already supports the
-              mode (it is what the scan dialog's "starting" bar uses).
+              mode.
             -->
             <Progress
               :model-value="uploadProgress"
@@ -150,9 +150,11 @@ const stepValue = ref('1')
 const currentType = ref<string>()
 
 const typeOptions = computed(() => {
-  const excludeScanTypes = app.ui?.settings.getSettingValue<string>(configSetting.excludeScanTypes)
+  const excludeModelTypes = app.ui?.settings.getSettingValue<string>(
+    configSetting.excludeModelTypes,
+  )
   const customBlackList =
-    excludeScanTypes
+    excludeModelTypes
       ?.split(',')
       .map((type: string) => type.trim())
       .filter(Boolean) ?? []
@@ -243,10 +245,10 @@ const uploadProgress = ref(0)
  * successfully (`update_hf_upload_progress` 100% + `hf_upload_complete` were
  * both emitted and simply ignored; nothing listened for the latter).
  *
- * Completion is now driven by the websocket events, exactly like the batch
- * scan. The POST's own rejection is still honoured, but ONLY when it is a real
- * server error: a client-side abort/timeout after the server acknowledged the
- * upload keeps the progress UI up and waits for `hf_upload_complete`.
+ * Completion is now driven by the websocket events instead of the HTTP
+ * round-trip. The POST's own rejection is still honoured, but ONLY when it is a
+ * real server error: a client-side abort/timeout after the server acknowledged
+ * the upload keeps the progress UI up and waits for `hf_upload_complete`.
  */
 
 /** True once the server pushed its first progress event for this upload. */

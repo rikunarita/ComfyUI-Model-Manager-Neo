@@ -103,7 +103,14 @@ declare module 'hooks/store' {
 }
 
 export const configSetting = {
-  excludeScanTypes: 'ModelManager.Scan.excludeScanTypes',
+  /**
+   * NOTE: the *identifier* no longer says "scan" (the batch-scan feature was
+   * removed), but the setting ID string below MUST stay exactly
+   * `ModelManager.Scan.excludeScanTypes`: it is the key ComfyUI persists the
+   * user's value under, so renaming it would silently orphan every existing
+   * installation's saved setting. Same for IncludeHiddenFiles.
+   */
+  excludeModelTypes: 'ModelManager.Scan.excludeScanTypes',
 }
 
 function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
@@ -277,16 +284,16 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
     })
 
     app.ui?.settings.addSetting({
-      id: configSetting.excludeScanTypes,
-      category: [t('modelManager'), t('setting.scan'), 'ExcludeScanTypes'],
-      name: t('setting.excludeScanTypes'),
+      id: configSetting.excludeModelTypes,
+      category: [t('modelManager'), t('setting.modelList'), 'ExcludeModelTypes'],
+      name: t('setting.excludeModelTypes'),
       defaultValue: undefined,
       type: 'text',
     })
 
     app.ui?.settings.addSetting({
       id: 'ModelManager.Scan.IncludeHiddenFiles',
-      category: [t('modelManager'), t('setting.scan'), 'IncludeHiddenFiles'],
+      category: [t('modelManager'), t('setting.modelList'), 'IncludeHiddenFiles'],
       name: t('setting.includeHiddenFiles'),
       defaultValue: false,
       type: 'boolean',

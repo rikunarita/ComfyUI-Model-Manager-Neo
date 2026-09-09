@@ -7,7 +7,7 @@
           PrimeVue/PrimeIcons was removed from the fork, so no `.pi-*` rule (and
           no icon font) exists any more — the element rendered as an empty box
           and the global loading overlay showed a dark scrim with NO spinner.
-          Long operations (model list refresh, scan sync, downloads) therefore
+          Long operations (model list refresh, downloads, uploads) therefore
           gave the user no feedback at all. Swapped for the Lucide spinner the
           rest of the UI already uses; `animate-spin` replaces `pi-spin`.
         -->

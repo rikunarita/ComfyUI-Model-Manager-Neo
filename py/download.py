@@ -472,7 +472,7 @@ class ModelDownload:
         #     with no socket timeout, so one unresponsive host froze ComfyUI
         #     entirely (no prompt callbacks, no websocket, no UI);
         #   - between chunks the loop only got control back once per `interval`,
-        #     starving every websocket push - including batch-scan progress;
+        #     starving every other websocket push and request;
         #   - a download URL served by ComfyUI itself deadlocked permanently
         #     (the server could not answer a request it was blocked on).
         # The Hugging Face branch already offloads with `run_in_executor`; the

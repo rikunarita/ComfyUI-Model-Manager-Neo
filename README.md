@@ -31,8 +31,7 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
   │    5. docs/screenshots/download.png        – Create Download Task dialog   │
   │    6. docs/screenshots/hf-upload.png       – Upload to HuggingFace dialog  │
   │    7. docs/screenshots/model-info.png      – Model info (preview + tabs)   │
-  │    8. docs/screenshots/scan.png            – Batch scan dialog             │
-  │    9. docs/screenshots/settings.png        – ComfyUI settings (API keys)   │
+  │    8. docs/screenshots/settings.png        – ComfyUI settings (API keys)   │
   └──────────────────────────────────────────────────────────────────────────┘
 -->
 
@@ -196,8 +195,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   with its previews and notes.
 - Read, edit and save Markdown notes stored beside the model.
 - Change or remove a model's preview image.
-- **Batch scan** to fetch missing (or refresh all) information & previews by
-  hash from Civitai.
+- Model information (safetensors metadata, Markdown notes, preview) is loaded on
+  demand when a model is opened — there is no separate library‑wide scan step.
 
 </details>
 
@@ -207,7 +206,7 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - API keys for **Civitai** and **Hugging Face**, stored locally in `private.key`
   (with `CIVITAI_API_KEY` / `HF_TOKEN` environment fallbacks). Keys migrate out
   of ComfyUI user settings on first run.
-- Exclude model types from scanning; include/exclude hidden files.
+- Exclude model types from the model list; include/exclude hidden files.
 - UI language follows ComfyUI's locale — **English** and **中文** bundled.
 
 </details>
@@ -245,8 +244,8 @@ PrimeVue dependency itself.
 ### ⚙️ Toolbar / button roles
 
 The manager header was redesigned into explicit, icon‑driven actions:
-**batch scan**, **flat ⇄ folder layout toggle**, **show/hide hidden files**,
-**refresh**, **download list**, and **upload to Hugging Face**.
+**flat ⇄ folder layout toggle**, **show/hide hidden files**, **refresh**,
+**download list**, and **upload to Hugging Face**.
 
 ### 🛠️ Toolchain
 
@@ -255,6 +254,86 @@ fully‑configured **ESLint 10 flat config** + **Prettier** pipeline (see
 [Development](#-development)).
 
 ---
+
+## 🗑️ Removed feature: batch scan
+
+The **“Batch scan model information”** feature has been **removed entirely**. It
+was redundant: opening a model already loads, on demand and for exactly the model
+you are looking at, everything the scan used to backfill in bulk.
+
+- `DialogModelDetail` requests `GET /model-manager/model/{type}/{index}/{filename}`
+  as soon as it mounts. That returns the model's `__metadata__` (read straight
+  from the safetensors header) and the Markdown notes stored beside the file.
+- The preview is served by `GET /model-manager/preview/{type}/{index}/{filename}`,
+  which resolves whichever preview file exists (`.webp` / `.png` / `.jpg` / video,
+  as `name.ext` or `name.preview.ext`) and otherwise falls back to the bundled
+  placeholder.
+
+A library‑wide walk that hashed every model and queried Civitai by hash was a
+second, far slower route to the same information — plus a modal dialog, a global
+store, two websocket events, a task file on disk and its own settings, all of
+which had to be maintained. All of it is gone.
+
+**Frontend**
+
+- Deleted `src/components/DialogScanning.vue` and `src/hooks/scan.ts`.
+- `App.vue`: removed the `scanning` toolbar button, `openModelScanning()` and the
+  `DialogScanning` import; `utils/iconMap.ts`: removed the
+  `mdi mdi-folder-search-outline` mapping and its `FolderSearch` import.
+- Dropped ten scan‑only keys from `en.json` / `zh.json`
+  (`batchScanModelInformation`, `modelInformationScanning`, `scanModelInformation`,
+  `selectedAllPaths`, `scanFullInformation`, `scanMissInformation`,
+  `scanCompleted`, `scanCompletedWithErrors`, `setting.scanAll`,
+  `setting.scanMissing`).
+
+**Backend**
+
+- `py/information.py`: removed the `GET` and `POST /model-manager/model-info/scan`
+  routes, `create_scan_model_info_task`, `download_model_info`,
+  `get_scan_model_info_task_list`, `get_scan_information_task_filepath`,
+  `SCAN_TASK_ID` and the scan's own `DownloadThreadPool` (along with the now
+  unused `functools` / `thread` imports).
+- Removed `ModelSearcher.search_by_hash` and its three implementations — the scan
+  was the only caller. `_resolve_model_type` stays: `search_by_url` uses it.
+- `py/utils.py`: removed `recursive_search_files` and `calculate_sha256` (and the
+  `hashlib` import) — both existed only for the scan.
+- The `update_scan_information_task` / `complete_scan_information_task` websocket
+  events no longer exist, and no `downloads/scan_information.task` file is written.
+
+**Deliberately kept** — these say “scan” but are _not_ part of the batch scan:
+
+- `ModelManager.Scan.excludeScanTypes` and `ModelManager.Scan.IncludeHiddenFiles`
+  drive the **model list** (which types are loaded into the grid, and whether
+  `.`‑prefixed files are shown) and the toolbar's show/hide‑hidden‑files toggle.
+  **These two setting ID strings are intentionally unchanged**: the ID is the key
+  ComfyUI persists the user's value under, so renaming it would silently orphan
+  every existing installation's saved setting. A harness assertion now pins all
+  seven IDs so they cannot drift.
+- Everything _around_ those IDs was still de‑scan‑ned, because none of it is
+  persisted: the settings category is now **Model List** (was “Scan”), the label
+  is **“Exclude model types (separate with commas)”** (was “Exclude scan types”),
+  the i18n keys are `setting.modelList` / `setting.excludeModelTypes`, the
+  TypeScript identifier is `configSetting.excludeModelTypes`, and the backend
+  setting group in `py/config.py` is `model_list` (so `manager.py` now resolves
+  `model_list.include_hidden_files`). Verified end to end: with
+  `IncludeHiddenFiles` off the list is `[alpha, beta, gamma]`, with it on
+  `[.hidden, alpha, beta, gamma]`.
+- `ModelManager.scan_models()` / `os.scandir` — builds the model **list** (“scan”
+  here means “enumerate a folder”, as it did upstream). Left as‑is on purpose:
+  renaming it would churn code that has nothing to do with the removed feature.
+- `scan_model_download_task_list()` — lists **download tasks**. Same reasoning.
+- Tailwind's “source scan” wording in `src/style.css` — unrelated.
+- `ui/tree`, `ui/progress`, `useModelFolder`, and the `selectModelType` /
+  `selectSubdirectory` / `selectedSpecialPath` / `noModelsInCurrentPath` strings —
+  shared with the Upload and Hugging Face Upload dialogs and the model editor.
+
+> [!NOTE]
+> **What this gives up:** the only way to _bulk backfill_ previews and
+> descriptions from Civitai by file hash. A model whose information was never
+> fetched keeps its placeholder preview until the preview/notes are set by hand
+> (model editor → **Preview** → _Network_ / _Local_), or until it is re‑downloaded
+> through _Create Download Task_, which does carry a preview. Reading a model's
+> information is unaffected — that always came from disk, on demand.
 
 ## 🩺 Reliability pass (this revision)
 
@@ -274,8 +353,8 @@ Neo was audited end‑to‑end and hardened. Highlights:
 - Fixed the flat grid crash on first paint (`chunk()` with a non‑positive column
   count), the “None” preview not deleting existing previews, custom sub‑folders
   being dropped/doubled on download, the embedding drag inserting the file
-  _extension_ instead of the name, an unanchored right‑click menu, a leaked scan
-  event listener, the indeterminate progress bar, and several icon/i18n gaps.
+  _extension_ instead of the name, an unanchored right‑click menu, the
+  indeterminate progress bar, and several icon/i18n gaps.
 - `<GlobalLoading/>` is rendered again (the global spinner was dead).
 
 **Backend (Python)**
@@ -297,38 +376,18 @@ All changes preserve existing behaviour and are covered by the checks in
 
 ---
 
-## 🩹 Second reliability pass (batch scan, model editor, task pool)
+## 🩹 Second reliability pass (progress slot, model editor, task pool)
 
 A second end‑to‑end audit — driven by a headless harness that runs the real
 `web/manager.js` bundle against the real Python routes over HTTP + WebSocket —
 found and fixed the following. Nothing here changes intended behaviour; each
 item restores behaviour that was documented but silently broken.
 
-**Batch scan (the "no results are displayed" report)**
+**Blocking I/O in request handlers**
 
-- **`<Progress>` dropped its default slot.** The reka‑ui wrapper never rendered
-  `<slot />`, so `DialogScanning`'s `{{ done }} / {{ total }}` counter was
-  discarded. Combined with an indicator that is translated fully out of view at
-  0 %, the scan dialog showed _nothing at all_ while a scan was running. The
-  PrimeVue `ProgressBar` this replaced renders `<slot>{{ value + '%' }}</slot>`.
-  The label is now drawn as an overlay centred on the track (the root needs
-  `overflow-hidden` to clip the sliding indicator).
-- **Stale `GET /model-info/scan` responses could rewind a running scan.** The
-  dialog fetches the task state on mount, _before_ the user can press a scan
-  button; when that reply landed after the `POST` that started the scan it
-  described a world with no task, so it wiped the progress, fired a bogus
-  "scan completed" toast and pushed the dialog back to the type‑selection step —
-  where it stayed, hiding every later update. Scan state now carries a
-  generation stamp, in‑flight syncs that are overtaken are discarded, and the
-  progress step is never left while a scan is in flight.
-- **Creating a scan task blocked the server event loop.**
-  `create_scan_model_info_task` walked the whole model library with a
-  synchronous `os.walk` inside the request handler (same class of bug already
-  fixed for hashing/Civitai lookups). It now runs in the executor, with the
-  request‑scoped setting resolved beforehand.
-- **`GET /models/{folder}` blocked the event loop too** — every model list
-  refresh (including the one fired when a scan completes) stat'ed every file
-  inline. Also moved to the executor.
+- **`GET /models/{folder}` blocked the event loop** — every model list refresh
+  stat'ed every file inline. Moved to the executor, with the request‑scoped
+  hidden‑files setting resolved beforehand.
 
 **Model editor**
 
@@ -381,41 +440,12 @@ assertions across 8 suites**, plus a Python‑only probe that drives the downloa
 task lifecycle directly. Every item below was first _reproduced_, then fixed,
 then re‑verified.
 
-**Batch scan — the “no results are displayed” report (root cause)**
+**Blocking I/O in request handlers**
 
-- **The progress step was reachable only through a successful
-  `POST /model-info/scan` response.** That request cannot answer until the
-  server has walked the entire model library (`create_scan_model_info_task`
-  runs `os.walk(followlinks=True)` over every registered model folder before it
-  replies), and ComfyUI's `api.fetchApi` aborts any request whose response
-  headers have not arrived within **60 s**
-  (`FETCH_RESPONSE_HEADERS_TIMEOUT_MS = 60_000`, ComfyUI_frontend
-  `src/scripts/api.ts`). On a large library the promise rejects — but the
-  server keeps going: aiohttp does not cancel the handler when the client
-  disconnects, so the task file is written and the scan runs to completion,
-  logging exactly `Send update scan information task to frontend.` and
-  `Completed scan model information.` The `catch` had already parked the dialog
-  on the type‑selection step and **nothing ever moved it forward again**, so the
-  websocket pushes were received by the store and silently discarded.
-  Reproduced: with the POST aborted, the dialog showed _no_ progress bar at all
-  even after 4 scan events had arrived.
-  The dialog now follows the **store** — `watch([scanning, updates])` promotes it
-  to the progress step whenever a scan is known to be running, from any source
-  (POST response, websocket push, or server sync) — and the `catch` reconciles
-  with `GET /model-info/scan` before falling back and reports a real error
-  instead of failing silently. Verified: the same aborted POST now renders
-  `4 / 4` at 100 % the moment the pushes land.
-- **`scan_paths` walked the same directory once per alias.** ComfyUI registers
-  one directory under several model types (`text_encoders` → `[text_encoders,
-clip]`, `diffusion_models` → `[unet, diffusion_models]`) and custom nodes add
-  more via `add_model_folder_path()`. `scan_models` is keyed by absolute path,
-  so de‑duplicating is provably a no‑op: against a fixture with three extra
-  aliased paths the old and new backends returned **byte‑identical** payloads
-  (same keys, order and values for both `diff` and `full`) while the number of
-  `Found model:` walk hits dropped from 22 to 8.
-- **`GET /model-manager/model-info` blocked the event loop too** — the Civitai /
-  Hugging Face URL search performs several blocking `requests.get` round trips
-  inline. Moved to the executor, like the hashing and library walks before it.
+- **`GET /model-manager/model-info` blocked the event loop** — the Civitai /
+  Hugging Face URL search behind _Create Download Task_ performs several
+  blocking `requests.get` round trips inline (for Hugging Face: the model info
+  **and** the recursive file tree). Moved to the executor.
 
 **Downloads froze the whole ComfyUI server (regression from the asyncio rewrite)**
 
@@ -426,8 +456,7 @@ clip]`, `diffusion_models` → `[unet, diffusion_models]`) and custom nodes add
   and iterated `iter_content()` inline. Consequences, all measured: the connect /
   response‑header phase blocked the entire server with **no socket timeout** (one
   unresponsive host hung ComfyUI outright); between chunks the loop only regained
-  control once per second, starving every websocket push — including batch‑scan
-  progress; a download URL served by ComfyUI itself **deadlocked permanently**.
+  control once per second, starving every other websocket push and request; a download URL served by ComfyUI itself **deadlocked permanently**.
   Probe result on the unmodified backend: `GET /download/task` two seconds into a
   transfer **timed out**; after the fix it answers in 0.00 s while the transfer
   runs. The Hugging Face branch already used `run_in_executor`; the plain HTTP
@@ -538,84 +567,7 @@ every one of them was an empty, invisible box:
 All of the above was verified with `pnpm typecheck`, `pnpm lint`,
 `pnpm format:check`, a clean `pnpm build`, and the harness suites. The Python
 changes were additionally checked with `ruff` (`E9,F82,F811,F841,B,PLE`): no new
-findings, and the one pre‑existing `B007` in the scan loop disappeared with the
-de‑duplication.
-
----
-
-## 🩼 Fourth reliability pass (the scan counter that never reached 100 %)
-
-Follow‑up to the third pass, after the report that the batch scan now displayed
-progress but **stopped one short of the end** — `1/12 … 10/12, 11/12`, then the
-model‑list refresh spinner appeared and went away, and the dialog stayed on
-`11 / 12` forever.
-
-**Root cause.** The counter is `scanCompleteCount / scanTotalCount`, where a
-model counts as complete only when the backend sets `scan_models[path] = True`.
-That assignment lives at the **end of the `try` block**, and the handler for a
-model whose lookup fails only logged the error:
-
-```python
-except Exception as e:
-    utils.print_error(f"Failed to download model info for {abs_model_path}: {e}")
-```
-
-A model that is **not indexed on Civitai** makes `search_by_hash` raise
-`404 Client Error: Not Found for url: …/model-versions/by-hash/<sha256>` — which
-is the normal case for any locally trained, renamed, re‑quantised or private
-model. Such a model was therefore _never_ marked as processed:
-`scanCompleteCount` could not reach `scanTotalCount`, the bar never hit 100 %,
-the `data-state="complete"` styling never applied, and `complete_scan_…` arrived
-carrying a map that still said `false` — so the dialog froze at `N‑1 / N` with
-the scan in fact long finished. The refresh spinner from `notifyCompleted()` was
-the only visible evidence that anything had ended.
-
-Reproduced offline and deterministically (a harness knob raises the real
-`requests.HTTPError(404)` for the hash lookup): the dialog stalls at `3 / 4`,
-`aria-valuenow="75"`, `data-state="loading"`, and the completion payload reads
-`{"…/notoncivitai.safetensors": false}`. After the fix: `4 / 4`, `100`,
-`complete`, payload all `true` plus `"failed": 1`.
-
-**A second, harder stall in the same loop.** The per‑model _prologue_ —
-`get_model_preview_name()`, `os.path.isfile()`, `get_model_description_name()`
-(which calls `os.listdir()`) — sat **outside** the `try`. If a model's folder
-vanished mid‑scan (deleted, moved or unmounted while a multi‑hour scan was
-running) the resulting `FileNotFoundError` escaped the loop **and the whole
-task**: no completion event, no task‑file cleanup, and because the task file
-survived, every later `GET /model-info/scan` re‑submitted the scanner and it
-died the same way again. Measured on the pre‑fix commit: the dialog froze at
-`4 / 5` and the backend logged `Task model_info_scan failed: [Errno 2] No such
-file or directory` twice.
-
-**Fixes** (`py/information.py`, `src/hooks/scan.ts`, locales):
-
-- The whole per‑model body, prologue included, is now inside the `try` — one bad
-  model can only ever cost that model.
-- A model whose lookup failed is **counted as processed**, because the counter
-  measures how many models were _attempted_, not how many lookups succeeded. The
-  failure is still logged, and the progress push is sent from the handler
-  (guarded, so a reporting problem can never abort the remaining scan).
-- The completion event gained an additive `"failed": N` field; `models` is
-  unchanged, so older frontends are unaffected.
-- The frontend reports it instead of hiding it: `notifyCompleted(models, failed)`
-  shows a **warning** toast — “Model information scan completed, but N model(s)
-  failed. See the ComfyUI console for details.” (new `scanCompletedWithErrors`
-  key, `en` + `zh`) — rather than an unconditional success.
-- A `WARNING` summary line is logged next to the per‑model errors.
-
-Marking a failed model as processed does not suppress retries: the task file is
-deleted when the scan ends, and `diff` mode re‑derives “needs scanning” from the
-preview/description files on disk, so the next scan attempts it again.
-
-**The verification gap that let this through, and the guard added.** The third
-pass asserted that the progress label _matched_ `^\d+ / \d+$` — which `3 / 4`
-satisfies — instead of asserting that it _reaches_ the total, and the one fixture
-model that 404'd was written off as “not on Civitai”. Every progress assertion
-in the harness now requires `done === total`, `aria-valuenow === 100` and
-`data-state === "complete"`, and two suites cover the failure paths directly:
-`suite8` (Civitai 404) and `suite9` (a model folder deleted while the scan is in
-flight — run against the pre‑fix commit to prove it stalls, and against the fix
-to prove it completes). **180 assertions across 10 suites, 0 failures.**
+findings.
 
 ## 🔧 Development
 
@@ -652,11 +604,11 @@ ordering), `eslint-plugin-tailwindcss` (class hygiene) and `eslint-config-pretti
 ```
 ├─ __init__.py            # ComfyUI entry: installs deps, registers routes
 ├─ py/                    # Python backend (aiohttp routes, HF/Civitai, tasks)
-│  ├─ manager.py          #   model CRUD + scanning
+│  ├─ manager.py          #   model CRUD + folder listing
 │  ├─ download.py         #   download tasks (http + huggingface_hub)
 │  ├─ upload.py           #   local file upload (path-validated)
 │  ├─ upload_hf.py        #   upload to Hugging Face
-│  ├─ information.py      #   Civitai/HF search, previews, batch scan
+│  ├─ information.py      #   Civitai/HF search by URL, preview serving
 │  ├─ auth.py · config.py · thread.py · utils.py
 ├─ src/                   # Vue 3 frontend
 │  ├─ components/         #   app components + ui/ (reka-ui wrappers)
@@ -675,7 +627,7 @@ ComfyUI‑Model‑Manager‑Neo is a derivative work of
 **[`ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)**
 by **[hayden‑cn](https://github.com/hayden-cn)**, used and modified here in
 accordance with the **GNU General Public License v3.0**. The original project's
-architecture — model scanning, the download task system, Civitai/Hugging Face
+architecture — model folder listing, the download task system, Civitai/Hugging Face
 search, node‑graph drag integration and the overall design — is their work, and
 this fork is deeply grateful for it.
 

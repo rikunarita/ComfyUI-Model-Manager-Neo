@@ -24,13 +24,12 @@ const props = withDefaults(
 const slots = useSlots()
 
 /**
- * BUG FIX: the default slot was never rendered, so every label passed to this
- * component was silently dropped. The batch-scan dialog is the visible casualty
- * — `<Progress :model-value="scanProgress">{{ done }} / {{ total }}</Progress>`
- * rendered a bare 8px bar with no counter, and because the indicator is
- * translated fully out of view at 0% the dialog looked completely empty while a
- * scan was running ("no scan results are displayed"). The PrimeVue ProgressBar
- * this replaced renders `<slot>{{ value + '%' }}</slot>` inside its label.
+ * BUG FIX: the default slot was never rendered, so any label passed to this
+ * component was silently dropped — and because the indicator is translated
+ * fully out of view at 0%, a bar with no label looked completely empty. The
+ * PrimeVue ProgressBar this component replaced renders
+ * `<slot>{{ value + '%' }}</slot>` inside its label, so the slot is part of the
+ * contract callers can rely on.
  *
  * The label is drawn as an overlay centred on the bar instead of inside it:
  * reka-ui's root needs `overflow-hidden` to clip the sliding indicator, which
@@ -43,8 +42,9 @@ const maxValue = computed(() => (typeof props.max === 'number' && props.max > 0 
 /**
  * reka-ui's ProgressRoot only accepts a value in `[0, max]` (or null/undefined
  * for indeterminate); anything else logs a console warning and resets to null.
- * Callers pass sentinels such as `-1` ("nothing to scan yet"), so clamp the
- * value into range and treat non-finite input as indeterminate.
+ * Callers may pass out-of-range sentinels (e.g. `-1` for "nothing to show
+ * yet"), so clamp the value into range and treat non-finite input as
+ * indeterminate.
  */
 const numericValue = computed<number | null>(() => {
   const v = props.modelValue

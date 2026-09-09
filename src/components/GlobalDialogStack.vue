@@ -143,7 +143,7 @@ import { resolveIcon } from 'utils/iconMap'
  * and ignored the per-dialog fields of `DialogItem` (`defaultSize`,
  * `defaultMobileSize`, `minWidth/maxWidth/minHeight/maxHeight`, `resizeAllow`,
  * `modal`). Those options are part of the dialog-store API and every caller
- * passes them (e.g. the 500×200 API-key dialog, the 680×490 scanning dialog,
+ * passes them (e.g. the 500×200 API-key dialog, the 500×390 card-size dialog,
  * the manager's minWidth derived from the card size). Each dialog now gets
  * its own state again — the behaviour the original PrimeVue-based
  * ResponseDialog had.

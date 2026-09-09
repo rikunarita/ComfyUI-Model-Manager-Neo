@@ -10,7 +10,6 @@ import {
   Eye,
   EyeOff,
   FolderOpen,
-  FolderSearch,
   Globe,
   Info,
   LayoutGrid,
@@ -51,7 +50,6 @@ export const iconMap: Record<string, Component> = {
   'pi pi-arrow-left': ChevronLeft,
   'pi pi-arrow-right': ChevronRight,
   'pi pi-folder': FolderOpen,
-  'mdi mdi-folder-search-outline': FolderSearch,
 }
 
 export const resolveIcon = (iconStr: string): Component | undefined => {

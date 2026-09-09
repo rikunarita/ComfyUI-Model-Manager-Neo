@@ -38,12 +38,12 @@ class ModelManager:
         async def get_folder_models(request):
             try:
                 folder = request.match_info.get("folder", None)
-                # BUG FIX: scanning a model folder stats every file in it. Doing
+                # BUG FIX: listing a model folder stats every file in it. Doing
                 # that inside the handler blocked the server event loop, so the
                 # whole UI (websocket updates included) froze on every refresh.
                 # Resolve the request-scoped setting here and run the walk in
                 # the executor.
-                include_hidden_files = utils.get_setting_value(request, "scan.include_hidden_files", False)
+                include_hidden_files = utils.get_setting_value(request, "model_list.include_hidden_files", False)
                 loop = asyncio.get_running_loop()
                 results = await loop.run_in_executor(None, self.scan_models, folder, include_hidden_files)
                 return web.json_response({"success": True, "data": results})

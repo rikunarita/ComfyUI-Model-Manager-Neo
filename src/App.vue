@@ -17,7 +17,6 @@ import DialogDownload from 'components/DialogDownload.vue'
 import DialogExplorer from 'components/DialogExplorer.vue'
 import DialogHfUpload from 'components/DialogHfUpload.vue'
 import DialogManager from 'components/DialogManager.vue'
-import DialogScanning from 'components/DialogScanning.vue'
 import GlobalConfirm from 'components/GlobalConfirm.vue'
 import GlobalDialogStack from 'components/GlobalDialogStack.vue'
 import GlobalLoading from 'components/GlobalLoading.vue'
@@ -42,19 +41,6 @@ onMounted(() => {
       severity: 'success',
       summary: 'Refreshed Models',
       life: 2000,
-    })
-  }
-
-  const openModelScanning = () => {
-    dialog.open({
-      key: 'model-information-scanning',
-      title: t('batchScanModelInformation'),
-      content: DialogScanning,
-      modal: true,
-      defaultSize: {
-        width: 680,
-        height: 490,
-      },
     })
   }
 
@@ -117,12 +103,6 @@ onMounted(() => {
       content: flat.value ? DialogManager : DialogExplorer,
       keepAlive: true,
       headerButtons: [
-        {
-          key: 'scanning',
-          icon: 'mdi mdi-folder-search-outline',
-          command: openModelScanning,
-          tooltip: t('batchScanModelInformation'),
-        },
         {
           key: 'toggle-layout',
           icon: layoutIcon,
