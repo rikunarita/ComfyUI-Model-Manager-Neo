@@ -144,11 +144,22 @@ export const useModelExplorer = () => {
     folderPaths.value = folderItems
   }
 
-  watch(initialized, val => {
-    if (val) {
-      openFolder(dataTreeList.value[0])
-    }
-  })
+  // BUG FIX: `immediate` was missing. `initialized` lives in the app-lifetime
+  // models store, so on every mount AFTER the first one it is already `true`
+  // and a non-immediate watcher never fires — `folderPaths` stayed empty and
+  // the explorer rendered a single "root" card with no breadcrumb instead of
+  // the model-type folders. Reachable in normal use: switching the layout or
+  // the hidden-files toggle calls `dialog.closeAll()`, which unmounts this
+  // component, so the next folder view was broken until a manual refresh.
+  watch(
+    initialized,
+    val => {
+      if (val) {
+        openFolder(dataTreeList.value[0])
+      }
+    },
+    { immediate: true },
+  )
 
   return {
     folders,

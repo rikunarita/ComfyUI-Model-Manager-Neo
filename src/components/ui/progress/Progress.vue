@@ -2,7 +2,7 @@
 import { reactiveOmit } from '@vueuse/core'
 import { ProgressIndicator, ProgressRoot } from 'reka-ui'
 import { type ProgressRootProps } from 'reka-ui'
-import { computed, type HTMLAttributes } from 'vue'
+import { computed, type HTMLAttributes, useSlots } from 'vue'
 import { cn } from 'utils/cn'
 
 const props = withDefaults(
@@ -20,6 +20,23 @@ const props = withDefaults(
   >(),
   { mode: 'determinate' },
 )
+
+const slots = useSlots()
+
+/**
+ * BUG FIX: the default slot was never rendered, so every label passed to this
+ * component was silently dropped. The batch-scan dialog is the visible casualty
+ * — `<Progress :model-value="scanProgress">{{ done }} / {{ total }}</Progress>`
+ * rendered a bare 8px bar with no counter, and because the indicator is
+ * translated fully out of view at 0% the dialog looked completely empty while a
+ * scan was running ("no scan results are displayed"). The PrimeVue ProgressBar
+ * this replaced renders `<slot>{{ value + '%' }}</slot>` inside its label.
+ *
+ * The label is drawn as an overlay centred on the bar instead of inside it:
+ * reka-ui's root needs `overflow-hidden` to clip the sliding indicator, which
+ * would also clip the text on such a thin track.
+ */
+const hasLabel = computed(() => !!slots.default)
 
 const maxValue = computed(() => (typeof props.max === 'number' && props.max > 0 ? props.max : 100))
 
@@ -44,19 +61,28 @@ const delegatedProps = reactiveOmit(props, 'class', 'mode', 'modelValue')
 </script>
 
 <template>
-  <ProgressRoot
-    v-bind="delegatedProps"
-    :model-value="isIndeterminate ? null : numericValue"
-    :class="cn('relative h-2 w-full overflow-hidden rounded-full bg-mm-surface', props.class)"
-  >
-    <ProgressIndicator
-      v-if="isIndeterminate"
-      class="mm-indeterminate h-full w-1/3 rounded-full bg-mm-accent"
-    />
-    <ProgressIndicator
-      v-else
-      class="mm-transition size-full flex-1 bg-mm-accent"
-      :style="`transform: translateX(-${100 - (numericValue ?? 0)}%);`"
-    />
-  </ProgressRoot>
+  <div class="relative w-full">
+    <ProgressRoot
+      v-bind="delegatedProps"
+      :model-value="isIndeterminate ? null : numericValue"
+      :class="cn('relative h-2 w-full overflow-hidden rounded-full bg-mm-surface', props.class)"
+    >
+      <ProgressIndicator
+        v-if="isIndeterminate"
+        class="mm-indeterminate h-full w-1/3 rounded-full bg-mm-accent"
+      />
+      <ProgressIndicator
+        v-else
+        class="mm-transition size-full flex-1 bg-mm-accent"
+        :style="`transform: translateX(-${100 - (numericValue ?? 0)}%);`"
+      />
+    </ProgressRoot>
+
+    <div
+      v-if="hasLabel"
+      class="text-shadow pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-xs leading-none font-medium text-mm-fg"
+    >
+      <slot />
+    </div>
+  </div>
 </template>

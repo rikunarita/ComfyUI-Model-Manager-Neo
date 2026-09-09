@@ -17,6 +17,7 @@
           </span>
           <button
             v-show="item.status === 'doing' && !isLocal"
+            type="button"
             class="mm-transition h-6 cursor-pointer border-0 bg-transparent p-0 hover:scale-110"
             @click="item.pauseTask"
           >
@@ -24,12 +25,14 @@
           </button>
           <button
             v-show="item.status === 'pause' && !isLocal"
+            type="button"
             class="mm-transition h-6 cursor-pointer border-0 bg-transparent p-0 hover:scale-110"
             @click="item.resumeTask"
           >
             <PlayCircle class="size-5 text-mm-muted-fg hover:text-mm-fg" />
           </button>
           <button
+            type="button"
             class="mm-transition h-6 cursor-pointer border-0 bg-transparent p-0 hover:scale-110"
             @click="item.deleteTask"
           >

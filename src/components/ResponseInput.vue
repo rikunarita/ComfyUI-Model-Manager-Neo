@@ -26,9 +26,15 @@
       @[trigger]="updateContent"
     />
 
+    <!--
+      type="button": this component is rendered inside ModelContent's <form>
+      (the network-preview URL input), and a bare <button> defaults to
+      type="submit" - clearing the field submitted the form.
+    -->
     <button
       v-if="allowClear"
       v-show="content"
+      type="button"
       class="mm-transition size-4 border-0 bg-transparent p-0 text-mm-muted-fg hover:scale-110 hover:text-mm-fg"
       @click="clearContent"
     >

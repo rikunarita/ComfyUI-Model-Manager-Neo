@@ -173,7 +173,7 @@ const handleConfirmSubdir = () => {
 
 // Scan progress lives in an app-lifetime store so updates are never missed
 // while this dialog is closed (see hooks/scan.ts).
-const { scanModels, syncFromServer } = useScan()
+const { scanModels, scanning, updates, syncFromServer, beginScan } = useScan()
 
 const batchScanningStep = ref(0)
 const scanTotalCount = computed(() => {
@@ -194,13 +194,18 @@ const handleScanModelInformation = async (item: { value: string }) => {
   batchScanningStep.value = 0
   const mode = item.value
   const path = selectedModelFolder.value
+  const updatesBefore = updates.value
 
   try {
     const result = await request('/model-info/scan', {
       method: 'POST',
       body: JSON.stringify({ mode, path }),
     })
-    scanModels.value = result?.models ?? {}
+    // BUG FIX: the server starts scanning before this response is delivered, so
+    // websocket progress pushes can overtake it. Applying the (older) response
+    // body then rewound a partly finished scan back to 0%. Keep the live state
+    // whenever a push already arrived, otherwise seed from the response.
+    beginScan(updates.value === updatesBefore ? (result?.models ?? {}) : undefined)
     batchScanningStep.value = 2
   } catch {
     batchScanningStep.value = 1
@@ -229,6 +234,14 @@ const scanActions = ref([
 
 const refreshTaskContent = async () => {
   const listContent = await syncFromServer()
+  // A scan is in flight (started from this dialog or resumed by the server):
+  // stay on the progress step. Deriving the step from `listContent` alone let a
+  // stale mount-time GET throw the dialog back to the type-selection step while
+  // the scan was still running, hiding every subsequent progress update.
+  if (scanning.value) {
+    batchScanningStep.value = 2
+    return
+  }
   batchScanningStep.value = listContent && Object.keys(listContent).length ? 2 : 1
 }
 

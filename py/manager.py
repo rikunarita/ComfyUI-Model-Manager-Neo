@@ -1,3 +1,4 @@
+import asyncio
 import os
 import folder_paths
 from aiohttp import web
@@ -37,7 +38,14 @@ class ModelManager:
         async def get_folder_models(request):
             try:
                 folder = request.match_info.get("folder", None)
-                results = self.scan_models(folder, request)
+                # BUG FIX: scanning a model folder stats every file in it. Doing
+                # that inside the handler blocked the server event loop, so the
+                # whole UI (websocket updates included) froze on every refresh.
+                # Resolve the request-scoped setting here and run the walk in
+                # the executor.
+                include_hidden_files = utils.get_setting_value(request, "scan.include_hidden_files", False)
+                loop = asyncio.get_running_loop()
+                results = await loop.run_in_executor(None, self.scan_models, folder, include_hidden_files)
                 return web.json_response({"success": True, "data": results})
             except Exception as e:
                 error_msg = f"Read models failed: {str(e)}"
@@ -113,10 +121,9 @@ class ModelManager:
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
-    def scan_models(self, folder: str, request):
+    def scan_models(self, folder: str, include_hidden_files: bool = False):
         result = []
 
-        include_hidden_files = utils.get_setting_value(request, "scan.include_hidden_files", False)
         folders, *others = folder_paths.folder_names_and_paths[folder]
 
         def get_file_info(entry: os.DirEntry[str], base_path: str, path_index: int):

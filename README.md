@@ -297,6 +297,79 @@ All changes preserve existing behaviour and are covered by the checks in
 
 ---
 
+## 🩹 Second reliability pass (batch scan, model editor, task pool)
+
+A second end‑to‑end audit — driven by a headless harness that runs the real
+`web/manager.js` bundle against the real Python routes over HTTP + WebSocket —
+found and fixed the following. Nothing here changes intended behaviour; each
+item restores behaviour that was documented but silently broken.
+
+**Batch scan (the "no results are displayed" report)**
+
+- **`<Progress>` dropped its default slot.** The reka‑ui wrapper never rendered
+  `<slot />`, so `DialogScanning`'s `{{ done }} / {{ total }}` counter was
+  discarded. Combined with an indicator that is translated fully out of view at
+  0 %, the scan dialog showed _nothing at all_ while a scan was running. The
+  PrimeVue `ProgressBar` this replaced renders `<slot>{{ value + '%' }}</slot>`.
+  The label is now drawn as an overlay centred on the track (the root needs
+  `overflow-hidden` to clip the sliding indicator).
+- **Stale `GET /model-info/scan` responses could rewind a running scan.** The
+  dialog fetches the task state on mount, _before_ the user can press a scan
+  button; when that reply landed after the `POST` that started the scan it
+  described a world with no task, so it wiped the progress, fired a bogus
+  "scan completed" toast and pushed the dialog back to the type‑selection step —
+  where it stayed, hiding every later update. Scan state now carries a
+  generation stamp, in‑flight syncs that are overtaken are discarded, and the
+  progress step is never left while a scan is in flight.
+- **Creating a scan task blocked the server event loop.**
+  `create_scan_model_info_task` walked the whole model library with a
+  synchronous `os.walk` inside the request handler (same class of bug already
+  fixed for hashing/Civitai lookups). It now runs in the executor, with the
+  request‑scoped setting resolved beforehand.
+- **`GET /models/{folder}` blocked the event loop too** — every model list
+  refresh (including the one fired when a scan completes) stat'ed every file
+  inline. Also moved to the executor.
+
+**Model editor**
+
+- **Every `<Button>` defaulted to `type="submit"`.** reka‑ui's `Primitive` does
+  not add a type, and the HTML default is `submit`; PrimeVue's Button injects
+  `type="button"`. Inside `ModelContent`'s `<form>` that meant each icon button
+  submitted the form — pressing the pencil set `editable = true` and then
+  immediately ran the save handler, which set it back to `false`. **The model
+  editor could not be opened at all.** `Button` now defaults to `type="button"`
+  (explicit `type="submit"`/`"reset"` still win). The same latent hazard was
+  removed from the hand‑written `<button>` elements that can end up inside that
+  form (`ResponseInput`'s clear button, `ModelPreview`'s carousel arrows) and,
+  for hygiene, from `ResponseBreadcrumb` / `DownloadTaskItem`.
+- **Entering edit mode erased the model type.** A `watch(editable, …)` that
+  upstream never had reset `type` to `''`, so saving a move/rename sent
+  `type: ""` and the backend rejected it, and the Create Download Task dialog
+  lost the type resolved from the search.
+- **Renaming and moving a model were silently ignored.** `updateModel` only
+  compared `subFolder` and `pathIndex`, so changing just the file name — or the
+  model _type_ at the same path index — sent no request at all; the editor
+  simply closed as if the change had been saved. All five fields are compared
+  now, and a move across types refreshes both folders.
+- **Civitai model types are resolved again.** `_resolve_model_type` had been
+  deleted and the type hardcoded to `""`. It is restored, hardened to only
+  return a type ComfyUI actually has a folder for (so categories such as
+  "Wildcards" degrade to empty instead of an unusable value).
+
+**Layout & task pool**
+
+- **The folder view broke after a layout/hidden‑files toggle.** Both call
+  `dialog.closeAll()`, which unmounts the explorer; `watch(initialized, …)`
+  lacked `immediate`, so on every mount after the first it never fired and the
+  explorer rendered a single `root` card with no breadcrumb.
+- **`DownloadThreadPool` lost its duplicate‑submit guard** in the
+  thread‑pool → asyncio rewrite. Resuming a task that was still running started
+  a _second_ download writing to the same `<task>.download` file. `submit()`
+  returns `"Existing"` again, and the asyncio lock is created lazily inside the
+  running loop (Python 3.9 bound it at import time, outside any loop).
+
+---
+
 ## 🔧 Development
 
 You only need Node.js to **build** the web bundle; running the extension inside

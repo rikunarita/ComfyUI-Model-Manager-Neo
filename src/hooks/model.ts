@@ -134,8 +134,21 @@ export const useModels = defineStore('models', store => {
       needUpdate = true
     }
 
-    // Check current name and pathIndex
-    if (model.subFolder !== data.subFolder || model.pathIndex !== data.pathIndex) {
+    // Check current name, type, folder and pathIndex.
+    // BUG FIX: this only compared `subFolder` and `pathIndex`, so
+    //  - renaming a model (only `basename` changed) and
+    //  - moving it to another model *type* at the same pathIndex/subFolder
+    // were both silently dropped: `needUpdate` stayed false, no PUT was sent
+    // and the editor just closed as if the change had been saved. The README
+    // advertises "Rename, move between folders/types", and the backend already
+    // handles the rename (`rename_model` is a no-op when the path is equal).
+    if (
+      model.type !== data.type ||
+      model.subFolder !== data.subFolder ||
+      model.pathIndex !== data.pathIndex ||
+      model.basename !== data.basename ||
+      model.extension !== data.extension
+    ) {
       oldKey = genModelKey(model)
       updateData.set('type', data.type)
       updateData.set('pathIndex', data.pathIndex.toString())
@@ -172,6 +185,10 @@ export const useModels = defineStore('models', store => {
     }
 
     refreshModels(data.type)
+    // A move across model types empties the source folder too.
+    if (model.type !== data.type) {
+      refreshModels(model.type)
+    }
   }
 
   const deleteModel = async (model: BaseModel) => {

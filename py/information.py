@@ -118,7 +118,7 @@ class CivitaiModelSearcher(ModelSearcher):
                     "extension": extension,
                     "preview": metadata_info.get("preview"),
                     "sizeBytes": file.get("sizeKB", 0) * 1024,
-                    "type": "",
+                    "type": self._resolve_model_type(res_data.get("type", "")),
                     "pathIndex": 0,
                     "subFolder": "",
                     "description": "\n".join(description_parts),
@@ -131,6 +131,32 @@ class CivitaiModelSearcher(ModelSearcher):
                 models.append(model)
 
         return models
+
+    # BUG FIX: `_resolve_model_type` was dropped in the fork and the Civitai
+    # model type hardcoded to "". The Create Download Task dialog then had no
+    # type to pre-select, so every Civitai download had to be typed by hand
+    # (and was rejected with "Please select model type first" otherwise).
+    # Restored from upstream, with one hardening step: the resolved type is
+    # only used when ComfyUI actually has a matching model folder, so Civitai
+    # categories with no local counterpart ("Wildcards", "Poses", ...) degrade
+    # to "" exactly as before instead of producing an unusable type.
+    CIVITAI_TYPE_MAP = {
+        "TextualInversion": "embeddings",
+        "LoCon": "loras",
+        "DoRA": "loras",
+        "Controlnet": "controlnet",
+        "Upscaler": "upscale_models",
+        "VAE": "vae",
+        "unknown": "",
+    }
+
+    def _resolve_model_type(self, model_type: str) -> str:
+        if not model_type:
+            return ""
+        resolved = self.CIVITAI_TYPE_MAP.get(model_type, f"{model_type.lower()}s")
+        if not resolved:
+            return ""
+        return resolved if resolved in utils.resolve_model_base_paths() else ""
 
     def search_by_hash(self, hash: str):
         if not hash:
@@ -527,8 +553,19 @@ class Information:
         else:
             scan_paths = [scan_path]
 
+        # BUG FIX: walking every model folder is a blocking `os.walk` over the
+        # whole library. Running it directly in the request handler froze the
+        # server event loop for its entire duration — no websocket traffic (so
+        # no progress reached the browser) and no other request could be served,
+        # which made the UI look dead while "Batch scan" was starting. Same
+        # treatment the hashing/Civitai lookups already got: run it off-loop.
+        loop = asyncio.get_running_loop()
+        include_hidden_files = utils.get_setting_value(request, "scan.include_hidden_files", False)
+
         for base_path in scan_paths:
-            files = utils.recursive_search_files(base_path, request)
+            files = await loop.run_in_executor(
+                None, utils.recursive_search_files, base_path, include_hidden_files
+            )
             models = folder_paths.filter_files_extensions(files, folder_paths.supported_pt_extensions)
             for fullname in models:
                 fullname = utils.normalize_path(fullname)

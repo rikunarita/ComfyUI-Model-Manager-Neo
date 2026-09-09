@@ -35,13 +35,17 @@
               :error="noPreviewContent"
             ></ResponseImage>
           </div>
+          <!-- type="button": inside ModelContent's <form>, a bare <button>
+               defaults to type="submit" and would save + close the editor. -->
           <button
+            type="button"
             class="mm-transition absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-full bg-mm-surface/80 p-1 backdrop-blur-sm hover:bg-mm-surface-hover"
             @click="prevPage"
           >
             <ChevronLeft class="size-4" />
           </button>
           <button
+            type="button"
             class="mm-transition absolute top-1/2 right-4 z-10 -translate-y-1/2 rounded-full bg-mm-surface/80 p-1 backdrop-blur-sm hover:bg-mm-surface-hover"
             @click="nextPage"
           >

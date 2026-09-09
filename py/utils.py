@@ -178,13 +178,20 @@ def get_download_path():
         os.makedirs(download_path)
     return download_path
 
-def recursive_search_files(directory: str, request):
+def recursive_search_files(directory: str, include_hidden_files: bool = False):
+    """
+    Recursively list the files below `directory` (relative, "/"-separated).
+
+    NOTE: this walks the whole tree with `os.walk`, which for a large model
+    library takes long enough to stall the aiohttp event loop. Callers run it
+    through `loop.run_in_executor(...)`; the ComfyUI setting it depends on is
+    therefore resolved by the caller (in the request context) and passed in.
+    """
     if not os.path.isdir(directory):
         return []
 
     excluded_dir_names = [".git"]
     result = []
-    include_hidden_files = get_setting_value(request, "scan.include_hidden_files", False)
 
     for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
         subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]

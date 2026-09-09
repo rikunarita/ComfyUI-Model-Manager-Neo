@@ -3,6 +3,7 @@
     <template v-for="(item, index) in items ?? []" :key="index">
       <button
         v-if="index < (items?.length ?? 0) - 1"
+        type="button"
         class="mm-transition text-mm-muted-fg hover:text-mm-accent"
         @click="item.command?.()"
       >
