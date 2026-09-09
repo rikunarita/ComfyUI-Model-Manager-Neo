@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🗂️ ComfyUI‑Model‑Manager‑Neo
+# <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="34" height="34" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
 
 ### Browse · Download · Upload · Drag‑and‑drop — your models, beautifully managed.
 
@@ -18,7 +18,7 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 
 <!--
   ┌──────────────────────────────────────────────────────────────────────────┐
-  │  🖼️  IMAGES TO PREPARE (this fork intentionally ships NO upstream images)  │
+  │  IMAGES TO PREPARE (this fork intentionally ships NO upstream images)    │
   │  Create a `docs/screenshots/` folder and drop the files listed below.      │
   │  Each placeholder in this README already points at its final path, so the  │
   │  picture appears automatically once you add the file. Suggested capture:   │
@@ -41,37 +41,52 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 
 ---
 
-## ✨ Why Neo?
+**Contents**
+
+- [Why Neo?](#why-neo) · [Screenshots](#screenshots) · [Installation](#installation) ·
+  [Features](#features)
+- [What changed from the original](#what-changed) · [Removed feature: batch scan](#removed-feature)
+- [First reliability pass](#pass-1) · [Second reliability pass](#pass-2) ·
+  [Third reliability pass](#pass-3)
+- [Development](#development) · [Credits & Attribution](#credits) · [License](#license)
+
+---
+
+<a id="why-neo"></a>
+
+## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="28" height="28" align="middle" alt=""> Why Neo?
 
 **ComfyUI‑Model‑Manager‑Neo** takes the excellent original manager and rebuilds
 the experience from the ground up:
 
-- 🎨 **Glassmorphism UI** — a translucent, blurred, elevation‑aware interface
+- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Glassmorphism UI** — a translucent, blurred, elevation‑aware interface
   that follows ComfyUI's own light/dark palette automatically.
-- 🧩 **PrimeVue‑free** — the entire PrimeVue dependency was removed and replaced
+- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **PrimeVue‑free** — the entire PrimeVue dependency was removed and replaced
   with lightweight, headless **[reka-ui]** primitives + **Tailwind CSS v4** +
   **[Lucide]** icons (shadcn‑vue style components you can read and tweak).
-- ⬆️ **Upload to Hugging Face** — publish any local model straight to a HF repo
+- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Upload to Hugging Face** — publish any local model straight to a HF repo
   (creates the repo if needed, private option, live progress) — _new in Neo_.
-- 🔗 **Direct‑link downloads** — paste a raw `.safetensors`/`.ckpt`/`.gguf` URL,
+- <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Direct‑link downloads** — paste a raw `.safetensors`/`.ckpt`/`.gguf` URL,
   pick the target folder, optionally choose a custom sub‑folder.
-- ⚡ **`hf_xet` acceleration** — Hugging Face transfers use the chunked,
+- <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` acceleration** — Hugging Face transfers use the chunked,
   deduplicated Xet protocol when available.
-- 🖱️ **First‑class node‑graph integration** — drag a model onto the canvas to
+- <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **First‑class node‑graph integration** — drag a model onto the canvas to
   spawn or fill a node, drag embeddings into text areas, load workflows embedded
   in preview images.
-- 📱 **Responsive** — designed for desktop, mobile and multi‑screen setups.
-- 🧰 **Modern toolchain** — Vite 8 (Rolldown), TypeScript 6, ESLint 10 flat
+- <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Responsive** — designed for desktop, mobile and multi‑screen setups.
+- <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Modern toolchain** — Vite 8 (Rolldown), TypeScript 6, ESLint 10 flat
   config, Prettier, husky + lint‑staged. Deterministic, lint‑clean builds.
 
 > [!NOTE]
 > Neo is a **fork** of [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
 > and is distributed under the same **GPL‑3.0** license. All credit for the
-> original architecture belongs to its author — see [Credits](#-credits--attribution).
+> original architecture belongs to its author — see [Credits](#credits).
 
 ---
 
-## 📸 Screenshots
+<a id="screenshots"></a>
+
+## <img src="https://api.iconify.design/lucide/camera.svg?color=%238b5cf6" width="28" height="28" align="middle" alt=""> Screenshots
 
 > [!TIP]
 > The images below are **placeholders**. Prepare the files listed in the
@@ -102,7 +117,9 @@ ComfyUI canvas, spawning a loader node with the model already selected.
 
 ---
 
-## 🚀 Installation
+<a id="installation"></a>
+
+## <img src="https://api.iconify.design/lucide/rocket.svg?color=%2322c55e" width="28" height="28" align="middle" alt=""> Installation
 
 Neo runs as a ComfyUI custom node. Pick one method:
 
@@ -138,7 +155,9 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 
 ---
 
-## 🧭 Features
+<a id="features"></a>
+
+## <img src="https://api.iconify.design/lucide/list-checks.svg?color=%233b82f6" width="28" height="28" align="middle" alt=""> Features
 
 <details open>
 <summary><b>Browse &amp; organise</b></summary>
@@ -213,13 +232,16 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 
 ---
 
-## 🆚 What changed from the original
+<a id="what-changed"></a>
+
+## <img src="https://api.iconify.design/lucide/git-compare.svg?color=%23a855f7" width="28" height="28" align="middle" alt=""> What changed from the original
 
 This section makes the fork's differences explicit, as required by the GPL‑3.0
-license. Functionality is preserved and extended; nothing was removed except the
-PrimeVue dependency itself.
+license. Functionality is preserved and extended. Two things were _removed_: the
+PrimeVue dependency itself, and the batch‑scan feature — see
+[Removed feature: batch scan](#removed-feature).
 
-### 🎨 Interface
+### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="22" height="22" align="middle" alt=""> Interface
 
 | Area              | Original                         | **Neo**                                                                         |
 | ----------------- | -------------------------------- | ------------------------------------------------------------------------------- |
@@ -229,7 +251,7 @@ PrimeVue dependency itself.
 | Look & feel       | Standard PrimeVue surfaces       | **Glassmorphism** (blur, elevation, micro‑interactions), auto dark mode         |
 | Dialogs           | PrimeVue `Dialog`/`ContextMenu`  | reka‑ui dialogs, per‑dialog size/position, drag‑to‑move, anchored context menus |
 
-### 📦 Packages
+### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="22" height="22" align="middle" alt=""> Packages
 
 - **Removed:** `primevue`, `@primevue/themes`, `lodash`, `dayjs`, `js-yaml`.
 - **Added / replaced:** `reka-ui`, `@lucide/vue`, `es-toolkit` (← lodash),
@@ -241,21 +263,23 @@ PrimeVue dependency itself.
 - **Python:** added `huggingface_hub` + `hf_xet`; asyncio task pool replacing the
   old thread pool.
 
-### ⚙️ Toolbar / button roles
+### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="22" height="22" align="middle" alt=""> Toolbar / button roles
 
 The manager header was redesigned into explicit, icon‑driven actions:
 **flat ⇄ folder layout toggle**, **show/hide hidden files**, **refresh**,
 **download list**, and **upload to Hugging Face**.
 
-### 🛠️ Toolchain
+### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="22" height="22" align="middle" alt=""> Toolchain
 
 Biome was trialled and then **removed** in favour of a conventional,
 fully‑configured **ESLint 10 flat config** + **Prettier** pipeline (see
-[Development](#-development)).
+[Development](#development)).
 
 ---
 
-## 🗑️ Removed feature: batch scan
+<a id="removed-feature"></a>
+
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="28" height="28" align="middle" alt=""> Removed feature: batch scan
 
 The **“Batch scan model information”** feature has been **removed entirely**. It
 was redundant: opening a model already loads, on demand and for exactly the model
@@ -335,7 +359,9 @@ which had to be maintained. All of it is gone.
 > through _Create Download Task_, which does carry a preview. Reading a model's
 > information is unaffected — that always came from disk, on demand.
 
-## 🩺 Reliability pass (this revision)
+<a id="pass-1"></a>
+
+## <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2314b8a6" width="28" height="28" align="middle" alt=""> First reliability pass (Tailwind layers, dialog stack, Python hardening)
 
 Neo was audited end‑to‑end and hardened. Highlights:
 
@@ -372,11 +398,13 @@ Neo was audited end‑to‑end and hardened. Highlights:
   and path traversal); model paths are traversal‑checked.
 
 All changes preserve existing behaviour and are covered by the checks in
-[Development](#-development).
+[Development](#development).
 
 ---
 
-## 🩹 Second reliability pass (progress slot, model editor, task pool)
+<a id="pass-2"></a>
+
+## <img src="https://api.iconify.design/lucide/clipboard-check.svg?color=%2314b8a6" width="28" height="28" align="middle" alt=""> Second reliability pass (progress slot, model editor, task pool)
 
 A second end‑to‑end audit — driven by a headless harness that runs the real
 `web/manager.js` bundle against the real Python routes over HTTP + WebSocket —
@@ -429,16 +457,17 @@ item restores behaviour that was documented but silently broken.
 
 ---
 
-## 🩻 Third reliability pass (blocking I/O, PrimeVue leftovers, false failures)
+<a id="pass-3"></a>
+
+## <img src="https://api.iconify.design/lucide/bug.svg?color=%2314b8a6" width="28" height="28" align="middle" alt=""> Third reliability pass (blocking I/O, PrimeVue leftovers, false failures)
 
 A third end‑to‑end audit, again driven by a headless harness that runs the real
 `web/manager.js` bundle inside jsdom against the real Python routes over
 HTTP + WebSocket (with a faithful mock of `window.comfyAPI`, including
 `api.fetchApi`'s 60 s response‑header timeout and the `_registered` gate that
-decides whether a custom websocket event is dispatched at all). **160
-assertions across 8 suites**, plus a Python‑only probe that drives the download
-task lifecycle directly. Every item below was first _reproduced_, then fixed,
-then re‑verified.
+decides whether a custom websocket event is dispatched at all), plus a
+Python‑only probe that drives the download task lifecycle directly. Every item
+below was first _reproduced_, then fixed, then re‑verified.
 
 **Blocking I/O in request handlers**
 
@@ -569,7 +598,9 @@ All of the above was verified with `pnpm typecheck`, `pnpm lint`,
 changes were additionally checked with `ruff` (`E9,F82,F811,F841,B,PLE`): no new
 findings.
 
-## 🔧 Development
+<a id="development"></a>
+
+## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Development
 
 You only need Node.js to **build** the web bundle; running the extension inside
 ComfyUI needs nothing but Python.
@@ -584,9 +615,18 @@ pnpm install
 | `pnpm dev`                          | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI) |
 | `pnpm build`                        | Production build into `web/`                                            |
 | `pnpm build:clean`                  | Remove `web/` then rebuild                                              |
+| `pnpm rebuild`                      | Remove `node_modules/` **and** `web/`, reinstall, then rebuild          |
 | `pnpm typecheck`                    | `vue-tsc --noEmit` type checking                                        |
 | `pnpm lint` / `pnpm lint:fix`       | ESLint (flat config)                                                    |
 | `pnpm format` / `pnpm format:check` | Prettier (with the Tailwind plugin)                                     |
+
+> [!WARNING]
+> `pnpm dev` **deletes the whole `web/` directory** before writing
+> `manager-dev.js` (see the `dev()` plugin in `vite.config.ts`). That removes the
+> committed production bundle — `web/manager.js` and `web/style-*.css` — from the
+> working tree, so `git status` shows them as deleted. Committing in that state
+> would ship an extension whose UI no longer loads. Always run `pnpm build`
+> before committing, and never commit a tree where `web/manager.js` is missing.
 
 A **husky** `pre-commit` hook runs **lint-staged** (ESLint `--fix` + Prettier) on
 staged files.
@@ -621,7 +661,9 @@ ordering), `eslint-plugin-tailwindcss` (class hygiene) and `eslint-config-pretti
 
 ---
 
-## 🙏 Credits & Attribution
+<a id="credits"></a>
+
+## <img src="https://api.iconify.design/lucide/heart-handshake.svg?color=%23ec4899" width="28" height="28" align="middle" alt=""> Credits & Attribution
 
 ComfyUI‑Model‑Manager‑Neo is a derivative work of
 **[`ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)**
@@ -631,9 +673,9 @@ architecture — model folder listing, the download task system, Civitai/Hugging
 search, node‑graph drag integration and the overall design — is their work, and
 this fork is deeply grateful for it.
 
-Modifications in Neo (UI rebuild, PrimeVue removal, Hugging Face upload,
-package modernisation, toolchain, and the reliability/security pass above) are
-provided under the same GPL‑3.0 license. Per the license, the original copyright
+Modifications in Neo (the UI rebuild, PrimeVue removal, Hugging Face upload,
+package modernisation, toolchain, the reliability/security passes above, and the
+batch‑scan removal) are provided under the same GPL‑3.0 license. Per the license, the original copyright
 notice and the full license text are preserved in [`LICENSE`](LICENSE).
 
 Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
@@ -641,13 +683,15 @@ Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 
 ---
 
-## 📄 License
+<a id="license"></a>
+
+## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="28" height="28" align="middle" alt=""> License
 
 **GPL‑3.0‑only** — see [`LICENSE`](LICENSE) for the full text.
 
 <div align="center">
 
-**If Neo saves you time, consider starring the repo ⭐ and thanking the
+**If Neo saves you time, consider starring the repo <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> and thanking the
 [original author](https://github.com/hayden-cn/ComfyUI-Model-Manager).**
 
 </div>
