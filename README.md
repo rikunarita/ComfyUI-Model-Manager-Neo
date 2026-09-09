@@ -7,7 +7,7 @@
 A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 **Vue 3 + Tailwind CSS v4 + reka‑ui** with a fully modern toolchain.
 
-![License](https://img.shields.io/badge/License-GPL--3.0-only-blue.svg)
+![License](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D.svg?logo=vuedotjs&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8.svg?logo=tailwindcss&logoColor=white)
