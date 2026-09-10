@@ -17,10 +17,10 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     v-bind="forwarded"
     :class="
       cn(
-        'peer mm-transition size-4 shrink-0 rounded-sm border border-mm-border-strong shadow-mm-1',
+        'peer mm-transition size-4 shrink-0 rounded-sm border border-mm-fg/20 bg-mm-fg/6 shadow-mm-glass-1 backdrop-blur-sm',
         'focus-visible:ring-2 focus-visible:ring-mm-ring focus-visible:outline-none',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        'data-[state=checked]:border-mm-accent data-[state=checked]:bg-mm-accent data-[state=checked]:text-mm-accent-fg',
+        'data-[state=checked]:border-mm-accent/50 data-[state=checked]:bg-mm-accent/30 data-[state=checked]:text-mm-accent',
         props.class,
       )
     "

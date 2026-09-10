@@ -210,3 +210,7 @@ package-lock.json
 
 # accidental archives
 node.zip
+
+# verification harness artifacts
+harness/shots/
+webdbg/

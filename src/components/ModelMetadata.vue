@@ -2,7 +2,7 @@
   <table v-if="dataSource.length" class="w-full border-collapse border border-mm-border">
     <tbody>
       <tr v-for="item in dataSource" :key="item.key" class="h-8 border-b border-mm-border">
-        <td class="border-r border-mm-border bg-mm-surface px-4 text-mm-muted-fg">
+        <td class="border-r border-mm-border bg-mm-fg/6 px-4 text-mm-muted-fg backdrop-blur-sm">
           {{ $t(`info.${item.key}`) }}
         </td>
         <td class="px-4 break-all text-mm-fg">{{ item.value }}</td>

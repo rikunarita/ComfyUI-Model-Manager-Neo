@@ -12,14 +12,28 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
+        /*
+         * GLASS REDESIGN (push buttons):
+         * - coloured buttons render as a translucent "skeleton" of their own
+         *   colour (bg <color>/<opacity>) with a hairline border of the same
+         *   colour and a shadow tinted with the lightened colour;
+         * - neutral (grey) buttons render on a translucent foreground tint
+         *   with a hairline border and a soft, density-matched glass shadow;
+         *   every variant blurs its backdrop so the glass reads as glass.
+         * Before this pass `default`/`destructive`/`secondary` were OPAQUE
+         * fills and the variants carried no border at all, so native buttons
+         * kept the browser's UA face + light outline (grey box, white ring).
+         */
         default:
-          'bg-mm-accent text-mm-accent-fg shadow-mm-1 hover:bg-mm-accent/90 hover:shadow-mm-2',
+          'border border-mm-accent/30 bg-mm-accent/16 text-mm-accent shadow-mm-accent-1 backdrop-blur-md hover:border-mm-accent/50 hover:bg-mm-accent/26 hover:shadow-mm-accent-2',
         destructive:
-          'bg-mm-danger text-white shadow-mm-1 hover:bg-mm-danger/90 focus-visible:ring-mm-danger/50',
+          'border border-mm-danger/30 bg-mm-danger/14 text-mm-danger shadow-mm-danger-1 backdrop-blur-md hover:border-mm-danger/50 hover:bg-mm-danger/24 hover:shadow-mm-danger-2 focus-visible:ring-mm-danger/50',
         outline:
-          'border border-mm-border-strong bg-transparent shadow-mm-1 hover:bg-mm-surface-hover hover:text-mm-fg',
-        secondary: 'bg-mm-surface text-mm-fg shadow-mm-1 hover:bg-mm-surface-hover',
-        ghost: 'hover:bg-mm-surface-hover hover:text-mm-fg',
+          'border border-mm-fg/15 bg-mm-fg/5 text-mm-fg shadow-mm-glass-1 backdrop-blur-md hover:border-mm-fg/25 hover:bg-mm-fg/10 hover:shadow-mm-glass-2',
+        secondary:
+          'border border-mm-fg/14 bg-mm-fg/9 text-mm-fg shadow-mm-glass-1 backdrop-blur-md hover:border-mm-fg/24 hover:bg-mm-fg/16 hover:shadow-mm-glass-2',
+        ghost:
+          'border border-mm-fg/10 bg-mm-fg/5 text-mm-fg shadow-mm-glass-1 backdrop-blur-md hover:border-mm-fg/20 hover:bg-mm-fg/12 hover:shadow-mm-glass-2',
         link: 'text-mm-accent underline-offset-4 hover:underline',
       },
       size: {

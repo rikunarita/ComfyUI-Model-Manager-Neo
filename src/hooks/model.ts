@@ -232,6 +232,10 @@ export const useModels = defineStore('models', store => {
                 detail: e.message ?? 'Failed to delete model',
                 life: 15000,
               })
+              // BUG FIX: a failed DELETE never settled the promise returned by
+              // `remove()`, so callers awaiting it (the model-detail dialog)
+              // hung forever. The error is still reported via the toast.
+              resolve(void 0)
             })
             .finally(() => {
               loading.hide()

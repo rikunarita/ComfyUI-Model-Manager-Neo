@@ -8,7 +8,9 @@
       </ResponseSelect>
 
       <div class="flex gap-2 overflow-hidden">
-        <div class="flex-1 overflow-hidden rounded bg-gray-500/30">
+        <div
+          class="flex-1 overflow-hidden rounded-mm-ctl border border-mm-fg/10 bg-mm-fg/8 backdrop-blur-sm"
+        >
           <div class="flex h-full items-center justify-end">
             <span v-if="renderedModelFolder" class="truncate px-2">
               {{ renderedModelFolder }}
@@ -67,14 +69,18 @@
       </ResponseInput>
     </div>
 
-    <table class="w-full table-fixed border-collapse border">
+    <table class="w-full table-fixed border-collapse border border-mm-border">
       <colgroup>
         <col class="w-32" />
         <col />
       </colgroup>
       <tbody>
-        <tr v-for="item in information" :key="item.key" class="h-8 border-b whitespace-nowrap">
-          <td class="border-r bg-gray-300 px-4 dark:bg-gray-800">
+        <tr
+          v-for="item in information"
+          :key="item.key"
+          class="h-8 border-b border-mm-border whitespace-nowrap"
+        >
+          <td class="border-r border-mm-border bg-mm-fg/6 px-4 backdrop-blur-sm">
             {{ $t(`info.${item.key}`) }}
           </td>
           <td class="overflow-hidden px-4 break-all text-ellipsis">

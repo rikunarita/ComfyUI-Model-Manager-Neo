@@ -5,7 +5,7 @@
       ref="textareaRef"
       v-model="innerValue"
       :class="[
-        'w-full resize-none overflow-hidden px-3 py-2 outline-none',
+        'w-full resize-none overflow-hidden bg-mm-fg/4 px-3 py-2 backdrop-blur-sm outline-none',
         'rounded-lg border',
         /*
          * BUG FIX: `--p-form-field-border-color` /
@@ -24,7 +24,7 @@
     ></textarea>
 
     <div v-show="!active">
-      <div v-show="editable" class="mb-4 flex items-center gap-2 text-gray-600">
+      <div v-show="editable" class="mb-4 flex items-center gap-2 text-mm-muted-fg">
         <!-- BUG FIX: `pi pi-info-circle` rendered empty (PrimeIcons removed). -->
         <Info class="size-4 shrink-0" />
         <span>
@@ -247,8 +247,8 @@ const exitEditMode = () => {
     border-radius: 6px;
     padding: 8px 16px;
     overflow-x: auto;
-    background: var(--mm-surface);
-    filter: invert(10%);
+    background: color-mix(in oklab, var(--mm-fg) 7%, transparent);
+    border: 1px solid var(--mm-border);
   }
 
   pre code,

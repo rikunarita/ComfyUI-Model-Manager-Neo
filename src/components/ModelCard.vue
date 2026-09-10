@@ -1,7 +1,7 @@
 <template>
   <div
     ref="container"
-    class="mm-transition relative h-full rounded-mm-card select-none hover:-translate-y-0.5 hover:bg-mm-surface-hover hover:shadow-mm-2"
+    class="mm-transition relative h-full rounded-mm-card select-none hover:-translate-y-0.5 hover:bg-mm-fg/6 hover:shadow-mm-2"
   >
     <div data-card-main class="flex size-full flex-col">
       <div data-card-preview class="flex-1 overflow-hidden">
@@ -51,12 +51,14 @@
         transformOrigin: 'right top',
       }"
     >
-      <div class="rounded-full bg-mm-accent/30 px-2.5 py-0.5 text-xs text-white backdrop-blur-md">
+      <div
+        class="rounded-full border border-white/20 bg-mm-accent/30 px-2.5 py-0.5 text-xs text-white backdrop-blur-md"
+      >
         {{ model.type }}
       </div>
       <div
         v-if="model.sizeBytes"
-        class="rounded-full bg-black/35 px-2.5 py-0.5 text-xs text-white backdrop-blur-md"
+        class="rounded-full border border-white/10 bg-black/40 px-2.5 py-0.5 text-xs text-white backdrop-blur-md"
       >
         {{ bytesToSize(model.sizeBytes) }}
       </div>

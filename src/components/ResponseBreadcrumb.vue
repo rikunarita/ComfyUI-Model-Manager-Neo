@@ -4,7 +4,7 @@
       <button
         v-if="index < (items?.length ?? 0) - 1"
         type="button"
-        class="mm-transition text-mm-muted-fg hover:text-mm-accent"
+        class="mm-transition rounded-mm-ctl border-0 bg-transparent px-1 text-mm-muted-fg hover:bg-mm-fg/8 hover:text-mm-accent"
         @click="item.command?.()"
       >
         {{ item.label }}

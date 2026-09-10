@@ -32,6 +32,9 @@ export default tseslint.config(
     ignores: [
       'web/**',
       'demo/**',
+      // Verification harness (headless probe + E2E driver): test tooling,
+      // not shipped code — Prettier still formats it.
+      'harness/**',
       'assets/**',
       'node_modules/**',
       'dist/**',

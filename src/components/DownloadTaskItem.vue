@@ -39,7 +39,7 @@
             <Trash2 class="size-5 text-mm-danger hover:brightness-110" />
           </button>
         </div>
-        <div class="h-2 overflow-hidden rounded-full bg-mm-surface">
+        <div class="h-2 overflow-hidden rounded-full bg-mm-fg/10">
           <div
             class="mm-transition h-full rounded-full bg-mm-accent"
             :class="{ 'animate-pulse': isLocal && item.status === 'doing' }"

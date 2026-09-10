@@ -81,7 +81,9 @@ class CivitaiModelSearcher(ModelSearcher):
                     "baseModel": version.get("baseModel"),
                     "hashes": file.get("hashes"),
                     "metadata": file.get("metadata"),
-                    "preview": [i["url"] for i in version["images"]],
+                    # BUG FIX: `version["images"]` raised KeyError for Civitai
+                    # versions without an image list, failing the whole search.
+                    "preview": [i["url"] for i in version.get("images", [])],
                 }
 
                 description_parts: list[str] = []
@@ -95,11 +97,16 @@ class CivitaiModelSearcher(ModelSearcher):
                 description_parts.append("")
                 description_parts.append("# About this version")
                 description_parts.append("")
-                description_parts.append(markdownify.markdownify(version.get("description", "<p>No description about this version</p>")).strip())
+                # BUG FIX: `.get(key, default)` still returns None when the
+                # API sends an explicit JSON null; markdownify(None) raised a
+                # TypeError and aborted the entire lookup.
+                version_description = version.get("description") or "<p>No description about this version</p>"
+                description_parts.append(markdownify.markdownify(version_description).strip())
                 description_parts.append("")
                 description_parts.append(f"# {res_data.get('name')}")
                 description_parts.append("")
-                description_parts.append(markdownify.markdownify(res_data.get("description", "<p>No description about this model</p>")).strip())
+                model_description = res_data.get("description") or "<p>No description about this model</p>"
+                description_parts.append(markdownify.markdownify(model_description).strip())
                 description_parts.append("")
 
                 model = {

@@ -65,15 +65,15 @@ const delegatedProps = reactiveOmit(props, 'class', 'mode', 'modelValue')
     <ProgressRoot
       v-bind="delegatedProps"
       :model-value="isIndeterminate ? null : numericValue"
-      :class="cn('relative h-2 w-full overflow-hidden rounded-full bg-mm-surface', props.class)"
+      :class="cn('relative h-2 w-full overflow-hidden rounded-full bg-mm-fg/10', props.class)"
     >
       <ProgressIndicator
         v-if="isIndeterminate"
-        class="mm-indeterminate h-full w-1/3 rounded-full bg-mm-accent"
+        class="mm-indeterminate h-full w-1/3 rounded-full bg-mm-accent/80"
       />
       <ProgressIndicator
         v-else
-        class="mm-transition size-full flex-1 bg-mm-accent"
+        class="mm-transition size-full flex-1 bg-mm-accent/80"
         :style="`transform: translateX(-${100 - (numericValue ?? 0)}%);`"
       />
     </ProgressRoot>

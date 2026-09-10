@@ -2,8 +2,8 @@
   <div
     :class="[
       'mm-transition flex items-center gap-2 rounded-mm-ctl border px-3 py-2',
-      'border-mm-border-strong bg-mm-surface shadow-mm-1',
-      'focus-within:border-mm-border-strong',
+      'border-mm-fg/12 bg-mm-fg/6 shadow-mm-glass-1 backdrop-blur-md',
+      'focus-within:border-mm-accent/60',
     ]"
   >
     <slot name="prefix">

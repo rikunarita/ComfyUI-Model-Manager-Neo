@@ -22,7 +22,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       v-bind="{ ...forwarded, ...$attrs }"
       :class="
         cn(
-          'mm-glass-light z-2500 min-w-32 overflow-hidden rounded-mm-ctl border border-mm-border p-1 shadow-mm-2',
+          'mm-glass-light mm-scope z-2500 min-w-32 overflow-hidden rounded-mm-ctl border border-mm-border p-1 shadow-mm-2',
           'animate-in duration-160 fade-in-0 zoom-in-95',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           'data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2',

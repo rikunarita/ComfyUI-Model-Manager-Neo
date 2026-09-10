@@ -75,7 +75,10 @@
               <div v-if="whoamiName" class="text-sm opacity-60">
                 {{ $t('hfAccount') }}: {{ whoamiName }}
               </div>
-              <div v-if="whoamiError" class="rounded bg-yellow-500/20 p-2 text-sm text-yellow-500">
+              <div
+                v-if="whoamiError"
+                class="rounded-mm-ctl border border-mm-warning/30 bg-mm-warning/12 p-2 text-sm text-mm-warning backdrop-blur-sm"
+              >
                 {{ whoamiError }}
               </div>
               <div class="flex flex-col gap-2">

@@ -10,5 +10,5 @@ const props = defineProps<SkeletonProps>()
 </script>
 
 <template>
-  <div :class="cn('animate-pulse rounded-mm-ctl bg-mm-surface-hover', props.class)" />
+  <div :class="cn('animate-pulse rounded-mm-ctl bg-mm-fg/10', props.class)" />
 </template>

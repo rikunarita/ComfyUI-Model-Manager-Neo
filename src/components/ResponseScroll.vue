@@ -27,7 +27,7 @@
       <div
         ref="thumb"
         :class="[
-          'absolute w-full cursor-pointer rounded-full bg-mm-border-strong',
+          'absolute w-full cursor-pointer rounded-full bg-mm-fg/30',
           'opacity-0 transition-opacity duration-300 group-hover/scroll:opacity-30 hover:opacity-50',
         ]"
         :style="{

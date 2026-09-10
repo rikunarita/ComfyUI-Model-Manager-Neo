@@ -1,7 +1,7 @@
 <template>
   <div v-show="loading">
     <div class="fixed top-0 left-0 size-full" style="z-index: 9999">
-      <div class="flex size-full items-center justify-center bg-black/30">
+      <div class="flex size-full items-center justify-center bg-black/30 backdrop-blur-sm">
         <!--
           BUG FIX: this was `<i class="pi pi-spinner pi-spin text-3xl opacity-30">`.
           PrimeVue/PrimeIcons was removed from the fork, so no `.pi-*` rule (and

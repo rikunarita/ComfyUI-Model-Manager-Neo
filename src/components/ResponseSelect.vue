@@ -59,7 +59,7 @@
           <Button
             variant="ghost"
             size="icon-xs"
-            class="pointer-events-auto border-none bg-transparent"
+            class="pointer-events-auto border-0 bg-transparent shadow-none backdrop-blur-none"
             @click="scrollTo('prev')"
           >
             <ChevronLeft class="size-4" />
@@ -90,7 +90,7 @@
           <Button
             variant="ghost"
             size="icon-xs"
-            class="pointer-events-auto border-none bg-transparent"
+            class="pointer-events-auto border-0 bg-transparent shadow-none backdrop-blur-none"
             @click="scrollTo('next')"
           >
             <ChevronRight class="size-4" />

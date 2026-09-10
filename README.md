@@ -47,7 +47,7 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
   [Features](#features)
 - [What changed from the original](#what-changed) · [Removed feature: batch scan](#removed-feature)
 - [First reliability pass](#pass-1) · [Second reliability pass](#pass-2) ·
-  [Third reliability pass](#pass-3)
+  [Third reliability pass](#pass-3) · [Fourth reliability pass](#pass-4)
 - [Development](#development) · [Credits & Attribution](#credits) · [License](#license)
 
 ---
@@ -598,6 +598,84 @@ All of the above was verified with `pnpm typecheck`, `pnpm lint`,
 changes were additionally checked with `ruff` (`E9,F82,F811,F841,B,PLE`): no new
 findings.
 
+<a id="pass-4"></a>
+
+## <img src="https://api.iconify.design/lucide/gem.svg?color=%238b5cf6" width="28" height="28" align="middle" alt=""> Fourth reliability pass (glassmorphism completion, scoped preflight, last bug fixes)
+
+A UI-wide audit against live screenshots found the one thing the earlier
+passes could not see: **the browser's own stylesheet was painting half the
+interface**. Neo intentionally ships without Tailwind's preflight (the ComfyUI
+host page must stay untouched), and the dialogs teleport to `<body>`, outside
+the `#comfyui-model-manager` scope that normalises border colours. Every
+native `<button>`/`<input>`/`<textarea>` without an explicit background or
+border therefore kept the **UA face** — an opaque grey slab with a light
+outline under a dark colour-scheme — which is exactly the "grey box, white
+ring" look on toolbar icons, tabs, checkboxes, toast buttons and the
+select/input fields. Colour-less `border` utilities also fell back to
+Tailwind v4's `currentColor` default, drawing **white table grids** inside the
+model-info dialog.
+
+**Design contract now enforced everywhere**
+
+- _Grey push buttons_ (`secondary`, `ghost`, `outline`) render on a
+  **translucent foreground tint** (`bg-mm-fg/5…/9`) with a **hairline border**
+  (`border-mm-fg/10…/15`), `backdrop-blur` and a density-matched neutral glass
+  shadow (`--mm-shadow-glass-1/2`).
+- _Coloured push buttons_ (`default`, `destructive`) render as a **skeleton of
+  their own colour** (`bg-mm-accent/16`, `bg-mm-danger/14`) with a hairline of
+  the same colour and a **shadow tinted with the lightened colour**
+  (`--mm-shadow-accent-*`, `--mm-shadow-danger-*`, built with `color-mix` so
+  they follow the host palette).
+- _Non-push controls_ (select/input triggers, dropdown tabs, tabs list,
+  checkbox, slider, progress, badges, chips, toast buttons) each got their own
+  translucent treatment; hover/selected tints (`--mm-surface-hover`,
+  `--mm-surface-selected`) are now pure translucent mixes instead of opaque
+  surface fills, so glass stays see-through.
+- Neutral elevation tokens are **theme-aware** (soft slate shadows in light
+  mode, deep black ones under `.dark-theme`); hard-coded `bg-gray-*`,
+  `text-gray-*`, `bg-green-50`… panels were mapped onto the `--mm-*` tokens.
+- A **scoped preflight** (`@layer base`, `:where(#comfyui-model-manager,
+.mm-scope) :where(button, input, textarea, select)`) resets UA faces, fonts
+  and borders at zero specificity; every teleported root (dialog, alert-dialog,
+  sheet, dropdown, select, tooltip) carries the new `.mm-scope` marker so the
+  reset reaches `<body>`-level portals. Utilities still override it, so no
+  component lost its explicit styling.
+
+**Bug fixes in this pass** (behaviour-preserving, each reproduced first)
+
+- `DialogCreateTask`: a failed preview download re-threw inside
+  `createDownTask`, whose promise nobody awaits — the failure surfaced as an
+  **unhandled promise rejection** after the toast had already reported it. The
+  submit now aborts cleanly.
+- `useModels.remove`: a failed `DELETE` never settled the returned promise, so
+  callers awaiting it hung forever; the error toast still shows.
+- `py/information.py`: `version["images"]` raised `KeyError` for Civitai
+  versions without images, and `markdownify(None)` raised `TypeError` when the
+  API sent an explicit JSON `null` description — both aborted the whole
+  search. Both are guarded now.
+
+**Verification harness (new, `harness/`)**
+
+Two suites drive the **real** code, not mocks of it:
+
+- `pnpm verify:py` — imports the actual extension package against stubbed
+  ComfyUI modules (`folder_paths`, `server`, `comfy.utils`) and exercises every
+  route over real HTTP: listing + hidden-file toggle, info read, edit /
+  rename / preview set & remove / delete, direct-link download **into a
+  sub-folder**, pause / resume / delete of a throttled download, local upload
+  plus its path-traversal and folder-validation guards, preview serving and
+  the Hugging Face token guards. 36 assertions.
+- `pnpm verify:e2e` — serves the committed production bundle
+  (`web/manager.js` + stylesheet) from that same backend, loads it in headless
+  Chromium behind a faithful `window.comfyAPI` mock, and asserts behaviour
+  (open manager, flat ⇄ folder, model detail, tabs, confirm dialog, download
+  dialogs, light/dark) **and the glass contract** (translucency `0 < alpha < 1`,
+  1px borders, `backdrop-filter`, non-empty shadows, zero console errors).
+  20 assertions; screenshots land in `harness/shots/` (git-ignored).
+
+All of the above passes `pnpm typecheck`, `pnpm lint`, `pnpm format:check` and
+a clean `pnpm build` on the committed bundle.
+
 <a id="development"></a>
 
 ## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Development
@@ -619,6 +697,8 @@ pnpm install
 | `pnpm typecheck`                    | `vue-tsc --noEmit` type checking                                        |
 | `pnpm lint` / `pnpm lint:fix`       | ESLint (flat config)                                                    |
 | `pnpm format` / `pnpm format:check` | Prettier (with the Tailwind plugin)                                     |
+| `pnpm verify:py`                    | Python route/lifecycle probe (`harness/py_probe.py`, 36 assertions)     |
+| `pnpm verify:e2e`                   | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`)        |
 
 > [!WARNING]
 > `pnpm dev` **deletes the whole `web/` directory** before writing

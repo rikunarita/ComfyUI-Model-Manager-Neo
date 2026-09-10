@@ -20,7 +20,9 @@
 
     <!-- Direct file URL indicator with folder selection -->
     <div v-if="isDirectFile && modelUrl" class="flex flex-col gap-2">
-      <div class="flex items-center gap-2 rounded bg-green-50 p-2 text-sm text-green-600">
+      <div
+        class="flex items-center gap-2 rounded-mm-ctl border border-mm-success/25 bg-mm-success/12 p-2 text-sm text-mm-success backdrop-blur-sm"
+      >
         <!-- BUG FIX: `pi pi-check-circle` rendered empty (PrimeIcons removed). -->
         <CheckCircle class="size-4 shrink-0" />
         <span>Direct file download detected</span>
@@ -326,8 +328,16 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
               detail: 'Failed to download preview',
               life: 5000,
             })
-            throw new Error('Failed to download preview')
+            return null
           })
+          // BUG FIX: the catch above re-threw, so a failed preview download
+          // rejected `createDownTask` itself. Nothing awaited that promise
+          // (the form submit handler only emits), so the failure surfaced as
+          // an unhandled promise rejection in the console while the UI had
+          // already reported it via the toast. Abort the submit cleanly here.
+          if (previewFile === null) {
+            return
+          }
           formData.append('previewFile', previewFile)
         } else {
           formData.append('previewFile', value)

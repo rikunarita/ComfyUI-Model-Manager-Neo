@@ -86,14 +86,14 @@
   /* Layer 1: host borrow with fallback */
   --mm-bg: var(--comfy-menu-bg, var(--mm-fb-bg));
   --mm-surface: var(--comfy-input-bg, var(--mm-fb-surface));
-  --mm-surface-hover: var(
-    --interface-menu-component-surface-hovered,
-    color-mix(in oklab, var(--mm-fg) 6%, var(--mm-surface))
-  );
-  --mm-surface-selected: var(
-    --interface-menu-component-surface-selected,
-    color-mix(in oklab, var(--mm-accent) 18%, var(--mm-surface))
-  );
+  /*
+   * GLASS FIX: hover/selected tints used to be mixed over the OPAQUE
+   * `--mm-surface`, which painted solid grey patches over the blurred glass.
+   * They are now pure translucent foreground/accent tints, so every hover
+   * state stays see-through and picks up the backdrop blur beneath it.
+   */
+  --mm-surface-hover: color-mix(in oklab, var(--mm-fg) 7%, transparent);
+  --mm-surface-selected: color-mix(in oklab, var(--mm-accent) 16%, transparent);
   --mm-fg: var(--fg-color, var(--mm-fb-fg));
   --mm-muted-fg: var(--color-muted-foreground, var(--mm-fb-muted-fg));
   --mm-border: var(--border-subtle, var(--mm-fb-border));
@@ -102,12 +102,43 @@
   --mm-accent-fg: var(--primary-fg, var(--mm-fb-accent-fg));
   --mm-danger: var(--color-error, oklch(0.65 0.2 25));
   --mm-success: var(--color-green-500, oklch(0.6 0.17 155));
+  --mm-warning: var(--color-yellow-500, oklch(0.68 0.16 75));
   --mm-ring: var(--p-highlight-color, color-mix(in oklab, var(--mm-accent) 60%, transparent));
 
-  /* Elevation — theme-following shadows */
-  --mm-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 2px 8px -2px rgb(0 0 0 / 0.35);
-  --mm-shadow-2: 2px 6px 12px -4px rgb(0 0 0 / 0.45), 4px 12px 24px -8px rgb(0 0 0 / 0.4);
-  --mm-shadow-3: 4px 12px 24px -8px rgb(0 0 0 / 0.5), 8px 24px 48px -16px rgb(0 0 0 / 0.45);
+  /*
+   * Elevation — theme-following shadows.
+   * The light-mode values are soft slate tints; `.dark-theme` below swaps in
+   * deeper black shadows. Before this pass every shadow was hard-coded for
+   * dark mode, so the light theme rendered controls with heavy black halos.
+   */
+  --mm-shadow-1: 0 1px 2px 0 rgb(15 23 42 / 0.08), 0 2px 8px -2px rgb(15 23 42 / 0.1);
+  --mm-shadow-2: 2px 6px 12px -4px rgb(15 23 42 / 0.12), 4px 12px 24px -8px rgb(15 23 42 / 0.1);
+  --mm-shadow-3: 4px 12px 24px -8px rgb(15 23 42 / 0.16), 8px 24px 48px -16px rgb(15 23 42 / 0.12);
+
+  /*
+   * Glass control elevation — the "optimal density" shadow for translucent
+   * (skeleton) push buttons: barely there at rest, one step deeper on hover.
+   */
+  --mm-shadow-glass-1: 0 1px 2px 0 rgb(15 23 42 / 0.06), 0 3px 10px -3px rgb(15 23 42 / 0.1);
+  --mm-shadow-glass-2: 0 2px 6px -1px rgb(15 23 42 / 0.1), 0 6px 18px -6px rgb(15 23 42 / 0.14);
+
+  /*
+   * Tinted control elevation — coloured push buttons cast a shadow of their
+   * OWN colour, lightened through color-mix, so the glow follows the theme
+   * accent automatically (both tokens resolve against --mm-accent/--mm-danger).
+   */
+  --mm-shadow-accent-1:
+    0 1px 2px 0 color-mix(in oklab, var(--mm-accent) 16%, transparent),
+    0 4px 14px -4px color-mix(in oklab, var(--mm-accent) 28%, transparent);
+  --mm-shadow-accent-2:
+    0 2px 6px -1px color-mix(in oklab, var(--mm-accent) 22%, transparent),
+    0 8px 22px -6px color-mix(in oklab, var(--mm-accent) 36%, transparent);
+  --mm-shadow-danger-1:
+    0 1px 2px 0 color-mix(in oklab, var(--mm-danger) 14%, transparent),
+    0 4px 14px -4px color-mix(in oklab, var(--mm-danger) 26%, transparent);
+  --mm-shadow-danger-2:
+    0 2px 6px -1px color-mix(in oklab, var(--mm-danger) 20%, transparent),
+    0 8px 22px -6px color-mix(in oklab, var(--mm-danger) 34%, transparent);
 
   /* Shape */
   --mm-radius-ctl: 10px;
@@ -128,6 +159,13 @@
   --mm-fb-border-strong: oklch(0.55 0.01 260);
   --mm-fb-accent: oklch(0.74 0.12 225);
   --mm-fb-accent-fg: oklch(0.18 0.02 230);
+
+  /* Dark-mode elevation: deeper, near-black shadows (glass + dialog levels) */
+  --mm-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 2px 8px -2px rgb(0 0 0 / 0.3);
+  --mm-shadow-2: 2px 6px 12px -4px rgb(0 0 0 / 0.4), 4px 12px 24px -8px rgb(0 0 0 / 0.35);
+  --mm-shadow-3: 4px 12px 24px -8px rgb(0 0 0 / 0.45), 8px 24px 48px -16px rgb(0 0 0 / 0.4);
+  --mm-shadow-glass-1: 0 1px 2px 0 rgb(0 0 0 / 0.28), 0 3px 10px -3px rgb(0 0 0 / 0.32);
+  --mm-shadow-glass-2: 0 2px 6px -1px rgb(0 0 0 / 0.32), 0 6px 18px -6px rgb(0 0 0 / 0.4);
 }
 
 /* ---------------------------------------------------------------------------
@@ -147,6 +185,7 @@
   --color-mm-accent-fg: var(--mm-accent-fg);
   --color-mm-danger: var(--mm-danger);
   --color-mm-success: var(--mm-success);
+  --color-mm-warning: var(--mm-warning);
   --color-mm-ring: var(--mm-ring);
 
   --radius-mm-ctl: var(--mm-radius-ctl);
@@ -156,8 +195,46 @@
   --shadow-mm-1: var(--mm-shadow-1);
   --shadow-mm-2: var(--mm-shadow-2);
   --shadow-mm-3: var(--mm-shadow-3);
+  --shadow-mm-glass-1: var(--mm-shadow-glass-1);
+  --shadow-mm-glass-2: var(--mm-shadow-glass-2);
+  --shadow-mm-accent-1: var(--mm-shadow-accent-1);
+  --shadow-mm-accent-2: var(--mm-shadow-accent-2);
+  --shadow-mm-danger-1: var(--mm-shadow-danger-1);
+  --shadow-mm-danger-2: var(--mm-shadow-danger-2);
 
   --ease-mm: var(--mm-ease);
+}
+
+/* ---------------------------------------------------------------------------
+ * SCOPED PREFLIGHT (UA reset):
+ * This project intentionally does NOT import Tailwind's preflight (the host
+ * page must stay untouched). Without any author-level reset, every native
+ * <button>/<input>/<textarea> our components render without an explicit
+ * background/border falls back to the browser's UA styling — under a dark
+ * color-scheme that is exactly the opaque grey face + light border that made
+ * toolbar icons, tabs, checkboxes and toast buttons look un-glassy.
+ * The dialogs teleport to <body>, outside #comfyui-model-manager, so the
+ * reset is scoped to the mount container PLUS every teleported root, which
+ * carry the `.mm-scope` marker class.
+ * `:where()` keeps specificity at zero and the `base` layer sits below every
+ * utility layer, so any explicit class (bg-*, border-*, …) still wins.
+ * ------------------------------------------------------------------------- */
+@layer base {
+  :where(#comfyui-model-manager, .mm-scope) :where(button, input, textarea, select),
+  :where(#comfyui-model-manager, .mm-scope):where(button, input, textarea, select) {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: transparent;
+    background-image: none;
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--mm-border);
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 /* Base — scoped element normalization (our container only) */

@@ -47,7 +47,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       v-bind="{ ...forwarded, ...$attrs }"
       :class="
         cn(
-          'mm-glass fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-1/2 gap-4 rounded-mm-dlg border border-mm-border p-6',
+          'mm-glass mm-scope fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-1/2 gap-4 rounded-mm-dlg border border-mm-border p-6',
           'animate-in duration-200 fade-in-0 zoom-in-95',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           forceMount && 'data-[state=closed]:hidden',
@@ -58,7 +58,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       <slot />
       <DialogClose
         v-if="showCloseButton"
-        class="mm-transition absolute top-4 right-4 rounded-mm-ctl p-1 opacity-60 hover:bg-mm-surface-hover hover:opacity-100 focus-visible:ring-2 focus-visible:ring-mm-ring focus-visible:outline-none"
+        class="mm-transition absolute top-4 right-4 rounded-mm-ctl border-0 bg-transparent p-1 opacity-60 hover:bg-mm-fg/10 hover:opacity-100 focus-visible:ring-2 focus-visible:ring-mm-ring focus-visible:outline-none"
       >
         <X class="size-4" />
         <span class="sr-only">Close</span>
