@@ -1,0 +1,171 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  viewBox="0 0 1024 768"
+  width="1024"
+  height="768"
+  fill="none"
+>
+  <title>Closed folder (width-fitted glass variant) — glassmorphism icon with neon-blue edge glow</title>
+
+  <defs>
+    <!-- ============ GRADIENTS ============ -->
+    <linearGradient id="cf3-body" x1="250" y1="200" x2="620" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0"    stop-color="#FFDE5A"/>
+      <stop offset="0.22" stop-color="#FFC134"/>
+      <stop offset="0.48" stop-color="#FF8A24"/>
+      <stop offset="0.74" stop-color="#FB5A1D"/>
+      <stop offset="1"    stop-color="#EF3B26"/>
+    </linearGradient>
+
+    <linearGradient id="cf3-toplight" x1="0" y1="200" x2="0" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFEF8E" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FFEF8E" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="cf3-botshade" x1="0" y1="440" x2="0" y2="606" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C93014" stop-opacity="0"/>
+      <stop offset="1" stop-color="#C93014" stop-opacity="0.42"/>
+    </linearGradient>
+
+    <linearGradient id="cf3-glassTint" x1="224" y1="300" x2="720" y2="606" gradientUnits="userSpaceOnUse">
+      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.20"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.09"/>
+      <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0.03"/>
+    </linearGradient>
+
+    <linearGradient id="cf3-glassEdge" x1="220" y1="610" x2="750" y2="296" gradientUnits="userSpaceOnUse">
+      <stop offset="0"    stop-color="#FF8E84"/>
+      <stop offset="0.32" stop-color="#FFC9BE"/>
+      <stop offset="0.60" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="1"    stop-color="#FFD9C4"/>
+    </linearGradient>
+
+    <linearGradient id="cf3-gloss" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#FFFFFF" stop-opacity="0.90"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.35"/>
+      <stop offset="1"   stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Contact shadow under the pane's top edge (depth) -->
+    <linearGradient id="cf3-paneShadow" x1="0" y1="296" x2="0" y2="344" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7A1600" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#7A1600" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="cf3-neonRim" x1="204" y1="606" x2="750" y2="296" gradientUnits="userSpaceOnUse">
+      <stop offset="0"   stop-color="#A5F3FF"/>
+      <stop offset="0.5" stop-color="#5FDCFF"/>
+      <stop offset="1"   stop-color="#2CC4FF"/>
+    </linearGradient>
+
+    <!-- ============ FILTERS ============ -->
+    <filter id="cf3-blurL" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+    <filter id="cf3-blurM" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <filter id="cf3-blurS" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+
+    <filter id="cf3-frost" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10"/>
+      <feComponentTransfer>
+        <feFuncR type="linear" slope="1.05" intercept="0.02"/>
+        <feFuncG type="linear" slope="1.05" intercept="0.02"/>
+        <feFuncB type="linear" slope="1.05" intercept="0.02"/>
+      </feComponentTransfer>
+    </filter>
+
+    <filter id="cf3-noise" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.05 0.05 0.05 0 0" result="w"/>
+      <feComposite in="w" in2="SourceGraphic" operator="in"/>
+    </filter>
+
+    <!-- ============ GEOMETRY ============ -->
+    <path id="cf3-bodyPath" d="
+      M204 254
+      C204 224 228 200 258 200
+      H384
+      C402 200 419 207 432 220
+      L466 254
+      C472 260 480 263 488 263
+      H692
+      C724 263 750 289 750 321
+      V548
+      C750 580 724 606 692 606
+      H262
+      C230 606 204 580 204 548
+      Z"/>
+
+    <rect id="cf3-glassPath" x="204" y="296" width="546" height="310" rx="46"/>
+    <rect id="cf3-glassInner" x="215" y="307" width="524" height="288" rx="36"/>
+
+    <clipPath id="cf3-bodyClip"><use xlink:href="#cf3-bodyPath" href="#cf3-bodyPath"/></clipPath>
+    <clipPath id="cf3-glassClip"><use xlink:href="#cf3-glassPath" href="#cf3-glassPath"/></clipPath>
+
+    <!-- Everything behind the glass pane -->
+    <g id="cf3-art">
+      <use xlink:href="#cf3-bodyPath" href="#cf3-bodyPath" fill="url(#cf3-body)"/>
+      <g clip-path="url(#cf3-bodyClip)">
+        <rect x="204" y="200" width="546" height="220" fill="url(#cf3-toplight)"/>
+        <rect x="204" y="440" width="546" height="166" fill="url(#cf3-botshade)"/>
+      </g>
+      <path d="M262 228 H384 C398 228 410 233 420 243 L452 275 C458 281 466 284 474 284 H676"
+        stroke="#FFF6B0" stroke-width="12" stroke-linecap="round" opacity="0.70"/>
+      <path d="M268 223 H384 C396 223 406 227 415 236 L440 261"
+        stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" opacity="0.85"/>
+      <path d="M660 267 C700 269 730 292 740 324" stroke="#FFE9A8" stroke-width="4" stroke-linecap="round" opacity="0.50"/>
+      <path d="M744 330 V540" stroke="#FFCF9A" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+    </g>
+  </defs>
+
+  <!-- ============ GROUND SHADOWS ============ -->
+  <ellipse cx="500" cy="622" rx="290" ry="44" fill="#B3300F" opacity="0.20" filter="url(#cf3-blurL)"/>
+  <ellipse cx="495" cy="612" rx="235" ry="24" fill="#8E2408" opacity="0.22" filter="url(#cf3-blurM)"/>
+
+  <!-- ============ NEON-BLUE HALO (faint, behind everything) ============ -->
+  <use xlink:href="#cf3-bodyPath" href="#cf3-bodyPath" stroke="#1FB0FF" stroke-width="10" opacity="0.08" filter="url(#cf3-blurL)"/>
+  <use xlink:href="#cf3-glassPath" href="#cf3-glassPath" stroke="#1FB0FF" stroke-width="12" opacity="0.10" filter="url(#cf3-blurL)"/>
+
+  <!-- ============ FOLDER BACK PANEL ============ -->
+  <use xlink:href="#cf3-art" href="#cf3-art"/>
+
+  <!-- ============ SHADOW CAST BY THE GLASS PANE ============ -->
+  <use xlink:href="#cf3-glassPath" href="#cf3-glassPath" transform="translate(-6 10)"
+    fill="#A82A0C" opacity="0.28" filter="url(#cf3-blurM)"/>
+
+  <!-- ============ GLASS PANE ============ -->
+  <g clip-path="url(#cf3-glassClip)">
+    <use xlink:href="#cf3-art" href="#cf3-art" filter="url(#cf3-frost)"/>
+    <!-- contact shadow: pane floats above the folder -->
+    <rect x="204" y="296" width="546" height="74" fill="url(#cf3-paneShadow)"/>
+    <use xlink:href="#cf3-glassPath" href="#cf3-glassPath" fill="url(#cf3-glassTint)"/>
+    <rect x="194" y="286" width="566" height="330" filter="url(#cf3-noise)" opacity="0.55"/>
+    <path d="M352 296 L298 606 H332 L386 296 Z" fill="url(#cf3-gloss)" opacity="0.13"/>
+    <path d="M404 296 L350 606 H366 L420 296 Z" fill="url(#cf3-gloss)" opacity="0.09"/>
+    <!-- inner rim = glass thickness -->
+    <use xlink:href="#cf3-glassInner" href="#cf3-glassInner" stroke="#FFFFFF" stroke-width="2" opacity="0.22"/>
+  </g>
+
+  <!-- neon edge glow hugging the pane (soft bleed) -->
+  <use xlink:href="#cf3-glassPath" href="#cf3-glassPath" stroke="#38C8FF" stroke-width="8" opacity="0.22" filter="url(#cf3-blurS)"/>
+
+  <!-- warm glass edge -->
+  <use xlink:href="#cf3-glassPath" href="#cf3-glassPath" stroke="url(#cf3-glassEdge)" stroke-width="5" stroke-linejoin="round"/>
+
+  <!-- crisp neon-blue rim (thin, faint) -->
+  <use xlink:href="#cf3-glassPath" href="#cf3-glassPath" stroke="url(#cf3-neonRim)" stroke-width="1.6" opacity="0.35" stroke-linejoin="round"/>
+
+  <!-- top-left highlight arc on the pane -->
+  <path d="M216 340 C216 316 236 300 260 300 H700" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" opacity="0.70"/>
+
+  <!-- bottom reflection + specular dots -->
+  <path d="M254 600 H700" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" opacity="0.35"/>
+  <circle cx="726" cy="318" r="7" fill="#FFFFFF" opacity="0.70"/>
+  <circle cx="230" cy="584" r="5" fill="#FFFFFF" opacity="0.45"/>
+</svg>
