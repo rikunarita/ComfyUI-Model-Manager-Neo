@@ -47,7 +47,8 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
   [Features](#features)
 - [What changed from the original](#what-changed) · [Removed feature: batch scan](#removed-feature)
 - [First reliability pass](#pass-1) · [Second reliability pass](#pass-2) ·
-  [Third reliability pass](#pass-3) · [Fourth reliability pass](#pass-4)
+  [Third reliability pass](#pass-3) · [Fourth reliability pass](#pass-4) ·
+  [Fifth reliability pass](#pass-5)
 - [Development](#development) · [Credits & Attribution](#credits) · [License](#license)
 
 ---
@@ -664,17 +665,66 @@ Two suites drive the **real** code, not mocks of it:
   rename / preview set & remove / delete, direct-link download **into a
   sub-folder**, pause / resume / delete of a throttled download, local upload
   plus its path-traversal and folder-validation guards, preview serving and
-  the Hugging Face token guards. 36 assertions.
+  the Hugging Face token guards. 37 assertions.
 - `pnpm verify:e2e` — serves the committed production bundle
   (`web/manager.js` + stylesheet) from that same backend, loads it in headless
   Chromium behind a faithful `window.comfyAPI` mock, and asserts behaviour
   (open manager, flat ⇄ folder, model detail, tabs, confirm dialog, download
   dialogs, light/dark) **and the glass contract** (translucency `0 < alpha < 1`,
   1px borders, `backdrop-filter`, non-empty shadows, zero console errors).
-  20 assertions; screenshots land in `harness/shots/` (git-ignored).
+  26 assertions; screenshots land in `harness/shots/` (git-ignored).
 
 All of the above passes `pnpm typecheck`, `pnpm lint`, `pnpm format:check` and
 a clean `pnpm build` on the committed bundle.
+
+<a id="pass-5"></a>
+
+## <img src="https://api.iconify.design/lucide/life-buoy.svg?color=%23f97316" width="28" height="28" align="middle" alt=""> Fifth reliability pass (download creation & HuggingFace upload lifecycle)
+
+Two user-reported failures were reproduced in the harness first, then fixed:
+
+**"Create Download Task does nothing"**
+
+- The direct-link model-type selector offered a **hard-coded catalogue of all
+  16 ComfyUI model types**. Choosing one the running ComfyUI has no folder for
+  ("GLIGEN", "Classifiers", …) only failed at task-creation time with
+  `PathIndex 0 is not in <type>` — from the user's side the Download click
+  appeared dead. The list is now built from the folders that **actually
+  exist** (pretty labels kept), so every offered target is placeable.
+- A failed **browser-side preview fetch** (CORS, hotlink protection, offline
+  CDN) aborted the whole submission. The raw preview URL is now handed to the
+  backend as a fallback string: `save_model_preview()` downloads it
+  server-side, where CORS does not exist, and degrades to "no preview" if
+  that fails too. The task is always created. (`py` probe `P08b` covers the
+  URL-preview path.)
+- While reproducing this, `PUT /model-manager/model/…` turned out to run its
+  preview download + PIL re-encode **inline in the handler**, freezing the
+  event loop (deadlocking outright when the preview URL points back at
+  ComfyUI). It now runs in the executor, like the other blocking handlers.
+
+**"HuggingFace upload: no progress, and closing the window cancels it"**
+
+- `POST /hf/upload` used to answer only after the **whole transfer**, inside
+  the request handler. ComfyUI's `api.fetchApi` aborts header-slow requests
+  after 60 s and aiohttp cancels handlers whose client goes away — closing
+  the dialog (or just exceeding the timeout on a multi-GB file) killed the
+  coroutine that reports progress and completion.
+- The upload now runs as a **background task on the shared download pool**;
+  the handler validates, emits the initial progress event and returns a
+  `taskId` immediately. Completion/failure travel as `hf_upload_complete` /
+  `hf_upload_error` websocket events, so no client behaviour can cancel a
+  running upload any more.
+- The upload state moved into a module-level store (`hooks/hfUpload`): the
+  progress bar keeps running while the dialog is closed, **re-appears when the
+  dialog is re-opened**, and the success/error toast is raised exactly once,
+  even with the dialog closed.
+
+The harness gained a websocket bridge (the stub server forwards every
+`send_json` push to the page, like ComfyUI's socket does) and two regression
+scenarios: `E13` (direct-link task creation end-to-end) and `E14` (HF upload
+progress survives closing the dialog and completes). Current totals:
+`pnpm verify:py` 37 assertions, `pnpm verify:e2e` 26 assertions, plus
+`typecheck` / `lint` / `format:check` / clean `build`.
 
 <a id="development"></a>
 

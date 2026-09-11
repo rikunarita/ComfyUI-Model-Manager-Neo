@@ -227,6 +227,20 @@ async def main() -> None:
         _, upd = await put("/model-manager/model/checkpoints/0/renamed_model.safetensors", data=form)
         check("P08 preview upload saved", upd["success"] and (CKPT / "renamed_model.webp").exists())
 
+        # BUG FIX regression: a preview may also arrive as a plain URL string
+        # (the client-side fetch fallback). The backend must download it
+        # server-side, where CORS does not exist.
+        (REMOTE / "preview.webp").write_bytes(_buf.getvalue())
+        form = aiohttp.FormData()
+        form.add_field("previewFile", f"{rbase}/files/preview.webp")
+        _, upd = await put(
+            "/model-manager/model/checkpoints/0/sub/nested_model.safetensors", data=form
+        )
+        check(
+            "P08b preview fetched server-side from URL",
+            upd["success"] and (CKPT / "sub" / "nested_model.webp").exists(),
+        )
+
         # ---------------- preview serving ----------------------------------
         status, body = await get("/model-manager/preview/checkpoints/0/renamed_model.safetensors")
         check("P16 preview served as webp", status == 200 and body[:4] == b"RIFF")

@@ -301,6 +301,94 @@ try {
   await page.screenshot({ path: path.join(SHOTS, 'light-manager.png') })
   await page.evaluate(() => document.documentElement.classList.add('dark-theme'))
 
+  // E13 — regression: direct-link download offers only types that exist and
+  // actually creates the task (the reported "Download does nothing" bug)
+  for (let i = 0; i < 4; i++) {
+    const btn = page.locator('[role="dialog"] button[title="Close"]').last()
+    if (await btn.isVisible().catch(() => false)) await btn.click()
+    await page.waitForTimeout(250)
+  }
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await page.waitForSelector('[role="dialog"]')
+  const mgr = page.locator('[role="dialog"]').first()
+  await mgr.locator('button[title="Download List"]').click()
+  const dl2 = page.locator('[role="dialog"]').last()
+  await dl2.getByRole('button', { name: /Create Download Task/ }).click()
+  const create2 = page.locator('[role="dialog"]:has(input[placeholder^="Input a URL"])').last()
+  await create2.waitFor()
+  await create2
+    .locator('input')
+    .first()
+    .fill(`http://127.0.0.1:${PORT}/remote/remote_model.safetensors`)
+  // (no Enter here: searching a direct link without a type is rejected by
+  // design and would log a console error, which E12 treats as a failure)
+  await page.waitForTimeout(300)
+  await create2.locator('[aria-haspopup="menu"]').first().click()
+  const menu = page.locator('[role="menu"]').last()
+  const menuText = (await menu.textContent()) ?? ''
+  check(
+    'E13 only existing model types offered',
+    !menuText.includes('Checkpoints') && menuText.includes('UNet/Diffusion Models'),
+    menuText.slice(0, 80),
+  )
+  await menu.getByText('UNet/Diffusion Models', { exact: true }).click()
+  await page.waitForTimeout(600)
+  await create2.getByRole('button', { name: 'Download', exact: true }).click()
+  await create2.waitFor({ state: 'hidden', timeout: 15000 })
+  check('E13b create dialog closes after task creation', true)
+  await page.waitForFunction(
+    async () => {
+      const r = await fetch('/model-manager/models/diffusion_models')
+      const j = await r.json()
+      return j.data?.some(m => m.basename === 'remote_model')
+    },
+    null,
+    { timeout: 20000 },
+  )
+  check('E13c downloaded file landed in the chosen type', true)
+
+  // E14 — regression: HF upload shows progress, survives closing the dialog
+  // and reports completion through the module-level websocket listeners
+  await page.evaluate(async () => {
+    await fetch('/model-manager/download/setting', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'huggingface', value: btoa('hf_test_token_123456') }),
+    })
+  })
+  for (let i = 0; i < 3; i++) {
+    const btn = page.locator('[role="dialog"] button[title="Close"]').last()
+    if (await btn.isVisible().catch(() => false)) await btn.click()
+    await page.waitForTimeout(250)
+  }
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await page.waitForSelector('[role="dialog"]')
+  await mgr.locator('button[title="Upload to HuggingFace"]').click()
+  const hf2 = page.locator('[role="dialog"]').last()
+  await hf2.waitFor()
+  await hf2.locator('button:has-text("diffusion_models")').first().click()
+  await page.waitForTimeout(400)
+  await hf2.locator('.preview-aspect').first().click()
+  await page.waitForTimeout(400)
+  await hf2.locator('input').first().fill('rikunarita/e2e-repo')
+  await hf2.getByRole('button', { name: 'Upload', exact: true }).click()
+  await hf2.locator('.mm-indeterminate').waitFor({ timeout: 5000 })
+  check('E14 progress bar visible during upload', true)
+  await hf2.locator('button[title="Close"]').click()
+  await page.waitForFunction(
+    async () => {
+      const r = await fetch('/probe/hf')
+      const j = await r.json()
+      return (j.uploads || []).length > 0
+    },
+    null,
+    { timeout: 20000 },
+  )
+  check('E14b upload completes although the dialog was closed', true)
+  const toastEl = page.locator('[data-sonner-toast]', { hasText: 'rikunarita/e2e-repo' }).first()
+  await toastEl.waitFor({ timeout: 10000 })
+  check('E14c completion toast raised with the dialog closed', true)
+
   // E12 — no console / page errors anywhere along the way
   const realErrors = consoleErrors.filter(e => !e.includes('favicon'))
   check(

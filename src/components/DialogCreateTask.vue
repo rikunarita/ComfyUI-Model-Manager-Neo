@@ -128,6 +128,7 @@ import { useConfig } from 'hooks/config'
 import { useDialog } from 'hooks/dialog'
 import { useModelSearch } from 'hooks/download'
 import { useLoading } from 'hooks/loading'
+import { useModels } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
 import { type VersionModel, type WithResolved } from 'types/typings'
@@ -146,124 +147,52 @@ const selectedModelType = ref<string>()
 // Custom subfolder input (NEW)
 const customSubFolder = ref<string>('')
 
-const modelTypeOptions = computed(() => [
-  {
-    label: 'Checkpoints',
-    value: 'checkpoints',
-    command: () => {
-      selectedModelType.value = 'checkpoints'
-    },
-  },
-  {
-    label: 'LoRA',
-    value: 'loras',
-    command: () => {
-      selectedModelType.value = 'loras'
-    },
-  },
-  {
-    label: 'ControlNet',
-    value: 'controlnet',
-    command: () => {
-      selectedModelType.value = 'controlnet'
-    },
-  },
-  {
-    label: 'VAE',
-    value: 'vae',
-    command: () => {
-      selectedModelType.value = 'vae'
-    },
-  },
-  {
-    label: 'Embeddings',
-    value: 'embeddings',
-    command: () => {
-      selectedModelType.value = 'embeddings'
-    },
-  },
-  {
-    label: 'Upscale Models',
-    value: 'upscale_models',
-    command: () => {
-      selectedModelType.value = 'upscale_models'
-    },
-  },
-  {
-    label: 'Diffusers',
-    value: 'diffusers',
-    command: () => {
-      selectedModelType.value = 'diffusers'
-    },
-  },
-  {
-    label: 'CLIP',
-    value: 'clip',
-    command: () => {
-      selectedModelType.value = 'clip'
-    },
-  },
-  {
-    label: 'CLIP Vision',
-    value: 'clip_vision',
-    command: () => {
-      selectedModelType.value = 'clip_vision'
-    },
-  },
-  {
-    label: 'UNet/Diffusion Models',
-    value: 'diffusion_models',
-    command: () => {
-      selectedModelType.value = 'diffusion_models'
-    },
-  },
-  {
-    label: 'Style Models',
-    value: 'style_models',
-    command: () => {
-      selectedModelType.value = 'style_models'
-    },
-  },
-  {
-    label: 'Hypernetworks',
-    value: 'hypernetworks',
-    command: () => {
-      selectedModelType.value = 'hypernetworks'
-    },
-  },
-  {
-    label: 'GLIGEN',
-    value: 'gligen',
-    command: () => {
-      selectedModelType.value = 'gligen'
-    },
-  },
-  {
-    label: 'PhotoMaker',
-    value: 'photomaker',
-    command: () => {
-      selectedModelType.value = 'photomaker'
-    },
-  },
-  {
-    label: 'VAE Approx',
-    value: 'vae_approx',
-    command: () => {
-      selectedModelType.value = 'vae_approx'
-    },
-  },
-  {
-    label: 'Classifiers',
-    value: 'classifiers',
-    command: () => {
-      selectedModelType.value = 'classifiers'
-    },
-  },
-])
+/** Pretty labels for the well-known folder keys; unknown keys render as-is. */
+const MODEL_TYPE_LABELS: Record<string, string> = {
+  checkpoints: 'Checkpoints',
+  loras: 'LoRA',
+  controlnet: 'ControlNet',
+  vae: 'VAE',
+  embeddings: 'Embeddings',
+  upscale_models: 'Upscale Models',
+  diffusers: 'Diffusers',
+  clip: 'CLIP',
+  clip_vision: 'CLIP Vision',
+  diffusion_models: 'UNet/Diffusion Models',
+  unet: 'UNet/Diffusion Models',
+  style_models: 'Style Models',
+  hypernetworks: 'Hypernetworks',
+  gligen: 'GLIGEN',
+  photomaker: 'PhotoMaker',
+  vae_approx: 'VAE Approx',
+  classifiers: 'Classifiers',
+}
+
+/**
+ * BUG FIX: this used to be a hard-coded catalogue of every model type ComfyUI
+ * *can* know about. Selecting a type the running ComfyUI has no folder for
+ * (trivially easy: "GLIGEN", "Classifiers", "PhotoMaker", ...) only failed
+ * later, at task-creation time, with "PathIndex 0 is not in <type>" - from the
+ * user's side the Download click just appeared to do nothing. A download can
+ * only ever be placed into a folder that exists, so only existing folders are
+ * offered now (labels kept for the well-known keys).
+ */
+const modelTypeOptions = computed(() =>
+  Object.keys(folders.value).map(type => {
+    return {
+      label: MODEL_TYPE_LABELS[type] ?? type,
+      value: type,
+      command: () => {
+        selectedModelType.value = type
+      },
+    }
+  }),
+)
 
 const isDirectFile = computed(() => (modelUrl.value ? isDirectFileUrl(modelUrl.value) : false))
 
 const { current, currentModel, data, search } = useModelSearch()
+const { folders } = useModels()
 
 const searchModelsByUrl = async () => {
   if (modelUrl.value) {
@@ -320,27 +249,29 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
       // set preview file
       if (key === 'preview') {
         if (value) {
-          const previewFile = await previewUrlToFile(value).catch(() => {
-            loading.hide()
+          const previewFile = await previewUrlToFile(value).catch(() => null)
+          if (previewFile) {
+            formData.append('previewFile', previewFile)
+          } else {
+            // BUG FIX: the browser-side preview fetch can fail (CORS, hotlink
+            // protection, offline CDN, ...). Aborting the whole submission
+            // made the Download click look completely dead - no dialog
+            // change, no task. Hand the raw URL to the backend instead:
+            // save_model_preview() downloads it server-side, where CORS does
+            // not exist, and degrades to "no preview" if that fails too.
             toast.add({
-              severity: 'error',
-              summary: 'Error',
-              detail: 'Failed to download preview',
+              severity: 'warn',
+              summary: 'Warning',
+              detail:
+                'Preview could not be fetched in the browser; the server will download it directly.',
               life: 5000,
             })
-            return null
-          })
-          // BUG FIX: the catch above re-threw, so a failed preview download
-          // rejected `createDownTask` itself. Nothing awaited that promise
-          // (the form submit handler only emits), so the failure surfaced as
-          // an unhandled promise rejection in the console while the UI had
-          // already reported it via the toast. Abort the submit cleanly here.
-          if (previewFile === null) {
-            return
+            formData.append('previewFile', value)
           }
-          formData.append('previewFile', previewFile)
         } else {
-          formData.append('previewFile', value)
+          // No preview: send an empty string (the backend's "nothing to do"
+          // sentinel) instead of stringifying `undefined`.
+          formData.append('previewFile', value ?? '')
         }
         continue
       }

@@ -6,6 +6,8 @@ Provides `PromptServer.instance` with:
   - send_json(): records websocket pushes so the probe can assert them
 """
 
+import json
+
 from aiohttp import web
 
 
@@ -32,9 +34,16 @@ class PromptServer:
         self.routes = web.RouteTableDef()
         self.user_manager = _UserManager()
         self.sent: list[tuple[str, object]] = []
+        self.sockets: set = set()
 
     async def send_json(self, event: str, data, sid=None) -> None:
         self.sent.append((event, data))
+        payload = json.dumps({"type": event, "data": data})
+        for ws in list(self.sockets):
+            try:
+                await ws.send_str(payload)
+            except Exception:
+                self.sockets.discard(ws)
 
 
 PromptServer.instance = PromptServer()

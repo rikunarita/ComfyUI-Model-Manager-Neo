@@ -270,7 +270,10 @@ def save_model_preview(model_path: str, file_or_url: Any, platform: Optional[str
         url = file_or_url
 
         # 【修正】フロントエンドから "undefined" や不正なURLが送られてきた場合は早期リターン
-        if not url or url == "undefined" or not url.startswith("http"):
+        if not url:
+            # "no preview" - the normal case, nothing to warn about
+            return
+        if url == "undefined" or not url.startswith("http"):
             print_warning(f"Ignoring invalid preview URL: {url}")
             return
 

@@ -14,6 +14,7 @@ import argparse
 import os
 import importlib.util
 import io
+import asyncio
 import sys
 import tempfile
 from pathlib import Path
@@ -49,6 +50,80 @@ folder_paths.folder_names_and_paths = {
     "unet_gguf": ([str(LORAS)], folder_paths.supported_pt_extensions),
     "vae": ([str(VAE)], folder_paths.supported_pt_extensions),
 }
+
+REMOTE = TMP / "remote"
+REMOTE.mkdir(parents=True, exist_ok=True)
+(REMOTE / "remote_model.safetensors").write_bytes(b"RM" * 2048)
+
+
+async def remote_file(request: web.Request) -> web.Response:
+    name = request.match_info["name"]
+    target = REMOTE / name
+    if not target.is_file():
+        return web.Response(status=404)
+    return web.Response(body=target.read_bytes())
+
+
+async def remote_slow(request: web.Request) -> web.StreamResponse:
+    payload = b"S" * (128 * 1024)
+    resp = web.StreamResponse()
+    resp.headers["Content-Length"] = str(len(payload))
+    resp.content_type = "application/octet-stream"
+    await resp.prepare(request)
+    for i in range(0, len(payload), 8192):
+        await resp.write(payload[i : i + 8192])
+        await asyncio.sleep(0.05)
+    await resp.write_eof()
+    return resp
+
+
+# Fake huggingface_hub so the HF upload route can be exercised offline. The
+# real library exposes no per-chunk callback, and neither does the fake: the
+# upload simply blocks for a few seconds inside the executor thread.
+import time as _time
+import types as _types
+
+FAKE_HF: dict = {"uploads": [], "delay": 4.0}
+
+
+class _FakeHfApi:
+    def __init__(self, token=None, library_name=None):
+        self.token = token
+
+    def whoami(self):
+        return {"name": "probe-user", "fullname": "Probe User"}
+
+    def repo_exists(self, repo_id):
+        return False
+
+    def create_repo(self, repo_id, private=False, exist_ok=False):
+        FAKE_HF.setdefault("repos", []).append((repo_id, private))
+        return None
+
+    def upload_file(self, *, path_or_fileobj, path_in_repo, repo_id, repo_type=None, token=None):
+        _time.sleep(FAKE_HF["delay"])
+        FAKE_HF["uploads"].append((repo_id, path_in_repo))
+        return path_in_repo
+
+
+_fake_hf_mod = _types.ModuleType("huggingface_hub")
+_fake_hf_mod.HfApi = _FakeHfApi  # type: ignore[attr-defined]
+_fake_hf_mod.__version__ = "0.99.0.fake"
+_fake_hf_utils = _types.ModuleType("huggingface_hub.utils")
+
+
+class _HfHubHTTPError(Exception):
+    pass
+
+
+_fake_hf_utils.HfHubHTTPError = _HfHubHTTPError
+_fake_hf_utils.EntryNotFoundError = type("EntryNotFoundError", (Exception,), {})
+_fake_hf_utils.RepositoryNotFoundError = type("RepositoryNotFoundError", (Exception,), {})
+_fake_hf_utils.GatedRepoError = type("GatedRepoError", (Exception,), {})
+_fake_hf_mod.utils = _fake_hf_utils
+sys.modules.setdefault("huggingface_hub", _fake_hf_mod)
+sys.modules.setdefault("huggingface_hub.utils", _fake_hf_utils)
+sys.modules.setdefault("hf_xet", _types.ModuleType("hf_xet"))
 
 spec = importlib.util.spec_from_file_location(
     "cmmn", REPO / "__init__.py", submodule_search_locations=[str(REPO)]
@@ -167,6 +242,18 @@ PAGE = """<!doctype html>
   window.LiteGraph = {{
     createNode: () => ({{ widgets: [{{ type: 'combo', value: null }}], pos: [0, 0] }}),
   }}
+  // ComfyUI's websocket bridge, emulated: server pushes arrive as
+  // CustomEvents on window, exactly what window.comfyAPI.api.addEventListener
+  // consumes in the real frontend.
+  try {{
+    const ws = new WebSocket(location.origin.replace(/^http/, 'ws') + '/ws')
+    ws.onmessage = (ev) => {{
+      const msg = JSON.parse(ev.data)
+      window.dispatchEvent(new CustomEvent('mm:' + msg.type, {{ detail: msg.data }}))
+    }}
+  }} catch (e) {{
+    /* no bridge, no events */
+  }}
   }})()
 </script>
 </head>
@@ -175,6 +262,21 @@ PAGE = """<!doctype html>
 </body>
 </html>
 """
+
+
+async def ws_bridge(request: web.Request) -> web.WebSocketResponse:
+    """Stands in for ComfyUI's websocket: every send_json push is forwarded
+    to the page, which re-dispatches it as a CustomEvent like the real
+    frontend api does."""
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    serverInstance.sockets.add(ws)
+    try:
+        async for _ in ws:
+            pass
+    finally:
+        serverInstance.sockets.discard(ws)
+    return ws
 
 
 async def harness_page(request: web.Request) -> web.Response:
@@ -189,6 +291,14 @@ def main() -> None:
     app = web.Application()
     app.add_routes(serverInstance.routes)
     app.router.add_get("/harness", harness_page)
+    app.router.add_get("/ws", ws_bridge)
+    app.router.add_get("/remote/{name}", remote_file)
+    app.router.add_get("/slow/{name}", remote_slow)
+    app.router.add_get("/probe/hf", lambda r: web.json_response(FAKE_HF))
+    app.router.add_get(
+        "/probe/events",
+        lambda r: web.json_response([e for e, _ in serverInstance.sent]),
+    )
     app.router.add_static("/web", WEB_DIR)
 
     web.run_app(app, host="127.0.0.1", port=args.port, print=lambda *a: None)

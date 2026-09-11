@@ -94,7 +94,15 @@ class ModelManager:
                 model_path = utils.get_valid_full_path(model_type, path_index, filename)
                 if model_path is None:
                     raise RuntimeError(f"File {filename} not found")
-                self.update_model(model_path, model_data)
+                # BUG FIX: update_model() can download a preview over HTTP
+                # (save_model_preview with a URL string - the new client-side
+                # fetch fallback) and re-encode images with PIL, all blocking
+                # calls. Running them inline froze the server event loop for
+                # the whole operation (and deadlocks outright when the preview
+                # URL points back at ComfyUI itself). Same treatment as the
+                # other blocking handlers: run in the executor.
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, self.update_model, model_path, model_data)
                 return web.json_response({"success": True})
             except Exception as e:
                 error_msg = f"Update model failed: {str(e)}"
