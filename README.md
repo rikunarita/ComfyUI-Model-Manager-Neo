@@ -168,7 +168,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - Sort by name, size, date created or date modified.
 - Adjustable card size (presets + fully custom dimensions).
 - Toggle visibility of hidden (`.`‑prefixed) files without restarting.
-- Image **and video** previews.
+- Image **and video** previews, plus glass folder artwork with hover
+  open/close animations and a glass no‑preview fallback.
 
 </details>
 
@@ -269,6 +270,25 @@ PrimeVue dependency itself, and the batch‑scan feature — see
 The manager header was redesigned into explicit, icon‑driven actions:
 **flat ⇄ folder layout toggle**, **show/hide hidden files**, **refresh**,
 **download list**, and **upload to Hugging Face**.
+
+### <img src="https://api.iconify.design/lucide/folder-open.svg?color=%23f59e0b" width="22" height="22" align="middle" alt=""> Glass asset pack (folder icons & no‑preview art)
+
+The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
+
+- **Folder cards** show `Folder-Icons/close-folder_beside-fit.svg` at rest.
+  Hovering a card plays `folder-opening-animation.svg` (SMIL morph: 0.2 s
+  delay + 1.35 s), unhovering plays `folder-closing-animation.svg`, and the
+  card then settles back onto the static icon. The SVGs are inlined into the
+  bundle (`?raw` + data URI), so every card owns its SVG document: no extra
+  requests, and the gradient ids inside the artwork can never collide
+  between the many cards on screen.
+- **Breadcrumb trails** prefix every segment with the tiny
+  `close-folder_all-fit.svg` glyph (14 px) — the variant that reads best at
+  small sizes.
+- **Models without a preview** fall back to the glass
+  `NOPREVIEW-Icon/NO-PREVIEW.svg` artwork, served verbatim as
+  `image/svg+xml` (vector art is never rasterised), replacing the old flat
+  `no-preview.png` raster.
 
 ### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="22" height="22" align="middle" alt=""> Toolchain
 

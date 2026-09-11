@@ -40,7 +40,7 @@ _img.save(_buf, "WEBP")
 _preview = _buf.getvalue()
 
 for name, directory in (("anima-aesthetic-v1", CKPT), ("novaAnimeAM_v40", LORAS), ("qwen_vae", VAE)):
-    (directory / f"{name}.safetensors").write_bytes(b"MM" * 512)
+    (directory / f"{name}.safetensors").write_bytes(b"M" * (2 * 1024 * 1024))
     (directory / f"{name}.webp").write_bytes(_preview)
 (CKPT / "sub").mkdir(exist_ok=True)
 (CKPT / "sub" / "nested.safetensors").write_bytes(b"NN" * 128)
@@ -101,7 +101,28 @@ class _FakeHfApi:
         return None
 
     def upload_file(self, *, path_or_fileobj, path_in_repo, repo_id, repo_type=None, token=None):
-        _time.sleep(FAKE_HF["delay"])
+        # Consume the payload like a real transfer would, so progress-reporting
+        # wrappers get exercised end to end.
+        FAKE_HF["payload_type"] = type(path_or_fileobj).__name__
+        FAKE_HF["reads"] = 0
+        if hasattr(path_or_fileobj, "read"):
+            # Mimic the real library: UploadInfo.from_fileobj() hashes the
+            # payload with one full local pass (and a 512 B sample) before the
+            # transfer reads it a second time - the progress wrapper detects
+            # exactly that rewind to start reporting.
+            path_or_fileobj.read(512)
+            path_or_fileobj.seek(0)
+            while path_or_fileobj.read(1024 * 1024):
+                pass
+            path_or_fileobj.seek(0)
+            while True:
+                chunk = path_or_fileobj.read(8192)
+                FAKE_HF["reads"] += 1
+                if not chunk:
+                    break
+                _time.sleep(0.01)
+        else:
+            _time.sleep(FAKE_HF["delay"])
         FAKE_HF["uploads"].append((repo_id, path_in_repo))
         return path_in_repo
 
@@ -299,6 +320,7 @@ def main() -> None:
         "/probe/events",
         lambda r: web.json_response([e for e, _ in serverInstance.sent]),
     )
+    app.router.add_get("/probe/events/full", lambda r: web.json_response(serverInstance.sent))
     app.router.add_static("/web", WEB_DIR)
 
     web.run_app(app, host="127.0.0.1", port=args.port, print=lambda *a: None)

@@ -6,7 +6,27 @@
  * Usage: node harness/repro.mjs
  */
 import { spawn } from 'node:child_process'
+import { readdirSync, readFileSync } from 'node:fs'
+import { kill } from 'node:process'
 import { chromium } from 'playwright'
+
+// sweep stale harness servers (see e2e.mjs)
+for (const pid of readdirSync('/proc')) {
+  if (!/^\d+$/.test(pid) || Number(pid) === process.pid) continue
+  let cmd = ''
+  try {
+    cmd = readFileSync(`/proc/${pid}/cmdline`, 'utf8')
+  } catch {
+    continue
+  }
+  if (cmd.includes('harness/serve.py')) {
+    try {
+      kill(Number(pid), 'SIGKILL')
+    } catch {
+      /* already gone */
+    }
+  }
+}
 
 const PORT = 8861
 const server = spawn('python3', ['harness/serve.py', '--port', String(PORT)], {

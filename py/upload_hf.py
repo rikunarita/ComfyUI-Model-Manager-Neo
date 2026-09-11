@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 import uuid
 
 from aiohttp import web
@@ -21,6 +22,52 @@ from . import utils
 # pool; the handler only validates and returns a task id, so nothing the
 # user does in the browser can cancel a running upload any more.
 HF_UPLOAD_TASKS: dict[str, dict] = {}
+
+
+class _ProgressFile:
+    """Binary file wrapper reporting the bytes read by the consumer.
+
+    Phase 1 (local hashing) is silenced: progress events only start after the
+    consumer rewound the stream (the beginning of the real transfer), so the
+    percentage shown in the UI is the transfer percentage, not the hash pass.
+    """
+
+    def __init__(self, path: str, on_progress) -> None:
+        self._file = open(path, "rb")
+        self._size = os.path.getsize(path)
+        self._on_progress = on_progress
+        self._phase = 1
+        self._saw_eof = False
+
+    # -- file-like surface used by huggingface_hub -------------------------
+    def read(self, size: int = -1) -> bytes:
+        position = self._file.tell()
+        if self._saw_eof and position == 0 and self._phase == 1:
+            # Rewind after a full pass: the hashing pass is over, the
+            # transfer is starting.
+            self._phase = 2
+            self._on_progress(0, self._size)
+        data = self._file.read(size)
+        if self._phase == 2:
+            self._on_progress(self._file.tell(), self._size)
+        if not data or self._file.tell() >= self._size:
+            self._saw_eof = True
+        return data
+
+    def seek(self, *args) -> int:
+        return self._file.seek(*args)
+
+    def tell(self) -> int:
+        return self._file.tell()
+
+    def close(self) -> None:
+        self._file.close()
+
+    def __enter__(self) -> "_ProgressFile":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
 
 
 class HfUploader:
@@ -161,6 +208,28 @@ class HfUploader:
         except RuntimeError:
             loop = asyncio.get_event_loop()
 
+        progress_state = {"last": 0.0}
+
+        def report_progress(sent_bytes: int, total_bytes: int) -> None:
+            """Marshal an accurate progress push back onto the main loop."""
+            now = time.time()
+            if now - progress_state["last"] < 0.4 and sent_bytes not in (0, total_bytes):
+                return
+            progress_state["last"] = now
+            progress = (sent_bytes / total_bytes * 100) if total_bytes > 0 else 0.0
+            asyncio.run_coroutine_threadsafe(
+                utils.send_json(
+                    "update_hf_upload_progress",
+                    {
+                        "taskId": task_id,
+                        "uploadedSize": float(sent_bytes),
+                        "totalSize": float(total_bytes),
+                        "progress": progress,
+                    },
+                ),
+                loop,
+            )
+
         def do_upload():
             api = HfApi(token=token, library_name="ComfyUI-Model-Manager-Neo")
 
@@ -169,19 +238,35 @@ class HfUploader:
             if not api.repo_exists(repo_id=repo_id):
                 api.create_repo(repo_id=repo_id, private=private, exist_ok=True)
 
-            # Pass the local_path (string) directly to upload_file.
-            # This allows huggingface_hub to use the highly optimized hf_xet
-            # transfer protocol (chunk-based deduplication) instead of
-            # falling back to legacy HTTP. We intentionally do NOT use a
-            # file-like wrapper here, because passing a BinaryIO object
-            # bypasses xet and forces a slower legacy HTTP upload.
-            api.upload_file(
-                path_or_fileobj=local_path,
-                path_in_repo=path_in_repo,
-                repo_id=repo_id,
-                repo_type="model",
-                token=token,
-            )
+            # BUG FIX: accurate upload progress.
+            #
+            # huggingface_hub exposes no per-chunk upload callback, so the UI
+            # could only ever show 0% -> 100% (an indeterminate sweep in
+            # between): "the exact progress is never displayed".
+            #
+            # The transfer is therefore fed through `_ProgressFile`, a thin
+            # file-like wrapper whose read() reports the bytes actually
+            # handed to the uploader. Two read passes happen per upload:
+            #   1. huggingface_hub hashes the payload locally
+            #      (UploadInfo.from_fileobj - fast, disk bound);
+            #   2. the network transfer reads the payload again.
+            # The wrapper detects the rewind between them and only reports
+            # progress for pass 2, so the percentage tracks the real transfer
+            # (sequential for regular/basic uploads, range-wise for LFS
+            # multipart - `tell()` stays monotonic in both).
+            #
+            # Trade-off, taken deliberately on user request: passing a
+            # file-like object makes huggingface_hub use the classic
+            # basic/multipart transfer instead of the path-only hf_xet
+            # protocol, which is the price of per-chunk accuracy here.
+            with _ProgressFile(local_path, report_progress) as payload:
+                api.upload_file(
+                    path_or_fileobj=payload,
+                    path_in_repo=path_in_repo,
+                    repo_id=repo_id,
+                    repo_type="model",
+                    token=token,
+                )
 
         try:
             await loop.run_in_executor(None, do_upload)

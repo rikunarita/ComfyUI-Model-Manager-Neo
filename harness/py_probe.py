@@ -245,7 +245,15 @@ async def main() -> None:
         status, body = await get("/model-manager/preview/checkpoints/0/renamed_model.safetensors")
         check("P16 preview served as webp", status == 200 and body[:4] == b"RIFF")
         status, body = await get("/model-manager/preview/checkpoints/0/does_not_exist.safetensors")
-        check("P16b missing preview falls back", status == 200 and body[:4] == b"RIFF")
+        check(
+            "P16b missing preview falls back to the glass NO-PREVIEW.svg",
+            status == 200 and b"<svg" in body[:400],
+        )
+        status, body = await get("/model-manager/preview/download/no-preview.png")
+        check(
+            "P16c download preview fallback is the svg artwork",
+            status == 200 and b"<svg" in body[:400],
+        )
 
         # ---------------- traversal guards ----------------------------------
         _, trav = await get("/model-manager/model/checkpoints/0/..%2F..%2F..%2Fetc%2Fpasswd")

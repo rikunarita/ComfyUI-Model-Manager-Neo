@@ -357,7 +357,8 @@ class Information:
         async def read_model_preview(request):
             """
             Get the file stream of the specified preview
-            If the file does not exist, no-preview.png is returned.
+            If the file does not exist, the glass NO-PREVIEW.svg artwork is
+            returned.
 
             :param type: The type of the model. eg.checkpoints, loras, vae, etc.
             :param index: The index of the model folders.
@@ -381,7 +382,19 @@ class Information:
                 abs_path = extension_uri
 
             if not os.path.isfile(abs_path):
-                abs_path = utils.join_path(extension_uri, "assets", "no-preview.png")
+                # Glassmorphism fallback artwork (assets/no-preview.png was
+                # retired together with the upstream raster icon).
+                abs_path = utils.join_path(
+                    extension_uri, "assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"
+                )
+
+            # The no-preview artwork is vector: serve it verbatim. PIL can
+            # neither parse nor re-encode it, and rasterising would destroy
+            # the gradients.
+            if abs_path.lower().endswith(".svg"):
+                return web.FileResponse(
+                    abs_path, headers={"Content-Type": "image/svg+xml"}
+                )
 
             # Determine content type from the actual file
             content_type = utils.resolve_file_content_type(abs_path)
@@ -403,7 +416,9 @@ class Information:
             preview_path = utils.join_path(download_path, filename)
 
             if not os.path.isfile(preview_path):
-                preview_path = utils.join_path(extension_uri, "assets", "no-preview.png")
+                preview_path = utils.join_path(
+                    extension_uri, "assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"
+                )
 
             return web.FileResponse(preview_path)
 

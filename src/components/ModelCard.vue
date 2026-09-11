@@ -2,20 +2,13 @@
   <div
     ref="container"
     class="mm-transition relative h-full rounded-mm-card select-none hover:-translate-y-0.5 hover:bg-mm-fg/6 hover:shadow-mm-2"
+    @mouseenter="folderIcon?.enter()"
+    @mouseleave="folderIcon?.leave()"
   >
     <div data-card-main class="flex size-full flex-col">
       <div data-card-preview class="flex-1 overflow-hidden">
-        <div v-if="model.isFolder" class="size-full">
-          <svg class="icon" viewBox="0 0 1024 1024" version="1.1" height="100%">
-            <path
-              d="M853.333333 256H469.333333l-85.333333-85.333333H170.666667c-46.933333 0-85.333333 38.4-85.333334 85.333333v170.666667h853.333334v-85.333334c0-46.933333-38.4-85.333333-85.333334-85.333333z"
-              fill="#FFA000"
-            ></path>
-            <path
-              d="M853.333333 256H170.666667c-46.933333 0-85.333333 38.4-85.333334 85.333333v426.666667c0 46.933333 38.4 85.333333 85.333334 85.333333h682.666666c46.933333 0 85.333333-38.4 85.333334-85.333333V341.333333c0-46.933333-38.4-85.333333-85.333334-85.333333z"
-              fill="#FFCA28"
-            ></path>
-          </svg>
+        <div v-if="model.isFolder" class="size-full p-1">
+          <FolderIcon ref="folderIcon" />
         </div>
         <div v-else-if="isVideoUrl(preview)" class="size-full p-1 hover:p-0">
           <PreviewVideo :src="preview" />
@@ -71,6 +64,7 @@
 <script setup lang="ts">
 import { useElementSize } from '@vueuse/core'
 import { computed, ref } from 'vue'
+import FolderIcon from 'components/FolderIcon.vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
 import { useModelNodeAction } from 'hooks/model'
 import { type BaseModel } from 'types/typings'
@@ -88,6 +82,7 @@ const preview = computed(() =>
 )
 
 const container = ref<HTMLElement | null>(null)
+const folderIcon = ref<InstanceType<typeof FolderIcon> | null>(null)
 
 const { width } = useElementSize(container)
 

@@ -13,7 +13,8 @@
  * Exit code 0 = every assertion passed and no console/page errors.
  */
 import { spawn } from 'node:child_process'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync } from 'node:fs'
+import { kill } from 'node:process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
@@ -22,6 +23,25 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PORT = 8700 + (process.pid % 200)
 const SHOTS = path.join(ROOT, 'harness', 'shots')
 mkdirSync(SHOTS, { recursive: true })
+
+// A crashed harness run can leave its server bound to the port, which makes
+// the next run talk to a stale backend (and chase ghosts). Sweep first.
+for (const pid of readdirSync('/proc')) {
+  if (!/^\d+$/.test(pid) || Number(pid) === process.pid) continue
+  let cmd = ''
+  try {
+    cmd = readFileSync(`/proc/${pid}/cmdline`, 'utf8')
+  } catch {
+    continue
+  }
+  if (cmd.includes('harness/serve.py')) {
+    try {
+      kill(Number(pid), 'SIGKILL')
+    } catch {
+      /* already gone */
+    }
+  }
+}
 
 const failures = []
 const passes = []
@@ -111,6 +131,41 @@ try {
     'E02 manager dialog opens',
     (await manager.textContent())?.includes('Model Manager Neo') ?? false,
   )
+
+  // E15 — glass folder artwork: idle icon, opening animation on hover,
+  // closing animation on unhover, back to idle afterwards
+  const folderCard = page.locator('[data-card-main]').first()
+  const folderImg = folderCard.locator('img').first()
+  const idleSrc = await folderImg.getAttribute('src')
+  check(
+    'E15 folder card renders the glass svg icon',
+    (idleSrc ?? '').startsWith('data:image/svg+xml'),
+  )
+  await folderCard.hover()
+  await page.waitForTimeout(150)
+  const hoverSrc = await folderImg.getAttribute('src')
+  check(
+    'E15b hover swaps to the opening animation',
+    hoverSrc !== idleSrc && (hoverSrc ?? '').startsWith('data:image/svg+xml'),
+  )
+  await page.mouse.move(10, 10)
+  await page.waitForTimeout(150)
+  const leaveSrc = await folderImg.getAttribute('src')
+  check(
+    'E15c unhover swaps to the closing animation',
+    leaveSrc !== hoverSrc && leaveSrc !== idleSrc,
+  )
+  await page.waitForTimeout(1900)
+  const backSrc = await folderCard.locator('img').first().getAttribute('src')
+  check('E15d settles back to the idle icon', backSrc === idleSrc)
+
+  // E16 — the all-fit glyph decorates the breadcrumb trail at tiny size
+  await folderCard.dblclick()
+  await page.waitForTimeout(600)
+  const crumbs = page.locator('[role="dialog"] .text-sm img')
+  check('E16 breadcrumb carries tiny folder glyphs', (await crumbs.count()) >= 2)
+  await page.locator('[role="dialog"]').first().locator('button:has(img)').first().click()
+  await page.waitForTimeout(400)
 
   // The manager opens in folder layout by default; the screenshots and the
   // grid audit target the FLAT view, so toggle exactly like a user would.
@@ -368,12 +423,37 @@ try {
   await hf2.waitFor()
   await hf2.locator('button:has-text("diffusion_models")').first().click()
   await page.waitForTimeout(400)
-  await hf2.locator('.preview-aspect').first().click()
+  // deterministically pick the 2 MiB model: a tiny file would finish before
+  // the first poll and make the progress assertions flaky
+  await hf2.getByText('anima-aesthetic-v1', { exact: true }).click()
   await page.waitForTimeout(400)
   await hf2.locator('input').first().fill('rikunarita/e2e-repo')
   await hf2.getByRole('button', { name: 'Upload', exact: true }).click()
-  await hf2.locator('.mm-indeterminate').waitFor({ timeout: 5000 })
+  await hf2.locator('[role="progressbar"]').waitFor({ timeout: 5000 })
   check('E14 progress bar visible during upload', true)
+  // accurate (intermediate) percentages must reach the UI, not just 0 -> 100:
+  // record the FIRST non-zero read-out and require it to be a real fraction
+  await page.evaluate(() => {
+    window.__firstPct = undefined
+  })
+  await page.waitForFunction(
+    () => {
+      const el = [...document.querySelectorAll('span.tabular-nums')].pop()
+      if (!el) return false
+      const v = Number.parseInt(el.textContent ?? '0', 10)
+      if (v > 0 && window.__firstPct === undefined) window.__firstPct = v
+      return window.__firstPct !== undefined && window.__firstPct < 100
+    },
+    null,
+    { timeout: 20000, polling: 100 },
+  )
+  const firstPct = await page.evaluate(() => window.__firstPct)
+  check(
+    'E14d accurate intermediate progress in the UI',
+    firstPct > 0 && firstPct < 100,
+    String(firstPct),
+  )
+
   await hf2.locator('button[title="Close"]').click()
   await page.waitForFunction(
     async () => {

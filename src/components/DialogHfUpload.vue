@@ -105,11 +105,20 @@
               until a real percentage arrives; `Progress` already supports the
               mode. The state lives in `hooks/hfUpload`, so the bar keeps
               showing (and re-appears on re-open) while the transfer runs.
+              The transfer itself now streams accurate percentages through a
+              progress-reporting file wrapper (py/upload_hf.py), shown both in
+              the bar and in the read-out next to it.
             -->
-            <Progress
-              :model-value="hfUpload.progress"
-              :mode="hfUpload.progress > 0 ? 'determinate' : 'indeterminate'"
-            />
+            <div class="flex items-center gap-2">
+              <Progress
+                class="flex-1"
+                :model-value="hfUpload.progress"
+                :mode="hfUpload.progress > 0 ? 'determinate' : 'indeterminate'"
+              />
+              <span class="w-10 text-right text-xs text-mm-muted-fg tabular-nums">
+                {{ hfUpload.progress }}%
+              </span>
+            </div>
           </div>
           <div class="flex justify-between pt-6">
             <Button variant="secondary" @click="handleBackModelSelect">
