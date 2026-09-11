@@ -1,0 +1,195 @@
+<svg
+  id="root"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  viewBox="0 0 1024 768"
+  width="1024"
+  height="768"
+  fill="none"
+>
+  <title>Folder closing — SMIL morph open to closed (click to replay)</title>
+
+  <defs>
+    <linearGradient id="an-body" x1="251" y1="203" x2="631" y2="631" gradientUnits="userSpaceOnUse">
+      <stop offset="0"    stop-color="#FFDE5A"/>
+      <stop offset="0.22" stop-color="#FFC134"/>
+      <stop offset="0.48" stop-color="#FF8A24"/>
+      <stop offset="0.74" stop-color="#FB5A1D"/>
+      <stop offset="1"    stop-color="#EF3B26"/>
+    </linearGradient>
+
+    <linearGradient id="an-toplight" x1="0" y1="205" x2="0" y2="435" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFEF8E" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FFEF8E" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="an-botshade" x1="0" y1="458" x2="0" y2="628" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C93014" stop-opacity="0"/>
+      <stop offset="1" stop-color="#C93014" stop-opacity="0.42"/>
+      
+      <animate attributeName="y1" values="458;458;440" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="y2" values="628;628;606" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+    </linearGradient>
+
+    <linearGradient id="an-glassTint" x1="275" y1="312" x2="866" y2="632" gradientUnits="userSpaceOnUse">
+      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.20"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.09"/>
+      <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0.03"/>
+      
+      <animate attributeName="x1" values="275;275;204" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="y1" values="312;312;296" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="x2" values="866;866;750" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="y2" values="632;632;606" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+    </linearGradient>
+
+    <linearGradient id="an-glassEdge" x1="275" y1="632" x2="866" y2="312" gradientUnits="userSpaceOnUse">
+      <stop offset="0"    stop-color="#FF8E84"/>
+      <stop offset="0.32" stop-color="#FFC9BE"/>
+      <stop offset="0.60" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="1"    stop-color="#FFD9C4"/>
+      
+      <animate attributeName="x1" values="275;275;204" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="y1" values="632;632;606" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="x2" values="866;866;750" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="y2" values="312;312;296" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+    </linearGradient>
+
+    <linearGradient id="an-gloss" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#FFFFFF" stop-opacity="0.90"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.35"/>
+      <stop offset="1"   stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="an-neonRim" x1="275" y1="632" x2="866" y2="312" gradientUnits="userSpaceOnUse">
+      <stop offset="0"   stop-color="#A5F3FF"/>
+      <stop offset="0.5" stop-color="#5FDCFF"/>
+      <stop offset="1"   stop-color="#2CC4FF"/>
+      
+      <animate attributeName="x1" values="275;275;204" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="y1" values="632;632;606" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="x2" values="866;866;750" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="y2" values="312;312;296" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+    </linearGradient>
+
+    <linearGradient id="an-paneShadow" x1="0" y1="296" x2="0" y2="386" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7A1600" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#7A1600" stop-opacity="0"/>
+    </linearGradient>
+
+    <filter id="an-blurL" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+    <filter id="an-blurM" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <filter id="an-blurS" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+    <filter id="an-frost" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10"/>
+      <feComponentTransfer>
+        <feFuncR type="linear" slope="1.05" intercept="0.02"/>
+        <feFuncG type="linear" slope="1.05" intercept="0.02"/>
+        <feFuncB type="linear" slope="1.05" intercept="0.02"/>
+      </feComponentTransfer>
+    </filter>
+    <filter id="an-noise" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.05 0.05 0.05 0 0" result="w"/>
+      <feComposite in="w" in2="SourceGraphic" operator="in"/>
+    </filter>
+
+    <path id="an-bodyPath" d="M180 268 C180 238 204 214 234 214 H366 C384 214 401 221 414 234 L448 268 C454 274 462 277 470 277 H730 C762 277 788 303 788 335 V570 C788 602 762 628 730 628 H238 C206 628 180 602 180 570 Z">
+      <animate attributeName="d" values="M180 268 C180 238 204 214 234 214 H366 C384 214 401 221 414 234 L448 268 C454 274 462 277 470 277 H730 C762 277 788 303 788 335 V570 C788 602 762 628 730 628 H238 C206 628 180 602 180 570 Z;M180 268 C180 238 204 214 234 214 H366 C384 214 401 221 414 234 L448 268 C454 274 462 277 470 277 H730 C762 277 788 303 788 335 V570 C788 602 762 628 730 628 H238 C206 628 180 602 180 570 Z;M204 254 C204 224 228 200 258 200 H384 C402 200 419 207 432 220 L466 254 C472 260 480 263 488 263 H692 C724 263 750 289 750 321 V548 C750 580 724 606 692 606 H262 C230 606 204 580 204 548 Z" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+    <path id="an-glassPath" d="M396 312 H824 C852 312 868 332 861 358 L798 584 C791 611 768 632 740 632 H312 C284 632 268 612 275 586 L338 358 C345 332 368 312 396 312 Z">
+      <animate attributeName="d" values="M396 312 H824 C852 312 868 332 861 358 L798 584 C791 611 768 632 740 632 H312 C284 632 268 612 275 586 L338 358 C345 332 368 312 396 312 Z;M396 312 H824 C852 312 868 332 861 358 L798 584 C791 611 768 632 740 632 H312 C284 632 268 612 275 586 L338 358 C345 332 368 312 396 312 Z;M250 296 H704 C729.4 296 750 316.6 750 342 L750 560 C750 585.4 729.4 606 704 606 H250 C224.6 606 204 585.4 204 560 L204 342 C204 316.6 224.6 296 250 296 Z" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+    <path id="an-glassInner" d="M394 323 H816 C838 323 851 339 845 360 L786 578 C780 600 762 616 740 616 H318 C296 616 283 600 289 579 L348 361 C354 339 372 323 394 323 Z">
+      <animate attributeName="d" values="M394 323 H816 C838 323 851 339 845 360 L786 578 C780 600 762 616 740 616 H318 C296 616 283 600 289 579 L348 361 C354 339 372 323 394 323 Z;M394 323 H816 C838 323 851 339 845 360 L786 578 C780 600 762 616 740 616 H318 C296 616 283 600 289 579 L348 361 C354 339 372 323 394 323 Z;M251 307 H703 C722.9 307 739 323.1 739 343 L739 559 C739 578.9 722.9 595 703 595 H251 C231.1 595 215 578.9 215 559 L215 343 C215 323.1 231.1 307 251 307 Z" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+
+    <clipPath id="an-bodyClip"><use xlink:href="#an-bodyPath" href="#an-bodyPath"/></clipPath>
+    <clipPath id="an-glassClip"><use xlink:href="#an-glassPath" href="#an-glassPath"/></clipPath>
+
+    <g id="an-art">
+      <use xlink:href="#an-bodyPath" href="#an-bodyPath" fill="url(#an-body)"/>
+      <g clip-path="url(#an-bodyClip)">
+        <rect x="180" y="200" width="608" height="240" fill="url(#an-toplight)"/>
+        <rect x="180" y="458" width="608" height="174" fill="url(#an-botshade)">
+          
+      <animate attributeName="x" values="180;180;204" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="y" values="458;458;440" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="width" values="608;608;546" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="height" values="174;174;166" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+        </rect>
+      </g>
+      <path d="M240 236 H366 C380 236 392 241 402 251 L436 285 C442 291 450 294 458 294 H716" stroke="#FFF6B0" stroke-width="12" stroke-linecap="round" opacity="0.70">
+      <animate attributeName="d" values="M240 236 H366 C380 236 392 241 402 251 L436 285 C442 291 450 294 458 294 H716;M240 236 H366 C380 236 392 241 402 251 L436 285 C442 291 450 294 458 294 H716;M262 228 H384 C398 228 410 233 420 243 L452 275 C458 281 466 284 474 284 H676" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+      <path d="M246 231 H366 C378 231 388 235 397 244 L424 271" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" opacity="0.85">
+      <animate attributeName="d" values="M246 231 H366 C378 231 388 235 397 244 L424 271;M246 231 H366 C378 231 388 235 397 244 L424 271;M268 223 H384 C396 223 406 227 415 236 L440 261" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+      <path d="M700 281 C736 283 764 305 772 336" stroke="#FFE9A8" stroke-width="4" stroke-linecap="round" opacity="0.50">
+      <animate attributeName="d" values="M700 281 C736 283 764 305 772 336;M700 281 C736 283 764 305 772 336;M660 267 C700 269 730 292 740 324" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+      <path d="M782 340 V566" stroke="#FFCF9A" stroke-width="3" stroke-linecap="round" opacity="0.35">
+      <animate attributeName="d" values="M782 340 V566;M782 340 V566;M744 330 V540" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+    </g>
+  </defs>
+
+  <!-- ground shadows -->
+  <ellipse cx="506" cy="632" rx="295" ry="45" fill="#B3300F" opacity="0.20" filter="url(#an-blurL)"/>
+  <ellipse cx="500" cy="622" rx="237" ry="25" fill="#8E2408" opacity="0.22" filter="url(#an-blurM)"/>
+
+  <!-- faint neon-blue halo -->
+  <use xlink:href="#an-bodyPath" href="#an-bodyPath" stroke="#1FB0FF" stroke-width="10" opacity="0.08" filter="url(#an-blurL)"/>
+  <use xlink:href="#an-glassPath" href="#an-glassPath" stroke="#1FB0FF" stroke-width="12" opacity="0.10" filter="url(#an-blurL)"/>
+
+  <!-- folder back panel -->
+  <use xlink:href="#an-art" href="#an-art"/>
+
+  <!-- shadow cast by the glass pane -->
+  <use xlink:href="#an-glassPath" href="#an-glassPath" transform="translate(-7 11)"
+    fill="#A82A0C" opacity="0.29" filter="url(#an-blurM)"/>
+
+  <!-- glass pane -->
+  <g clip-path="url(#an-glassClip)">
+    <use xlink:href="#an-art" href="#an-art" filter="url(#an-frost)"/>
+    <rect x="260" y="312" width="620" height="74" fill="url(#an-paneShadow)">
+      
+      <animate attributeName="x" values="260;260;204" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="y" values="312;312;296" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="width" values="620;620;546" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+    </rect>
+    <use xlink:href="#an-glassPath" href="#an-glassPath" fill="url(#an-glassTint)"/>
+    <rect x="260" y="300" width="620" height="345" filter="url(#an-noise)" opacity="0.55">
+      
+      <animate attributeName="x" values="260;260;194" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="y" values="300;300;286" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="width" values="620;620;566" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="height" values="345;345;330" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+    </rect>
+    <path d="M486 323 L402 616 H436 L520 323 Z" fill="url(#an-gloss)" opacity="0.14">
+      <animate attributeName="d" values="M486 323 L402 616 H436 L520 323 Z;M486 323 L402 616 H436 L520 323 Z;M352 296 L298 606 H332 L386 296 Z" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+    <path d="M540 323 L456 616 H472 L556 323 Z" fill="url(#an-gloss)" opacity="0.09">
+      <animate attributeName="d" values="M540 323 L456 616 H472 L556 323 Z;M540 323 L456 616 H472 L556 323 Z;M404 296 L350 606 H366 L420 296 Z" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+    <use xlink:href="#an-glassInner" href="#an-glassInner" stroke="#FFFFFF" stroke-width="2" opacity="0.22"/>
+  </g>
+
+  <!-- neon edge glow + warm edge + crisp neon rim -->
+  <use xlink:href="#an-glassPath" href="#an-glassPath" stroke="#38C8FF" stroke-width="8" opacity="0.22" filter="url(#an-blurS)"/>
+  <use xlink:href="#an-glassPath" href="#an-glassPath" stroke="url(#an-glassEdge)" stroke-width="5" stroke-linejoin="round"/>
+  <use xlink:href="#an-glassPath" href="#an-glassPath" stroke="url(#an-neonRim)" stroke-width="1.6" opacity="0.35" stroke-linejoin="round"/>
+
+  <!-- pane highlights -->
+  <path d="M346 352 C352 330 372 316 396 316 H806" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" opacity="0.70">
+      <animate attributeName="d" values="M346 352 C352 330 372 316 396 316 H806;M346 352 C352 330 372 316 396 316 H806;M216 340 C216 316 236 300 260 300 H700" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+  <path d="M316 626 H736" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" opacity="0.35">
+      <animate attributeName="d" values="M316 626 H736;M316 626 H736;M254 600 H700" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/></path>
+  <circle cx="852" cy="344" r="7" fill="#FFFFFF" opacity="0.70">
+    
+      <animate attributeName="cx" values="852;852;726" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="cy" values="344;344;318" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+  </circle>
+  <circle cx="296" cy="598" r="5" fill="#FFFFFF" opacity="0.45">
+    
+      <animate attributeName="cx" values="296;296;230" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+      <animate attributeName="cy" values="598;598;584" keyTimes="0;0.375;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1" dur="1.2s" fill="freeze" begin="0.2s;root.click"/>
+  </circle>
+</svg>
