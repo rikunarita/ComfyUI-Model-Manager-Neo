@@ -149,16 +149,24 @@ class ModelManager:
             model_preview = None
             if is_file:
                 preview_name = utils.get_model_preview_name(entry.path)
-                preview_ext = f".{preview_name.split('.')[-1]}"
-                # BUG FIX: str.replace() swapped EVERY occurrence of the
-                # extension inside the relative path (directory names like
-                # "my.ckpt/" were rewritten too). Only the trailing file
-                # extension must be exchanged for the preview extension.
-                if extension and relative_path.endswith(extension):
-                    preview_relative = relative_path[: -len(extension)] + preview_ext
+                if preview_name == "no-preview.png":
+                    # No preview on disk: point straight at the default
+                    # NO-PREVIEW.svg artwork instead of a URL that only
+                    # worked through the old server-side fallback.
+                    model_preview = utils.NO_PREVIEW_URL
                 else:
-                    preview_relative = relative_path + preview_ext
-                model_preview = f"/model-manager/preview/{folder}/{path_index}/{preview_relative}"
+                    preview_ext = f".{preview_name.split('.')[-1]}"
+                    # BUG FIX: str.replace() swapped EVERY occurrence of the
+                    # extension inside the relative path (directory names like
+                    # "my.ckpt/" were rewritten too). Only the trailing file
+                    # extension must be exchanged for the preview extension.
+                    if extension and relative_path.endswith(extension):
+                        preview_relative = relative_path[: -len(extension)] + preview_ext
+                    else:
+                        preview_relative = relative_path + preview_ext
+                    model_preview = (
+                        f"/model-manager/preview/{folder}/{path_index}/{preview_relative}"
+                    )
 
             if not os.path.exists(entry.path):
                 utils.print_error(f"{entry.path} is not file or directory.")

@@ -188,6 +188,14 @@ async def main() -> None:
             for m in models["data"]
         )
         check("P02b preview url resolved", preview_ok)
+        no_prev = next(
+            (m for m in models["data"] if m["basename"] == "nested_model"), None
+        )
+        check(
+            "P02c models without preview point at the default svg",
+            no_prev is not None and no_prev["preview"] == "/model-manager/no-preview.svg",
+            str(no_prev and no_prev["preview"]),
+        )
 
         serverInstance.user_manager.settings._data["ModelManager.Scan.IncludeHiddenFiles"] = True
         _, models2 = await get("/model-manager/models/checkpoints")
@@ -245,15 +253,14 @@ async def main() -> None:
         status, body = await get("/model-manager/preview/checkpoints/0/renamed_model.safetensors")
         check("P16 preview served as webp", status == 200 and body[:4] == b"RIFF")
         status, body = await get("/model-manager/preview/checkpoints/0/does_not_exist.safetensors")
+        check("P16b missing preview is a plain 404 (no fallback)", status == 404)
+        status, body = await get("/model-manager/no-preview.svg")
         check(
-            "P16b missing preview falls back to the glass NO-PREVIEW.svg",
+            "P16c default no-preview artwork served verbatim",
             status == 200 and b"<svg" in body[:400],
         )
         status, body = await get("/model-manager/preview/download/no-preview.png")
-        check(
-            "P16c download preview fallback is the svg artwork",
-            status == 200 and b"<svg" in body[:400],
-        )
+        check("P16d download preview without file is 404", status == 404)
 
         # ---------------- traversal guards ----------------------------------
         _, trav = await get("/model-manager/model/checkpoints/0/..%2F..%2F..%2Fetc%2Fpasswd")

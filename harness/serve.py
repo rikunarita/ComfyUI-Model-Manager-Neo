@@ -101,6 +101,16 @@ class _FakeHfApi:
         return None
 
     def upload_file(self, *, path_or_fileobj, path_in_repo, repo_id, repo_type=None, token=None):
+        # Same validation as the real CommitOperationAdd, so a wrapper that
+        # huggingface_hub would reject fails the harness too.
+        import io as _io
+
+        if not isinstance(path_or_fileobj, (str, bytes, _io.BufferedIOBase)):
+            raise ValueError(
+                "path_or_fileobj must be either an instance of str, bytes or "
+                "io.BufferedIOBase. If you passed a file-like object, make "
+                "sure it is in binary mode."
+            )
         # Consume the payload like a real transfer would, so progress-reporting
         # wrappers get exercised end to end.
         FAKE_HF["payload_type"] = type(path_or_fileobj).__name__

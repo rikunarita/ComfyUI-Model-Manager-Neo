@@ -18,6 +18,10 @@ from . import config
 VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.m4v', '.ogv']
 IMAGE_EXTENSIONS = ['.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp']
 
+# The default preview artwork: models without a preview point straight at
+# this URL (there is no fallback chain any more - see py/information.py).
+NO_PREVIEW_URL = "/model-manager/no-preview.svg"
+
 # Preview extensions in priority order (videos first, then images)
 PREVIEW_EXTENSIONS = ['.webm', '.mp4', '.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp']
 

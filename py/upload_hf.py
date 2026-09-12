@@ -1,4 +1,5 @@
 import asyncio
+import io
 import os
 import time
 import uuid
@@ -24,22 +25,39 @@ from . import utils
 HF_UPLOAD_TASKS: dict[str, dict] = {}
 
 
-class _ProgressFile:
+class _ProgressFile(io.BufferedIOBase):
     """Binary file wrapper reporting the bytes read by the consumer.
 
     Phase 1 (local hashing) is silenced: progress events only start after the
     consumer rewound the stream (the beginning of the real transfer), so the
     percentage shown in the UI is the transfer percentage, not the hash pass.
+
+    BUG FIX: the wrapper must subclass `io.BufferedIOBase`. huggingface_hub
+    validates `path_or_fileobj` with
+    `isinstance(..., (str, bytes, io.BufferedIOBase))` and rejects any other
+    file-like with "path_or_fileobj must be either an instance of str, bytes
+    or io.BufferedIOBase" - a plain duck-typed object never reached the
+    transfer at all (the upload died with a ValueError before any HTTP call).
     """
 
     def __init__(self, path: str, on_progress) -> None:
+        super().__init__()
         self._file = open(path, "rb")
         self._size = os.path.getsize(path)
         self._on_progress = on_progress
         self._phase = 1
         self._saw_eof = False
 
-    # -- file-like surface used by huggingface_hub -------------------------
+    # -- io.BufferedIOBase surface used by huggingface_hub ------------------
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
+
+    def writable(self) -> bool:
+        return False
+
     def read(self, size: int = -1) -> bytes:
         position = self._file.tell()
         if self._saw_eof and position == 0 and self._phase == 1:
@@ -62,12 +80,7 @@ class _ProgressFile:
 
     def close(self) -> None:
         self._file.close()
-
-    def __enter__(self) -> "_ProgressFile":
-        return self
-
-    def __exit__(self, *exc) -> None:
-        self.close()
+        super().close()
 
 
 class HfUploader:

@@ -2,6 +2,13 @@
  * Media file utility functions
  */
 
+/**
+ * The default preview artwork (glass NO-PREVIEW.svg). Models and download
+ * tasks without a preview reference this URL directly - it is a default,
+ * not a fallback: the preview routes no longer substitute anything.
+ */
+export const NO_PREVIEW_URL = '/model-manager/no-preview.svg'
+
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.m4v', '.ogv']
 
 const VIDEO_HOST_PATTERNS = [

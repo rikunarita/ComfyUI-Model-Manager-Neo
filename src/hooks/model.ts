@@ -23,6 +23,7 @@ import { useToast } from 'hooks/toast'
 import { api, app } from 'scripts/comfyAPI'
 import { type BaseModel, type Model, type SelectEvent, type WithResolved } from 'types/typings'
 import { bytesToSize, formatDate, previewUrlToFile } from 'utils/common'
+import { NO_PREVIEW_URL } from 'utils/media'
 import { genModelKey, resolveModelTypeLoader } from 'utils/model'
 import { dragAddModel } from 'utils/modelGrid'
 import { configSetting } from './config'
@@ -593,10 +594,9 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
   /**
    * No preview
    */
-  const noPreviewContent = computed(() => {
-    const folder = model.value.type || 'unknown'
-    return `/model-manager/preview/${folder}/0/no-preview.png`
-  })
+  /** Default artwork shown for models without a preview (and as the
+   * ResponseImage error image). */
+  const noPreviewContent = computed(() => NO_PREVIEW_URL)
 
   const preview = computed(() => {
     let content: string | undefined

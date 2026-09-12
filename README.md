@@ -48,7 +48,7 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 - [What changed from the original](#what-changed) · [Removed feature: batch scan](#removed-feature)
 - [First reliability pass](#pass-1) · [Second reliability pass](#pass-2) ·
   [Third reliability pass](#pass-3) · [Fourth reliability pass](#pass-4) ·
-  [Fifth reliability pass](#pass-5)
+  [Fifth reliability pass](#pass-5) · [Sixth reliability pass](#pass-6)
 - [Development](#development) · [Credits & Attribution](#credits) · [License](#license)
 
 ---
@@ -163,7 +163,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 <details open>
 <summary><b>Browse &amp; organise</b></summary>
 
-- Two layouts: **Flat** grid and **Folder** explorer, switchable at any time.
+- Two layouts: **Flat** grid (the default view) and **Folder** explorer,
+  switchable at any time.
 - Real‑time search (supports `*` wildcards and multi‑token “AND” matching).
 - Sort by name, size, date created or date modified.
 - Adjustable card size (presets + fully custom dimensions).
@@ -276,19 +277,22 @@ The manager header was redesigned into explicit, icon‑driven actions:
 The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
 
 - **Folder cards** show `Folder-Icons/close-folder_beside-fit.svg` at rest.
-  Hovering a card plays `folder-opening-animation.svg` (SMIL morph: 0.2 s
-  delay + 1.35 s), unhovering plays `folder-closing-animation.svg`, and the
-  card then settles back onto the static icon. The SVGs are inlined into the
-  bundle (`?raw` + data URI), so every card owns its SVG document: no extra
-  requests, and the gradient ids inside the artwork can never collide
-  between the many cards on screen.
+  Resting the pointer on a card for **at least one second** plays
+  `folder-opening-animation.svg` (SMIL morph: 0.2 s delay + 1.35 s); staying
+  away for a full second plays `folder-closing-animation.svg`, after which
+  the card settles back onto the static icon. Casual pass‑overs never make
+  the folder flap. The SVGs are inlined into the bundle (`?raw` + data URI),
+  so every card owns its SVG document: no extra requests, and the gradient
+  ids inside the artwork can never collide between the many cards on screen.
 - **Breadcrumb trails** prefix every segment with the tiny
   `close-folder_all-fit.svg` glyph (14 px) — the variant that reads best at
   small sizes.
-- **Models without a preview** fall back to the glass
-  `NOPREVIEW-Icon/NO-PREVIEW.svg` artwork, served verbatim as
-  `image/svg+xml` (vector art is never rasterised), replacing the old flat
-  `no-preview.png` raster.
+- **Models without a preview** use the glass `NOPREVIEW-Icon/NO-PREVIEW.svg`
+  as their **default** artwork: the model list points straight at
+  `GET /model-manager/no-preview.svg` (served verbatim as `image/svg+xml`,
+  vector art is never rasterised). The preview routes themselves carry **no
+  fallback chain any more** — they serve real preview files or answer 404 —
+  and the old flat `no-preview.png` raster is gone.
 
 ### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="22" height="22" align="middle" alt=""> Toolchain
 
@@ -745,6 +749,36 @@ scenarios: `E13` (direct-link task creation end-to-end) and `E14` (HF upload
 progress survives closing the dialog and completes). Current totals:
 `pnpm verify:py` 37 assertions, `pnpm verify:e2e` 26 assertions, plus
 `typecheck` / `lint` / `format:check` / clean `build`.
+
+<a id="pass-6"></a>
+
+## <img src="https://api.iconify.design/lucide/rocket.svg?color=%2322c55e" width="28" height="28" align="middle" alt=""> Sixth reliability pass (HF upload acceptance, preview defaults, view & hover defaults)
+
+- **HuggingFace upload accepted again**: `huggingface_hub` validates
+  `path_or_fileobj` with `isinstance(..., (str, bytes, io.BufferedIOBase))`,
+  so the progress‑reporting wrapper introduced in the fifth pass was
+  rejected with `ValueError: path_or_fileobj must be either an instance of
+str, bytes or io.BufferedIOBase` before any transfer started. `_ProgressFile`
+  now subclasses `io.BufferedIOBase` (verified against the real library's
+  `CommitOperationAdd`), and the harness fake enforces the very same
+  validation so this class of regression fails `pnpm verify:e2e` instead of
+  production.
+- **`NO-PREVIEW.svg` is the default, not a fallback**: preview‑less models
+  carry the dedicated `GET /model-manager/no-preview.svg` URL in the model
+  list (and download tasks map their `no-preview` sentinel to it). The
+  preview routes lost their substitute‑artwork fallbacks and the
+  `except: abs_path = extension_uri` catch‑all; unknown previews are a plain
+  404 now.
+- **The flat grid is the initial view** (`ModelManager.UI.Flat` defaults to
+  `true`; a persisted user setting still wins).
+- **Folder hover animations are gated**: the opening morph starts after the
+  pointer rested on a folder for ≥ 1 s, the closing morph after it stayed
+  away for ≥ 1 s.
+
+Harness totals after this pass: `pnpm verify:py` 40 assertions,
+`pnpm verify:e2e` 36 assertions (including the 1 s hover gates, the default
+flat view, the default no‑preview artwork and the BufferedIOBase acceptance),
+plus `typecheck` / `lint` / `format:check` / clean `build`.
 
 <a id="development"></a>
 

@@ -35,7 +35,9 @@ export const useConfig = defineStore('config', store => {
     window.removeEventListener('resize', checkDeviceType)
   })
 
-  const flatLayout = ref(false)
+  // The flat grid is the initial view; the folder explorer is one click away
+  // (header toggle or the persisted `ModelManager.UI.Flat` setting).
+  const flatLayout = ref(true)
 
   const defaultCardSizeMap = readonly({
     'size.extraLarge': '240x320',
@@ -276,7 +278,7 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       category: [t('modelManager'), t('setting.ui'), 'Flat'],
       name: t('setting.useFlatUI'),
       type: 'boolean',
-      defaultValue: false,
+      defaultValue: true,
       onChange(value: boolean) {
         store.dialog.closeAll()
         store.config.flat.value = value

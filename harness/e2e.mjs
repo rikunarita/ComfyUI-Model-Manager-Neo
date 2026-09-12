@@ -131,9 +131,19 @@ try {
     'E02 manager dialog opens',
     (await manager.textContent())?.includes('Model Manager Neo') ?? false,
   )
+  check(
+    'E02b flat view is the default',
+    (await manager.locator('input[placeholder="Search models"]').count()) === 1,
+  )
 
-  // E15 — glass folder artwork: idle icon, opening animation on hover,
-  // closing animation on unhover, back to idle afterwards
+  // The flat grid is the default view now; the folder artwork lives in the
+  // folder explorer, so switch over first.
+  await manager.locator('button[title="Switch to Folder View"]').click()
+  await page.waitForTimeout(600)
+
+  // E15 — glass folder artwork: idle icon, opening animation after a
+  // sustained (>= 1 s) hover, closing animation after a sustained unhover,
+  // back to idle afterwards
   const folderCard = page.locator('[data-card-main]').first()
   const folderImg = folderCard.locator('img').first()
   const idleSrc = await folderImg.getAttribute('src')
@@ -142,22 +152,28 @@ try {
     (idleSrc ?? '').startsWith('data:image/svg+xml'),
   )
   await folderCard.hover()
-  await page.waitForTimeout(150)
-  const hoverSrc = await folderImg.getAttribute('src')
+  await page.waitForTimeout(500)
+  const earlySrc = await folderCard.locator('img').first().getAttribute('src')
+  check('E15b no animation inside the 1s hover gate', earlySrc === idleSrc)
+  await page.waitForTimeout(900)
+  const hoverSrc = await folderCard.locator('img').first().getAttribute('src')
   check(
-    'E15b hover swaps to the opening animation',
+    'E15c sustained hover swaps to the opening animation',
     hoverSrc !== idleSrc && (hoverSrc ?? '').startsWith('data:image/svg+xml'),
   )
   await page.mouse.move(10, 10)
-  await page.waitForTimeout(150)
-  const leaveSrc = await folderImg.getAttribute('src')
+  await page.waitForTimeout(500)
+  const earlyLeaveSrc = await folderCard.locator('img').first().getAttribute('src')
+  check('E15d no closing inside the 1s unhover gate', earlyLeaveSrc === hoverSrc)
+  await page.waitForTimeout(900)
+  const leaveSrc = await folderCard.locator('img').first().getAttribute('src')
   check(
-    'E15c unhover swaps to the closing animation',
+    'E15e sustained unhover swaps to the closing animation',
     leaveSrc !== hoverSrc && leaveSrc !== idleSrc,
   )
   await page.waitForTimeout(1900)
   const backSrc = await folderCard.locator('img').first().getAttribute('src')
-  check('E15d settles back to the idle icon', backSrc === idleSrc)
+  check('E15f settles back to the idle icon', backSrc === idleSrc)
 
   // E16 — the all-fit glyph decorates the breadcrumb trail at tiny size
   await folderCard.dblclick()
@@ -167,8 +183,7 @@ try {
   await page.locator('[role="dialog"]').first().locator('button:has(img)').first().click()
   await page.waitForTimeout(400)
 
-  // The manager opens in folder layout by default; the screenshots and the
-  // grid audit target the FLAT view, so toggle exactly like a user would.
+  // Back to the flat view for the grid audit (also proves the toggle).
   await manager.locator('button[title="Switch to Flat View"]').click()
   await page.waitForSelector('[role="dialog"] input[placeholder="Search models"]', {
     timeout: 10000,
@@ -218,6 +233,11 @@ try {
   )
   const cards = await page.$$('[role="dialog"] [data-card-main]')
   check('E05 model cards rendered', cards.length >= 4, `got ${cards.length}`)
+  const noPrevImgs = await page.$$eval(
+    '[role="dialog"] img',
+    els => els.filter(el => (el.getAttribute('src') ?? '').includes('/no-preview.svg')).length,
+  )
+  check('E05b preview-less models use the default svg', noPrevImgs >= 1, String(noPrevImgs))
   const chip = await page.$eval(
     '[data-card-main] ~ div > div',
     el => getComputedStyle(el).backdropFilter,

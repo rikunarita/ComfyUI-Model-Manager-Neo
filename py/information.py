@@ -353,12 +353,29 @@ class Information:
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
+        @routes.get("/model-manager/no-preview.svg")
+        async def read_no_preview(request):
+            """
+            The default preview artwork (glass NO-PREVIEW.svg), served
+            verbatim. Models without a preview reference this URL directly
+            from the model list; it is a default, not a fallback.
+            """
+            return web.FileResponse(
+                utils.join_path(
+                    config.extension_uri, "assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"
+                ),
+                headers={"Content-Type": "image/svg+xml"},
+            )
+
         @routes.get("/model-manager/preview/{type}/{index}/{filename:.*}")
         async def read_model_preview(request):
             """
-            Get the file stream of the specified preview
-            If the file does not exist, the glass NO-PREVIEW.svg artwork is
-            returned.
+            Get the file stream of the specified preview.
+
+            Only real preview files are served: models without a preview
+            already carry the default `/model-manager/no-preview.svg` URL in
+            the model list, so this route has no fallback chain any more and
+            answers 404 for anything that does not exist.
 
             :param type: The type of the model. eg.checkpoints, loras, vae, etc.
             :param index: The index of the model folders.
@@ -368,33 +385,22 @@ class Information:
             index = int(request.match_info.get("index", None))
             filename = request.match_info.get("filename", None)
 
-            extension_uri = config.extension_uri
-
             try:
                 folders = folder_paths.get_folder_paths(model_type)
                 base_path = folders[index]
                 abs_path = utils.join_path(base_path, filename)
                 preview_name = utils.get_model_preview_name(abs_path)
-                if preview_name:
-                    dir_name = os.path.dirname(abs_path)
-                    abs_path = utils.join_path(dir_name, preview_name)
-            except:
-                abs_path = extension_uri
+                if preview_name == "no-preview.png":
+                    raise web.HTTPNotFound()
+                dir_name = os.path.dirname(abs_path)
+                abs_path = utils.join_path(dir_name, preview_name)
+            except web.HTTPNotFound:
+                raise
+            except Exception:
+                raise web.HTTPNotFound()
 
             if not os.path.isfile(abs_path):
-                # Glassmorphism fallback artwork (assets/no-preview.png was
-                # retired together with the upstream raster icon).
-                abs_path = utils.join_path(
-                    extension_uri, "assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"
-                )
-
-            # The no-preview artwork is vector: serve it verbatim. PIL can
-            # neither parse nor re-encode it, and rasterising would destroy
-            # the gradients.
-            if abs_path.lower().endswith(".svg"):
-                return web.FileResponse(
-                    abs_path, headers={"Content-Type": "image/svg+xml"}
-                )
+                raise web.HTTPNotFound()
 
             # Determine content type from the actual file
             content_type = utils.resolve_file_content_type(abs_path)
@@ -409,16 +415,15 @@ class Information:
 
         @routes.get("/model-manager/preview/download/{filename}")
         async def read_download_preview(request):
+            """Preview of a download task; 404 when the task has none (the
+            client then shows the default NO-PREVIEW.svg URL instead)."""
             filename = request.match_info.get("filename", None)
-            extension_uri = config.extension_uri
 
             download_path = utils.get_download_path()
             preview_path = utils.join_path(download_path, filename)
 
             if not os.path.isfile(preview_path):
-                preview_path = utils.join_path(
-                    extension_uri, "assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"
-                )
+                raise web.HTTPNotFound()
 
             return web.FileResponse(preview_path)
 

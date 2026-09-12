@@ -15,6 +15,7 @@ import {
   type VersionModelFile,
 } from 'types/typings'
 import { bytesToSize, getFilenameFromUrl, isDirectFileUrl } from 'utils/common'
+import { NO_PREVIEW_URL } from 'utils/media'
 
 export const useDownload = defineStore('download', store => {
   const { toast, confirm, wrapperToastError } = useToast()
@@ -29,7 +30,10 @@ export const useDownload = defineStore('download', store => {
       ...rest,
       downloadedSize,
       totalSize,
-      preview: `/model-manager/preview/download/${item.preview}`,
+      preview:
+        item.preview === 'no-preview.png'
+          ? NO_PREVIEW_URL
+          : `/model-manager/preview/download/${item.preview}`,
       downloadProgress: `${bytesToSize(downloadedSize)} / ${bytesToSize(totalSize)}`,
       downloadSpeed: `${bytesToSize(bps)}/s`,
       pauseTask() {
