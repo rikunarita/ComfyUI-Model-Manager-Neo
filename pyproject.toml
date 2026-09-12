@@ -5,7 +5,7 @@ version = "0.1.0"
 license = { file = "LICENSE" }
 dependencies = [
     "markdownify>=0.14.0",
-    "huggingface_hub>=0.34.0",
+    "huggingface_hub>=0.34.0,<1.31.0",
     "hf_xet>=1.1.0"
 ]
 

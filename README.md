@@ -806,6 +806,18 @@ plain successful upload, with no transfer progress to show either.
   warning toast, so a future regression to silent no‑ops fails
   `pnpm verify:e2e`.
 
+- **Dependency pin `huggingface_hub>=0.34.0,<1.31.0`** (resolves to 1.30.0):
+  the `hf` CLI distribution ("CLI extracted from the huggingface_hub library")
+  is version‑paired with the library (`hf` X requires
+  `huggingface_hub==X`), and the 1.31 line additionally changed upload
+  streaming internals (`SliceFileObj.__iter__`) relative to the field‑proven
+  1.30 line. Environments that keep the `hf` CLI beside this extension
+  therefore stay on the 1.30 line. The pin is **enforced at startup**:
+  `is_installed()` now evaluates version ranges, so an out‑of‑range
+  installation (e.g. 1.31.x) triggers a correcting `pip install` instead of
+  being accepted silently. Verified against the real 1.30.0 wheel
+  (`CommitOperationAdd` acceptance, `repo_info`, skip semantics).
+
 Harness totals after this pass: `pnpm verify:py` 40 assertions,
 `pnpm verify:e2e` 37 assertions, plus `typecheck` / `lint` / `format:check` /
 clean `build`.

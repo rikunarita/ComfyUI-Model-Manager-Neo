@@ -479,6 +479,47 @@ def _requirement_name(requirement: str) -> str:
     return name
 
 
+def _version_tuple(version: str):
+    import re as _re
+
+    parts = _re.findall(r"\d+", version.split("+")[0].split("-")[0])
+    return tuple(int(part) for part in parts[:4]) or (0,)
+
+
+def _spec_satisfied(installed: str, spec: str) -> bool:
+    spec = spec.strip()
+    if not spec:
+        return True
+    for op in (">=", "<=", "==", "!=", "~=", ">", "<"):
+        if spec.startswith(op):
+            inst = _version_tuple(installed)
+            target = _version_tuple(spec[len(op) :])
+            width = max(len(inst), len(target))
+            inst = inst + (0,) * (width - len(inst))
+            target = target + (0,) * (width - len(target))
+            return {
+                ">=": inst >= target,
+                "<=": inst <= target,
+                "==": inst == target,
+                "!=": inst != target,
+                "~=": inst >= target,
+                ">": inst > target,
+                "<": inst < target,
+            }[op]
+    return True
+
+
+def requirement_satisfied(requirement: str) -> bool:
+    # True when the installed distribution meets every version specifier.
+    name = _requirement_name(requirement)
+    try:
+        installed = importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return False
+    specs = requirement.strip()[len(name) :]
+    return all(_spec_satisfied(installed, spec) for spec in specs.split(","))
+
+
 def is_installed(package_name: str):
     # BUG FIX: requirements.txt entries carry version specifiers
     # ("hf_xet>=1.1.0"). Probing importlib with the full specifier never
@@ -499,7 +540,11 @@ def is_installed(package_name: str):
 
         return spec is not None
 
-    return True
+    # RANGE ENFORCEMENT: an installed but out-of-range distribution (e.g.
+    # huggingface_hub 1.31.x against the `>=0.34.0,<1.31.0` pin that keeps the
+    # version-paired `hf` CLI combination intact) must count as missing so
+    # pip_install() corrects it on startup instead of the pin being nominal.
+    return requirement_satisfied(package_name)
 
 def pip_install(package_name: str):
     subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)
