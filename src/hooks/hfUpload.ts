@@ -47,11 +47,23 @@ api.addEventListener('update_hf_upload_progress', (event: CustomEvent) => {
 
 api.addEventListener('hf_upload_complete', (event: CustomEvent) => {
   const detail = event.detail as
-    { taskId?: string; repoId?: string; pathInRepo?: string } | undefined
+    { taskId?: string; repoId?: string; pathInRepo?: string; skipped?: boolean } | undefined
   if (!matches(detail)) return
   hfUploadState.active = false
   hfUploadState.progress = 100
   hfUploadState.taskId = null
+  if (detail?.skipped) {
+    // huggingface_hub skips empty commits: the identical file already sits at
+    // the destination. Reporting that as a plain success is what made a
+    // re-upload look like a silently broken upload.
+    toast.add({
+      severity: 'warn',
+      summary: 'Skipped',
+      detail: `An identical file already exists at '${detail?.pathInRepo ?? hfUploadState.pathInRepo}' in '${detail?.repoId ?? hfUploadState.repoId}' - HuggingFace skipped the empty commit.`,
+      life: 10000,
+    })
+    return
+  }
   toast.add({
     severity: 'success',
     summary: 'Success',

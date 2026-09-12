@@ -48,7 +48,8 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 - [What changed from the original](#what-changed) · [Removed feature: batch scan](#removed-feature)
 - [First reliability pass](#pass-1) · [Second reliability pass](#pass-2) ·
   [Third reliability pass](#pass-3) · [Fourth reliability pass](#pass-4) ·
-  [Fifth reliability pass](#pass-5) · [Sixth reliability pass](#pass-6)
+  [Fifth reliability pass](#pass-5) · [Sixth reliability pass](#pass-6) ·
+  [Seventh reliability pass](#pass-7)
 - [Development](#development) · [Credits & Attribution](#credits) · [License](#license)
 
 ---
@@ -779,6 +780,35 @@ Harness totals after this pass: `pnpm verify:py` 40 assertions,
 `pnpm verify:e2e` 36 assertions (including the 1 s hover gates, the default
 flat view, the default no‑preview artwork and the BufferedIOBase acceptance),
 plus `typecheck` / `lint` / `format:check` / clean `build`.
+
+<a id="pass-7"></a>
+
+## <img src="https://api.iconify.design/lucide/git-commit-horizontal.svg?color=%23ef4444" width="28" height="28" align="middle" alt=""> Seventh reliability pass (honest HuggingFace completions)
+
+Re‑uploading a model whose identical content already sits at the destination
+looked like a broken upload: HuggingFace accepts the request, transfers
+nothing (`Upload 0 LFS files`), skips the empty commit
+(`No files have been modified since last commit`) and returns a `CommitInfo`
+built from the **existing** HEAD — which this extension used to report as a
+plain successful upload, with no transfer progress to show either.
+
+- `run_upload` now records the repository HEAD sha before the transfer and
+  compares it with the returned commit oid. Equal oids mean the Hub skipped
+  the commit, and the completion event carries `skipped: true`.
+- The UI raises an explicit warning toast — _"An identical file already
+  exists at '<path>' in '<repo>' — HuggingFace skipped the empty commit"_ —
+  instead of a silent success; real commits still toast success and new
+  content still streams accurate percentages through the `_ProgressFile`
+  wrapper (the documented trade‑off: binary‑IO payloads use the classic LFS
+  transfer, not Xet).
+- The harness fake reproduces the Hub's skip semantics (second upload of the
+  same `(repo, path)` returns the existing head sha), and `E14g` asserts the
+  warning toast, so a future regression to silent no‑ops fails
+  `pnpm verify:e2e`.
+
+Harness totals after this pass: `pnpm verify:py` 40 assertions,
+`pnpm verify:e2e` 37 assertions, plus `typecheck` / `lint` / `format:check` /
+clean `build`.
 
 <a id="development"></a>
 

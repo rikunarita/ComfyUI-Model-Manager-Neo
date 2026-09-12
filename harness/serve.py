@@ -83,7 +83,12 @@ async def remote_slow(request: web.Request) -> web.StreamResponse:
 import time as _time
 import types as _types
 
-FAKE_HF: dict = {"uploads": [], "delay": 4.0}
+FAKE_HF: dict = {
+    "uploads": [],
+    "delay": 4.0,
+    "head_sha": "head000000000000000000000000000000000000",
+    "uploads_seen": [],
+}
 
 
 class _FakeHfApi:
@@ -92,6 +97,11 @@ class _FakeHfApi:
 
     def whoami(self):
         return {"name": "probe-user", "fullname": "Probe User"}
+
+    def repo_info(self, repo_id, repo_type=None):
+        import types as _t
+
+        return _t.SimpleNamespace(sha=FAKE_HF["head_sha"])
 
     def repo_exists(self, repo_id):
         return False
@@ -133,8 +143,17 @@ class _FakeHfApi:
                 _time.sleep(0.01)
         else:
             _time.sleep(FAKE_HF["delay"])
-        FAKE_HF["uploads"].append((repo_id, path_in_repo))
-        return path_in_repo
+        import types as _t
+
+        key = [repo_id, path_in_repo]
+        if key in FAKE_HF["uploads_seen"]:
+            # Second upload of identical content: like the real Hub, skip the
+            # empty commit and hand back a CommitInfo carrying the EXISTING
+            # head sha.
+            return _t.SimpleNamespace(oid=FAKE_HF["head_sha"])
+        FAKE_HF["uploads_seen"].append(key)
+        FAKE_HF["uploads"].append(key)
+        return _t.SimpleNamespace(oid=f"new-{len(FAKE_HF['uploads'])}")
 
 
 _fake_hf_mod = _types.ModuleType("huggingface_hub")

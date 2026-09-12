@@ -243,6 +243,13 @@ class HfUploader:
                 loop,
             )
 
+        # HEAD sha before the transfer: huggingface_hub "succeeds" on an
+        # unchanged file (it skips the empty commit and returns a CommitInfo
+        # built from the EXISTING head), which used to be reported to the UI
+        # as a plain successful upload - a silent no-op that looked exactly
+        # like a broken upload. Comparing the oids makes the no-op visible.
+        head_before = {"sha": None}
+
         def do_upload():
             api = HfApi(token=token, library_name="ComfyUI-Model-Manager-Neo")
 
@@ -250,6 +257,12 @@ class HfUploader:
             # The private flag only applies on creation.
             if not api.repo_exists(repo_id=repo_id):
                 api.create_repo(repo_id=repo_id, private=private, exist_ok=True)
+            try:
+                head_before["sha"] = api.repo_info(
+                    repo_id=repo_id, repo_type="model"
+                ).sha
+            except Exception:
+                head_before["sha"] = None
 
             # BUG FIX: accurate upload progress.
             #
@@ -273,7 +286,7 @@ class HfUploader:
             # basic/multipart transfer instead of the path-only hf_xet
             # protocol, which is the price of per-chunk accuracy here.
             with _ProgressFile(local_path, report_progress) as payload:
-                api.upload_file(
+                return api.upload_file(
                     path_or_fileobj=payload,
                     path_in_repo=path_in_repo,
                     repo_id=repo_id,
@@ -282,7 +295,7 @@ class HfUploader:
                 )
 
         try:
-            await loop.run_in_executor(None, do_upload)
+            result = await loop.run_in_executor(None, do_upload)
         except Exception as e:
             HF_UPLOAD_TASKS[task_id]["status"] = "error"
             await utils.send_json(
@@ -291,7 +304,17 @@ class HfUploader:
             )
             raise
 
-        HF_UPLOAD_TASKS[task_id]["status"] = "complete"
+        # An unchanged file (same content at the same path) makes
+        # huggingface_hub skip the empty commit and return the EXISTING head
+        # sha - surface that as an explicit "skipped" completion instead of a
+        # silent success.
+        result_oid = getattr(result, "oid", None)
+        skipped = (
+            head_before["sha"] is not None
+            and result_oid is not None
+            and str(result_oid) == str(head_before["sha"])
+        )
+        HF_UPLOAD_TASKS[task_id]["status"] = "skipped" if skipped else "complete"
         # Final progress (100%) + completion; the UI settles on these events
         # instead of the HTTP round-trip.
         await utils.send_json(
@@ -305,5 +328,10 @@ class HfUploader:
         )
         await utils.send_json(
             "hf_upload_complete",
-            {"taskId": task_id, "repoId": repo_id, "pathInRepo": path_in_repo},
+            {
+                "taskId": task_id,
+                "repoId": repo_id,
+                "pathInRepo": path_in_repo,
+                "skipped": skipped,
+            },
         )

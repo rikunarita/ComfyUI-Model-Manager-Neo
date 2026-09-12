@@ -489,6 +489,25 @@ try {
   await toastEl.waitFor({ timeout: 10000 })
   check('E14c completion toast raised with the dialog closed', true)
 
+  // E14g — re-uploading identical content must NOT be reported as a plain
+  // success: HuggingFace skips the empty commit and the UI has to say so.
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await page.waitForSelector('[role="dialog"]')
+  await mgr.locator('button[title="Upload to HuggingFace"]').click()
+  const hf3 = page.locator('[role="dialog"]').last()
+  await hf3.waitFor()
+  await hf3.locator('button:has-text("diffusion_models")').first().click()
+  await page.waitForTimeout(400)
+  await hf3.getByText('anima-aesthetic-v1', { exact: true }).click()
+  await page.waitForTimeout(400)
+  await hf3.locator('input').first().fill('rikunarita/e2e-repo')
+  await hf3.getByRole('button', { name: 'Upload', exact: true }).click()
+  const skipToast = page
+    .locator('[data-sonner-toast]', { hasText: 'skipped the empty commit' })
+    .first()
+  await skipToast.waitFor({ timeout: 30000 })
+  check('E14g duplicate upload reported as skipped, not success', true)
+
   // E12 — no console / page errors anywhere along the way
   const realErrors = consoleErrors.filter(e => !e.includes('favicon'))
   check(
