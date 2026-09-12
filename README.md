@@ -49,7 +49,8 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 - [First reliability pass](#pass-1) · [Second reliability pass](#pass-2) ·
   [Third reliability pass](#pass-3) · [Fourth reliability pass](#pass-4) ·
   [Fifth reliability pass](#pass-5) · [Sixth reliability pass](#pass-6) ·
-  [Seventh reliability pass](#pass-7)
+  [Seventh reliability pass](#pass-7) ·
+  [Eighth reliability pass](#pass-8)
 - [Development](#development) · [Credits & Attribution](#credits) · [License](#license)
 
 ---
@@ -820,6 +821,37 @@ plain successful upload, with no transfer progress to show either.
 
 Harness totals after this pass: `pnpm verify:py` 40 assertions,
 `pnpm verify:e2e` 37 assertions, plus `typecheck` / `lint` / `format:check` /
+clean `build`.
+
+<a id="pass-8"></a>
+
+## <img src="https://api.iconify.design/lucide/link.svg?color=%23f97316" width="28" height="28" align="middle" alt=""> Eighth reliability pass (pre-flight duplicate detection for HuggingFace uploads)
+
+Re‑uploading unchanged content made the Hub refuse an empty commit
+(`Upload 0 LFS files` + `No files have been modified since last commit`),
+which from the outside still looked like a broken upload even with the
+seventh pass's post‑hoc warning: the extension first paid for a hash pass, a
+preupload and an LFS batch round‑trip that could never produce a commit.
+
+- `run_upload` now runs a **pre-flight check** before any transfer: it hashes
+  the local file and compares the digest with the sha256 of the matching
+  entry in the remote tree (`model_info(..., files_metadata=True)`). An
+  exact match short‑circuits the upload — no transfer attempt, no confusing
+  Hub round‑trips.
+- The completion event then carries the **blob URL** of the file that already
+  lives in the repository, and the UI toast links it: _"An identical file
+  already exists in '<repo>': https://huggingface.co/<repo>/blob/main/<path> —
+  HuggingFace skips empty commits, so nothing was transferred. Use a
+  different destination path to create a new commit."_
+- Any pre-flight failure degrades to "go", so a real upload is never blocked
+  by the check itself; the seventh pass's oid comparison stays as a backstop
+  for races (file changed between check and transfer).
+- Harness: the fake Hub now serves a real sha256 tree (`model_info`), `E14g`
+  asserts the linked skip toast and `E14h` asserts that a duplicate upload
+  performs **zero** transfer reads.
+
+Harness totals after this pass: `pnpm verify:py` 40 assertions,
+`pnpm verify:e2e` 38 assertions, plus `typecheck` / `lint` / `format:check` /
 clean `build`.
 
 <a id="development"></a>

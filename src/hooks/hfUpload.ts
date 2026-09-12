@@ -47,7 +47,14 @@ api.addEventListener('update_hf_upload_progress', (event: CustomEvent) => {
 
 api.addEventListener('hf_upload_complete', (event: CustomEvent) => {
   const detail = event.detail as
-    { taskId?: string; repoId?: string; pathInRepo?: string; skipped?: boolean } | undefined
+    | {
+        taskId?: string
+        repoId?: string
+        pathInRepo?: string
+        skipped?: boolean
+        url?: string | null
+      }
+    | undefined
   if (!matches(detail)) return
   hfUploadState.active = false
   hfUploadState.progress = 100
@@ -59,8 +66,11 @@ api.addEventListener('hf_upload_complete', (event: CustomEvent) => {
     toast.add({
       severity: 'warn',
       summary: 'Skipped',
-      detail: `An identical file already exists at '${detail?.pathInRepo ?? hfUploadState.pathInRepo}' in '${detail?.repoId ?? hfUploadState.repoId}' - HuggingFace skipped the empty commit.`,
-      life: 10000,
+      detail:
+        `An identical file already exists in '${detail?.repoId ?? hfUploadState.repoId}'` +
+        (detail?.url ? `: ${detail.url}` : '') +
+        ' - HuggingFace skips empty commits, so nothing was transferred. Use a different destination path to create a new commit.',
+      life: 15000,
     })
     return
   }

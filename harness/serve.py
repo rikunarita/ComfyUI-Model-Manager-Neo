@@ -103,6 +103,32 @@ class _FakeHfApi:
 
         return _t.SimpleNamespace(sha=FAKE_HF["head_sha"])
 
+    def model_info(self, repo_id, revision=None, files_metadata=False):
+        """Remote tree for the pre-flight duplicate check: every path this
+        fake already 'uploaded' is reported with the REAL sha256 of the
+        harness model file, exactly like the Hub does for LFS blobs."""
+        import hashlib as _h
+        import types as _t
+
+        siblings = []
+        for key in FAKE_HF["uploads_seen"]:
+            if key[0] != repo_id:
+                continue
+            target = CKPT / key[1]
+            if not target.is_file():
+                continue
+            blob = target.read_bytes()
+            siblings.append(
+                _t.SimpleNamespace(
+                    rfilename=key[1],
+                    size=len(blob),
+                    lfs=_t.SimpleNamespace(
+                        sha256=_h.sha256(blob).hexdigest(), size=len(blob)
+                    ),
+                )
+            )
+        return _t.SimpleNamespace(siblings=siblings, sha=FAKE_HF["head_sha"])
+
     def repo_exists(self, repo_id):
         return False
 

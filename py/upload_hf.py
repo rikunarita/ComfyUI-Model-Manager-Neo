@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import io
 import os
 import time
@@ -250,6 +251,58 @@ class HfUploader:
         # like a broken upload. Comparing the oids makes the no-op visible.
         head_before = {"sha": None}
 
+        def blob_url() -> str:
+            from urllib.parse import quote
+
+            return (
+                f"https://huggingface.co/{repo_id}/blob/main/"
+                f"{quote(path_in_repo)}"
+            )
+
+        def preflight():
+            """Detect an identical file at the destination BEFORE paying for
+            a transfer attempt.
+
+            The Hub rejects re-uploads of unchanged content with an empty-commit
+            skip ("Upload 0 LFS files" + "No files have been modified since last
+            commit"), which from the outside is indistinguishable from a broken
+            upload. Comparing the local sha256 with the sha256 of the remote
+            tree entry turns that silent no-op into an explicit, linkable
+            answer. Any failure here degrades to "go" so a real upload is
+            never blocked by the check itself.
+            """
+            try:
+                digest = hashlib.sha256()
+                with open(local_path, "rb") as handle:
+                    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                local_sha = digest.hexdigest()
+                local_size = os.path.getsize(local_path)
+
+                api = HfApi(token=token, library_name="ComfyUI-Model-Manager-Neo")
+                info = api.model_info(
+                    repo_id=repo_id, revision="main", files_metadata=True
+                )
+                for sibling in getattr(info, "siblings", None) or []:
+                    if getattr(sibling, "rfilename", None) != path_in_repo:
+                        continue
+                    lfs = getattr(sibling, "lfs", None)
+                    remote_sha = getattr(lfs, "sha256", None) if lfs else None
+                    remote_size = (
+                        getattr(lfs, "size", None)
+                        if lfs
+                        else getattr(sibling, "size", None)
+                    )
+                    if (
+                        remote_sha
+                        and remote_sha == local_sha
+                        and remote_size in (None, local_size)
+                    ):
+                        return "duplicate", blob_url()
+                return "go", None
+            except Exception:
+                return "go", None
+
         def do_upload():
             api = HfApi(token=token, library_name="ComfyUI-Model-Manager-Neo")
 
@@ -294,6 +347,33 @@ class HfUploader:
                     token=token,
                 )
 
+        # Short-circuit re-uploads of identical content: no transfer attempt,
+        # no confusing "0 LFS files" round-trips - just the explicit answer
+        # with a link to the file that already lives in the repository.
+        duplicate, duplicate_url = await loop.run_in_executor(None, preflight)
+        if duplicate == "duplicate":
+            HF_UPLOAD_TASKS[task_id]["status"] = "skipped"
+            await utils.send_json(
+                "update_hf_upload_progress",
+                {
+                    "taskId": task_id,
+                    "uploadedSize": float(total_size),
+                    "totalSize": float(total_size),
+                    "progress": 100.0,
+                },
+            )
+            await utils.send_json(
+                "hf_upload_complete",
+                {
+                    "taskId": task_id,
+                    "repoId": repo_id,
+                    "pathInRepo": path_in_repo,
+                    "skipped": True,
+                    "url": duplicate_url,
+                },
+            )
+            return
+
         try:
             result = await loop.run_in_executor(None, do_upload)
         except Exception as e:
@@ -333,5 +413,6 @@ class HfUploader:
                 "repoId": repo_id,
                 "pathInRepo": path_in_repo,
                 "skipped": skipped,
+                "url": blob_url() if skipped else None,
             },
         )

@@ -501,12 +501,23 @@ try {
   await hf3.getByText('anima-aesthetic-v1', { exact: true }).click()
   await page.waitForTimeout(400)
   await hf3.locator('input').first().fill('rikunarita/e2e-repo')
+  const readsBefore = (await (await fetch(`http://127.0.0.1:${PORT}/probe/hf`)).json()).reads
   await hf3.getByRole('button', { name: 'Upload', exact: true }).click()
-  const skipToast = page
-    .locator('[data-sonner-toast]', { hasText: 'skipped the empty commit' })
-    .first()
+  const skipToast = page.locator('[data-sonner-toast]', { hasText: 'blob/main' }).first()
   await skipToast.waitFor({ timeout: 30000 })
-  check('E14g duplicate upload reported as skipped, not success', true)
+  const toastText = (await skipToast.textContent()) ?? ''
+  check(
+    'E14g duplicate upload reported as skipped with the repo link',
+    toastText.includes('identical file already exists'),
+    toastText.slice(0, 160),
+  )
+  // the pre-flight check must short-circuit: no transfer read may happen
+  const readsAfter = (await (await fetch(`http://127.0.0.1:${PORT}/probe/hf`)).json()).reads
+  check(
+    'E14h duplicate upload performs no transfer',
+    readsAfter === readsBefore,
+    `${readsBefore} -> ${readsAfter}`,
+  )
 
   // E12 — no console / page errors anywhere along the way
   const realErrors = consoleErrors.filter(e => !e.includes('favicon'))
