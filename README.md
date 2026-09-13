@@ -981,6 +981,15 @@ messages, settings and locales, plus a troubleshooting table. The screenshots
 they embed live in [`docs/screenshots/`](docs/screenshots/) with a per‑file
 manifest in [`docs/screenshots/README.md`](docs/screenshots/README.md).
 
+Two further reference documents:
+
+- [`docs/SPEC-ANSWERS.md`](docs/SPEC-ANSWERS.md) — the top‑bar button's
+  customisation surface, the API‑key lifecycle, every ComfyUI setting this
+  extension registers, and exactly how (and how many) preview images are stored.
+- [`docs/OPTIMIZATION-REPORT.md`](docs/OPTIMIZATION-REPORT.md) — a no‑change
+  audit of backend/frontend hot spots and standards‑catch‑up candidates, each
+  with cost, benefit and risk.
+
 <a id="development"></a>
 
 ## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Development
