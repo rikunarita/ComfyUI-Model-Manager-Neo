@@ -1,5 +1,9 @@
 # Standards catch-up C-7: the verification harness is self-contained (stubbed
 # ComfyUI + headless Chromium), so the whole gate runs on a plain runner.
+#
+# NOTE: pnpm's version is taken from `packageManager` in package.json - passing
+# `version:` to pnpm/action-setup as well makes the action abort with
+# ERR_PNPM_BAD_PM_VERSION ("Multiple versions of pnpm specified").
 name: CI
 
 on:
@@ -14,8 +18,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 12.3.4
+        # no `version:` on purpose - see the header note
 
       - uses: actions/setup-node@v4
         with:
@@ -33,6 +36,9 @@ jobs:
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium chromium-headless-shell
 
       - name: Typecheck
         run: pnpm typecheck
