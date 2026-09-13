@@ -46,11 +46,13 @@
 <script setup lang="ts">
 import { Copy, Eye, PenSquare, Plus, Trash2, Workflow } from '@lucide/vue'
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
 import { genModelUrl, useModelNodeAction, useModels } from 'hooks/model'
 import { useRequest } from 'hooks/request'
+import { useToast } from 'hooks/toast'
 import { type BaseModel, type Model, type WithResolved } from 'types/typings'
 
 interface Props {
@@ -58,6 +60,8 @@ interface Props {
 }
 const props = defineProps<Props>()
 
+const { t } = useI18n()
+const { toast } = useToast()
 const { remove, update } = useModels()
 
 const editable = ref(false)
@@ -65,6 +69,13 @@ const editable = ref(false)
 const modelDetailUrl = genModelUrl(props.model)
 const { data: extraInfo } = useRequest(modelDetailUrl, {
   method: 'GET',
+  onError: error => {
+    toast.add({
+      severity: 'error',
+      summary: t('modelInfoFailed', { message: error.message }),
+      life: 8000,
+    })
+  },
 })
 
 const modelContent = computed(() => {

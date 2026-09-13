@@ -6,6 +6,7 @@ import requests
 import traceback
 import functools
 import mimetypes
+from concurrent.futures import ThreadPoolExecutor
 
 import comfy.utils
 import folder_paths
@@ -48,6 +49,30 @@ VIDEO_CONTENT_TYPE_MAP = {
 
 # 【修正】folder_paths.extension_mimetype_cache が ComfyUI v0.34.0 で削除されたため、独自のキャッシュを用意
 _extension_mimetypes_cache = {}
+
+# ---------------------------------------------------------------------------
+# Dedicated executors (optimization A-4 / A-8).
+#
+# Everything blocking used to share asyncio's *default* executor, so a heavy
+# library walk or a multi-gigabyte sha256 pass could starve an in-flight
+# download of the very threads it reports progress from. Two pools now
+# separate syscall-bound work from CPU-bound work; both are deliberately
+# small - the point is isolation, not parallelism.
+# ---------------------------------------------------------------------------
+_IO_EXECUTOR = ThreadPoolExecutor(max_workers=8, thread_name_prefix="mm-io")
+_CPU_EXECUTOR = ThreadPoolExecutor(
+    max_workers=max(2, (os.cpu_count() or 2) // 2), thread_name_prefix="mm-cpu"
+)
+
+
+def io_executor() -> ThreadPoolExecutor:
+    """Pool for blocking I/O: model walks, downloads, uploads, HF calls."""
+    return _IO_EXECUTOR
+
+
+def cpu_executor() -> ThreadPoolExecutor:
+    """Pool for CPU-bound work: WebP encoding, sha256 passes."""
+    return _CPU_EXECUTOR
 
 def print_info(msg, *args, **kwargs):
     logging.info(f"[{config.extension_tag}] {msg}", *args, **kwargs)
@@ -127,13 +152,30 @@ def download_web_distribution(version: str):
 
     print_info(f"Web distribution loaded from local repository (version {version}).")
 
+# Optimization A-3: the folder table is static for the life of the process,
+# yet nearly every request rebuilt and re-normalised it. The raw structure is
+# compared by reference-cheap tuple signature; only a real change re-runs the
+# (string-allocating) normalisation.
+_base_paths_signature: tuple | None = None
+_base_paths_cache: dict[str, list[str]] = {}
+
+
 def resolve_model_base_paths() -> dict[str, list[str]]:
     """
     Resolve model base paths.
     eg. { "checkpoints": ["path/to/checkpoints"] }
     """
+    global _base_paths_signature, _base_paths_cache
+    raw = folder_paths.folder_names_and_paths
+    signature = (
+        tuple(sorted(raw.keys())),
+        tuple(tuple(raw[k][0]) for k in sorted(raw.keys())),
+    )
+    if signature == _base_paths_signature:
+        return _base_paths_cache
+
     # 【修正】ループ変数 'folders' を上書きするシャドウイングバグを修正
-    folder_keys = list(folder_paths.folder_names_and_paths.keys())
+    folder_keys = list(raw.keys())
     model_base_paths = {}
     folder_black_list = ["configs", "custom_nodes"]
     for folder in folder_keys:
@@ -141,6 +183,8 @@ def resolve_model_base_paths() -> dict[str, list[str]]:
             continue
         paths = folder_paths.get_folder_paths(folder)
         model_base_paths[folder] = [normalize_path(f) for f in paths]
+    _base_paths_signature = signature
+    _base_paths_cache = model_base_paths
     return model_base_paths
 
 def resolve_file_content_type(filename: str):
@@ -217,49 +261,59 @@ def get_model_metadata(filename: str):
     except:
         return {}
 
-def _check_preview_variants(base_dirname: str, basename: str, extensions: list[str]) -> list[str]:
-    """Check for preview files with given extensions and return found files"""
-    found = []
-    for ext in extensions:
-        # Direct match (basename.ext)
-        preview_file = f"{basename}{ext}"
-        if os.path.isfile(join_path(base_dirname, preview_file)):
-            found.append(preview_file)
-        
-        # Preview variant (basename.preview.ext)
-        preview_file = f"{basename}.preview{ext}"
-        if os.path.isfile(join_path(base_dirname, preview_file)):
-            found.append(preview_file)
-    return found
+# Preview file naming scheme (ordered by display priority):
+#   1. `<basename>.<ext>`          the primary preview
+#   2. `<basename>.preview.<ext>`  the second preview (historic name)
+#   3. `<basename>.preview<N>.<ext>`  N = 2..9, further previews
+# The whole scheme is resolved against a *set of directory names*, so a model
+# list walk costs zero extra stat() calls (optimization A-2) and every preview
+# of a model can be enumerated (feature: keep all previews).
+_PREVIEW_SUFFIXES = ("", ".preview") + tuple(f".preview{n}" for n in range(2, 10))
 
-def _get_preview_path(model_path: str, extension: str) -> str:
-    """Generate preview file path with given extension"""
+
+def preview_candidates(basename: str) -> list[str]:
+    """Every file name that could hold a preview of `basename`, in priority order."""
+    return [
+        f"{basename}{suffix}{ext}"
+        for ext in PREVIEW_EXTENSIONS
+        for suffix in _PREVIEW_SUFFIXES
+    ]
+
+
+def get_dir_names(directory: str) -> set[str]:
+    """One scandir() instead of N isfile() probes."""
+    try:
+        with os.scandir(directory) as it:
+            return {entry.name for entry in it}
+    except OSError:
+        return set()
+
+
+def previews_in_names(names: set[str], basename: str) -> list[str]:
+    """The preview file names present in `names`, in display priority order."""
+    return [c for c in preview_candidates(basename) if c in names]
+
+def _get_preview_path(model_path: str, extension: str, suffix: str = "") -> str:
+    """Generate preview file path with given extension and scheme suffix.
+
+    `suffix` is one of `_PREVIEW_SUFFIXES`: "" for the primary preview,
+    ".preview" for the second, ".preview<N>" for the rest.
+    """
     basename = os.path.splitext(model_path)[0]
-    return f"{basename}{extension}"
+    return f"{basename}{suffix}{extension}"
 
-def get_model_all_previews(model_path: str) -> list[str]:
-    """Get all preview files for a model"""
+def get_model_all_previews(model_path: str, names: set[str] | None = None) -> list[str]:
+    """Get all preview files for a model (primary first, then extras)."""
     base_dirname = os.path.dirname(model_path)
     basename = os.path.splitext(os.path.basename(model_path))[0]
-    return _check_preview_variants(base_dirname, basename, PREVIEW_EXTENSIONS)
+    if names is None:
+        names = get_dir_names(base_dirname)
+    return previews_in_names(names, basename)
 
-def get_model_preview_name(model_path: str) -> str:
+def get_model_preview_name(model_path: str, names: set[str] | None = None) -> str:
     """Get the first available preview file, or NO_PREVIEW_SENTINEL if none."""
-    base_dirname = os.path.dirname(model_path)
-    basename = os.path.splitext(os.path.basename(model_path))[0]
-    
-    for ext in PREVIEW_EXTENSIONS:
-        # Check direct match first
-        preview_name = f"{basename}{ext}"
-        if os.path.isfile(join_path(base_dirname, preview_name)):
-            return preview_name
-        
-        # Check preview variant
-        preview_name = f"{basename}.preview{ext}"
-        if os.path.isfile(join_path(base_dirname, preview_name)):
-            return preview_name
-
-    return NO_PREVIEW_SENTINEL
+    all_previews = get_model_all_previews(model_path, names)
+    return all_previews[0] if all_previews else NO_PREVIEW_SENTINEL
 
 from PIL import Image
 from io import BytesIO
@@ -267,16 +321,21 @@ from io import BytesIO
 def remove_model_preview(model_path: str):
     """Remove all preview files for a model"""
     base_dirname = os.path.dirname(model_path)
-    basename = os.path.splitext(os.path.basename(model_path))[0]
-    
-    previews = _check_preview_variants(base_dirname, basename, PREVIEW_EXTENSIONS)
+
+    previews = get_model_all_previews(model_path)
     for preview in previews:
         preview_path = join_path(base_dirname, preview)
         if os.path.exists(preview_path):
             os.remove(preview_path)
 
-def save_model_preview(model_path: str, file_or_url: Any, platform: Optional[str] = None, headers: Optional[dict] = None):
-    """Save a preview file for a model. Images -> WebP, videos -> original format"""
+def save_model_preview(
+    model_path: str,
+    file_or_url: Any,
+    platform: Optional[str] = None,
+    headers: Optional[dict] = None,
+    suffix: str = "",
+):
+    """Save one preview file for a model. Images -> WebP, videos -> original format"""
     
     # Download file if it is a URL
     if type(file_or_url) is str:
@@ -305,12 +364,12 @@ def save_model_preview(model_path: str, file_or_url: Any, platform: Optional[str
             if content_type.startswith("video/"):
                 # Save video in original format
                 ext = _get_video_extension_from_url(url) or _get_extension_from_content_type(content_type) or '.mp4'
-                preview_path = _get_preview_path(model_path, ext)
+                preview_path = _get_preview_path(model_path, ext, suffix)
                 with open(preview_path, 'wb') as f:
                     f.write(content)
             else:
                 # Default to image processing for unknown or image types
-                preview_path = _get_preview_path(model_path, ".webp")
+                preview_path = _get_preview_path(model_path, ".webp", suffix)
                 image = Image.open(BytesIO(content))
                 image.save(preview_path, "WEBP")
 
@@ -329,17 +388,51 @@ def save_model_preview(model_path: str, file_or_url: Any, platform: Optional[str
         
         if content_type.startswith("video/"):
             ext = os.path.splitext(filename.lower())[1] or '.mp4'
-            preview_path = _get_preview_path(model_path, ext)
+            preview_path = _get_preview_path(model_path, ext, suffix)
             file_obj.file.seek(0)
             content = file_obj.file.read()
             with open(preview_path, 'wb') as f:
                 f.write(content)
         elif content_type.startswith("image/"):
-            preview_path = _get_preview_path(model_path, ".webp")
+            preview_path = _get_preview_path(model_path, ".webp", suffix)
             image = Image.open(file_obj.file)
             image.save(preview_path, "WEBP")
         else:
             raise RuntimeError(f"FileTypeError: expected image or video, got {content_type}")
+
+def save_model_previews(
+    model_path: str,
+    items: list[Any],
+    platform: Optional[str] = None,
+    headers: Optional[dict] = None,
+) -> int:
+    """Save every supplied preview, in order, under the naming scheme.
+
+    Feature: the editor and the download flow used to keep a single preview
+    file and silently drop the rest of a Civitai/HuggingFace gallery. Each
+    entry is now stored - primary as `<basename>.<ext>`, the following ones as
+    `<basename>.preview.<ext>`, `<basename>.preview2.<ext>`, ... - so the
+    carousel and the lightbox can page through all of them.
+
+    Returns the number of previews actually written.
+    """
+    written = 0
+    for index, item in enumerate(items):
+        if item is None or item == "":
+            continue
+        suffix = (
+            _PREVIEW_SUFFIXES[index]
+            if index < len(_PREVIEW_SUFFIXES)
+            else f".preview{index}"
+        )
+        try:
+            save_model_preview(model_path, item, platform, headers, suffix=suffix)
+            written += 1
+        except Exception as e:
+            # One bad gallery entry must not lose the whole preview set.
+            print_warning(f"Failed to save preview #{index}: {e}")
+    return written
+
 
 def _get_video_extension_from_url(url: str) -> Optional[str]:
     """Extract video extension from URL."""

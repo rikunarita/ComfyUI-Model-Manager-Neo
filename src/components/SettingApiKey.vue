@@ -50,6 +50,8 @@ const saveKeybinding = async () => {
       body: JSON.stringify({ key, value: encodeValue }),
     })
     const desString = value ? value.slice(0, 4) + '****' + value.slice(-4) : ''
+    // the success toast is raised by the setter's owner (hooks/config.ts), so
+    // it fires exactly once no matter which entry point saved the key
     props.setter(desString)
     close()
   } catch (error) {

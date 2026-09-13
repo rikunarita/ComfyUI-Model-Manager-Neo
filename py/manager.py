@@ -45,7 +45,9 @@ class ModelManager:
                 # the executor.
                 include_hidden_files = utils.get_setting_value(request, "model_list.include_hidden_files", False)
                 loop = asyncio.get_running_loop()
-                results = await loop.run_in_executor(None, self.scan_models, folder, include_hidden_files)
+                results = await loop.run_in_executor(
+                    utils.io_executor(), self.scan_models, folder, include_hidden_files
+                )
                 return web.json_response({"success": True, "data": results})
             except Exception as e:
                 error_msg = f"Read models failed: {str(e)}"
@@ -102,7 +104,9 @@ class ModelManager:
                 # URL points back at ComfyUI itself). Same treatment as the
                 # other blocking handlers: run in the executor.
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, self.update_model, model_path, model_data)
+                await loop.run_in_executor(
+                    utils.io_executor(), self.update_model, model_path, model_data
+                )
                 return web.json_response({"success": True})
             except Exception as e:
                 error_msg = f"Update model failed: {str(e)}"
@@ -134,7 +138,12 @@ class ModelManager:
 
         folders, *others = folder_paths.folder_names_and_paths[folder]
 
-        def get_file_info(entry: os.DirEntry[str], base_path: str, path_index: int):
+        def get_file_info(
+            entry: os.DirEntry[str],
+            base_path: str,
+            path_index: int,
+            dir_names: dict[str, set[str]],
+        ):
             prefix_path = utils.normalize_path(base_path)
             if not prefix_path.endswith("/"):
                 prefix_path = f"{prefix_path}/"
@@ -148,25 +157,36 @@ class ModelManager:
 
             model_preview = None
             if is_file:
-                preview_name = utils.get_model_preview_name(entry.path)
-                if preview_name == utils.NO_PREVIEW_SENTINEL:
+                # Optimization A-2: resolve previews against the directory's
+                # name set collected during the walk - zero extra stat() calls
+                # per model (the old code probed up to 16 candidate names with
+                # os.path.isfile for every single file).
+                names = dir_names.get(os.path.dirname(entry.path), set())
+                preview_names = utils.previews_in_names(names, basename)
+                if not preview_names:
                     # No preview on disk: point straight at the default
                     # NO-PREVIEW.svg artwork instead of a URL that only
                     # worked through the old server-side fallback.
                     model_preview = utils.NO_PREVIEW_URL
                 else:
-                    preview_ext = f".{preview_name.split('.')[-1]}"
-                    # BUG FIX: str.replace() swapped EVERY occurrence of the
-                    # extension inside the relative path (directory names like
-                    # "my.ckpt/" were rewritten too). Only the trailing file
-                    # extension must be exchanged for the preview extension.
-                    if extension and relative_path.endswith(extension):
-                        preview_relative = relative_path[: -len(extension)] + preview_ext
-                    else:
-                        preview_relative = relative_path + preview_ext
-                    model_preview = (
-                        f"/model-manager/preview/{folder}/{path_index}/{preview_relative}"
-                    )
+                    urls = []
+                    for preview_name in preview_names:
+                        preview_ext = f".{preview_name.split('.')[-1]}"
+                        # BUG FIX: str.replace() swapped EVERY occurrence of the
+                        # extension inside the relative path (directory names like
+                        # "my.ckpt/" were rewritten too). Only the trailing file
+                        # extension must be exchanged for the preview extension.
+                        if extension and relative_path.endswith(extension):
+                            preview_relative = relative_path[: -len(extension)] + preview_ext
+                        else:
+                            preview_relative = relative_path + preview_ext
+                        urls.append(
+                            f"/model-manager/preview/{folder}/{path_index}/{preview_relative}"
+                        )
+                    # One preview stays a plain string (the historic shape every
+                    # consumer compares with ===); a gallery becomes a list so
+                    # the carousel / lightbox can page through all of it.
+                    model_preview = urls[0] if len(urls) == 1 else urls
 
             if not os.path.exists(entry.path):
                 utils.print_error(f"{entry.path} is not file or directory.")
@@ -186,22 +206,27 @@ class ModelManager:
                 "updatedAt": round(stat.st_mtime_ns / 1000000),
             }
 
-        def get_all_files_entry(directory: str):
+        def get_all_files_entry(directory: str, dir_names: dict[str, set[str]]):
+            """Collect model entries and, for free, every directory's name set
+            (used for zero-stat preview resolution, optimization A-2)."""
             entries: list[os.DirEntry[str]] = []
             if not os.path.exists(directory):
-                return []
+                return entries
+            names: set[str] = set()
             with os.scandir(directory) as it:
                 for entry in it:
+                    names.add(entry.name)
                     if not include_hidden_files and entry.name.startswith("."):
                         continue
-                    
+
                     if entry.is_file():
                         extension = os.path.splitext(entry.name)[1]
                         if extension in folder_paths.supported_pt_extensions:
                             entries.append(entry)
                     else:
                         entries.append(entry)
-                        entries.extend(get_all_files_entry(entry.path))
+                        entries.extend(get_all_files_entry(entry.path, dir_names))
+            dir_names[directory] = names
             return entries
 
         BATCH_SIZE = 200
@@ -210,12 +235,16 @@ class ModelManager:
         for path_index, base_path in enumerate(folders):
             if not os.path.exists(base_path):
                 continue
-            file_entries = get_all_files_entry(base_path)
-            
+            dir_names: dict[str, set[str]] = {}
+            file_entries = get_all_files_entry(base_path, dir_names)
+
             for i in range(0, len(file_entries), BATCH_SIZE):
                 batch = file_entries[i:i + BATCH_SIZE]
                 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-                    futures = {executor.submit(get_file_info, entry, base_path, path_index): entry for entry in batch}
+                    futures = {
+                        executor.submit(get_file_info, entry, base_path, path_index, dir_names): entry
+                        for entry in batch
+                    }
                     for future in as_completed(futures):
                         file_info = future.result()
                         if file_info is not None:

@@ -219,14 +219,22 @@ const uploadActions = ref([
 
         // Fire the upload and close immediately; progress + completion are
         // surfaced by the shared download-task system (Download List dialog).
-        request('/upload', { method: 'POST', body }).catch(error => {
-          toast.add({
-            severity: 'error',
-            summary: t('error'),
-            detail: (error as Error).message,
-            life: 5000,
+        request('/upload', { method: 'POST', body })
+          .then(() => {
+            toast.add({
+              severity: 'info',
+              summary: t('uploadStarted', { name: file.name }),
+              life: 3000,
+            })
           })
-        })
+          .catch(error => {
+            toast.add({
+              severity: 'error',
+              summary: t('error'),
+              detail: (error as Error).message,
+              life: 5000,
+            })
+          })
         dialog.close()
       }
       input.click()

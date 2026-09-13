@@ -162,7 +162,7 @@ class HfUploader:
 
                 loop = asyncio.get_running_loop()
                 info = await loop.run_in_executor(
-                    None, lambda: HfApi(token=token).whoami()
+                    utils.io_executor(), lambda: HfApi(token=token).whoami()
                 )
                 return web.json_response(
                     {
@@ -274,10 +274,7 @@ class HfUploader:
                 "huggingface_hub is not installed. Please install it with: pip install huggingface_hub hf_xet"
             )
 
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         progress_state = {"last": 0.0, "phase": None}
 
@@ -327,7 +324,18 @@ class HfUploader:
                     report_progress(read_bytes, total_size, PHASE_HASH)
             return digest.hexdigest()
 
-        def preflight():
+        def fetch_remote_entry():
+            """The tree entry at the destination, if the repo answers at all."""
+            api = HfApi(token=token, library_name=LIBRARY_NAME)
+            info = api.model_info(
+                repo_id=repo_id, revision="main", files_metadata=True
+            )
+            for sibling in getattr(info, "siblings", None) or []:
+                if getattr(sibling, "rfilename", None) == path_in_repo:
+                    return sibling
+            return None
+
+        async def preflight():
             """Detect an identical file at the destination BEFORE paying for
             a transfer attempt.
 
@@ -341,18 +349,12 @@ class HfUploader:
 
             The comparison is ordered cheap-first: the remote size is already in
             the tree listing, and a size mismatch can never be the same content,
-            so the (expensive) local hash pass only runs when the sizes agree.
+            so the (expensive) local hash pass only runs when the sizes agree -
+            and that pass runs on the cpu pool while the Hub round-trip runs on
+            the io pool (optimizations A-4 / A-8).
             """
             try:
-                api = HfApi(token=token, library_name=LIBRARY_NAME)
-                info = api.model_info(
-                    repo_id=repo_id, revision="main", files_metadata=True
-                )
-                target = None
-                for sibling in getattr(info, "siblings", None) or []:
-                    if getattr(sibling, "rfilename", None) == path_in_repo:
-                        target = sibling
-                        break
+                target = await loop.run_in_executor(utils.io_executor(), fetch_remote_entry)
                 if target is None:
                     return {"status": "go"}
 
@@ -366,7 +368,8 @@ class HfUploader:
                 if remote_size is not None and int(remote_size) != int(total_size):
                     return {"status": "go"}
 
-                if remote_sha == hash_local_file():
+                local_sha = await loop.run_in_executor(utils.cpu_executor(), hash_local_file)
+                if remote_sha == local_sha:
                     return {"status": "duplicate", "url": blob_url()}
                 return {"status": "go"}
             except Exception:
@@ -443,7 +446,7 @@ class HfUploader:
         # Short-circuit re-uploads of identical content: no transfer attempt,
         # no confusing "0 LFS files" round-trips - just the explicit answer
         # with a link to the file that already lives in the repository.
-        preflight_result = await loop.run_in_executor(None, preflight)
+        preflight_result = await preflight()
         if preflight_result.get("status") == "duplicate":
             _set_task_field(task_id, status="skipped")
             await utils.send_json(
@@ -474,7 +477,9 @@ class HfUploader:
             return
 
         try:
-            result, created, head_sha, transferred = await loop.run_in_executor(None, do_upload)
+            result, created, head_sha, transferred = await loop.run_in_executor(
+                utils.io_executor(), do_upload
+            )
         except Exception as e:
             _set_task_field(task_id, status="error")
             await utils.send_json(

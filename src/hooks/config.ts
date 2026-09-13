@@ -117,7 +117,7 @@ export const configSetting = {
 
 function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
   const { t } = useI18n()
-  const { confirm } = useToast()
+  const { confirm, toast } = useToast()
 
   /**
    * BUG FIX: this used to build `<i class="pi pi-pencil text-blue-400">`.
@@ -194,6 +194,12 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       method: 'POST',
       body: JSON.stringify({ key, value: null }),
     })
+    toast.add({
+      severity: 'success',
+      summary: t('apiKeyRemoved'),
+      detail: t(`setting.api_key.${key}`),
+      life: 3000,
+    })
   }
 
   const renderApiKey = (key: string) => {
@@ -206,6 +212,14 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       const setter = (val: string) => {
         store.config.apiKeyInfo.value[key] = val
         apiKeyDisplayEl.textContent = val || 'None'
+        if (val) {
+          toast.add({
+            severity: 'success',
+            summary: t('apiKeySaved'),
+            detail: t(`setting.api_key.${key}`),
+            life: 3000,
+          })
+        }
       }
       return $el('div.flex.gap-4', [
         apiKeyDisplayEl,

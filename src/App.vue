@@ -80,6 +80,11 @@ onMounted(() => {
     app.ui?.settings.setSettingValue('ModelManager.UI.Flat', newValue)
     dialog.closeAll()
     openManagerDialog()
+    toast.add({
+      severity: 'info',
+      summary: newValue ? t('layoutSwitchedFlat') : t('layoutSwitchedFolder'),
+      life: 2500,
+    })
   }
 
   const openManagerDialog = () => {
@@ -116,6 +121,11 @@ onMounted(() => {
             await refreshModelsAndConfig()
             dialog.closeAll()
             openManagerDialog()
+            toast.add({
+              severity: 'info',
+              summary: newValue ? t('hiddenShown') : t('hiddenHidden'),
+              life: 2500,
+            })
           },
           tooltip: hiddenTooltip,
         },

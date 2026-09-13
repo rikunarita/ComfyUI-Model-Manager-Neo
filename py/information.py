@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import os
 import re
 import math
@@ -17,6 +18,62 @@ from io import BytesIO
 from . import utils
 from . import config
 from . import auth
+
+# ---------------------------------------------------------------------------
+# Browser-cacheable SVG artwork (optimization B-2).
+#
+# The glass folder icons and the NO-PREVIEW artwork used to be inlined into the
+# bundle as data: URIs, so every folder card carried its own ~10-25 KB copy in
+# the DOM and the browser could never cache any of it. They are now served over
+# HTTP with an ETag and a day-long max-age: one decode per session, shared by
+# every card, revalidated (304) afterwards.
+# ---------------------------------------------------------------------------
+SVG_CACHE_CONTROL = "public, max-age=86400, must-revalidate"
+
+_SVG_ASSETS = {
+    "folder-closed": ("assets", "Folder-Icons", "close-folder_beside-fit.svg"),
+    "folder-glyph": ("assets", "Folder-Icons", "close-folder_all-fit.svg"),
+    "folder-opening": ("assets", "Folder-Icons", "folder-opening-animation.svg"),
+    "folder-closing": ("assets", "Folder-Icons", "folder-closing-animation.svg"),
+    "no-preview": ("assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"),
+}
+_SVG_CACHE: dict[str, tuple[str, bytes]] = {}
+
+
+def _svg_payload(name: str) -> tuple[str, bytes]:
+    hit = _SVG_CACHE.get(name)
+    if hit is not None:
+        return hit
+    body = open(utils.join_path(config.extension_uri, *_SVG_ASSETS[name]), "rb").read()
+    etag = f'"svg-{hashlib.sha256(body).hexdigest()[:16]}"'
+    _SVG_CACHE[name] = (etag, body)
+    return etag, body
+
+
+def _not_modified(request, etag: str) -> bool:
+    header = request.headers.get("If-None-Match", "")
+    return header == etag or etag in [h.strip() for h in header.split(",")]
+
+
+def svg_response(request, name: str) -> web.Response:
+    etag, body = _svg_payload(name)
+    headers = {"ETag": etag, "Cache-Control": SVG_CACHE_CONTROL}
+    if _not_modified(request, etag):
+        return web.Response(status=304, headers=headers)
+    return web.Response(body=body, content_type="image/svg+xml", headers=headers)
+
+
+# ---------------------------------------------------------------------------
+# Encoded-preview cache (optimization A-1).
+#
+# The preview route re-decoded and re-encoded every image (every frame of an
+# animated one) on *each* request, so refreshing a 1000-model grid re-ran PIL a
+# thousand times. The WebP bytes are now memoised against (mtime_ns, size) and
+# answered with an ETag, so a warm grid costs a dict hit plus a 304.
+# ---------------------------------------------------------------------------
+PREVIEW_CACHE_CONTROL = "private, max-age=300, must-revalidate"
+_PREVIEW_ENCODE_CACHE: dict[str, tuple[int, int, bytes]] = {}
+_PREVIEW_ENCODE_LIMIT = 64
 
 
 class ModelSearcher(ABC):
@@ -346,7 +403,9 @@ class Information:
                 # same defect already fixed for hashing, the Civitai hash
                 # lookup, the preview download and the model-library walks.
                 loop = asyncio.get_running_loop()
-                result = await loop.run_in_executor(None, self.fetch_model_info, model_page)
+                result = await loop.run_in_executor(
+                    utils.io_executor(), self.fetch_model_info, model_page
+                )
                 return web.json_response({"success": True, "data": result})
             except Exception as e:
                 error_msg = f"Fetch model info failed: {str(e)}"
@@ -358,14 +417,18 @@ class Information:
             """
             The default preview artwork (glass NO-PREVIEW.svg), served
             verbatim. Models without a preview reference this URL directly
-            from the model list; it is a default, not a fallback.
+            from the model list; it is a default, not a fallback. Cached by the
+            browser like the rest of the artwork.
             """
-            return web.FileResponse(
-                utils.join_path(
-                    config.extension_uri, "assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"
-                ),
-                headers={"Content-Type": "image/svg+xml"},
-            )
+            return svg_response(request, "no-preview")
+
+        @routes.get("/model-manager/assets/{name}.svg")
+        async def read_asset_svg(request):
+            """Glass artwork (folder icons, glyphs) with browser caching."""
+            name = request.match_info["name"]
+            if name not in _SVG_ASSETS:
+                raise web.HTTPNotFound()
+            return svg_response(request, name)
 
         @routes.get("/model-manager/preview/{type}/{index}/{filename:.*}")
         async def read_model_preview(request):
@@ -402,16 +465,31 @@ class Information:
             if not os.path.isfile(abs_path):
                 raise web.HTTPNotFound()
 
+            stat = os.stat(abs_path)
+            etag = f'"{stat.st_mtime_ns:x}-{stat.st_size:x}"'
+            cache_headers = {"ETag": etag, "Cache-Control": PREVIEW_CACHE_CONTROL}
+            if _not_modified(request, etag):
+                return web.Response(status=304, headers=cache_headers)
+
             # Determine content type from the actual file
             content_type = utils.resolve_file_content_type(abs_path)
 
             if content_type == "video":
                 # Serve video files directly
-                return web.FileResponse(abs_path)
+                return web.FileResponse(abs_path, headers=cache_headers)
             else:
-                # Serve image files (WebP or fallback images)
-                image_data = self.get_image_preview_data(abs_path)
-                return web.Response(body=image_data.getvalue(), content_type="image/webp")
+                # Serve image files (WebP or fallback images). The encode is
+                # CPU-bound, so it lives on the cpu pool (optimization A-4)
+                # and is memoised (optimization A-1).
+                loop = asyncio.get_running_loop()
+                encoded = await loop.run_in_executor(
+                    utils.cpu_executor(), self.get_image_preview_data, abs_path
+                )
+                return web.Response(
+                    body=encoded.getvalue(),
+                    content_type="image/webp",
+                    headers=cache_headers,
+                )
 
         @routes.get("/model-manager/preview/download/{filename}")
         async def read_download_preview(request):
@@ -428,6 +506,21 @@ class Information:
             return web.FileResponse(preview_path)
 
     def get_image_preview_data(self, filename: str):
+        """WebP bytes for a preview, memoised against (mtime_ns, size)."""
+        from io import BytesIO as _BytesIO
+
+        stat = os.stat(filename)
+        key = os.path.realpath(filename)
+        hit = _PREVIEW_ENCODE_CACHE.get(key)
+        if hit is not None and hit[0] == stat.st_mtime_ns and hit[1] == stat.st_size:
+            return _BytesIO(hit[2])
+        encoded = self._encode_preview(filename).getvalue()
+        _PREVIEW_ENCODE_CACHE[key] = (stat.st_mtime_ns, stat.st_size, encoded)
+        while len(_PREVIEW_ENCODE_CACHE) > _PREVIEW_ENCODE_LIMIT:
+            _PREVIEW_ENCODE_CACHE.pop(next(iter(_PREVIEW_ENCODE_CACHE)))
+        return _BytesIO(encoded)
+
+    def _encode_preview(self, filename: str):
         with Image.open(filename) as img:
             max_size = 1024
 

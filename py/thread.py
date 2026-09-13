@@ -8,20 +8,20 @@ class DownloadThreadPool:
     (send_json) work correctly without thread-safety issues or deadlocks.
     """
     def __init__(self):
-        self.running_tasks = set()
-        # BUG FIX: the lock used to be created here, i.e. at import time and
-        # therefore OUTSIDE any running event loop. On Python 3.9 (where
-        # asyncio.Lock() still binds eagerly) that produced "got Future
-        # attached to a different loop" as soon as a task finished. Create it
-        # lazily inside the running loop instead — a no-op on 3.10+, correct
-        # everywhere.
-        self._lock: asyncio.Lock | None = None
-        self._tasks = {}
+        # Optimization A-9: bookkeeping used to be split across a `set` of
+        # "running" ids and a dict of tasks, which could disagree (an id still
+        # in the set after its task finished). A single dict of live tasks is
+        # the only source of truth now; "running" == "not done()".
+        self.running_tasks: set[str] = set()
+        self._tasks: dict[str, asyncio.Task] = {}
 
     def _get_lock(self) -> asyncio.Lock:
-        if self._lock is None:
-            self._lock = asyncio.Lock()
-        return self._lock
+        # Created lazily inside the running loop: building it at import time
+        # bound it to no loop at all on Python 3.9.
+        lock = getattr(self, "_lock", None)
+        if lock is None:
+            lock = self._lock = asyncio.Lock()
+        return lock
 
     def submit(self, coro, task_id):
         """
@@ -34,18 +34,16 @@ class DownloadThreadPool:
         `<task_id>.download` file, corrupting the model.
         """
         existing = self._tasks.get(task_id)
-        if task_id in self.running_tasks:
-            if existing is None or existing.done():
-                # Stale bookkeeping (the coroutine already finished but its
-                # `finally` has not run yet): clean up and start the new one.
-                self.running_tasks.discard(task_id)
-                self._tasks.pop(task_id, None)
-            else:
-                # Never leave an un-awaited coroutine behind (RuntimeWarning).
-                close = getattr(coro, "close", None)
-                if callable(close):
-                    close()
-                return "Existing"
+        if existing is not None and not existing.done():
+            # Same id submitted twice while the first run is still alive:
+            # never leave the new, un-awaited coroutine behind (RuntimeWarning).
+            close = getattr(coro, "close", None)
+            if callable(close):
+                close()
+            return "Existing"
+        if existing is not None:
+            self._tasks.pop(task_id, None)
+            self.running_tasks.discard(task_id)
 
         try:
             loop = asyncio.get_running_loop()

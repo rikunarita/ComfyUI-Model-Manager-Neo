@@ -75,11 +75,15 @@
 <script setup lang="ts">
 import { RefreshCw } from '@lucide/vue'
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Button } from 'components/ui/button'
 import { Slider } from 'components/ui/slider'
 import { useConfig } from 'hooks/config'
 import { useDialog } from 'hooks/dialog'
+import { useToast } from 'hooks/toast'
 
+const { t } = useI18n()
+const { toast } = useToast()
 const { cardSizeMap, defaultCardSizeMap } = useConfig()
 const dialog = useDialog()
 
@@ -111,6 +115,7 @@ onMounted(() => {
 
 const handleReset = () => {
   sizeList.value = resolveSizeMap(defaultCardSizeMap)
+  toast.add({ severity: 'info', summary: t('cardSizeReset'), life: 2500 })
 }
 
 const handleCancelEditor = () => {
@@ -121,5 +126,6 @@ const handleCancelEditor = () => {
 const handleSaveSizeMap = () => {
   cardSizeMap.value = resolveSizeList(sizeList.value)
   dialog.close()
+  toast.add({ severity: 'success', summary: t('cardSizeSaved'), life: 2500 })
 }
 </script>

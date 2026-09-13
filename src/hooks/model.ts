@@ -181,6 +181,13 @@ export const useModels = defineStore('models', store => {
         loading.hide()
       })
 
+    toast.add({
+      severity: 'success',
+      summary: t('modelUpdated'),
+      detail: genModelFullName(data as BaseModel),
+      life: 3000,
+    })
+
     if (oldKey) {
       store.dialog.close({ key: oldKey })
     }
@@ -784,6 +791,12 @@ export const useModelNodeAction = () => {
     const node = createNode(model, { pos })
     app.graph.add(node)
     app.canvas.selectNode(node)
+    toast.add({
+      severity: 'success',
+      summary: t('nodeAdded'),
+      detail: model.basename,
+      life: 2500,
+    })
   })
 
   const copyModelNode = wrapperToastError((model: BaseModel) => {
@@ -805,6 +818,12 @@ export const useModelNodeAction = () => {
     const extension = type.split('/').pop()
     const file = new File([data], `${model.basename}.${extension}`, { type })
     app.handleFile(file)
+    toast.add({
+      severity: 'success',
+      summary: t('workflowLoaded'),
+      detail: model.basename,
+      life: 3000,
+    })
   })
 
   return {

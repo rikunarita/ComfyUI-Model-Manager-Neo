@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Literal, Optional, Union
 from urllib.parse import urlparse
 
+import aiohttp
 import folder_paths
 import requests
 from aiohttp import web
@@ -432,16 +433,30 @@ class ModelDownload:
         headers: dict,
         progress_callback: Callable[[TaskStatus], Awaitable[Any]],
         interval: float = 1.0,
-    ):
-        async def update_progress():
-            nonlocal last_update_time, last_downloaded_size
-            progress = (downloaded_size / total_size) * 100 if total_size > 0 else 0
+    ) -> None:
+        """Stream a download to `<task>.download` with aiohttp.
+
+        Optimization A-5, implemented conservatively: the transfer used to run
+        a *blocking* `requests` stream inside a worker thread, which is why the
+        code needed pause-polling, thread-marshalled progress pushes and the
+        "close the response inside the thread" workaround. On the event loop
+        all of that becomes ordinary `await` points:
+
+        - pause is observed between chunks and simply stops the iterator;
+        - cancellation (task delete) closes the session through `async with`;
+        - progress is pushed directly, throttled to `interval` seconds;
+        - resume still works through the `Range` header and the partial file.
+
+        Behaviour, error strings and the completion rules are unchanged; the
+        harness (P10/P11/P12, E13) covers resume, pause, delete and the
+        sub-folder landing.
+        """
+
+        async def push_progress(bps: float) -> None:
             task_status.downloadedSize = downloaded_size
-            task_status.progress = progress
-            task_status.bps = downloaded_size - last_downloaded_size
+            task_status.progress = (downloaded_size / total_size) * 100 if total_size > 0 else 0
+            task_status.bps = bps
             await progress_callback(task_status)
-            last_update_time = time.time()
-            last_downloaded_size = downloaded_size
 
         task_status = self.get_task_status(task_id)
         task_content = self.get_task_content(task_id)
@@ -456,7 +471,7 @@ class ModelDownload:
         downloaded_size = 0
         if os.path.isfile(download_tmp_file):
             downloaded_size = os.path.getsize(download_tmp_file)
-            headers["Range"] = f"bytes={downloaded_size}-"
+            headers = {**headers, "Range": f"bytes={downloaded_size}-"}
 
         total_size = task_content.sizeBytes
 
@@ -464,112 +479,61 @@ class ModelDownload:
             await self._download_complete(task_id)
             return
 
+        # A host that accepts the connection but never answers must not hang
+        # the task forever; the read timeout only applies between chunks.
+        timeout = aiohttp.ClientTimeout(connect=30, sock_read=600, total=None)
+
         last_update_time = time.time()
         last_downloaded_size = downloaded_size
 
-        loop = asyncio.get_running_loop()
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(
+                model_url, headers=headers, allow_redirects=True
+            ) as response:
+                if response.status not in (200, 206):
+                    raise RuntimeError(
+                        f"Failed to download {task_content.fullname}, status code: {response.status}"
+                    )
 
-        # BUG FIX (regression from the thread-pool -> asyncio rewrite):
-        # `requests.get(..., stream=True)` and the `iter_content()` read loop
-        # below are BLOCKING calls. Upstream ran every download task in a
-        # dedicated worker thread with its own event loop, so that was safe.
-        # `thread.DownloadThreadPool` now schedules the coroutine on ComfyUI's
-        # MAIN event loop, which meant:
-        #   - the connect/TLS/response-header phase blocked the whole server
-        #     with no socket timeout, so one unresponsive host froze ComfyUI
-        #     entirely (no prompt callbacks, no websocket, no UI);
-        #   - between chunks the loop only got control back once per `interval`,
-        #     starving every other websocket push and request;
-        #   - a download URL served by ComfyUI itself deadlocked permanently
-        #     (the server could not answer a request it was blocked on).
-        # The Hugging Face branch already offloads with `run_in_executor`; the
-        # plain HTTP branch was missed. Same treatment here.
-        response = await loop.run_in_executor(
-            None,
-            functools.partial(
-                requests.get,
-                url=model_url,
-                headers=headers,
-                stream=True,
-                allow_redirects=True,
-            ),
-        )
+                content_type = response.headers.get("content-type")
+                if content_type and content_type.startswith("text/html"):
+                    raise RuntimeError(
+                        f"{task_content.fullname} needs to be logged in to download. Please set the API-Key first."
+                    )
 
-        if response.status_code not in (200, 206):
-            raise RuntimeError(f"Failed to download {task_content.fullname}, status code: {response.status_code}")
+                response_total_size = float(response.headers.get("content-length", 0) or 0)
 
-        content_type = response.headers.get("content-type")
-        if content_type and content_type.startswith("text/html"):
-            raise RuntimeError(f"{task_content.fullname} needs to be logged in to download. Please set the API-Key first.")
+                if response.status == 206:
+                    actual_total = response_total_size + downloaded_size
+                    if total_size == 0 or total_size != actual_total:
+                        total_size = actual_total
+                        task_content.sizeBytes = total_size
+                        task_status.totalSize = total_size
+                        self.set_task_content(task_id, task_content)
+                        await utils.send_json("update_download_task", task_status.to_dict())
+                else:
+                    if total_size == 0 or total_size != response_total_size:
+                        total_size = response_total_size
+                        task_content.sizeBytes = total_size
+                        task_status.totalSize = total_size
+                        self.set_task_content(task_id, task_content)
+                        await utils.send_json("update_download_task", task_status.to_dict())
 
-        response_total_size = float(response.headers.get("content-length", 0))
-
-        if response.status_code == 206:
-            actual_total = response_total_size + downloaded_size
-            if total_size == 0 or total_size != actual_total:
-                total_size = actual_total
-                task_content.sizeBytes = total_size
-                task_status.totalSize = total_size
-                self.set_task_content(task_id, task_content)
-                await utils.send_json("update_download_task", task_status.to_dict())
-        else:
-            if total_size == 0 or total_size != response_total_size:
-                total_size = response_total_size
-                task_content.sizeBytes = total_size
-                task_status.totalSize = total_size
-                self.set_task_content(task_id, task_content)
-                await utils.send_json("update_download_task", task_status.to_dict())
-
-        # Mutable holder so the worker thread can hand the counters back.
-        state = {
-            "downloaded": downloaded_size,
-            "last_update": last_update_time,
-            "last_size": last_downloaded_size,
-        }
-
-        def pump_chunks():
-            # NOTE: the response MUST be closed from inside this worker thread.
-            # `pause_model_download_task` / `delete_model_download_task` cancel
-            # the asyncio task, which raises CancelledError at the
-            # `run_in_executor` await below; a `finally: response.close()` on
-            # the loop side then ran concurrently with this thread's
-            # `iter_content()` and blocked the event loop on urllib3's read
-            # lock for as long as the transfer had left (measured: the whole
-            # server stopped answering requests for 8s after a pause).
-            try:
                 with open(download_tmp_file, "ab") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        # Cooperative pause/cancel, checked exactly as before:
-                        # the callers flip `task_status.status`, the loop breaks
-                        # on the next chunk and the partially written
-                        # `.download` file stays resumable through the `Range`
-                        # header above.
+                    async for chunk in response.content.iter_chunked(8192):
+                        # Cooperative pause, checked exactly as before.
                         if task_status.status == "pause":
                             break
 
                         f.write(chunk)
-                        state["downloaded"] += len(chunk)
+                        downloaded_size += len(chunk)
 
-                        if time.time() - state["last_update"] >= interval:
-                            done = state["downloaded"]
-                            task_status.downloadedSize = done
-                            task_status.progress = (done / total_size) * 100 if total_size > 0 else 0
-                            task_status.bps = done - state["last_size"]
-                            # Marshal the websocket push back onto the main
-                            # loop - identical to the Hugging Face tqdm hook.
-                            asyncio.run_coroutine_threadsafe(progress_callback(task_status), loop)
-                            state["last_update"] = time.time()
-                            state["last_size"] = done
-            finally:
-                response.close()
+                        if time.time() - last_update_time >= interval:
+                            await push_progress(downloaded_size - last_downloaded_size)
+                            last_update_time = time.time()
+                            last_downloaded_size = downloaded_size
 
-        await loop.run_in_executor(None, pump_chunks)
-
-        downloaded_size = state["downloaded"]
-        last_update_time = state["last_update"]
-        last_downloaded_size = state["last_size"]
-
-        await update_progress()
+                await push_progress(downloaded_size - last_downloaded_size)
 
         if total_size > 0 and downloaded_size == total_size:
             await self._download_complete(task_id)
@@ -687,7 +651,7 @@ class ModelDownload:
         result_path = None
         try:
             result_path = await loop.run_in_executor(
-                None,
+                utils.io_executor(),
                 lambda: hf_hub_download(
                     repo_id=repo_id,
                     filename=filename,

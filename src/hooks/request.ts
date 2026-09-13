@@ -46,6 +46,8 @@ export interface RequestOptions<T> {
   defaultValue?: any
   postData?: (data: T) => T
   manual?: boolean
+  /** Called with the error after it has been re-thrown, for surface toasts. */
+  onError?: (error: Error) => void
 }
 
 export const useRequest = <T = any>(url: string, options: RequestOptions<T> = {}) => {
@@ -91,6 +93,7 @@ export const useRequest = <T = any>(url: string, options: RequestOptions<T> = {}
       .then(resData => (data.value = postData(resData)))
       .catch(err => {
         console.error(`[Request Error] ${requestUrl}:`, err)
+        options.onError?.(err instanceof Error ? err : new Error(String(err)))
         throw err // 呼び出し元でハンドリングできるよう再スロー
       })
       .finally(() => loading.hide())

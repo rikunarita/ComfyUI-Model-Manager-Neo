@@ -37,24 +37,34 @@ export const useDownload = defineStore('download', store => {
       downloadProgress: `${bytesToSize(downloadedSize)} / ${bytesToSize(totalSize)}`,
       downloadSpeed: `${bytesToSize(bps)}/s`,
       pauseTask() {
-        wrapperToastError(async () =>
-          request(`/download/${item.taskId}`, {
+        wrapperToastError(async () => {
+          await request(`/download/${item.taskId}`, {
             method: 'PUT',
             body: JSON.stringify({
               status: 'pause',
             }),
-          }),
-        )()
+          })
+          toast.add({
+            severity: 'info',
+            summary: t('taskPaused', { name: item.fullname }),
+            life: 2500,
+          })
+        })()
       },
       resumeTask: () => {
-        wrapperToastError(async () =>
-          request(`/download/${item.taskId}`, {
+        wrapperToastError(async () => {
+          await request(`/download/${item.taskId}`, {
             method: 'PUT',
             body: JSON.stringify({
               status: 'resume',
             }),
-          }),
-        )()
+          })
+          toast.add({
+            severity: 'info',
+            summary: t('taskResumed', { name: item.fullname }),
+            life: 2500,
+          })
+        })()
       },
       deleteTask: () => {
         confirm.require({
@@ -71,11 +81,17 @@ export const useDownload = defineStore('download', store => {
             severity: 'danger',
           },
           accept: () => {
-            wrapperToastError(async () =>
-              request(`/download/${item.taskId}`, {
+            wrapperToastError(async () => {
+              await request(`/download/${item.taskId}`, {
                 method: 'DELETE',
-              }),
-            )()
+              })
+              toast.add({
+                severity: 'success',
+                summary: t('taskDeleted'),
+                detail: item.fullname,
+                life: 2500,
+              })
+            })()
           },
           reject: () => {},
         })
