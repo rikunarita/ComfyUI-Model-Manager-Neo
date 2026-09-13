@@ -257,8 +257,9 @@ HTTP `Range` 断点续传。
 
 ### ZipNN 压缩
 
-打开 `.safetensors` 模型时，预览与信息表之间的空隙处有一个较大的 **ZipNN 压缩**
-按钮(使用项目自带的 ZipNN 图标，悬停时上浮并变亮，工具提示说明作用)。点击后弹出
+打开 `.safetensors` 模型时，预览与信息表之间的空隙处就是 **ZipNN 图标本身构成的按钮**
+(自带 SVG 会绘制自己的玻璃面板与深色模式版本，悬停时上浮并变亮，工具提示与 aria-label
+说明作用)。点击后弹出
 **非 Danger** 的确认框，随后在后台逐张量压缩:
 
 - 运行期间按钮替换为**进度条**;
@@ -268,7 +269,11 @@ HTTP `Range` 断点续传。
 
 压缩文件遵循官方 ZipNN 布局(`znn_compressed_vectors` 元数据、浮点张量 Huffman
 压缩)，因此经 `zipnn_safetensors()` 补丁的加载器可透明读取。ZipNN 在首次使用时
-安装(`pip install zipnn`)；PyPI 无 Linux wheel，Linux 上需要 C++ 工具链。
+安装(`pip install zipnn`)；PyPI 无 Linux wheel，Linux 上需要 **C 编译器与 Python 头文件
+(`Python.h`)**。若安装失败，错误提示会显示 pip 的第一条关键信息(完整输出在 ComfyUI
+控制台)、缺失的依赖以及对应发行版的修复命令，并提供**重试**操作——失败的安装会
+缓存 5 分钟，反复点击不会重复执行注定失败的构建。离线环境可将预编译 wheel 放入
+`assets/zipnn-wheels/`，它优先于 PyPI 使用。
 
 ## 9. 设置
 

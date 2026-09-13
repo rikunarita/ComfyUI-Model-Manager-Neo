@@ -213,5 +213,8 @@
   "zipnnConfirmDecompress": "解压此模型？解压成功后 .znn.safetensors 将替换为普通 .safetensors。",
   "zipnnCompressed": "ZipNN 压缩完成",
   "zipnnDecompressed": "ZipNN 解压完成",
-  "zipnnFailed": "ZipNN 操作失败"
+  "zipnnFailed": "ZipNN 操作失败",
+  "zipnnInstallFailed": "ZipNN 安装失败",
+  "zipnnRetryInstall": "重试安装",
+  "zipnnMoreInConsole": "ComfyUI 控制台还有 {n} 行详细信息"
 }

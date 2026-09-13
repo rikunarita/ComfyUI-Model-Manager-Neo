@@ -1089,14 +1089,60 @@ and the info table, lifts and brightens on hover with a tooltip, and asks for a
 **non-danger confirmation** before doing anything. A progress bar replaces the
 button while the cpu-pool task runs; previews and notes follow the rename, and a
 compressed model shows the icon **fully inverted** with a decompress action
-behind the same confirmation. ZipNN has no Linux wheels (it builds from source),
-so it is installed **on demand** at first use instead of being forced onto every
-ComfyUI installation.
+behind the same confirmation — and since the twelfth pass the artwork _is_ the
+button (no chrome, no label; it draws its own glass plate and dark variant).
+ZipNN has no Linux wheels (it builds from source), so it is installed **on
+demand** at first use instead of being forced onto every ComfyUI installation;
+a failed install reports pip's own output plus the distro-specific fix command
+and offers a retry toast action.
 
 Verification after this pass: `verify:py` **62 assertions** (P31–P33c exercise
 the whole ZipNN pipeline through harness stubs of `zipnn`/`safetensors`/`torch`),
 `verify:e2e` **87 assertions** (E27–E30b), `mypy` clean, `typecheck` / `lint` /
 `format:check` / `build` clean.
+
+<a id="twelfth-pass"></a>
+
+## <img src="https://api.iconify.design/lucide/wrench.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Twelfth pass (ZipNN installer hardening, artwork-as-button)
+
+A production report — `pip install zipnn` dying with a bare _"returned non-zero
+exit status 1"_ — showed the on-demand installer was swallowing pip's entire
+output, retrying doomed strategies and caching failures forever. Fixed end to
+end:
+
+- **Diagnosable failures.** `_run_pip` captures stdout/stderr; every raised
+  message carries pip's last 25 lines, so `fatal error: Python.h: No such file
+or directory`, a missing compiler or a resolver conflict is visible instead of
+  an opaque exit code.
+- **Prerequisite detection.** Before building, the extension checks for a C
+  compiler and `Python.h`, prints a warning, and on failure names the exact
+  distro/conda command that fixes it (`sudo apt-get install -y build-essential
+python3-dev`, `sudo dnf install -y gcc gcc-c++ python3-devel`, …).
+- **Sane strategy order.** Local wheel → `--no-deps` (a ComfyUI venv already has
+  numpy/safetensors/torch; a full resolve re-downloads a ~550 MB torch wheel) →
+  full install → `--no-build-isolation`. A build that succeeds but cannot be
+  imported stops the chain instead of re-downloading torch.
+- **Modern-toolchain CFLAGS.** gcc ≥ 14 / clang ≥ 16 default
+  `implicit-function-declaration` / `incompatible-pointer-types` to hard errors,
+  which ZipNN 0.5.4's C sources trip on; exactly those diagnostics are relaxed
+  (real errors stay loud).
+- **Retry instead of restart.** Failures are cached for five minutes; the error
+  toast shows the first interesting pip line (full output in the console), and a
+  **retry** action re-runs the strategies with `force`.
+- **Offline escape hatch.** Wheels dropped into `assets/zipnn-wheels/` are
+  preferred over PyPI (see the README inside that directory).
+- **The SVG artwork is the button.** The rectangular chrome and the text label
+  are gone; `assets/ZipNN-icon/ZipNN-Button_Icon.svg` _is_ the control — hover
+  lift/brighten, tooltip, `aria-label`, focus ring and the inverted state for
+  compressed models all still apply.
+- `harness/e2e.mjs` / `capture.mjs` / `repro.mjs` honour `$PYTHON` so the
+  harness can run against any interpreter.
+
+Verification after this pass: `verify:py` **74 assertions** (P34–P34j pin the
+strategy order, caching, CFLAGS, wheel directory, prerequisite hint and the
+`installFailed` flag), `verify:e2e` **89 assertions** (E08c/E27g pin the
+artwork-as-button contract), plus `mypy`, `typecheck`, `lint`, `format:check`
+and `build` clean.
 
 <a id="development"></a>
 
@@ -1119,8 +1165,8 @@ pnpm install
 | `pnpm typecheck`                        | `vue-tsc --noEmit` type checking                                        |
 | `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                    |
 | `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                     |
-| `pnpm verify:py`                        | Python route/lifecycle probe (`harness/py_probe.py`, 62 assertions)     |
-| `pnpm verify:e2e`                       | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 87)    |
+| `pnpm verify:py`                        | Python route/lifecycle probe (`harness/py_probe.py`, 74 assertions)     |
+| `pnpm verify:e2e`                       | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 89)    |
 | `python -m mypy --config-file mypy.ini` | Backend static types (C-3), clean                                       |
 
 The harness needs `aiohttp` / `pillow` / `pyyaml` (ComfyUI provides them at

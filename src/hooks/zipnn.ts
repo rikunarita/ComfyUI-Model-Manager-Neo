@@ -50,6 +50,32 @@ api.addEventListener('update_zipnn_progress', (event: CustomEvent) => {
   if (detail.mode) zipnnState.mode = detail.mode
 })
 
+/**
+ * A failed `pip install zipnn` carries the tail of pip's own output (compiler
+ * errors, missing Python.h, ...). That is far too long for a toast, so the
+ * first interesting line is shown and the rest is left to the console.
+ */
+const compactError = (raw: string): string => {
+  const lines = raw
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+  if (lines.length <= 1) return raw
+  const interesting =
+    lines.find(line =>
+      /fatal error|error:|No such file|not found|cannot|Could not|failed/i.test(line),
+    ) ?? lines[lines.length - 1]
+  const body = interesting.length > 220 ? `${interesting.slice(0, 217)}…` : interesting
+  return `${body}\n${t('zipnnMoreInConsole', { n: lines.length - 1 })}`
+}
+
+/** Remembered so the "retry install" toast action can re-run the same job. */
+let lastRequest: {
+  mode: 'compress' | 'decompress'
+  model: { type: string; pathIndex: number; fullname: string }
+  modelKey: string
+} | null = null
+
 api.addEventListener('zipnn_complete', (event: CustomEvent) => {
   const detail = event.detail as
     | {
@@ -57,6 +83,7 @@ api.addEventListener('zipnn_complete', (event: CustomEvent) => {
         ok?: boolean
         error?: string
         mode?: string
+        installFailed?: boolean
         stats?: { originalBytes?: number; compressedBytes?: number }
       }
     | undefined
@@ -68,10 +95,31 @@ api.addEventListener('zipnn_complete', (event: CustomEvent) => {
   zipnnState.targetKey = null
 
   if (!detail.ok) {
+    const raw = detail.error ?? t('zipnnFailed')
+    if (detail.installFailed) {
+      // The backend caches a failed install for a few minutes, so the retry has
+      // to ask for it explicitly (`force`).
+      const retry = lastRequest
+      toast.add({
+        severity: 'error',
+        summary: t('zipnnInstallFailed'),
+        detail: compactError(raw),
+        life: 20000,
+        action: retry
+          ? {
+              label: t('zipnnRetryInstall'),
+              onClick: () => {
+                void startZipnn(retry.mode, retry.model, retry.modelKey, { force: true })
+              },
+            }
+          : undefined,
+      })
+      return
+    }
     toast.add({
       severity: 'error',
       summary: t('error'),
-      detail: detail.error ?? t('zipnnFailed'),
+      detail: raw,
       life: 12000,
     })
     return
@@ -101,7 +149,9 @@ export const startZipnn = async (
   mode: 'compress' | 'decompress',
   model: { type: string; pathIndex: number; fullname: string },
   modelKey: string,
+  options?: { force?: boolean },
 ): Promise<void> => {
+  lastRequest = { mode, model, modelKey }
   zipnnState.taskId = null
   zipnnState.active = true
   zipnnState.progress = 0
@@ -112,7 +162,7 @@ export const startZipnn = async (
     const res = (await request(`/zipnn/${mode}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(model),
+      body: JSON.stringify(options?.force ? { ...model, force: true } : model),
     })) as { taskId: string }
     zipnnState.taskId = res?.taskId ?? null
   } catch (error) {

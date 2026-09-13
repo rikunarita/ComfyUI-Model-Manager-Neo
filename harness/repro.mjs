@@ -29,9 +29,13 @@ for (const pid of readdirSync('/proc')) {
 }
 
 const PORT = 8861
-const server = spawn('python3', ['harness/serve.py', '--port', String(PORT)], {
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
+const server = spawn(
+  process.env.PYTHON ?? 'python3',
+  ['harness/serve.py', '--port', String(PORT)],
+  {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  },
+)
 server.stderr.on('data', d => process.stderr.write(`[serve] ${d}`))
 for (let i = 0; i < 60; i++) {
   try {

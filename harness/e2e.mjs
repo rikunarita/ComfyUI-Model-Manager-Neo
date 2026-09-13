@@ -55,9 +55,13 @@ const check = (name, ok, detail = '') => {
   }
 }
 
-const server = spawn('python3', [path.join(ROOT, 'harness', 'serve.py'), '--port', String(PORT)], {
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
+const server = spawn(
+  process.env.PYTHON ?? 'python3',
+  [path.join(ROOT, 'harness', 'serve.py'), '--port', String(PORT)],
+  {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  },
+)
 server.stderr.on('data', d => process.stderr.write(`[serve] ${d}`))
 
 const waitServer = async () => {
@@ -345,8 +349,10 @@ try {
   await descTab.click()
   await page.waitForTimeout(300)
 
-  // E08 — detail action icon buttons (incl. destructive) are glass
-  const actions = await detail.locator('form button').evaluateAll(els =>
+  // E08 — detail action icon buttons (incl. destructive) are glass.
+  // The ZipNN control is excluded on purpose: it *is* the shipped SVG artwork
+  // (which draws its own glass plate), so it must paint no chrome of its own.
+  const actions = await detail.locator('form button:not(.mm-zipnn-button)').evaluateAll(els =>
     els.map(el => {
       const cs = getComputedStyle(el)
       return {
@@ -365,6 +371,26 @@ try {
     JSON.stringify(actions.slice(0, 8)),
   )
   check('E08b destructive button present', Boolean(destructive), JSON.stringify(actions))
+  const znnChrome = await detail.locator('form button.mm-zipnn-button').evaluateAll(els =>
+    els.map(el => {
+      const cs = getComputedStyle(el)
+      return {
+        alpha: alphaOf(cs.backgroundColor),
+        border: cs.borderTopWidth,
+        blur: cs.backdropFilter,
+        pad: cs.paddingTop,
+      }
+    }),
+  )
+  check(
+    'E08c the ZipNN button paints no chrome (the SVG artwork is the button)',
+    znnChrome.length === 1 &&
+      znnChrome[0].alpha === 0 &&
+      znnChrome[0].border === '0px' &&
+      znnChrome[0].blur === 'none' &&
+      znnChrome[0].pad === '0px',
+    JSON.stringify(znnChrome),
+  )
 
   await page.screenshot({ path: path.join(SHOTS, 'dark-detail.png') })
 
@@ -1194,6 +1220,15 @@ try {
   check(
     'E27c uncompressed model shows the normal (non-inverted) icon',
     !((await znnImg.getAttribute('class')) ?? '').includes('invert'),
+  )
+  const znnBox = await znnButton.boundingBox()
+  check(
+    'E27g the button *is* the SVG artwork: bare, square, no text label',
+    (await znnButton.innerText()).trim() === '' &&
+      !!znnBox &&
+      znnBox.width >= 40 &&
+      Math.abs(znnBox.width - znnBox.height) < 2,
+    JSON.stringify(znnBox),
   )
   await znnButton.click()
   const znnConfirm = page.locator('[role="alertdialog"]')

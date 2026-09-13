@@ -49,9 +49,13 @@ for (const pid of readdirSync('/proc')) {
   }
 }
 
-const server = spawn('python3', [path.join(ROOT, 'harness', 'serve.py'), '--port', String(PORT)], {
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
+const server = spawn(
+  process.env.PYTHON ?? 'python3',
+  [path.join(ROOT, 'harness', 'serve.py'), '--port', String(PORT)],
+  {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  },
+)
 server.stderr.on('data', d => process.stderr.write(`[serve] ${d}`))
 
 const waitServer = async () => {

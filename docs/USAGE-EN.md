@@ -291,11 +291,12 @@ a bulk bar appears at the bottom of the window:
 
 ### ZipNN compression
 
-Opening a `.safetensors` model shows a large **ZipNN compress** button in the
-gap between the preview and the info table (it uses the project's ZipNN
-artwork, lifts and brightens on hover, and explains itself in a tooltip).
-Pressing it asks for a confirmation that is deliberately _not_ styled as
-Danger, then compresses tensor-by-tensor in the background:
+Opening a `.safetensors` model shows the **ZipNN artwork itself as the button**
+in the gap between the preview and the info table: the shipped SVG draws its own
+glass plate (including a dark-mode variant), lifts and brightens on hover, and
+explains itself in a tooltip and to screen readers. Pressing it asks for a
+confirmation that is deliberately _not_ styled as Danger, then compresses
+tensor-by-tensor in the background:
 
 - the button is replaced by a **progress bar** while the task runs;
 - on success the original file is replaced by `<name>.znn.safetensors`;
@@ -307,8 +308,14 @@ Danger, then compresses tensor-by-tensor in the background:
 Compressed files follow the official ZipNN layout (`znn_compressed_vectors`
 metadata, Huffman-compressed floating-point tensors), so loaders patched with
 `zipnn_safetensors()` read them transparently. ZipNN is installed on first use
-(`pip install zipnn`); it needs a C++ toolchain on Linux because PyPI ships no
-Linux wheels.
+(`pip install zipnn`); it needs a C compiler **and** the Python headers
+(`Python.h`) on Linux because PyPI ships no Linux wheels. If the install fails,
+the error toast shows the first interesting pip line (the full output stays in
+the ComfyUI console), names the missing prerequisite together with the
+distro-specific command that fixes it, and offers a **retry** action - a failed
+install is cached for five minutes so hammering the button never re-runs a
+doomed build. Air-gapped hosts can drop a prebuilt wheel into
+`assets/zipnn-wheels/`; it is preferred over PyPI.
 
 ## 9. Settings
 

@@ -214,3 +214,4 @@ node.zip
 # verification harness artifacts
 harness/shots/
 webdbg/
+assets/zipnn-wheels/*.whl

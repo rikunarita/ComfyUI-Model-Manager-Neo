@@ -27,6 +27,7 @@ from typing import Any, Callable, Optional
 
 from aiohttp import web
 
+from . import config
 from . import utils
 
 ZNN_SUFFIX = ".znn.safetensors"
@@ -46,8 +47,30 @@ def is_compressed_name(name: str) -> bool:
     return name.endswith(ZNN_SUFFIX)
 
 
+def zipnn_installed() -> bool:
+    """True when the ZipNN files exist on disk (without importing them).
+
+    ``importlib.invalidate_caches()`` matters here: ZipNN is installed by a
+    *subprocess* after this interpreter has already scanned site-packages, so
+    without it a successful install can still look absent.
+    """
+    import importlib.util
+
+    importlib.invalidate_caches()
+    try:
+        return (
+            importlib.util.find_spec("zipnn") is not None
+            and importlib.util.find_spec("zipnn_core") is not None
+        )
+    except Exception:
+        return False
+
+
 def zipnn_available() -> bool:
     try:
+        import importlib
+
+        importlib.invalidate_caches()
         import zipnn  # noqa: F401
         import zipnn_core  # noqa: F401
 
@@ -56,17 +79,271 @@ def zipnn_available() -> bool:
         return False
 
 
-def ensure_zipnn() -> None:
-    """Install ZipNN on first use (opt-in: it compiles from source on Linux)."""
-    if zipnn_available():
-        return
-    utils.print_info("Installing zipnn (first use of the ZipNN feature)...")
-    utils.pip_install("zipnn")
-    if not zipnn_available():
-        raise RuntimeError(
-            "zipnn could not be installed on this machine (it needs a C++ toolchain "
-            "to build from source). See https://github.com/zipnn/zipnn"
+# ZipNN ships no Linux wheels: `pip install zipnn` compiles a C extension from
+# the sdist. Modern toolchains (gcc >= 14, clang >= 16) turn a few historical C
+# patterns into hard errors by default (-Werror=implicit-function-declaration,
+# -Werror=incompatible-pointer-types), which made the build die with a bare
+# "exit status 1". Relaxing exactly those diagnostics keeps every real error
+# visible while letting the official sources build.
+_ZIPNN_BUILD_CFLAGS = (
+    "-Wno-error=implicit-function-declaration "
+    "-Wno-implicit-function-declaration "
+    "-Wno-error=incompatible-pointer-types "
+    "-Wno-incompatible-pointer-types "
+    "-Wno-error=int-conversion "
+    "-Wno-int-conversion"
+)
+
+# Optional escape hatch for offline / air-gapped machines: drop platform
+# wheels into this directory and they are preferred over PyPI.
+_ZIPNN_WHEEL_DIR = "zipnn-wheels"
+
+# A failed install is remembered so that hammering the button does not re-run a
+# doomed multi-minute build - but only for a while: the user may fix their
+# toolchain, and the UI offers an explicit retry (`force`).
+_ZIPNN_INSTALL_TTL = 300.0
+_zipnn_install_failed: tuple[str, float] | None = None
+
+
+class ZipNNInstallError(RuntimeError):
+    """The optional ZipNN dependency could not be installed on this host."""
+
+
+_PKG_MANAGER_HINTS = {
+    "debian": "sudo apt-get install -y build-essential python3-dev",
+    "ubuntu": "sudo apt-get install -y build-essential python3-dev",
+    "linuxmint": "sudo apt-get install -y build-essential python3-dev",
+    "pop": "sudo apt-get install -y build-essential python3-dev",
+    "fedora": "sudo dnf install -y gcc gcc-c++ python3-devel",
+    "rhel": "sudo dnf install -y gcc gcc-c++ python3-devel",
+    "centos": "sudo dnf install -y gcc gcc-c++ python3-devel",
+    "rocky": "sudo dnf install -y gcc gcc-c++ python3-devel",
+    "almalinux": "sudo dnf install -y gcc gcc-c++ python3-devel",
+    "arch": "sudo pacman -S --needed base-devel",
+    "manjaro": "sudo pacman -S --needed base-devel",
+    "opensuse": "sudo zypper install -y gcc gcc-c++ python3-devel",
+    "opensuse-leap": "sudo zypper install -y gcc gcc-c++ python3-devel",
+    "alpine": "sudo apk add build-base python3-dev",
+    "gentoo": "sudo emerge --ask sys-devel/gcc",
+}
+
+
+def _distro_id() -> str:
+    try:
+        with open("/etc/os-release", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("ID="):
+                    return line.split("=", 1)[1].strip().strip('"').lower()
+    except OSError:
+        pass
+    return ""
+
+
+def _python_headers_missing() -> bool:
+    """True when Python.h cannot be found for the *base* interpreter."""
+    import sys
+    import sysconfig
+
+    short = sysconfig.get_config_var("py_version_short") or ""
+    candidates = [sysconfig.get_paths().get("include", "")]
+    base = getattr(sys, "base_prefix", sys.prefix)
+    candidates += [
+        os.path.join(base, "include"),
+        os.path.join(base, "include", f"python{short}"),
+        os.path.join(base, "include", f"python{short}m"),
+    ]
+    return not any(
+        c and os.path.exists(os.path.join(c, "Python.h")) for c in candidates
+    )
+
+
+def _build_prereq_hint() -> str | None:
+    """Explain *why* a source build would fail, with the command that fixes it.
+
+    PyPI ships no Linux wheel for ZipNN, so `pip install zipnn` compiles a C
+    extension. The two overwhelmingly common reasons that fails are a missing
+    compiler and missing Python headers (`fatal error: Python.h: No such file
+    or directory`) - neither is visible in a bare "exit status 1".
+    """
+    import shutil
+    import sys
+    import sysconfig
+
+    missing: list[str] = []
+    cc = (
+        shutil.which(os.environ.get("CC", ""))
+        if os.environ.get("CC")
+        else None
+    ) or shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+    if not cc:
+        missing.append("no C compiler (cc/gcc/clang) on PATH")
+    if _python_headers_missing():
+        missing.append(
+            f"no Python headers (Python.h not found for {sysconfig.get_paths().get('include')})"
         )
+    if not missing:
+        return None
+
+    if sys.platform == "darwin":
+        fix = "xcode-select --install"
+    else:
+        fix = _PKG_MANAGER_HINTS.get(_distro_id(), "")
+    if os.environ.get("CONDA_PREFIX"):
+        fix = (fix + "  |  conda: ").strip("  |  ") + (
+            "conda install -y -c conda-forge cxx-compiler"
+        )
+    hint = "Build prerequisites look incomplete: " + "; ".join(missing) + "."
+    if fix:
+        hint += f" Fix it with: {fix}"
+    return hint
+
+
+def _ensure_pip() -> None:
+    """venvs created with `--without-pip` (or broken upgrades) have no pip."""
+    import subprocess
+    import sys
+
+    probe = subprocess.run(
+        [sys.executable, "-m", "pip", "--version"],
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode != 0:
+        subprocess.run(
+            [sys.executable, "-m", "ensurepip", "--upgrade"],
+            capture_output=True,
+            text=True,
+        )
+
+
+def _run_pip(args: list[str], extra_env: dict[str, str] | None = None) -> str:
+    """Run a pip invocation, returning its output or raising with its tail.
+
+    The previous implementation used ``subprocess.run(..., check=True)`` without
+    capturing anything, so a failed build surfaced as a bare
+    "returned non-zero exit status 1" with no way to tell *why*.
+    """
+    import subprocess
+    import sys
+
+    env = os.environ.copy()
+    for key, value in (extra_env or {}).items():
+        env[key] = f"{env.get(key, '')} {value}".strip()
+    proc = subprocess.run(
+        [sys.executable, "-m", "pip", *args],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    output = (proc.stdout or "") + (proc.stderr or "")
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"`pip {' '.join(args)}` failed (exit {proc.returncode}):\n"
+            + "\n".join(output.strip().splitlines()[-25:])
+        )
+    return output
+
+
+def _zipnn_import_error() -> str | None:
+    """Why ``import zipnn`` fails, or None when it works."""
+    if zipnn_available():
+        return None
+    try:
+        import zipnn  # noqa: F401
+    except Exception as e:  # pragma: no cover - depends on the host env
+        return f"{type(e).__name__}: {e}"
+    return "zipnn_core extension not importable"
+
+
+def ensure_zipnn(force: bool = False) -> None:
+    """Install ZipNN on first use (opt-in: it compiles from source on Linux).
+
+    Strategies, in order - the first that yields an importable ZipNN wins:
+
+    1. a wheel placed in ``assets/zipnn-wheels/`` (offline / air-gapped hosts);
+    2. ``pip install --no-deps zipnn`` - ComfyUI venvs always ship numpy,
+       safetensors and torch, and resolving them again makes pip pull a
+       ~550 MB torch wheel for no reason;
+    3. a full ``pip install zipnn`` (dependencies actually missing);
+    4. ``pip install --no-build-isolation zipnn`` (hosts whose build isolation
+       cannot reach PyPI), after making sure the build backends exist.
+
+    Every attempt is compiled with a few ``-Wno-error=...`` flags: gcc >= 14 and
+    clang >= 16 default ``implicit-function-declaration`` /
+    ``incompatible-pointer-types`` to hard errors, which made ZipNN 0.5.4's C
+    sources fail to build on modern toolchains. Failures carry the tail of pip's
+    own output plus a host-specific prerequisite hint, and are cached for
+    :data:`_ZIPNN_INSTALL_TTL` seconds so repeated presses do not re-run a
+    doomed build (``force=True``, used by the UI retry, bypasses the cache).
+    """
+    global _zipnn_install_failed
+    import time
+
+    if zipnn_available():
+        _zipnn_install_failed = None
+        return
+    if _zipnn_install_failed and not force:
+        message, at = _zipnn_install_failed
+        if time.time() - at < _ZIPNN_INSTALL_TTL:
+            raise ZipNNInstallError(message)
+        _zipnn_install_failed = None
+
+    utils.print_info("Installing zipnn (first use of the ZipNN feature)...")
+    _ensure_pip()
+    hint = _build_prereq_hint()
+    if hint:
+        utils.print_info(f"  warning: {hint}")
+    cflags = {"CFLAGS": _ZIPNN_BUILD_CFLAGS}
+    wheel_dir = utils.join_path(config.extension_uri, "assets", _ZIPNN_WHEEL_DIR)
+    errors: list[str] = []
+
+    attempts: list[tuple[str, list[str]]] = []
+    wheels = (
+        sorted(w for w in os.listdir(wheel_dir) if w.endswith(".whl"))
+        if os.path.isdir(wheel_dir)
+        else []
+    )
+    if wheels:
+        attempts.append(("local wheel", ["install", "--no-deps", os.path.join(wheel_dir, wheels[-1])]))
+    attempts.append(("no-deps", ["install", "--no-deps", "zipnn"]))
+    attempts.append(("full", ["install", "zipnn"]))
+    attempts.append(("no-build-isolation", ["install", "--no-build-isolation", "zipnn"]))
+
+    for label, args in attempts:
+        try:
+            if label == "no-build-isolation":
+                _run_pip(["install", "setuptools", "wheel", "numpy", "safetensors", "torch"])
+            utils.print_info(f"  trying: pip {' '.join(args)} ({label})")
+            _run_pip(args, cflags)
+        except Exception as e:
+            errors.append(f"[{label}] {e}")
+            continue
+        if zipnn_available():
+            _zipnn_install_failed = None
+            return
+        if zipnn_installed():
+            # Built fine, but something it imports is missing (torch /
+            # safetensors / numpy). Re-installing would not help - and would
+            # needlessly re-download a ~550 MB torch wheel.
+            message = (
+                f"ZipNN was installed but cannot be imported: {_zipnn_import_error()}"
+            )
+            _zipnn_install_failed = (message, time.time())
+            utils.print_error(message)
+            raise ZipNNInstallError(message)
+
+    message = (
+        "ZipNN could not be installed on this machine. PyPI ships no Linux "
+        "wheels for it, so it has to be built from source, which needs a C "
+        "compiler and the Python headers (Python.h). "
+        + (hint + " " if hint else "")
+        + "Alternatively drop a prebuilt wheel into `assets/zipnn-wheels/`. "
+        "Details:\n"
+        + "\n".join(errors[-4:])
+    )
+    _zipnn_install_failed = (message, time.time())
+    utils.print_error(message)
+    raise ZipNNInstallError(message)
 
 
 def _sidecar_move(old_model: str, new_model: str) -> None:
@@ -248,6 +525,7 @@ class ZipNNRoutes:
                 {"success": False, "error": f"target already exists: {os.path.basename(dst)}"}
             )
 
+        force = bool(data.get("force"))
         task_id = uuid.uuid4().hex
         ZIPNN_TASKS[task_id] = {"mode": mode, "status": "running", "src": src, "dst": dst}
         await utils.send_json(
@@ -259,9 +537,14 @@ class ZipNNRoutes:
 
         async def worker():
             try:
-                await loop.run_in_executor(utils.cpu_executor(), ensure_zipnn)
+                await loop.run_in_executor(utils.cpu_executor(), ensure_zipnn, force)
             except Exception as e:
-                await self._fail(task_id, src, str(e))
+                await self._fail(
+                    task_id,
+                    src,
+                    str(e),
+                    install_failed=isinstance(e, ZipNNInstallError),
+                )
                 return
 
             def progress(done: int, total: int, phase: str):
@@ -327,10 +610,19 @@ class ZipNNRoutes:
         except Exception as e:  # pragma: no cover - defensive
             utils.print_error(f"zipnn worker crashed: {e}")
 
-    async def _fail(self, task_id: str, src: str, error: str):
+    async def _fail(
+        self, task_id: str, src: str, error: str, install_failed: bool = False
+    ):
         ZIPNN_TASKS[task_id]["status"] = "error"
         utils.print_error(f"zipnn failed for {src}: {error}")
         await utils.send_json(
             "zipnn_complete",
-            {"taskId": task_id, "ok": False, "error": error},
+            {
+                "taskId": task_id,
+                "ok": False,
+                "error": error,
+                # The UI turns this into a "retry install" action, because the
+                # backend caches a failed install for a few minutes.
+                "installFailed": install_failed,
+            },
         )

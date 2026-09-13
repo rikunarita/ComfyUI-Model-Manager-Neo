@@ -213,5 +213,8 @@
   "zipnnConfirmDecompress": "このモデルを解凍しますか？成功すると .znn.safetensors は通常の .safetensors に置き換わります。",
   "zipnnCompressed": "ZipNN 圧縮が完了しました",
   "zipnnDecompressed": "ZipNN 解凍が完了しました",
-  "zipnnFailed": "ZipNN 処理に失敗しました"
+  "zipnnFailed": "ZipNN 処理に失敗しました",
+  "zipnnInstallFailed": "ZipNN をインストールできませんでした",
+  "zipnnRetryInstall": "インストールを再試行",
+  "zipnnMoreInConsole": "詳細（他 {n} 行）は ComfyUI のコンソールを確認してください"
 }

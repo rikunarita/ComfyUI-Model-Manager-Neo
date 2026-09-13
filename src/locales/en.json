@@ -213,5 +213,8 @@
   "zipnnConfirmDecompress": "Decompress this model? The .znn.safetensors file is replaced by the plain .safetensors once the decompression succeeds.",
   "zipnnCompressed": "ZipNN compression finished",
   "zipnnDecompressed": "ZipNN decompression finished",
-  "zipnnFailed": "ZipNN operation failed"
+  "zipnnFailed": "ZipNN operation failed",
+  "zipnnInstallFailed": "ZipNN could not be installed",
+  "zipnnRetryInstall": "Retry install",
+  "zipnnMoreInConsole": "{n} more line(s) in the ComfyUI console"
 }

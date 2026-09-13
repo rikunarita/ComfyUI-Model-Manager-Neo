@@ -547,6 +547,241 @@ async def main() -> None:
             str(_nested["preview"]),
         )
 
+        # ------------- ZipNN installer hardening (P34 series) ----------------
+        # The reported production failure was `pip install zipnn` dying with a
+        # bare "non-zero exit status 1" (no compiler / no Python.h / a 550 MB
+        # torch re-download). These assertions pin the new behaviour.
+        _compress = sys.modules["cmmn.py.compress"]
+        _saved = {
+            k: getattr(_compress, k)
+            for k in (
+                "_run_pip",
+                "_zipnn_install_failed",
+                "zipnn_available",
+                "zipnn_installed",
+                "ensure_zipnn",
+            )
+        }
+        _saved_path = list(sys.path)
+        _saved_modules = {k: sys.modules.get(k) for k in ("zipnn", "zipnn_core")}
+        _cfg = sys.modules["cmmn.py.config"]
+        _saved_uri = _cfg.extension_uri
+        try:
+            # P34: a failing pip run reports pip's own output, not just an exit
+            # code. A dead index makes it fail fast and offline.
+            try:
+                _compress._run_pip(
+                    [
+                        "install",
+                        "--index-url",
+                        "http://127.0.0.1:9/simple",
+                        "--retries",
+                        "0",
+                        "--timeout",
+                        "2",
+                        "zipnn",
+                    ]
+                )
+                _p34 = ""
+            except Exception as e:
+                _p34 = str(e)
+            check(
+                "P34 a failed pip run surfaces pip's own output",
+                "failed (exit" in _p34 and "pip install" in _p34 and len(_p34) > 60,
+                _p34[:160],
+            )
+
+            # P34b/P34e: `--no-deps` first (never re-downloads torch) and the
+            # gcc>=14 CFLAGS relaxation is passed to every attempt.
+            _calls: list[tuple[list[str], dict | None]] = []
+            _tmp_pkg = Path(tempfile.mkdtemp(prefix="mmneo-znn-"))
+            (_tmp_pkg / "zipnn").mkdir()
+            (_tmp_pkg / "zipnn" / "__init__.py").write_text(
+                "raise ImportError(\"No module named 'torch'\")\n"
+            )
+            (_tmp_pkg / "zipnn_core.py").write_text("")
+            sys.path.insert(0, str(_tmp_pkg))
+            for _m in ("zipnn", "zipnn_core"):
+                sys.modules.pop(_m, None)
+
+            def _fake_pip(args, extra_env=None):
+                _calls.append((list(args), dict(extra_env or {})))
+                return "fake ok"
+
+            _compress._run_pip = _fake_pip
+            _compress._zipnn_install_failed = None
+            try:
+                _compress.ensure_zipnn()
+                _p34b = "no error"
+            except Exception as e:
+                _p34b = str(e)
+            _first = _calls[0][0] if _calls else []
+            check(
+                "P34b the first attempt is --no-deps (no torch re-download)",
+                "--no-deps" in _first and "zipnn" in _first,
+                str(_calls),
+            )
+            check(
+                "P34b2 an installed-but-unimportable ZipNN stops the retries",
+                len(_calls) == 1 and "cannot be imported" in _p34b and "torch" in _p34b,
+                f"{_p34b[:200]} calls={_calls}",
+            )
+            check(
+                "P34c the failure is cached (no second doomed build)",
+                _compress._zipnn_install_failed is not None,
+            )
+            _n = len(_calls)
+            try:
+                _compress.ensure_zipnn()
+            except Exception:
+                pass
+            check(
+                "P34c2 a cached failure does not re-run pip",
+                len(_calls) == _n,
+                str(_calls),
+            )
+            check(
+                "P34e every attempt relaxes the gcc>=14 default -Werror flags",
+                all(
+                    "-Wno-error=implicit-function-declaration" in env.get("CFLAGS", "")
+                    for _, env in _calls
+                )
+                and len(_calls) > 0,
+                str(_calls),
+            )
+
+            # The harness ships an importable zipnn *stub*, so from here on the
+            # availability probes are forced off to exercise the install paths.
+            _compress.zipnn_available = lambda: False
+            _compress.zipnn_installed = lambda: False
+
+            # P34f: a wheel dropped into assets/zipnn-wheels/ wins over PyPI.
+            _ext_root = Path(tempfile.mkdtemp(prefix="mmneo-wheels-"))
+            (_ext_root / "assets" / "zipnn-wheels").mkdir(parents=True)
+            (_ext_root / "assets" / "zipnn-wheels" / "zipnn-9.9-py3-none-any.whl").write_bytes(
+                b"PK\x03\x04fake"
+            )
+            _cfg.extension_uri = str(_ext_root)
+            _calls.clear()
+            _compress._zipnn_install_failed = None
+            for _m in ("zipnn", "zipnn_core"):
+                sys.modules.pop(_m, None)
+            sys.path.remove(str(_tmp_pkg))
+            try:
+                _compress.ensure_zipnn()
+            except Exception:
+                pass
+            check(
+                "P34f a local wheel in assets/zipnn-wheels/ is tried first",
+                bool(_calls)
+                and str(_ext_root / "assets" / "zipnn-wheels") in " ".join(_calls[0][0]),
+                str(_calls[:1]),
+            )
+
+            # P34g: when every strategy fails the message names the real cause
+            # (here: missing Python headers) and the offline escape hatch.
+            def _boom(args, extra_env=None):
+                _calls.append((list(args), dict(extra_env or {})))
+                raise RuntimeError(
+                    "`pip install --no-deps zipnn` failed (exit 1):\n"
+                    "csrc/data_manipulation_dtype16.c:1:10: fatal error: "
+                    "Python.h: No such file or directory"
+                )
+
+            _compress._run_pip = _boom
+            _calls.clear()
+            _compress._zipnn_install_failed = None
+            try:
+                _compress.ensure_zipnn()
+                _p34g = ""
+                _p34g_exc: Exception | None = None
+            except Exception as e:
+                _p34g = str(e)
+                _p34g_exc = e
+            check(
+                "P34g the failure message names the cause + the fix",
+                "Python.h" in _p34g
+                and "zipnn-wheels" in _p34g
+                and "C compiler" in _p34g,
+                _p34g[:200],
+            )
+            check(
+                "P34h the failure is reported as an install failure (UI retry)",
+                isinstance(_p34g_exc, _compress.ZipNNInstallError),
+                type(_p34g_exc).__name__,
+            )
+            # P34i: the cache short-circuits, but an explicit retry (force)
+            # runs the strategies again - otherwise fixing the toolchain would
+            # need a ComfyUI restart.
+            _calls.clear()
+            _compress._zipnn_install_failed = ("cached failure", time.time())
+            try:
+                _compress.ensure_zipnn()
+            except Exception:
+                pass
+            check("P34i a cached failure short-circuits pip", not _calls, str(_calls))
+            try:
+                _compress.ensure_zipnn(force=True)
+            except Exception:
+                pass
+            check(
+                "P34i2 force=True bypasses the cached failure",
+                bool(_calls),
+                str(_calls[:1]),
+            )
+
+            # P34j: an install failure is flagged so the UI can offer a retry.
+            _compress._zipnn_install_failed = None
+
+            def _no_install(force=False):
+                raise _compress.ZipNNInstallError(
+                    "ZipNN could not be installed on this machine"
+                )
+
+            _compress.ensure_zipnn = _no_install
+            (CKPT / "znn_install_probe.safetensors").write_bytes(b"x")
+            await post(
+                "/model-manager/zipnn/compress",
+                json={
+                    "type": "checkpoints",
+                    "pathIndex": 0,
+                    "fullname": "znn_install_probe.safetensors",
+                },
+            )
+            _deadline = time.time() + 10
+            while time.time() < _deadline and not any(
+                e == "zipnn_complete" and d.get("installFailed")
+                for e, d in serverInstance.sent
+            ):
+                await asyncio.sleep(0.05)
+            _payloads = [d for e, d in serverInstance.sent if e == "zipnn_complete"]
+            check(
+                "P34j an install failure is flagged for the UI retry",
+                bool(_payloads) and _payloads[-1].get("installFailed") is True,
+                str(_payloads[-1])[:160],
+            )
+            _compress.ensure_zipnn = _saved["ensure_zipnn"]
+            (CKPT / "znn_install_probe.safetensors").unlink(missing_ok=True)
+            # Drop the events this probe generated: the P32/P33 waits look for
+            # "a zipnn_complete event", and a leftover install-failure event
+            # would satisfy them before the real task finishes.
+            serverInstance.sent[:] = [
+                ev for ev in serverInstance.sent if "zipnn" not in ev[0]
+            ]
+
+            shutil.rmtree(_ext_root, ignore_errors=True)
+            shutil.rmtree(_tmp_pkg, ignore_errors=True)
+        finally:
+            for k, v in _saved.items():
+                setattr(_compress, k, v)
+            sys.path[:] = _saved_path
+            for k, v in _saved_modules.items():
+                if v is None:
+                    sys.modules.pop(k, None)
+                else:
+                    sys.modules[k] = v
+            _cfg.extension_uri = _saved_uri
+
         # ---------------- ZipNN compress / decompress -------------------------
         import safetensors.torch as stub_st
         from safetensors import StubTensor

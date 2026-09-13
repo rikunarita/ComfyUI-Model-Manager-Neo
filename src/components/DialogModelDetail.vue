@@ -30,22 +30,27 @@
             </div>
             <Tooltip v-else-if="isSafetensorsModel" :delay-duration="300">
               <TooltipTrigger as-child>
-                <Button
-                  variant="secondary"
-                  class="mm-zipnn-button mr-auto h-10 gap-2 px-4"
+                <!--
+                  The shipped ZipNN artwork *is* the button (it already draws its
+                  own glass plate and switches to a dark variant through the
+                  media query embedded in the SVG), so it is rendered bare - no
+                  Button chrome, no text label. Meaning is carried by the
+                  tooltip + aria-label, and a compressed model inverts it.
+                -->
+                <button
+                  type="button"
+                  class="mm-zipnn-button mr-auto size-11 shrink-0"
                   :aria-label="isCompressed ? $t('zipnnDecompress') : $t('zipnnCompress')"
+                  :title="isCompressed ? $t('zipnnDecompress') : $t('zipnnCompress')"
                   @click="requestZipnn"
                 >
                   <img
                     :src="zipnnIcon"
                     alt=""
-                    class="size-6"
+                    class="size-full rounded-mm-ctl"
                     :class="isCompressed && 'hue-rotate-180 invert'"
                   />
-                  <span class="text-sm font-medium">
-                    {{ isCompressed ? $t('zipnnDecompress') : $t('zipnnCompress') }}
-                  </span>
-                </Button>
+                </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" class="max-w-sm">
                 {{ isCompressed ? $t('zipnnDecompressHint') : $t('zipnnCompressHint') }}

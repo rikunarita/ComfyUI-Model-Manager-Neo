@@ -447,25 +447,48 @@
 
   /* ZipNN call-to-action: a gentle lift + brighten on hover, a press-in on
      click, and a focus ring that matches the rest of the glass controls. */
+  /* The ZipNN artwork itself is the control: a bare, transparent button whose
+     only content is the SVG. The artwork already draws its own glass plate and
+     dark-mode variant, so nothing is painted here except the interaction. */
   .mm-zipnn-button {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    color: inherit;
     transition:
-      transform 160ms var(--mm-ease),
-      filter 160ms var(--mm-ease),
-      background-color 120ms var(--mm-ease),
-      border-color 120ms var(--mm-ease),
-      box-shadow 160ms var(--mm-ease);
+      transform 180ms var(--mm-ease),
+      filter 180ms var(--mm-ease);
+  }
+
+  .mm-zipnn-button img {
+    display: block;
+    transition:
+      filter 180ms var(--mm-ease),
+      box-shadow 180ms var(--mm-ease);
   }
 
   .mm-zipnn-button:hover {
-    transform: translateY(-1px) scale(1.02);
-    filter: brightness(1.08) saturate(1.1);
+    transform: translateY(-1px) scale(1.06);
+    filter: brightness(1.06) saturate(1.08);
+  }
+
+  .mm-zipnn-button:hover img {
     box-shadow:
       var(--mm-shadow-2),
-      0 8px 26px -10px color-mix(in oklab, var(--mm-accent) 45%, transparent);
+      0 10px 28px -12px color-mix(in oklab, var(--mm-accent) 55%, transparent);
   }
 
   .mm-zipnn-button:active {
-    transform: scale(0.97);
+    transform: scale(0.94);
+  }
+
+  .mm-zipnn-button:focus-visible {
+    outline: none;
+    border-radius: var(--mm-radius-ctl);
+    box-shadow: 0 0 0 2px var(--mm-ring);
   }
 
   /* lucide defaults to 24px; the toast grid is built around an 18px glyph */
