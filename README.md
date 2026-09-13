@@ -1051,20 +1051,24 @@ corepack enable          # uses the pinned pnpm version
 pnpm install
 ```
 
-| Script                                  | Purpose                                                                  |
-| --------------------------------------- | ------------------------------------------------------------------------ |
-| `pnpm dev`                              | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI)  |
-| `pnpm build`                            | Production build into `web/`                                             |
-| `pnpm build:clean`                      | Remove `web/` then rebuild                                               |
-| `pnpm rebuild`                          | Remove `node_modules/` **and** `web/`, reinstall, then rebuild           |
-| `pnpm typecheck`                        | `vue-tsc --noEmit` type checking                                         |
-| `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                     |
-| `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                      |
-| `pnpm verify:py`                        | Python route/lifecycle probe (`harness/py_probe.py`, 53 assertions)      |
-| `pnpm verify:e2e`                       | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 75)     |
-| `python -m mypy --config-file mypy.ini` | Backend static types (C-3), clean                                        |
-| `pnpm capture`                          | Render the docs screenshots from the real bundle (`harness/capture.mjs`) |
-| `pnpm capture --video`                  | Same, plus a recorded `hero.webm` / `hero.gif` tour                      |
+| Script                                  | Purpose                                                                 |
+| --------------------------------------- | ----------------------------------------------------------------------- |
+| `pnpm dev`                              | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI) |
+| `pnpm build`                            | Production build into `web/`                                            |
+| `pnpm build:clean`                      | Remove `web/` then rebuild                                              |
+| `pnpm rebuild`                          | Remove `node_modules/` **and** `web/`, reinstall, then rebuild          |
+| `pnpm typecheck`                        | `vue-tsc --noEmit` type checking                                        |
+| `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                    |
+| `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                     |
+| `pnpm verify:py`                        | Python route/lifecycle probe (`harness/py_probe.py`, 53 assertions)     |
+| `pnpm verify:e2e`                       | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 75)    |
+| `python -m mypy --config-file mypy.ini` | Backend static types (C-3), clean                                       |
+
+The harness needs `aiohttp` / `pillow` / `pyyaml` (ComfyUI provides them at
+runtime, so they live in [`harness/requirements-dev.txt`](harness/requirements-dev.txt),
+not in the runtime list): `pip install -r requirements.txt -r harness/requirements-dev.txt`.
+| `pnpm capture` | Render the docs screenshots from the real bundle (`harness/capture.mjs`) |
+| `pnpm capture --video` | Same, plus a recorded `hero.webm` / `hero.gif` tour |
 
 > [!WARNING]
 > `pnpm dev` **deletes the whole `web/` directory** before writing
