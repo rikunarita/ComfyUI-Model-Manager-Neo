@@ -88,6 +88,12 @@ FAKE_HF: dict = {
     "delay": 4.0,
     "head_sha": "head000000000000000000000000000000000000",
     "uploads_seen": [],
+    # Content-addressed object store: sha256 -> True once the bytes are held.
+    # The real Hub deduplicates on this, which is what produces the
+    # "Upload 0 LFS files" round-trip the extension has to explain.
+    "blobs": [],
+    "dedup_hits": 0,
+    "transfer_reads": 0,
 }
 
 
@@ -139,7 +145,9 @@ class _FakeHfApi:
     def upload_file(self, *, path_or_fileobj, path_in_repo, repo_id, repo_type=None, token=None):
         # Same validation as the real CommitOperationAdd, so a wrapper that
         # huggingface_hub would reject fails the harness too.
+        import hashlib as _h
         import io as _io
+        import types as _t
 
         if not isinstance(path_or_fileobj, (str, bytes, _io.BufferedIOBase)):
             raise ValueError(
@@ -151,6 +159,7 @@ class _FakeHfApi:
         # wrappers get exercised end to end.
         FAKE_HF["payload_type"] = type(path_or_fileobj).__name__
         FAKE_HF["reads"] = 0
+        digest = _h.sha256()
         if hasattr(path_or_fileobj, "read"):
             # Mimic the real library: UploadInfo.from_fileobj() hashes the
             # payload with one full local pass (and a 512 B sample) before the
@@ -158,20 +167,48 @@ class _FakeHfApi:
             # exactly that rewind to start reporting.
             path_or_fileobj.read(512)
             path_or_fileobj.seek(0)
-            while path_or_fileobj.read(1024 * 1024):
-                pass
+            while True:
+                chunk = path_or_fileobj.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+            sha = digest.hexdigest()
+        else:
+            raw = (
+                path_or_fileobj
+                if isinstance(path_or_fileobj, bytes)
+                else open(path_or_fileobj, "rb").read()
+            )
+            sha = _h.sha256(raw).hexdigest()
+
+        key = [repo_id, path_in_repo]
+        already_stored = sha in FAKE_HF["blobs"]
+
+        if already_stored and key not in FAKE_HF["uploads_seen"]:
+            # The Hub already holds these exact bytes (uploaded earlier under a
+            # different path): the LFS batch answer carries no upload action,
+            # so NOTHING is read a second time - the real Hub's
+            # "Upload 0 LFS files" - but the commit still lands with a NEW oid.
+            FAKE_HF["dedup_hits"] += 1
+            FAKE_HF["uploads_seen"].append(key)
+            FAKE_HF["uploads"].append(key)
+            return _t.SimpleNamespace(oid=f"new-{len(FAKE_HF['uploads'])}")
+
+        if hasattr(path_or_fileobj, "read"):
             path_or_fileobj.seek(0)
             while True:
                 chunk = path_or_fileobj.read(8192)
                 FAKE_HF["reads"] += 1
+                FAKE_HF["transfer_reads"] += 1
                 if not chunk:
                     break
                 _time.sleep(0.01)
         else:
             _time.sleep(FAKE_HF["delay"])
-        import types as _t
 
-        key = [repo_id, path_in_repo]
+        if not already_stored:
+            FAKE_HF["blobs"].append(sha)
+
         if key in FAKE_HF["uploads_seen"]:
             # Second upload of identical content: like the real Hub, skip the
             # empty commit and hand back a CommitInfo carrying the EXISTING
@@ -245,7 +282,12 @@ PAGE = """<!doctype html>
 </style>
 <script>
   ;(() => {{
-  const settings = {{}}
+  // `?locale=xx` pre-seeds ComfyUI's locale setting so the i18n bundles can be
+  // exercised without editing the host mock (the extension reads it once, at
+  // module load, so it has to be in place before the bundle runs).
+  const params = new URLSearchParams(location.search)
+  const wantedLocale = params.get('locale')
+  const settings = wantedLocale ? {{ 'Comfy.Locale': wantedLocale }} : {{}}
   const settingDefs = []
   const listeners = new Map()
   function $el(tag, props, children) {{

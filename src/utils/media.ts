@@ -9,6 +9,14 @@
  */
 export const NO_PREVIEW_URL = '/model-manager/no-preview.svg'
 
+/**
+ * Value the backend puts in `preview` when a model (or a download task) has no
+ * preview file on disk. It is a sentinel, not a path: `py/utils.py` names the
+ * same constant `NO_PREVIEW_SENTINEL`, and both sides swap it for
+ * NO_PREVIEW_URL before it ever reaches an `<img src>`.
+ */
+export const NO_PREVIEW_SENTINEL = 'no-preview.png'
+
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.m4v', '.ogv']
 
 const VIDEO_HOST_PATTERNS = [

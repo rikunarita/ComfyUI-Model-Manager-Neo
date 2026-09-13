@@ -94,7 +94,7 @@
                   </template>
                 </ModelCard>
               </TooltipTrigger>
-              <TooltipContent side="top" class="max-w-lg" :style="{ zIndex: 2600 }">
+              <TooltipContent side="top" class="max-w-lg">
                 {{ getFullPath(model) }}
               </TooltipContent>
             </Tooltip>
@@ -107,7 +107,7 @@
         <div class="flex flex-col items-center gap-4 pt-20 opacity-70">
           <!-- BUG FIX: `pi pi-box` rendered empty (PrimeIcons removed). -->
           <Box class="size-10 opacity-60" />
-          <div class="text-lg font-bold select-none">No models found</div>
+          <div class="text-lg font-bold select-none">{{ $t('noModelsFound') }}</div>
         </div>
       </template>
     </ResponseScroll>
@@ -146,7 +146,10 @@ const { $lg: $content_lg } = useContainerQueries(contentContainer)
 
 const searchContent = ref<string>()
 
-const allType = 'All'
+// Value of the "everything" entry in the type filter. The VALUE stays a
+// stable literal (it is compared against real folder names); only its label is
+// translated.
+const allType = '__all__'
 const currentType = ref(allType)
 const typeOptions = computed(() => {
   const excludeModelTypes = app.ui?.settings.getSettingValue<string>(
@@ -162,7 +165,7 @@ const typeOptions = computed(() => {
     ...Object.keys(folders.value).filter(folder => !customBlackList.includes(folder)),
   ].map(type => {
     return {
-      label: type,
+      label: type === allType ? t('allTypes') : type,
       value: type,
       command: () => {
         currentType.value = type

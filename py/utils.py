@@ -22,6 +22,15 @@ IMAGE_EXTENSIONS = ['.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp']
 # this URL (there is no fallback chain any more - see py/information.py).
 NO_PREVIEW_URL = "/model-manager/no-preview.svg"
 
+# Sentinel returned by get_model_preview_name() when a model has no preview on
+# disk. BUG FIX: the literal "no-preview.png" was repeated in four modules
+# (utils, manager, information, upload) and on the client (hooks/model.ts,
+# hooks/download.ts) even though that raster was deleted in the sixth pass -
+# a typo in any one of them would have silently re-pointed models at a file
+# that no longer exists. It is a value, not a path: nothing is ever read from
+# it, callers swap it for NO_PREVIEW_URL.
+NO_PREVIEW_SENTINEL = "no-preview.png"
+
 # Preview extensions in priority order (videos first, then images)
 PREVIEW_EXTENSIONS = ['.webm', '.mp4', '.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp']
 
@@ -235,7 +244,7 @@ def get_model_all_previews(model_path: str) -> list[str]:
     return _check_preview_variants(base_dirname, basename, PREVIEW_EXTENSIONS)
 
 def get_model_preview_name(model_path: str) -> str:
-    """Get the first available preview file or 'no-preview.png' if none found"""
+    """Get the first available preview file, or NO_PREVIEW_SENTINEL if none."""
     base_dirname = os.path.dirname(model_path)
     basename = os.path.splitext(os.path.basename(model_path))[0]
     
@@ -249,8 +258,8 @@ def get_model_preview_name(model_path: str) -> str:
         preview_name = f"{basename}.preview{ext}"
         if os.path.isfile(join_path(base_dirname, preview_name)):
             return preview_name
-    
-    return "no-preview.png"
+
+    return NO_PREVIEW_SENTINEL
 
 from PIL import Image
 from io import BytesIO

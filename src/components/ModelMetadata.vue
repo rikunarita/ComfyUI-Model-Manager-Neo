@@ -12,7 +12,7 @@
 
   <div v-else class="flex flex-col items-center gap-2 py-5 text-mm-muted-fg">
     <Info class="size-5" />
-    <div>no metadata</div>
+    <div class="text-sm">{{ $t('noMetadata') }}</div>
   </div>
 </template>
 

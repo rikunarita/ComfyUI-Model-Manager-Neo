@@ -519,6 +519,427 @@ try {
     `${readsBefore} -> ${readsAfter}`,
   )
 
+  // E14i — the Hub can already hold the exact bytes under a DIFFERENT path:
+  // the LFS batch answer then carries no upload action ("Upload 0 LFS files"),
+  // nothing travels, yet a real commit is created. Reporting that as a plain
+  // "Success" next to a bar that never moved is what made users read the log
+  // and conclude the upload never started.
+  //
+  // Close everything first: the dialog store keeps one instance per key, so
+  // re-opening the HuggingFace dialog while the previous one is still on step 3
+  // would hand back that same, already-configured window.
+  for (let i = 0; i < 4; i++) {
+    const btn = page.locator('[role="dialog"] button[title="Close"]').last()
+    if (await btn.isVisible().catch(() => false)) await btn.click()
+    await page.waitForTimeout(250)
+  }
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await page.waitForSelector('[role="dialog"]')
+  await mgr.locator('button[title="Upload to HuggingFace"]').click()
+  const hf4 = page.locator('[role="dialog"]').last()
+  await hf4.waitFor()
+  await hf4.locator('button:has-text("diffusion_models")').first().click()
+  await page.waitForTimeout(400)
+  await hf4.getByText('anima-aesthetic-v1', { exact: true }).click()
+  await page.waitForTimeout(400)
+  await hf4.locator('input').first().fill('rikunarita/e2e-repo')
+  // a different destination path inside the SAME repository
+  await hf4.locator('input').nth(1).fill('mirrors/anima-aesthetic-v1.safetensors')
+  // `reads` is reset by every upload_file call; `transfer_reads` is the
+  // cumulative count of bytes-reads the fake Hub performed during a transfer.
+  const readsBeforeDedup = (await (await fetch(`http://127.0.0.1:${PORT}/probe/hf`)).json())
+    .transfer_reads
+  await hf4.getByRole('button', { name: 'Upload', exact: true }).click()
+  // the phase read-out must be present and named while the upload is in flight
+  // or settling (the bar alone cannot tell hashing from transferring)
+  const phaseText = await hf4
+    .locator('[data-hf-phase]')
+    .first()
+    .textContent()
+    .catch(() => null)
+  check(
+    'E14j phase read-out is rendered',
+    Boolean(phaseText && phaseText.trim()),
+    String(phaseText),
+  )
+  const dedupToast = page
+    .locator('[data-sonner-toast]', { hasText: 'mirrors/anima-aesthetic-v1.safetensors' })
+    .first()
+  await dedupToast.waitFor({ timeout: 30000 })
+  const dedupText = (await dedupToast.textContent()) ?? ''
+  check(
+    'E14i zero-byte commit is explained, not reported as a plain success',
+    dedupText.includes('already holds these exact bytes') &&
+      dedupText.includes('blob/main/mirrors/anima-aesthetic-v1.safetensors'),
+    dedupText.slice(0, 200),
+  )
+  const readsAfterDedup = (await (await fetch(`http://127.0.0.1:${PORT}/probe/hf`)).json())
+    .transfer_reads
+  check(
+    'E14k deduplicated upload performs no transfer read',
+    readsAfterDedup === readsBeforeDedup,
+    `${readsBeforeDedup} -> ${readsAfterDedup}`,
+  )
+  const dedupHits = (await (await fetch(`http://127.0.0.1:${PORT}/probe/hf`)).json()).dedup_hits
+  check('E14l fake Hub really took the dedup path', dedupHits >= 1, String(dedupHits))
+
+  /* ====================================================================== */
+  /* Stacking order, panel-scoped loading, editor features, ja locale        */
+  /* ====================================================================== */
+
+  // Every popup this extension can raise must paint ABOVE the dialog that
+  // opened it. The reported bug class: the folder-path picker and friends
+  // teleported to <body> with Tailwind's default `z-50`, i.e. underneath the
+  // 2400+ dialog windows, so they were invisible.
+  const zOf = sel =>
+    page.evaluate(s => {
+      const els = [...document.querySelectorAll(s)]
+      if (!els.length) return null
+      const el = els[els.length - 1]
+      const cs = getComputedStyle(el)
+      const r = el.getBoundingClientRect()
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + Math.min(r.height / 2, 20))
+      return {
+        z: Number.parseFloat(cs.zIndex),
+        onTop: !!top && (el === top || el.contains(top)),
+        rect: [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)],
+      }
+    }, sel)
+
+  // close everything, then reopen a clean manager window
+  for (let i = 0; i < 5; i++) {
+    const btn = page.locator('[role="dialog"] button[title="Close"]').last()
+    if (await btn.isVisible().catch(() => false)) await btn.click()
+    await page.waitForTimeout(200)
+  }
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await page.waitForSelector('[role="dialog"]')
+  const mgr2 = page.locator('[role="dialog"]').first()
+  const dialogZ = (await zOf('[role="dialog"]')).z
+  check('E17 dialog window sits above the host chrome', dialogZ >= 2400, String(dialogZ))
+
+  // dropdown menu
+  await mgr2.locator('[aria-haspopup="menu"]').nth(1).click()
+  await page.waitForSelector('[role="menu"]')
+  const menuZ = await zOf('[role="menu"]')
+  check(
+    'E17b dropdown menu paints above its dialog and is hit-testable',
+    menuZ && Number.isFinite(menuZ.z) && menuZ.z > dialogZ && menuZ.onTop,
+    JSON.stringify(menuZ),
+  )
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+
+  // card tooltip (delay-duration 800)
+  const cardBox = await page.locator('[data-card-main]').first().boundingBox()
+  await page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2)
+  await page.waitForTimeout(1500)
+  // `[role="tooltip"]` is reka-ui's visually-hidden a11y node (1x1, aria-hidden);
+  // the painted surface is its parent and the popper wrapper is what actually
+  // carries the stacking position at <body> level.
+  const tipZ = await page.evaluate(() => {
+    const inner = document.querySelector('[role="tooltip"]')
+    if (!inner) return null
+    const pick = el => {
+      if (!el) return null
+      const cs = getComputedStyle(el)
+      const r = el.getBoundingClientRect()
+      return {
+        z: Number.parseFloat(cs.zIndex),
+        pos: cs.position,
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+      }
+    }
+    const surface = inner.parentElement
+    return {
+      surface: pick(surface),
+      wrapper: pick(surface?.parentElement),
+      text: (surface?.textContent ?? '').slice(0, 40),
+    }
+  })
+  const tipZBest = tipZ ? Math.max(tipZ.surface?.z ?? -1, tipZ.wrapper?.z ?? -1) : -1
+  check(
+    'E17c tooltip paints above its dialog',
+    !!tipZ && Number.isFinite(tipZBest) && tipZBest > dialogZ && tipZ.surface.w > 4,
+    JSON.stringify(tipZ),
+  )
+  await page.mouse.move(5, 5)
+  await page.waitForTimeout(500)
+
+  // model detail dialog: read-only first (Directory row, confirm dialog),
+  // then edit mode (description icon, folder picker, name with a folder prefix)
+  await page.locator('[data-draggable-overlay]').first().click()
+  await page.waitForTimeout(900)
+  const det = page.locator('[role="dialog"]').last()
+
+  // E19 — the Directory row is a directory: it ends with a separator
+  const dirCell = await det
+    .locator('table tr')
+    .filter({ hasText: 'Directory' })
+    .locator('td')
+    .last()
+    .textContent()
+  check(
+    'E19 Directory column ends with a trailing slash',
+    (dirCell ?? '').trim().endsWith('/'),
+    String(dirCell),
+  )
+
+  // E17f — the global confirm must outrank the window that raised it
+  await det.locator('form button[class*="border-mm-danger"]').first().click()
+  await page.waitForSelector('[role="alertdialog"]')
+  const confirmZ = await zOf('[role="alertdialog"]')
+  check(
+    'E17f confirm dialog paints above the window that raised it',
+    confirmZ && Number.isFinite(confirmZ.z) && confirmZ.z > dialogZ + 1 && confirmZ.onTop,
+    JSON.stringify(confirmZ),
+  )
+  await page.locator('[role="alertdialog"] button').first().click()
+  await page.waitForFunction(
+    () => document.querySelectorAll('[role="alertdialog"]').length === 0,
+    null,
+    { timeout: 5000 },
+  )
+
+  // E17g/h — toasts are the topmost layer: they report the outcome of
+  // everything below, so nothing may cover them, and they must sit inside the
+  // viewport (they used to lay out in the document flow and overflow it).
+  await page.evaluate(() => {
+    window.dispatchEvent(
+      new CustomEvent('mm:hf_upload_error', { detail: { taskId: 'z', error: 'STACK' } }),
+    )
+  })
+  await page.waitForTimeout(700)
+  const toastZ = await zOf('[data-sonner-toaster]')
+  check(
+    'E17g toasts paint above dialogs and confirms',
+    toastZ && Number.isFinite(toastZ.z) && toastZ.z > (confirmZ?.z ?? 0),
+    JSON.stringify(toastZ),
+  )
+  const toastRect = toastZ?.rect ?? []
+  check(
+    'E17h toasts are anchored top-right inside the viewport',
+    toastRect.length === 4 &&
+      toastRect[1] < 200 &&
+      toastRect[0] > 500 &&
+      toastRect[0] + toastRect[2] <= 1440 &&
+      toastRect[2] > 100,
+    JSON.stringify(toastRect),
+  )
+
+  // E21 — the description is edited through an explicit icon; clicking the
+  // rendered markdown no longer opens the textarea
+  await det.locator('form button').nth(4).click() // pencil -> edit mode
+  await page.waitForTimeout(500)
+  const editBtn = det.locator('button[title="Edit description"]')
+  check('E21 description exposes an explicit Edit button', (await editBtn.count()) === 1)
+  // the textarea is v-show'd, so visibility (not presence) is the contract
+  await det
+    .locator('form')
+    .click({ position: { x: 20, y: 20 } })
+    .catch(() => {})
+  await page.waitForTimeout(300)
+  check(
+    'E21b clicking around the form does not open the description editor',
+    !(await det
+      .locator('form textarea')
+      .isVisible()
+      .catch(() => false)),
+  )
+  await editBtn.click()
+  await page.waitForTimeout(400)
+  check(
+    'E21c the Edit button opens the description textarea',
+    await det
+      .locator('form textarea')
+      .isVisible()
+      .catch(() => false),
+  )
+  await det
+    .locator('form textarea')
+    .blur()
+    .catch(() => {})
+  await page.waitForTimeout(300)
+
+  // E17d/e — the nested folder picker: the popup the bug report named
+  await det.locator('form button:has(svg.lucide-folder-open)').first().click()
+  await page.waitForTimeout(800)
+  const nestedZ = await zOf('[role="dialog"]:last-of-type')
+  check(
+    'E17d nested folder picker paints above every other window',
+    nestedZ && Number.isFinite(nestedZ.z) && nestedZ.z > dialogZ + 1 && nestedZ.onTop,
+    JSON.stringify(nestedZ),
+  )
+  const nestedTitle = await page
+    .locator('[role="dialog"]:last-of-type')
+    .evaluate(el => el.textContent?.slice(0, 12) ?? '')
+  check(
+    'E17e the nested window really is the folder picker',
+    nestedTitle.startsWith('Folder'),
+    nestedTitle,
+  )
+  await page.locator('[role="dialog"]:last-of-type button:has-text("Cancel")').click()
+  await page.waitForTimeout(500)
+
+  // E20 — a folder prefix in the file name files the model into a sub-folder
+  const nameInput = det.locator('input[placeholder="name or folder/name"]')
+  check('E20 name field offers the folder/name placeholder', (await nameInput.count()) === 1)
+  await nameInput.fill('e2e-sub/renamed-model')
+  await nameInput.blur()
+  await page.waitForTimeout(300)
+  check(
+    'E20b a `/` in the name is accepted (not reverted)',
+    (await nameInput.inputValue()) === 'e2e-sub/renamed-model',
+    await nameInput.inputValue(),
+  )
+  await det.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.waitForFunction(
+    async () => {
+      const r = await fetch('/model-manager/models/diffusion_models')
+      const j = await r.json()
+      return (j.data || []).some(m => m.subFolder === 'e2e-sub' && m.basename === 'renamed-model')
+    },
+    null,
+    { timeout: 15000 },
+  )
+  check('E20c the model was filed into the requested sub-folder', true)
+
+  // an illegal character must still be rejected and reverted
+  await page.locator('[data-draggable-overlay]').first().click()
+  await page.waitForTimeout(800)
+  const det2 = page.locator('[role="dialog"]').last()
+  await det2.locator('form button').nth(4).click()
+  await page.waitForTimeout(400)
+  const nameInput2 = det2.locator('input[placeholder="name or folder/name"]')
+  await nameInput2.fill('bad:name')
+  await nameInput2.blur()
+  await page.waitForTimeout(400)
+  check(
+    'E20d an illegal character is still rejected',
+    (await nameInput2.inputValue()) !== 'bad:name',
+    await nameInput2.inputValue(),
+  )
+  await det2.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await page.waitForTimeout(400)
+
+  // E18 — the loading scrim covers the panel only, never the whole viewport
+  await page.evaluate(() => {
+    const api = window.comfyAPI.api.api
+    const orig = api.fetchApi
+    api.fetchApi = (url, opts) => {
+      if (String(url).includes('/models/')) {
+        return new Promise(resolve => setTimeout(() => resolve(orig(url, opts)), 1200))
+      }
+      return orig(url, opts)
+    }
+  })
+  for (let i = 0; i < 4; i++) {
+    const btn = page.locator('[role="dialog"] button[title="Close"]').last()
+    if (await btn.isVisible().catch(() => false)) await btn.click()
+    await page.waitForTimeout(200)
+  }
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await page.waitForSelector('[role="dialog"]')
+  await page.locator('[role="dialog"]').first().locator('button[title="Refresh"]').click()
+  await page.waitForTimeout(500)
+  const loadingAudit = await page.evaluate(() => {
+    const scrims = [...document.querySelectorAll('[data-mm-loading]')]
+    const dlg = document.querySelector('[role="dialog"]')
+    const dlgRect = dlg?.getBoundingClientRect()
+    const corner = document.elementFromPoint(4, 4)
+    return {
+      count: scrims.length,
+      insideDialog: scrims.every(el => !!dlg && dlg.contains(el)),
+      noViewportScrim: ![...document.querySelectorAll('body > *')].some(el => {
+        const cs = getComputedStyle(el)
+        const r = el.getBoundingClientRect()
+        return (
+          cs.position === 'fixed' &&
+          r.width >= window.innerWidth - 1 &&
+          r.height >= window.innerHeight - 1 &&
+          cs.backdropFilter !== 'none'
+        )
+      }),
+      cornerFree: !!corner && (!dlgRect || corner !== dlg),
+      dialogRect: dlgRect
+        ? [
+            Math.round(dlgRect.x),
+            Math.round(dlgRect.y),
+            Math.round(dlgRect.width),
+            Math.round(dlgRect.height),
+          ]
+        : null,
+    }
+  })
+  check(
+    'E18 loading scrim exists while a request is in flight',
+    loadingAudit.count >= 1,
+    JSON.stringify(loadingAudit),
+  )
+  check(
+    'E18b the scrim lives inside the panel, not on <body>',
+    loadingAudit.insideDialog && loadingAudit.noViewportScrim,
+    JSON.stringify(loadingAudit),
+  )
+  const outside = await page.evaluate(() => {
+    const dlg = document.querySelector('[role="dialog"]').getBoundingClientRect()
+    const x = Math.max(2, Math.round(dlg.x / 2))
+    const y = Math.max(2, Math.round(dlg.y / 2))
+    const el = document.elementFromPoint(x, y)
+    return { x, y, cls: el ? (el.className || '').toString().slice(0, 60) : null, tag: el?.tagName }
+  })
+  check(
+    'E18c the area outside the panel is not covered by the scrim',
+    !String(outside.cls).includes('backdrop-blur'),
+    JSON.stringify(outside),
+  )
+  await page.screenshot({ path: path.join(SHOTS, 'loading-panel.png') })
+  await page.waitForTimeout(1400)
+  const afterLoad = await page.evaluate(() => document.querySelectorAll('[data-mm-loading]').length)
+  check('E18d the scrim goes away when the request settles', afterLoad === 0, String(afterLoad))
+
+  // E22 — the Japanese bundle is wired to ComfyUI's locale
+  const jaPage = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  jaPage.on('pageerror', e => consoleErrors.push(`ja pageerror: ${e.message}`))
+  jaPage.on('console', m => {
+    if (m.type() === 'error') consoleErrors.push(`ja: ${m.text()}`)
+  })
+  await jaPage.goto(`http://127.0.0.1:${PORT}/harness?locale=ja`)
+  await jaPage.waitForFunction(
+    () => window.comfyAPI?.app?.app?.ui?.menuContainer?.children?.length > 0,
+  )
+  await jaPage.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await jaPage.waitForSelector('[role="dialog"]')
+  const jaTexts = await jaPage.evaluate(() => {
+    const dlg = document.querySelector('[role="dialog"]')
+    const legacy = document.querySelector('#comfyui-model-manager-button')
+    return {
+      dialog: dlg?.textContent ?? '',
+      legacyButton: legacy?.textContent ?? '',
+      search: dlg?.querySelector('input[placeholder]')?.getAttribute('placeholder') ?? '',
+    }
+  })
+  check(
+    'E22 Japanese bundle is used when Comfy.Locale is ja',
+    jaTexts.search.includes('モデルを検索') && jaTexts.dialog.includes('すべて'),
+    JSON.stringify(jaTexts).slice(0, 200),
+  )
+  // a nested surface has to be translated too, not just the toolbar
+  await jaPage.locator('[data-draggable-overlay]').first().click()
+  await jaPage.waitForTimeout(900)
+  const jaDetail = await jaPage.evaluate(() => {
+    const dlgs = [...document.querySelectorAll('[role="dialog"]')]
+    return dlgs[dlgs.length - 1]?.textContent ?? ''
+  })
+  check(
+    'E22b model detail is translated (Directory / File Size rows)',
+    jaDetail.includes('ディレクトリ') && jaDetail.includes('ファイルサイズ'),
+    jaDetail.slice(0, 120),
+  )
+  await jaPage.screenshot({ path: path.join(SHOTS, 'ja-detail.png') })
+  await jaPage.close()
+
   // E12 — no console / page errors anywhere along the way
   const realErrors = consoleErrors.filter(e => !e.includes('favicon'))
   check(

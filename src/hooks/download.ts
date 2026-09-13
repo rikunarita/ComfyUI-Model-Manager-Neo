@@ -15,7 +15,7 @@ import {
   type VersionModelFile,
 } from 'types/typings'
 import { bytesToSize, getFilenameFromUrl, isDirectFileUrl } from 'utils/common'
-import { NO_PREVIEW_URL } from 'utils/media'
+import { NO_PREVIEW_SENTINEL, NO_PREVIEW_URL } from 'utils/media'
 
 export const useDownload = defineStore('download', store => {
   const { toast, confirm, wrapperToastError } = useToast()
@@ -31,7 +31,7 @@ export const useDownload = defineStore('download', store => {
       downloadedSize,
       totalSize,
       preview:
-        item.preview === 'no-preview.png'
+        item.preview === NO_PREVIEW_SENTINEL
           ? NO_PREVIEW_URL
           : `/model-manager/preview/download/${item.preview}`,
       downloadProgress: `${bytesToSize(downloadedSize)} / ${bytesToSize(totalSize)}`,
@@ -130,7 +130,7 @@ export const useDownload = defineStore('download', store => {
           if (item.error) {
             toast.add({
               severity: 'error',
-              summary: 'Error',
+              summary: t('error'),
               detail: item.error,
               life: 15000,
             })
@@ -150,11 +150,15 @@ export const useDownload = defineStore('download', store => {
       const taskId = event.detail as string
       const task = taskList.value.find(item => item.taskId === taskId)
       taskList.value = taskList.value.filter(item => item.taskId !== taskId)
-      const completeLabel = task?.source === 'local' ? 'Upload completed' : 'Download completed'
+      // `task` is undefined when the completion arrives for a task this page
+      // never saw (a reload mid-download), which used to render the literal
+      // string "undefined" into the toast.
+      const isLocal = task?.source === 'local'
+      const name = task?.fullname ?? t('downloadTask')
       toast.add({
         severity: 'success',
-        summary: 'Success',
-        detail: `${task?.fullname} ${completeLabel}`,
+        summary: t('success'),
+        detail: isLocal ? t('uploadTaskCompleted', { name }) : t('downloadTaskCompleted', { name }),
         life: 2000,
       })
       store.models.refresh()
@@ -182,6 +186,7 @@ type FileSelectionVersionModel = VersionModel & {
 }
 
 export const useModelSearch = () => {
+  const { t } = useI18n()
   const loading = useLoading()
   const { toast } = useToast()
 
@@ -369,8 +374,10 @@ export const useModelSearch = () => {
         loading.hide()
         toast.add({
           severity: 'error',
-          summary: 'Error',
-          detail: `Failed to process direct file URL: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          summary: t('error'),
+          detail: t('failedToProcessDirectUrl', {
+            message: error instanceof Error ? error.message : t('unknownError'),
+          }),
           life: 5000,
         })
         return []
@@ -396,8 +403,8 @@ export const useModelSearch = () => {
         if (resData.length === 0) {
           toast.add({
             severity: 'warn',
-            summary: 'No Model Found',
-            detail: `No model found for ${url}`,
+            summary: t('noModelFound'),
+            detail: t('noModelFoundFor', { url }),
             life: 3000,
           })
         }
@@ -406,7 +413,7 @@ export const useModelSearch = () => {
       .catch(err => {
         toast.add({
           severity: 'error',
-          summary: 'Error',
+          summary: t('error'),
           detail: err.message,
           life: 15000,
         })

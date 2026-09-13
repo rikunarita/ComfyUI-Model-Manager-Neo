@@ -25,7 +25,7 @@
       >
         <!-- BUG FIX: `pi pi-check-circle` rendered empty (PrimeIcons removed). -->
         <CheckCircle class="size-4 shrink-0" />
-        <span>Direct file download detected</span>
+        <span>{{ $t('directFileDetected') }}</span>
       </div>
 
       <!-- Model Type/Folder Selection for direct downloads (REQUIRED) -->
@@ -42,10 +42,10 @@
 
       <!-- Custom Subfolder Input (NEW) -->
       <div class="flex items-center gap-2">
-        <label class="text-sm font-medium">Subfolder (optional):</label>
+        <label class="text-sm font-medium">{{ $t('subfolderOptional') }}</label>
         <ResponseInput
           v-model="customSubFolder"
-          placeholder="e.g., subfolder/path"
+          :placeholder="$t('subfolderPlaceholder')"
           class="flex-1"
         />
       </div>
@@ -54,7 +54,7 @@
     <div v-show="data.length > 0">
       <ResponseSelect v-model="current" :items="data" :type="isMobile ? 'drop' : 'button'">
         <template #prefix>
-          <span>version:</span>
+          <span>{{ $t('version') }}</span>
         </template>
       </ResponseSelect>
     </div>
@@ -108,7 +108,7 @@
           <div class="flex flex-col items-center gap-4 py-8">
             <!-- BUG FIX: `pi pi-box` rendered empty (PrimeIcons removed). -->
             <Box class="size-8 opacity-60" />
-            <div>No Models Found</div>
+            <div>{{ $t('noModelsFound') }}</div>
           </div>
         </div>
       </div>
@@ -119,6 +119,7 @@
 <script setup lang="ts">
 import { Box, CheckCircle, Download, Search } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
@@ -135,6 +136,7 @@ import { type VersionModel, type WithResolved } from 'types/typings'
 import { isDirectFileUrl, previewUrlToFile } from 'utils/common'
 
 const { isMobile } = useConfig()
+const { t, te } = useI18n()
 const { toast } = useToast()
 const loading = useLoading()
 const dialog = useDialog()
@@ -147,26 +149,14 @@ const selectedModelType = ref<string>()
 // Custom subfolder input (NEW)
 const customSubFolder = ref<string>('')
 
-/** Pretty labels for the well-known folder keys; unknown keys render as-is. */
-const MODEL_TYPE_LABELS: Record<string, string> = {
-  checkpoints: 'Checkpoints',
-  loras: 'LoRA',
-  controlnet: 'ControlNet',
-  vae: 'VAE',
-  embeddings: 'Embeddings',
-  upscale_models: 'Upscale Models',
-  diffusers: 'Diffusers',
-  clip: 'CLIP',
-  clip_vision: 'CLIP Vision',
-  diffusion_models: 'UNet/Diffusion Models',
-  unet: 'UNet/Diffusion Models',
-  style_models: 'Style Models',
-  hypernetworks: 'Hypernetworks',
-  gligen: 'GLIGEN',
-  photomaker: 'PhotoMaker',
-  vae_approx: 'VAE Approx',
-  classifiers: 'Classifiers',
-}
+/**
+ * Pretty label for a model-folder key, translated through the
+ * `modelTypeLabel.*` namespace. Folder keys ComfyUI (or another extension)
+ * adds that this bundle has never heard of render as-is, so the list can never
+ * show a blank entry.
+ */
+const modelTypeLabel = (type: string) =>
+  te(`modelTypeLabel.${type}`) ? t(`modelTypeLabel.${type}`) : type
 
 /**
  * BUG FIX: this used to be a hard-coded catalogue of every model type ComfyUI
@@ -180,7 +170,7 @@ const MODEL_TYPE_LABELS: Record<string, string> = {
 const modelTypeOptions = computed(() =>
   Object.keys(folders.value).map(type => {
     return {
-      label: MODEL_TYPE_LABELS[type] ?? type,
+      label: modelTypeLabel(type),
       value: type,
       command: () => {
         selectedModelType.value = type
@@ -222,8 +212,8 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
   if (!data.type) {
     toast.add({
       severity: 'warn',
-      summary: 'Warning',
-      detail: 'Please select model type first',
+      summary: t('warning'),
+      detail: t('selectModelTypeFirst'),
       life: 5000,
     })
     return
@@ -261,9 +251,8 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
             // not exist, and degrades to "no preview" if that fails too.
             toast.add({
               severity: 'warn',
-              summary: 'Warning',
-              detail:
-                'Preview could not be fetched in the browser; the server will download it directly.',
+              summary: t('warning'),
+              detail: t('previewFetchFallback'),
               life: 5000,
             })
             formData.append('previewFile', value)
@@ -304,8 +293,8 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
     .catch(e => {
       toast.add({
         severity: 'error',
-        summary: 'Error',
-        detail: e.message ?? 'Failed to create download task',
+        summary: t('error'),
+        detail: e.message ?? t('failedToCreateDownloadTask'),
         life: 15000,
       })
     })

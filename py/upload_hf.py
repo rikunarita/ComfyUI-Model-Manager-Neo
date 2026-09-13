@@ -25,13 +25,53 @@ from . import utils
 # user does in the browser can cancel a running upload any more.
 HF_UPLOAD_TASKS: dict[str, dict] = {}
 
+# Bookkeeping only; bounded so a long-running ComfyUI session cannot grow it
+# without limit.
+HF_UPLOAD_TASKS_LIMIT = 64
+
+LIBRARY_NAME = "ComfyUI-Model-Manager-Neo"
+
+# Upload phases, reported to the UI so the progress read-out can say what the
+# extension is actually doing instead of sitting on a motionless 0%.
+PHASE_PREPARE = "prepare"
+PHASE_HASH = "hash"
+PHASE_UPLOAD = "upload"
+
+
+def _set_task_field(task_id: str, **fields) -> None:
+    """Update the bookkeeping entry of a task, tolerating a missing one.
+
+    BUG FIX: `HF_UPLOAD_TASKS[task_id]["status"] = ...` raised `KeyError`
+    whenever the entry was gone (or never created), which turned a perfectly
+    finished upload into an `hf_upload_error` push. Bookkeeping must never be
+    able to fail the transfer it describes.
+    """
+    entry = HF_UPLOAD_TASKS.get(task_id)
+    if entry is None:
+        return
+    entry.update(fields)
+
+
+def _forget_task(task_id: str) -> None:
+    """Drop finished tasks once the bookkeeping table grows too large."""
+    HF_UPLOAD_TASKS.pop(task_id, None)
+    while len(HF_UPLOAD_TASKS) > HF_UPLOAD_TASKS_LIMIT:
+        oldest = next(iter(HF_UPLOAD_TASKS))
+        HF_UPLOAD_TASKS.pop(oldest, None)
+
 
 class _ProgressFile(io.BufferedIOBase):
     """Binary file wrapper reporting the bytes read by the consumer.
 
-    Phase 1 (local hashing) is silenced: progress events only start after the
-    consumer rewound the stream (the beginning of the real transfer), so the
-    percentage shown in the UI is the transfer percentage, not the hash pass.
+    huggingface_hub reads the payload twice per upload:
+      1. `UploadInfo.from_fileobj()` hashes it locally (disk bound, no bytes
+         leave the machine);
+      2. the network transfer reads it again.
+    Only pass 2 counts as "uploaded", so the percentage shown in the UI is the
+    transfer percentage and not the hash pass. Pass 1 is reported separately
+    through the `hash` phase, which is what makes the read-out move during the
+    (often minutes-long) hashing of a multi-gigabyte model instead of sitting
+    on 0%.
 
     BUG FIX: the wrapper must subclass `io.BufferedIOBase`. huggingface_hub
     validates `path_or_fileobj` with
@@ -39,6 +79,14 @@ class _ProgressFile(io.BufferedIOBase):
     file-like with "path_or_fileobj must be either an instance of str, bytes
     or io.BufferedIOBase" - a plain duck-typed object never reached the
     transfer at all (the upload died with a ValueError before any HTTP call).
+
+    BUG FIX: the hash pass used to be detected as "the stream was rewound to
+    position 0 after EOF". `UploadInfo.from_fileobj()` starts with
+    `fileobj.read(512)`, so for any file of 512 bytes or less that very first
+    sample read already reached EOF and the *hashing* pass was mistaken for
+    the transfer. The phase now flips on the first true EOF (a `read()` that
+    returned no data), which `sha_fileobj()` always produces and the 512-byte
+    sample never does.
     """
 
     def __init__(self, path: str, on_progress) -> None:
@@ -46,8 +94,15 @@ class _ProgressFile(io.BufferedIOBase):
         self._file = open(path, "rb")
         self._size = os.path.getsize(path)
         self._on_progress = on_progress
-        self._phase = 1
         self._saw_eof = False
+        self._in_transfer = False
+        # Bytes the consumer actually took during the transfer pass. Zero after
+        # a completed upload means HuggingFace deduplicated the blob (the
+        # identical content was already in the repository's LFS storage), which
+        # is exactly the "Upload 0 LFS files" case: the commit still happens,
+        # but not one byte travels. The UI reports that honestly instead of
+        # claiming a transfer that never ran.
+        self.transferred_bytes = 0
 
     # -- io.BufferedIOBase surface used by huggingface_hub ------------------
     def readable(self) -> bool:
@@ -60,16 +115,17 @@ class _ProgressFile(io.BufferedIOBase):
         return False
 
     def read(self, size: int = -1) -> bytes:
-        position = self._file.tell()
-        if self._saw_eof and position == 0 and self._phase == 1:
-            # Rewind after a full pass: the hashing pass is over, the
-            # transfer is starting.
-            self._phase = 2
-            self._on_progress(0, self._size)
+        if self._saw_eof and not self._in_transfer:
+            # A full pass finished and the consumer rewound: the hashing pass
+            # is over, the transfer is starting.
+            self._in_transfer = True
+            self._on_progress(0, self._size, PHASE_UPLOAD)
         data = self._file.read(size)
-        if self._phase == 2:
-            self._on_progress(self._file.tell(), self._size)
-        if not data or self._file.tell() >= self._size:
+        if self._in_transfer:
+            position = self._file.tell()
+            self.transferred_bytes = max(self.transferred_bytes, position)
+            self._on_progress(position, self._size, PHASE_UPLOAD)
+        if not data:
             self._saw_eof = True
         return data
 
@@ -180,6 +236,7 @@ class HfUploader:
                 "uploadedSize": 0.0,
                 "totalSize": float(total_size),
                 "progress": 0.0,
+                "phase": PHASE_PREPARE,
             },
         )
 
@@ -222,14 +279,17 @@ class HfUploader:
         except RuntimeError:
             loop = asyncio.get_event_loop()
 
-        progress_state = {"last": 0.0}
+        progress_state = {"last": 0.0, "phase": None}
 
-        def report_progress(sent_bytes: int, total_bytes: int) -> None:
+        def report_progress(sent_bytes: int, total_bytes: int, phase: str = PHASE_UPLOAD) -> None:
             """Marshal an accurate progress push back onto the main loop."""
             now = time.time()
-            if now - progress_state["last"] < 0.4 and sent_bytes not in (0, total_bytes):
+            phase_changed = phase != progress_state["phase"]
+            boundary = sent_bytes in (0, total_bytes)
+            if not phase_changed and not boundary and now - progress_state["last"] < 0.4:
                 return
             progress_state["last"] = now
+            progress_state["phase"] = phase
             progress = (sent_bytes / total_bytes * 100) if total_bytes > 0 else 0.0
             asyncio.run_coroutine_threadsafe(
                 utils.send_json(
@@ -239,25 +299,33 @@ class HfUploader:
                         "uploadedSize": float(sent_bytes),
                         "totalSize": float(total_bytes),
                         "progress": progress,
+                        "phase": phase,
                     },
                 ),
                 loop,
             )
 
-        # HEAD sha before the transfer: huggingface_hub "succeeds" on an
-        # unchanged file (it skips the empty commit and returns a CommitInfo
-        # built from the EXISTING head), which used to be reported to the UI
-        # as a plain successful upload - a silent no-op that looked exactly
-        # like a broken upload. Comparing the oids makes the no-op visible.
-        head_before = {"sha": None}
-
         def blob_url() -> str:
             from urllib.parse import quote
 
-            return (
-                f"https://huggingface.co/{repo_id}/blob/main/"
-                f"{quote(path_in_repo)}"
-            )
+            return f"https://huggingface.co/{repo_id}/blob/main/{quote(path_in_repo)}"
+
+        def hash_local_file() -> str:
+            """sha256 of the local file, with the hashing pass reported.
+
+            BUG FIX: this pass used to run in complete silence. Hashing a
+            multi-gigabyte checkpoint takes minutes, during which the UI showed
+            a motionless 0% bar - the single most common reason an upload looks
+            like it "never started".
+            """
+            digest = hashlib.sha256()
+            read_bytes = 0
+            with open(local_path, "rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+                    read_bytes += len(chunk)
+                    report_progress(read_bytes, total_size, PHASE_HASH)
+            return digest.hexdigest()
 
         def preflight():
             """Detect an identical file at the destination BEFORE paying for
@@ -270,52 +338,54 @@ class HfUploader:
             tree entry turns that silent no-op into an explicit, linkable
             answer. Any failure here degrades to "go" so a real upload is
             never blocked by the check itself.
+
+            The comparison is ordered cheap-first: the remote size is already in
+            the tree listing, and a size mismatch can never be the same content,
+            so the (expensive) local hash pass only runs when the sizes agree.
             """
             try:
-                digest = hashlib.sha256()
-                with open(local_path, "rb") as handle:
-                    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                        digest.update(chunk)
-                local_sha = digest.hexdigest()
-                local_size = os.path.getsize(local_path)
-
-                api = HfApi(token=token, library_name="ComfyUI-Model-Manager-Neo")
+                api = HfApi(token=token, library_name=LIBRARY_NAME)
                 info = api.model_info(
                     repo_id=repo_id, revision="main", files_metadata=True
                 )
+                target = None
                 for sibling in getattr(info, "siblings", None) or []:
-                    if getattr(sibling, "rfilename", None) != path_in_repo:
-                        continue
-                    lfs = getattr(sibling, "lfs", None)
-                    remote_sha = getattr(lfs, "sha256", None) if lfs else None
-                    remote_size = (
-                        getattr(lfs, "size", None)
-                        if lfs
-                        else getattr(sibling, "size", None)
-                    )
-                    if (
-                        remote_sha
-                        and remote_sha == local_sha
-                        and remote_size in (None, local_size)
-                    ):
-                        return "duplicate", blob_url()
-                return "go", None
+                    if getattr(sibling, "rfilename", None) == path_in_repo:
+                        target = sibling
+                        break
+                if target is None:
+                    return {"status": "go"}
+
+                lfs = getattr(target, "lfs", None)
+                remote_sha = getattr(lfs, "sha256", None) if lfs else None
+                remote_size = (
+                    getattr(lfs, "size", None) if lfs else getattr(target, "size", None)
+                )
+                if not remote_sha:
+                    return {"status": "go"}
+                if remote_size is not None and int(remote_size) != int(total_size):
+                    return {"status": "go"}
+
+                if remote_sha == hash_local_file():
+                    return {"status": "duplicate", "url": blob_url()}
+                return {"status": "go"}
             except Exception:
-                return "go", None
+                return {"status": "go"}
 
         def do_upload():
-            api = HfApi(token=token, library_name="ComfyUI-Model-Manager-Neo")
+            api = HfApi(token=token, library_name=LIBRARY_NAME)
 
             # Create the repository when it does not exist.
             # The private flag only applies on creation.
+            created = False
             if not api.repo_exists(repo_id=repo_id):
                 api.create_repo(repo_id=repo_id, private=private, exist_ok=True)
+                created = True
+            head_sha = None
             try:
-                head_before["sha"] = api.repo_info(
-                    repo_id=repo_id, repo_type="model"
-                ).sha
+                head_sha = api.repo_info(repo_id=repo_id, repo_type="model").sha
             except Exception:
-                head_before["sha"] = None
+                head_sha = None
 
             # BUG FIX: accurate upload progress.
             #
@@ -325,34 +395,57 @@ class HfUploader:
             #
             # The transfer is therefore fed through `_ProgressFile`, a thin
             # file-like wrapper whose read() reports the bytes actually
-            # handed to the uploader. Two read passes happen per upload:
-            #   1. huggingface_hub hashes the payload locally
-            #      (UploadInfo.from_fileobj - fast, disk bound);
-            #   2. the network transfer reads the payload again.
-            # The wrapper detects the rewind between them and only reports
-            # progress for pass 2, so the percentage tracks the real transfer
-            # (sequential for regular/basic uploads, range-wise for LFS
-            # multipart - `tell()` stays monotonic in both).
+            # handed to the uploader (sequential for regular/basic uploads,
+            # range-wise for LFS multipart - `tell()` stays monotonic in both).
             #
             # Trade-off, taken deliberately on user request: passing a
             # file-like object makes huggingface_hub use the classic
             # basic/multipart transfer instead of the path-only hf_xet
             # protocol, which is the price of per-chunk accuracy here.
             with _ProgressFile(local_path, report_progress) as payload:
-                return api.upload_file(
-                    path_or_fileobj=payload,
-                    path_in_repo=path_in_repo,
-                    repo_id=repo_id,
-                    repo_type="model",
-                    token=token,
-                )
+                try:
+                    result = api.upload_file(
+                        path_or_fileobj=payload,
+                        path_in_repo=path_in_repo,
+                        repo_id=repo_id,
+                        repo_type="model",
+                        token=token,
+                    )
+                except AttributeError as exc:
+                    # huggingface_hub's LFS batch validation reads
+                    # `response.get("actions", {}).get("upload")`, which raises
+                    # `'NoneType' object has no attribute 'get'` when the Hub
+                    # answers the git-lfs batch request with an explicit
+                    # `"actions": null` - the protocol's way of saying "this
+                    # object is already in storage". Nothing was transferred at
+                    # that point, so retry once from the plain file path: that
+                    # takes the hf_xet code path (no LFS batch round-trip) and
+                    # completes the upload. Per-chunk progress is not available
+                    # on that route, which the UI shows as an indeterminate bar.
+                    if "NoneType" not in str(exc) or "has no attribute" not in str(exc):
+                        raise
+                    utils.print_warning(
+                        "LFS batch answered with a null action set; retrying through the file path."
+                    )
+                    result = api.upload_file(
+                        path_or_fileobj=local_path,
+                        path_in_repo=path_in_repo,
+                        repo_id=repo_id,
+                        repo_type="model",
+                        token=token,
+                    )
+                    # `None` = "not measurable", which must never be read as
+                    # "zero bytes moved": the xet route really did transfer the
+                    # file, it just exposes no per-chunk callback.
+                    return result, created, head_sha, None
+                return result, created, head_sha, payload.transferred_bytes
 
         # Short-circuit re-uploads of identical content: no transfer attempt,
         # no confusing "0 LFS files" round-trips - just the explicit answer
         # with a link to the file that already lives in the repository.
-        duplicate, duplicate_url = await loop.run_in_executor(None, preflight)
-        if duplicate == "duplicate":
-            HF_UPLOAD_TASKS[task_id]["status"] = "skipped"
+        preflight_result = await loop.run_in_executor(None, preflight)
+        if preflight_result.get("status") == "duplicate":
+            _set_task_field(task_id, status="skipped")
             await utils.send_json(
                 "update_hf_upload_progress",
                 {
@@ -360,6 +453,7 @@ class HfUploader:
                     "uploadedSize": float(total_size),
                     "totalSize": float(total_size),
                     "progress": 100.0,
+                    "phase": PHASE_UPLOAD,
                 },
             )
             await utils.send_json(
@@ -369,19 +463,25 @@ class HfUploader:
                     "repoId": repo_id,
                     "pathInRepo": path_in_repo,
                     "skipped": True,
-                    "url": duplicate_url,
+                    "deduplicated": True,
+                    "transferredBytes": 0.0,
+                    "created": False,
+                    "private": private,
+                    "url": preflight_result.get("url") or blob_url(),
                 },
             )
+            _forget_task(task_id)
             return
 
         try:
-            result = await loop.run_in_executor(None, do_upload)
+            result, created, head_sha, transferred = await loop.run_in_executor(None, do_upload)
         except Exception as e:
-            HF_UPLOAD_TASKS[task_id]["status"] = "error"
+            _set_task_field(task_id, status="error")
             await utils.send_json(
                 "hf_upload_error",
                 {"taskId": task_id, "error": str(e)},
             )
+            _forget_task(task_id)
             raise
 
         # An unchanged file (same content at the same path) makes
@@ -390,11 +490,22 @@ class HfUploader:
         # silent success.
         result_oid = getattr(result, "oid", None)
         skipped = (
-            head_before["sha"] is not None
+            head_sha is not None
             and result_oid is not None
-            and str(result_oid) == str(head_before["sha"])
+            and str(result_oid) == str(head_sha)
         )
-        HF_UPLOAD_TASKS[task_id]["status"] = "skipped" if skipped else "complete"
+        # A commit that moved no bytes means the Hub already held the blob and
+        # deduplicated it ("Upload 0 LFS files"). The file is in the repository,
+        # but reporting a plain "Success" next to a bar that never moved is what
+        # made this look like a failed upload.
+        deduplicated = not skipped and transferred is not None and int(transferred) == 0
+        status = "skipped" if skipped else "complete"
+        _set_task_field(
+            task_id,
+            status=status,
+            transferredBytes=None if transferred is None else float(transferred),
+            created=created,
+        )
         # Final progress (100%) + completion; the UI settles on these events
         # instead of the HTTP round-trip.
         await utils.send_json(
@@ -404,6 +515,7 @@ class HfUploader:
                 "uploadedSize": float(total_size),
                 "totalSize": float(total_size),
                 "progress": 100.0,
+                "phase": PHASE_UPLOAD,
             },
         )
         await utils.send_json(
@@ -413,6 +525,11 @@ class HfUploader:
                 "repoId": repo_id,
                 "pathInRepo": path_in_repo,
                 "skipped": skipped,
-                "url": blob_url() if skipped else None,
+                "deduplicated": deduplicated,
+                "transferredBytes": None if transferred is None else float(transferred),
+                "created": created,
+                "private": private,
+                "url": blob_url() if (skipped or deduplicated) else None,
             },
         )
+        _forget_task(task_id)

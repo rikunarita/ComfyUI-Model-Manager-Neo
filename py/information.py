@@ -390,7 +390,7 @@ class Information:
                 base_path = folders[index]
                 abs_path = utils.join_path(base_path, filename)
                 preview_name = utils.get_model_preview_name(abs_path)
-                if preview_name == "no-preview.png":
+                if preview_name == utils.NO_PREVIEW_SENTINEL:
                     raise web.HTTPNotFound()
                 dir_name = os.path.dirname(abs_path)
                 abs_path = utils.join_path(dir_name, preview_name)

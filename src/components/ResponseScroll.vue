@@ -4,7 +4,9 @@
       <div ref="content">
         <slot name="default">
           <slot v-if="renderedItems.length === 0" name="empty">
-            <div class="absolute w-full py-20 text-center text-mm-muted-fg">No Data</div>
+            <div class="absolute w-full py-20 text-center text-mm-muted-fg">
+              {{ $t('noData') }}
+            </div>
           </slot>
 
           <div :style="{ height: `${headHeight}px` }"></div>

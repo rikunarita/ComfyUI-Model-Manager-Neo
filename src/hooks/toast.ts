@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import { toast as sonnerToast } from 'vue-sonner'
+import { useI18nGlobal } from 'hooks/i18n'
 
 // Confirm dialog state (reactive store)
 export interface ConfirmOptions {
@@ -56,10 +57,14 @@ export const useToast = () => {
   }
 
   const wrapperToastError = <T extends CallableFunction>(callback: T): T => {
+    // Resolved through the global composer: `wrapperToastError` also wraps
+    // module-level listeners (websocket handlers) that run outside any
+    // component, where `useI18n()` cannot resolve.
+    const { t } = useI18nGlobal()
     const showToast = (error: Error) => {
       toast.add({
         severity: 'error',
-        summary: 'Error',
+        summary: t('error'),
         detail: error.message,
         life: 15000,
       })

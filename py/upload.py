@@ -123,7 +123,7 @@ class ModelUploader:
             taskId=task_id,
             type=model_type,
             fullname=fullname,
-            preview="no-preview.png",
+            preview=utils.NO_PREVIEW_SENTINEL,
             status="doing",
             platform="local",
             source="local",
@@ -182,8 +182,11 @@ class ModelUploader:
                 if name == "file":
                     filename = part.filename
                     self.validate_upload_target(file_folder, filename)
-                    filepath = f"{file_folder}/{filename}"
-                    tmp_filepath = f"{file_folder}/{filename}.tmp"
+                    # join_path normalizes: the client sends the folder exactly
+                    # as the tree produced it, which can carry a trailing
+                    # separator and would otherwise yield "dir//name".
+                    filepath = utils.join_path(file_folder, filename)
+                    tmp_filepath = f"{filepath}.tmp"
 
                     task_id, task_status = self.create_local_task(
                         file_folder, filename, file_total_size

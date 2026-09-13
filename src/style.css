@@ -147,6 +147,34 @@
 
   /* Motion */
   --mm-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* -------------------------------------------------------------------------
+   * STACKING SCALE — the single source of truth for every z-index this
+   * extension paints.
+   *
+   * Everything sits above the ComfyUI host chrome (the fork already assumed
+   * 2400 is clear of it) and below vue-sonner's own default, which we
+   * deliberately do not use. The rule is simple: a layer must always be above
+   * the layer that can OPEN it, so
+   *   dialog window n            -> --mm-z-dialog + n   (see GlobalDialogStack)
+   *   dialog opened from a dialog-> --mm-z-nested-*
+   *   anchored popups            -> --mm-z-popover   (select / dropdown / tooltip)
+   *   global confirm             -> --mm-z-confirm-*
+   *   toasts                     -> --mm-z-toast
+   *
+   * Before this table existed the values were scattered as literals
+   * (z-50 / z-2500 / z-2600 / z-2790 / z-2800 / 9999) plus three ad-hoc
+   * inline `:style="{ zIndex: 2600 }"` overrides, and several popups were
+   * left at Tailwind's `z-50` — i.e. BELOW the 2400+ dialog windows, which is
+   * why the folder-path picker and friends rendered at the very back.
+   * ---------------------------------------------------------------------- */
+  --mm-z-dialog: 2400;
+  --mm-z-nested-overlay: 2690;
+  --mm-z-nested-dialog: 2700;
+  --mm-z-popover: 2800;
+  --mm-z-confirm-overlay: 2890;
+  --mm-z-confirm: 2900;
+  --mm-z-toast: 3000;
 }
 
 /* Dark-mode fallbacks (.dark-theme is on <html>; host vars switch on their own) */
@@ -307,6 +335,78 @@
     box-shadow:
       var(--mm-shadow-2),
       inset 0 1px 0 color-mix(in oklab, var(--mm-fg) 6%, transparent);
+  }
+
+  /* -------------------------------------------------------------------------
+   * TOAST POSITIONING FIX.
+   *
+   * `Sonner` is rendered `unstyled` and vue-sonner's own stylesheet is
+   * deliberately NOT imported: it would put generically named custom
+   * properties (--width, --gap, --gray1…--gray12, --border-radius) on the
+   * host's <html> and ship ~18 kB of `[data-styled='true']` rules this fork
+   * never uses (every visual property already comes from
+   * `toastOptions.classes` in components/ui/sonner/Sonner.vue).
+   *
+   * The price was that the library's *positioning* disappeared with the rest:
+   * `[data-sonner-toaster]` lost `position: fixed`, its `top`/`right` offsets
+   * and its z-index, so toasts laid out in the normal document flow at the top
+   * of #comfyui-model-manager. Two visible consequences: the container gave
+   * that div a real height and pushed the host page down by it, and toasts
+   * painted at `z-index: auto` — UNDERNEATH the 2400+ dialog windows, i.e.
+   * behind the very panel that raised them.
+   *
+   * Only the positioning is restored here (no animation/opacity rules, so
+   * nothing depends on the library's data-mounted state machine). The
+   * attribute selectors can only ever match nodes this extension creates, so
+   * the host page stays untouched.
+   * ---------------------------------------------------------------------- */
+  [data-sonner-toaster] {
+    position: fixed;
+    z-index: var(--mm-z-toast);
+    box-sizing: border-box;
+    width: var(--width);
+    max-width: calc(100vw - 2 * var(--offset-right, 16px));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    /* The container must never swallow clicks meant for the panel below it;
+       individual toasts opt back in (see `pointer-events-auto` in Sonner.vue). */
+    pointer-events: none;
+  }
+
+  [data-sonner-toaster][data-x-position='right'] {
+    right: var(--offset-right);
+  }
+
+  [data-sonner-toaster][data-x-position='left'] {
+    left: var(--offset-left);
+  }
+
+  [data-sonner-toaster][data-x-position='center'] {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  [data-sonner-toaster][data-y-position='top'] {
+    top: var(--offset-top);
+  }
+
+  [data-sonner-toaster][data-y-position='bottom'] {
+    bottom: var(--offset-bottom);
+  }
+
+  [data-sonner-toaster] [data-sonner-toast] {
+    /* Without the library's absolute lift/stack layout the toasts simply pile
+       up vertically inside the fixed container, which is all `position="top-right"`
+       needs; they only have to stay clickable. */
+    position: relative;
+    pointer-events: auto;
+    /* The library's own sheet sets this, and this project ships no preflight,
+       so the UA default (content-box) applied: with `w-full` + `p-4` + a
+       hairline border every toast came out 37px wider than its 356px slot and
+       ran off the right edge of the viewport. */
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
   }
 }
 

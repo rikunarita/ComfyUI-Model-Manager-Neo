@@ -23,7 +23,7 @@ import { useToast } from 'hooks/toast'
 import { api, app } from 'scripts/comfyAPI'
 import { type BaseModel, type Model, type SelectEvent, type WithResolved } from 'types/typings'
 import { bytesToSize, formatDate, previewUrlToFile } from 'utils/common'
-import { NO_PREVIEW_URL } from 'utils/media'
+import { NO_PREVIEW_SENTINEL, NO_PREVIEW_URL } from 'utils/media'
 import { genModelKey, resolveModelTypeLoader } from 'utils/model'
 import { dragAddModel } from 'utils/modelGrid'
 import { configSetting } from './config'
@@ -112,7 +112,7 @@ export const useModels = defineStore('models', store => {
     // Check current preview
     if (model.preview !== data.preview) {
       const preview = data.preview
-      if (preview && preview !== 'no-preview.png') {
+      if (preview && preview !== NO_PREVIEW_SENTINEL) {
         try {
           const previewFile = await previewUrlToFile(data.preview as string)
           updateData.set('previewFile', previewFile)
@@ -171,8 +171,8 @@ export const useModels = defineStore('models', store => {
         const error_message = err.message ?? err.error
         toast.add({
           severity: 'error',
-          summary: 'Error',
-          detail: `Failed to update model: ${error_message}`,
+          summary: t('error'),
+          detail: t('failedToUpdateModel', { message: error_message }),
           life: 15000,
         })
         throw new Error(error_message)
@@ -216,8 +216,8 @@ export const useModels = defineStore('models', store => {
             .then(() => {
               toast.add({
                 severity: 'success',
-                summary: 'Success',
-                detail: `${model.basename} Deleted`,
+                summary: t('success'),
+                detail: t('deletedModel', { name: model.basename }),
                 life: 2000,
               })
               store.dialog.close({ key: dialogKey })
@@ -229,8 +229,8 @@ export const useModels = defineStore('models', store => {
             .catch(e => {
               toast.add({
                 severity: 'error',
-                summary: 'Error',
-                detail: e.message ?? 'Failed to delete model',
+                summary: t('error'),
+                detail: e.message ?? t('failedToDeleteModel'),
                 life: 15000,
               })
               // BUG FIX: a failed DELETE never settled the promise returned by
@@ -250,7 +250,11 @@ export const useModels = defineStore('models', store => {
   }
 
   function openModelDetail(model: BaseModel) {
-    const filename = model.basename.replace(model.extension, '')
+    // `basename` already excludes the extension, so the previous
+    // `basename.replace(extension, '')` only ever did damage: String.replace
+    // swaps the FIRST occurrence, so a file named
+    // "foo.safetensors.safetensors" opened a dialog titled "foo".
+    const filename = model.basename
 
     store.dialog.open({
       key: genModelKey(model),
@@ -345,6 +349,7 @@ type ModelFormInstance = ReturnType<typeof useModelFormData>
 const baseInfoKey = Symbol('baseInfo') as InjectionKey<ReturnType<typeof useModelBaseInfoEditor>>
 
 export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
+  const { t } = useI18n()
   const { formData: model, modelData } = formInstance
 
   const provideModelFolders = inject(modelFolderProvideKey)
@@ -425,7 +430,14 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
           if (!folderPath) {
             return undefined
           }
-          return [folderPath, model.value.subFolder].filter(Boolean).join('/')
+          const joined = [folderPath, model.value.subFolder].filter(Boolean).join('/')
+          // The row is a DIRECTORY, so it is rendered with its trailing
+          // separator ("models/unet/" rather than "models/unet"). That also
+          // makes it obvious that the file-name field below is relative to it
+          // and may itself contain sub-folders. `ModelBaseInfo.folderKey`
+          // rebuilds the same path without the separator for the folder Tree,
+          // whose keys are plain paths.
+          return `${joined}/`
         },
       },
       {
@@ -434,7 +446,7 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
       },
       {
         key: 'sizeBytes',
-        formatter: val => (val === 0 ? 'Unknown' : bytesToSize(val)),
+        formatter: val => (val === 0 ? t('unknown') : bytesToSize(val)),
       },
       {
         key: 'createdAt',
@@ -779,7 +791,7 @@ export const useModelNodeAction = () => {
     app.canvas.copyToClipboard([node])
     toast.add({
       severity: 'success',
-      summary: 'Success',
+      summary: t('success'),
       detail: t('modelCopied'),
       life: 2000,
     })

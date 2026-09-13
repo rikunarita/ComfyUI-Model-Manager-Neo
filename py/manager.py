@@ -149,7 +149,7 @@ class ModelManager:
             model_preview = None
             if is_file:
                 preview_name = utils.get_model_preview_name(entry.path)
-                if preview_name == "no-preview.png":
+                if preview_name == utils.NO_PREVIEW_SENTINEL:
                     # No preview on disk: point straight at the default
                     # NO-PREVIEW.svg artwork instead of a URL that only
                     # worked through the old server-side fallback.

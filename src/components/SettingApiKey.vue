@@ -1,17 +1,18 @@
 <template>
   <div class="p-4">
-    <Input v-model="content" class="w-full" placeholder="Set New API Key" autocomplete="off" />
+    <Input v-model="content" class="w-full" :placeholder="$t('setNewApiKey')" autocomplete="off" />
     <div class="mt-4 flex items-center justify-between">
       <div>
-        <span v-show="showError" class="text-sm text-mm-danger"> API Key Not Allow Empty </span>
+        <span v-show="showError" class="text-sm text-mm-danger">{{ $t('apiKeyNotEmpty') }}</span>
       </div>
-      <Button autofocus @click="saveKeybinding">Save</Button>
+      <Button autofocus @click="saveKeybinding">{{ $t('save') }}</Button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, toValue } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Button } from 'components/ui/button'
 import { Input } from 'components/ui/input'
 import { useDialog } from 'hooks/dialog'
@@ -25,6 +26,7 @@ interface Props {
 
 const props = defineProps<Props>()
 
+const { t } = useI18n()
 const { close } = useDialog()
 const { toast } = useToast()
 
@@ -53,7 +55,7 @@ const saveKeybinding = async () => {
   } catch (error) {
     toast.add({
       severity: 'error',
-      summary: 'Error',
+      summary: t('error'),
       detail: (error as Error).message,
       life: 3000,
     })

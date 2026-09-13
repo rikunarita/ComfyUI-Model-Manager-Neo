@@ -69,12 +69,7 @@
                   @contextmenu.stop.prevent="openItemContext(rowItem, $event)"
                 />
               </TooltipTrigger>
-              <TooltipContent
-                v-if="folderPaths.length >= 2"
-                side="top"
-                class="max-w-lg"
-                :style="{ zIndex: 2600 }"
-              >
+              <TooltipContent v-if="folderPaths.length >= 2" side="top" class="max-w-lg">
                 {{ getFullPath(rowItem) }}
               </TooltipContent>
             </Tooltip>

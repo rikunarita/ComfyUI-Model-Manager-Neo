@@ -249,7 +249,9 @@ class ModelDownload:
 
     async def create_model_download_task(self, task_data: dict, request):
         model_type = task_data.get("type", None)
-        path_index = int(task_data.get("pathIndex", None))
+        # `int(None)` raised TypeError instead of the intended validation
+        # error when a client omitted pathIndex.
+        path_index = int(task_data.get("pathIndex") or 0)
         fullname = task_data.get("fullname", None)
         sub_folder = task_data.get("subFolder", None)  # ← 追加
 
@@ -403,7 +405,12 @@ class ModelDownload:
         path_index = task_content.pathIndex
         fullname = task_content.fullname
 
-        description = task_content.description
+        # BUG FIX: TaskContent.description defaults to None when the client
+        # omits the field, and `f.write(None)` raised TypeError inside the
+        # completion step - after the model had already been downloaded, so the
+        # file stayed in downloads/ as `<task>.download` and the task never
+        # completed. An absent description is simply an empty notes file.
+        description = task_content.description or ""
         description_file = utils.join_path(download_path, f"{task_id}.md")
         with open(description_file, "w", encoding="utf-8", newline="") as f:
             f.write(description)

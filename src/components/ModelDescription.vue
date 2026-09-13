@@ -24,12 +24,35 @@
     ></textarea>
 
     <div v-show="!active">
-      <div v-show="editable" class="mb-4 flex items-center gap-2 text-mm-muted-fg">
-        <!-- BUG FIX: `pi pi-info-circle` rendered empty (PrimeIcons removed). -->
-        <Info class="size-4 shrink-0" />
-        <span>
-          {{ $t('tapToChange') }}
-        </span>
+      <!--
+        FEATURE FIX: editing the description used to be triggered by an
+        invisible `absolute inset-0` click target laid over the rendered
+        markdown. That made the whole description a button with no affordance
+        (only a line of hint text explained it), swallowed clicks on links
+        inside the markdown, and was the only way in. It is now an explicit
+        Edit icon button in the header row; the rendered markdown stays
+        inert and its links clickable.
+        `Button` defaults to `type="button"`, which matters here: this sits
+        inside ModelContent's <form>, and a submit would save and close the
+        editor instead of opening the textarea.
+      -->
+      <div v-show="editable" class="mb-4 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 text-mm-muted-fg">
+          <!-- BUG FIX: `pi pi-info-circle` rendered empty (PrimeIcons removed). -->
+          <Info class="size-4 shrink-0" />
+          <span class="text-sm">
+            {{ $t('descriptionEditHint') }}
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          :title="$t('editDescription')"
+          :aria-label="$t('editDescription')"
+          @click="entryEditMode"
+        >
+          <Pencil class="size-4" />
+        </Button>
       </div>
 
       <div class="relative">
@@ -41,21 +64,17 @@
         <div v-else class="flex flex-col items-center gap-2 py-5">
           <!-- BUG FIX: `pi pi-info-circle` rendered empty (PrimeIcons removed). -->
           <Info class="size-5 opacity-60" />
-          <div>no description</div>
+          <div class="text-sm text-mm-muted-fg">{{ $t('noDescription') }}</div>
         </div>
-        <div
-          v-show="editable"
-          class="absolute top-0 left-0 size-full cursor-pointer"
-          @click="entryEditMode"
-        ></div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Info } from '@lucide/vue'
+import { Info, Pencil } from '@lucide/vue'
 import { nextTick, ref, watch } from 'vue'
+import { Button } from 'components/ui/button'
 import { useModelDescription } from 'hooks/model'
 
 const editable = defineModel<boolean>('editable')

@@ -9,11 +9,11 @@
       <DialogContent
         :show-close-button="false"
         :show-overlay="item.modal ?? false"
-        :overlay-style="{ zIndex: 2400 + index }"
+        :overlay-style="{ zIndex: dialogZ(index) }"
         :force-mount="item.keepAlive"
         :class="cn('flex max-h-full max-w-full flex-col p-0')"
         :style="{
-          zIndex: 2400 + index,
+          zIndex: dialogZ(index),
           width: `${states[item.key].width}px`,
           height: `${states[item.key].height}px`,
           left: `${states[item.key].left}px`,
@@ -67,6 +67,13 @@
         <div class="min-h-0 flex-1 overflow-auto">
           <component :is="item.content" v-bind="item.contentProps" />
         </div>
+
+        <!--
+          Loading is panel-scoped: only the topmost window gets the scrim, so
+          the rest of ComfyUI (canvas, top bar, other panels) stays visible and
+          usable while this extension works. See components/PanelLoading.vue.
+        -->
+        <PanelLoading v-if="loading && index === topmostVisibleIndex" />
 
         <!-- Resize handles -->
         <div v-if="allowResize && !states[item.key].isMaximized" data-dialog-resizer>
@@ -129,10 +136,12 @@ import { Info, Maximize2, Minimize2, X } from '@lucide/vue'
 import { clamp } from 'es-toolkit'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import PanelLoading from 'components/PanelLoading.vue'
 import { Button } from 'components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
 import { useConfig } from 'hooks/config'
 import { type DialogItem, useDialog } from 'hooks/dialog'
+import { useGlobalLoading } from 'hooks/loading'
 import { cn } from 'utils/cn'
 import { resolveIcon } from 'utils/iconMap'
 
@@ -160,6 +169,19 @@ interface DialogGeometry {
 const { stack, rise, close } = useDialog()
 const { isMobile } = useConfig()
 const { t } = useI18n()
+const { loading } = useGlobalLoading()
+
+/**
+ * Index of the window that is on top AND actually shown. `keepAlive` dialogs
+ * stay on the stack with `visible: false`, so the last array entry is not
+ * necessarily the one the user is looking at.
+ */
+const topmostVisibleIndex = computed(() => {
+  for (let i = stack.value.length - 1; i >= 0; i--) {
+    if (stack.value[i].visible !== false) return i
+  }
+  return -1
+})
 
 const handleOpenChange = (item: DialogItem, val: boolean) => {
   if (!val) close(item)
@@ -173,6 +195,17 @@ const handleOpenChange = (item: DialogItem, val: boolean) => {
 const preventDismiss = (event: Event) => {
   event.preventDefault()
 }
+
+/**
+ * Stacking position of window `index` in the dialog stack.
+ *
+ * Expressed against the `--mm-z-dialog` token (see src/style.css) rather than
+ * as a bare literal so the whole scale lives in one place: anchored popups
+ * (select / dropdown / tooltip), nested dialogs, the global confirm and the
+ * toasts are all positioned relative to the same base, and `rise()` moving a
+ * window to the end of the stack still puts it on top.
+ */
+const dialogZ = (index: number) => `calc(var(--mm-z-dialog) + ${index})`
 
 const allowResize = computed(() => !isMobile.value)
 

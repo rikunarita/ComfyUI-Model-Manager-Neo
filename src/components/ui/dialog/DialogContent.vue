@@ -24,7 +24,11 @@ const props = withDefaults(
       /**
        * Inline style for the overlay. The dialog stack passes a z-index that
        * matches its window so a modal overlay correctly dims the dialogs below
-       * it (the default `z-50` sits under the 2400+ dialog windows).
+       * it. The class default (`--mm-z-nested-overlay`) is what a dialog opened
+       * *from inside* another dialog gets: it must clear every window in the
+       * stack, which is why it no longer defaults to Tailwind's built-in 50 — that
+       * value sat underneath the 2400+ dialog windows and rendered at the very
+       * back.
        */
       overlayStyle?: HTMLAttributes['style']
     }
@@ -47,7 +51,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       v-bind="{ ...forwarded, ...$attrs }"
       :class="
         cn(
-          'mm-glass mm-scope fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-1/2 gap-4 rounded-mm-dlg border border-mm-border p-6',
+          'mm-glass mm-scope fixed top-1/2 left-1/2 z-(--mm-z-nested-dialog) grid w-full max-w-lg -translate-1/2 gap-4 rounded-mm-dlg border border-mm-border p-6',
           'animate-in duration-200 fade-in-0 zoom-in-95',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           forceMount && 'data-[state=closed]:hidden',

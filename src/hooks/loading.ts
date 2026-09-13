@@ -16,8 +16,11 @@ class GlobalLoading {
   }
 
   hide() {
-    this.loadingStack--
-    if (this.loadingStack <= 0) this.loading.value = false
+    // Clamped: an unbalanced hide() used to drive the counter negative, after
+    // which the same number of show() calls no longer reached 1 and the overlay
+    // silently stopped appearing for the rest of the session.
+    this.loadingStack = Math.max(0, this.loadingStack - 1)
+    if (this.loadingStack === 0) this.loading.value = false
   }
 }
 
@@ -41,6 +44,18 @@ export const useLoading = () => {
   const targetTimer = ref<Record<string, NodeJS.Timeout | undefined>>({})
 
   const show = (target: string = '_default') => {
+    /*
+     * BUG FIX: a second show() for a target whose 200 ms grace timer was still
+     * pending overwrote the handle, orphaning the first timer. The orphan still
+     * fired (incrementing the global stack) while its own callback cleared the
+     * *new* handle, so the matching hide() found nothing to clear and called
+     * globalLoading.hide() only once — the stack stayed at 1 and the overlay
+     * never went away. Reachable whenever two `_default` operations overlap
+     * (a model-detail `useRequest` still in flight while the user saves).
+     * A pending show for the same target is now a no-op: the caller's hide()
+     * still cancels it.
+     */
+    if (targetTimer.value[target]) return
     targetTimer.value[target] = setTimeout(() => {
       targetTimer.value[target] = undefined
       globalLoading.show()

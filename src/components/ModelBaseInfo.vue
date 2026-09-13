@@ -16,7 +16,7 @@
               {{ renderedModelFolder }}
             </span>
             <span v-else class="px-2 text-sm text-mm-muted-fg italic">
-              Select model type first
+              {{ $t('selectModelTypeFirst') }}
             </span>
           </div>
         </div>
@@ -59,6 +59,7 @@
         v-model.trim.valid="basename"
         class="-mr-2 text-right"
         update-trigger="blur"
+        :placeholder="$t('modelNamePlaceholder')"
         :validate="validateBasename"
       >
         <template #suffix>
@@ -67,6 +68,9 @@
           </span>
         </template>
       </ResponseInput>
+      <div class="-mt-2 text-right text-xs text-mm-muted-fg">
+        {{ $t('modelNameHint') }}
+      </div>
     </div>
 
     <table class="w-full table-fixed border-collapse border border-mm-border">
@@ -92,7 +96,6 @@
                 v-if="!['pathIndex', 'basename'].includes(item.key)"
                 side="top"
                 class="max-w-lg"
-                :style="{ zIndex: 2600 }"
               >
                 {{ item.display }}
               </TooltipContent>
@@ -107,6 +110,7 @@
 <script setup lang="ts">
 import { FolderOpen } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
@@ -119,10 +123,24 @@ import { useToast } from 'hooks/toast'
 
 const editable = defineModel<boolean>('editable')
 
+const { t } = useI18n()
 const { toast } = useToast()
 
 const { baseInfo, pathIndex, subFolder, basename, extension, type, modelFolders } =
   useModelBaseInfo()
+
+/**
+ * Absolute directory of the model, WITHOUT the trailing separator the Directory
+ * row renders. The folder Tree keys its nodes on plain paths (see
+ * `useModelFolder`), so pre-selecting the current folder has to use this and
+ * not `baseInfo.pathIndex.display`.
+ */
+const folderKey = computed(() => {
+  const folders = modelFolders.value[type.value] ?? []
+  const folderPath = folders[pathIndex.value]
+  if (!folderPath) return undefined
+  return [folderPath, subFolder.value].filter(Boolean).join('/')
+})
 
 watch(type, () => {
   subFolder.value = ''
@@ -162,23 +180,33 @@ const information = computed(() => {
   })
 })
 
+/**
+ * Validate the file-name field.
+ *
+ * FEATURE FIX: `/` used to be rejected together with the characters that are
+ * genuinely illegal in a file name, so typing "sub/model.safetensors" was
+ * silently reverted and a model could never be filed into a sub-folder from the
+ * editor. `/` is a path separator now; the backend already traversal-checks the
+ * resulting path (`utils.get_full_path`) and creates missing directories
+ * (`utils.rename_model`), and the empty / `.` / `..` segment check below keeps
+ * the client side just as strict.
+ */
 const validateBasename = (val: string | undefined) => {
-  if (!val) {
-    toast.add({
-      severity: 'error',
-      detail: 'basename is required',
-      life: 3000,
-    })
+  const fail = (detail: string) => {
+    toast.add({ severity: 'error', detail, life: 3000 })
     return false
   }
-  const invalidChart = /[\\/:*?"<>|]/
-  if (invalidChart.test(val)) {
-    toast.add({
-      severity: 'error',
-      detail: 'basename is invalid, \\/:*?"<>|',
-      life: 3000,
-    })
-    return false
+  if (!val) {
+    return fail(t('validation.nameRequired'))
+  }
+  // `\ : * ? " < > |` are illegal in a file name on Windows/SMB shares and are
+  // never meaningful here. `/` is deliberately NOT in this set any more.
+  if (/[\\:*?"<>|]/.test(val)) {
+    return fail(t('validation.nameInvalidChars'))
+  }
+  const segments = val.split('/')
+  if (segments.some(segment => segment === '' || segment === '.' || segment === '..')) {
+    return fail(t('validation.nameInvalidPath'))
   }
   return true
 }
@@ -189,8 +217,8 @@ const handleSelectFolder = () => {
   if (!type.value) {
     toast.add({
       severity: 'error',
-      summary: 'Error',
-      detail: 'Please select model type first',
+      summary: t('error'),
+      detail: t('selectModelTypeFirst'),
       life: 5000,
     })
     return
@@ -204,8 +232,7 @@ const selectedModelFolder = ref<string>()
 
 const selectedFolderItem = computed({
   get: () => {
-    const folderPath = baseInfo.value.pathIndex?.display
-    const selectedKey = selectedModelFolder.value ?? folderPath
+    const selectedKey = selectedModelFolder.value ?? folderKey.value
     return selectedKey ? { key: selectedKey } : undefined
   },
   set: (val: any) => {
@@ -231,7 +258,7 @@ const handleConfirmSelectFolder = () => {
   if (idx < 0) {
     toast.add({
       severity: 'error',
-      detail: 'Folder not found',
+      detail: t('folderNotFound'),
       life: 3000,
     })
     return

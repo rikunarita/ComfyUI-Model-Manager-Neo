@@ -222,7 +222,7 @@ const uploadActions = ref([
         request('/upload', { method: 'POST', body }).catch(error => {
           toast.add({
             severity: 'error',
-            summary: 'Error',
+            summary: t('error'),
             detail: (error as Error).message,
             life: 5000,
           })
@@ -241,7 +241,7 @@ const fetchSupportedExtensions = async () => {
   } catch (error) {
     toast.add({
       severity: 'error',
-      summary: 'Error',
+      summary: t('error'),
       detail: (error as Error).message,
       life: 5000,
     })

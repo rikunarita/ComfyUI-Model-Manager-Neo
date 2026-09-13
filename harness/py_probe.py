@@ -388,6 +388,81 @@ async def main() -> None:
         evil = list(TMP.rglob("evil2.safetensors"))
         check("P15 upload filename traversal rejected", up["success"] is False and not evil, str(up))
 
+        # ---------------- folder prefixes in `fullname` -------------------------
+        # The model editor accepts "sub/name.ext" as a file name now, so the
+        # backend has to file the model into that sub-folder (creating it) while
+        # still refusing to escape the model directory.
+        form = aiohttp.FormData()
+        form.add_field("type", "loras")
+        form.add_field("pathIndex", "0")
+        form.add_field("fullname", "deep/deeper/moved_lora.safetensors")
+        _, moved = await put("/model-manager/model/loras/0/some_lora.safetensors", data=form)
+        check(
+            "P24 folder prefix in fullname files the model into a new sub-folder",
+            moved["success"]
+            and (LORAS / "deep" / "deeper" / "moved_lora.safetensors").exists()
+            and not (LORAS / "some_lora.safetensors").exists(),
+            str(moved),
+        )
+
+        form = aiohttp.FormData()
+        form.add_field("type", "loras")
+        form.add_field("pathIndex", "0")
+        form.add_field("fullname", "../../escape.safetensors")
+        _, esc = await put(
+            "/model-manager/model/loras/0/deep/deeper/moved_lora.safetensors", data=form
+        )
+        check(
+            "P25 folder prefix cannot escape the model directory",
+            esc["success"] is False
+            and not list(TMP.rglob("escape.safetensors"))
+            and (LORAS / "deep" / "deeper" / "moved_lora.safetensors").exists(),
+            str(esc),
+        )
+
+        # ---------------- defensive input handling ------------------------------
+        # `int(None)` used to raise TypeError instead of a validation error.
+        form = aiohttp.FormData()
+        form.add_field("type", "checkpoints")
+        form.add_field("fullname", "whatever.safetensors")
+        form.add_field("sizeBytes", "1")
+        form.add_field("downloadPlatform", "Direct Link")
+        form.add_field("downloadUrl", f"{rbase}/files/remote_model.safetensors")
+        _, noindex = await post("/model-manager/model", data=form)
+        check(
+            "P26 missing pathIndex is a validation error, not a crash",
+            noindex["success"] is False and isinstance(noindex.get("error"), str),
+            str(noindex),
+        )
+
+        # A task without a description used to die in `_download_complete` with
+        # `TypeError: write() argument must be str, not None` - AFTER the file
+        # had been downloaded, so it was stuck in downloads/ forever.
+        form = aiohttp.FormData()
+        form.add_field("type", "checkpoints")
+        form.add_field("pathIndex", "0")
+        form.add_field("fullname", "nodesc.safetensors")
+        form.add_field("sizeBytes", str((REMOTE / "remote_model.safetensors").stat().st_size))
+        form.add_field("downloadPlatform", "Direct Link")
+        form.add_field("downloadUrl", f"{rbase}/files/remote_model.safetensors")
+        form.add_field("previewFile", "")
+        _, nodesc = await post("/model-manager/model", data=form)
+        check("P27 task without description accepted", nodesc["success"], str(nodesc))
+        nodesc_target = CKPT / "nodesc.safetensors"
+        deadline = time.time() + 20
+        while time.time() < deadline and not nodesc_target.exists():
+            await asyncio.sleep(0.2)
+        await asyncio.sleep(1.6)
+        check(
+            "P27b task without description still completes",
+            nodesc_target.exists()
+            and any(t == nodesc["data"]["taskId"] for t in events("complete_download_task")),
+        )
+        check(
+            "P27c an empty notes file is written instead of crashing",
+            (CKPT / "nodesc.md").exists(),
+        )
+
         # ---------------- misc routes ------------------------------------------
         _, exts = await get("/model-manager/supported-extensions")
         check("P17 supported extensions", exts["success"] and ".safetensors" in exts["data"])

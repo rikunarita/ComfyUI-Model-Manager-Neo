@@ -108,13 +108,20 @@
               The transfer itself now streams accurate percentages through a
               progress-reporting file wrapper (py/upload_hf.py), shown both in
               the bar and in the read-out next to it.
+
+              BUG FIX: the read-out also names the phase. Hashing a
+              multi-gigabyte checkpoint locally takes minutes before a single
+              byte leaves the machine, and a bar that never moved during it is
+              exactly what reads as "the upload never started".
             -->
+            <div class="mb-1 flex items-center justify-between gap-2 text-xs text-mm-muted-fg">
+              <span data-hf-phase>{{ phaseLabel }}</span>
+              <span v-if="hfUpload.phase === 'hash'" class="truncate opacity-70">
+                {{ $t('hfUpload.hashHint') }}
+              </span>
+            </div>
             <div class="flex items-center gap-2">
-              <Progress
-                class="flex-1"
-                :model-value="hfUpload.progress"
-                :mode="hfUpload.progress > 0 ? 'determinate' : 'indeterminate'"
-              />
+              <Progress class="flex-1" :model-value="hfUpload.progress" :mode="barMode" />
               <span class="w-10 text-right text-xs text-mm-muted-fg tabular-nums">
                 {{ hfUpload.progress }}%
               </span>
@@ -139,6 +146,7 @@
 <script setup lang="ts">
 import { Box, ChevronLeft, Upload } from '@lucide/vue'
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
 import { Checkbox } from 'components/ui/checkbox'
@@ -146,7 +154,7 @@ import { Input } from 'components/ui/input'
 import { Progress } from 'components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
 import { configSetting } from 'hooks/config'
-import { hfUploadState } from 'hooks/hfUpload'
+import { hfUploadState, isFinishedTask, resetHfUploadState } from 'hooks/hfUpload'
 import { useLoading } from 'hooks/loading'
 import { genModelFullName, useModels } from 'hooks/model'
 import { request } from 'hooks/request'
@@ -154,8 +162,10 @@ import { useToast } from 'hooks/toast'
 import { app } from 'scripts/comfyAPI'
 import { type Model } from 'types/typings'
 import { bytesToSize } from 'utils/common'
+import { NO_PREVIEW_URL } from 'utils/media'
 import { genModelKey } from 'utils/model'
 
+const { t } = useI18n()
 const { toast } = useToast()
 const loading = useLoading()
 const { folders } = useModels()
@@ -197,7 +207,7 @@ const fetchModels = async (type: string) => {
   } catch (error) {
     toast.add({
       severity: 'error',
-      summary: 'Error',
+      summary: t('error'),
       detail: (error as Error).message,
       life: 5000,
     })
@@ -258,11 +268,20 @@ const fetchWhoami = async () => {
  */
 const hfUpload = hfUploadState
 
+/** Human-readable name of the phase the backend is currently in. */
+const phaseLabel = computed(() => t(`hfUpload.phase.${hfUpload.phase}`))
+
+/**
+ * `prepare` has no measurable percentage yet, so sweep instead of pinning the
+ * bar to 0%; `hash` and `upload` both report real fractions.
+ */
+const barMode = computed<'determinate' | 'indeterminate'>(() =>
+  hfUpload.phase === 'prepare' || hfUpload.progress <= 0 ? 'indeterminate' : 'determinate',
+)
+
 const handleUpload = async () => {
   if (!selectedModel.value) return
-  hfUpload.taskId = null
-  hfUpload.active = true
-  hfUpload.progress = 0
+  resetHfUploadState()
   hfUpload.repoId = repoId.value ?? ''
   hfUpload.pathInRepo = pathInRepo.value ?? ''
   const payload = {
@@ -280,8 +299,12 @@ const handleUpload = async () => {
       body: JSON.stringify(payload),
     })
     // The transfer itself is tracked through the websocket events; the id
-    // only lets this instance ignore events of an earlier upload.
-    hfUpload.taskId = result?.taskId ?? null
+    // only lets this instance ignore events of an earlier upload. A very fast
+    // upload (a duplicate short-circuit, or a Hub-side dedup that moves no
+    // bytes) can complete before this response is read - writing its id back
+    // would leave a stale filter in place for the next upload.
+    const taskId = result?.taskId ?? null
+    hfUpload.taskId = isFinishedTask(taskId) ? null : taskId
   } catch (error) {
     // The server rejected the upload BEFORE it started (missing token,
     // invalid path, ...). A started transfer reports its own failure through
@@ -291,7 +314,7 @@ const handleUpload = async () => {
     hfUpload.progress = 0
     toast.add({
       severity: 'error',
-      summary: 'Error',
+      summary: t('error'),
       detail: error instanceof Error ? error.message : String(error),
       life: 15000,
     })
@@ -299,12 +322,15 @@ const handleUpload = async () => {
 }
 
 const formatSize = (size?: number) => {
-  return size ? bytesToSize(size) : 'Unknown'
+  return size ? bytesToSize(size) : t('unknown')
 }
 
 const getPreviewUrl = (preview: string | string[] | undefined): string => {
-  if (!preview) return ''
-  if (Array.isArray(preview)) return preview[0] || ''
+  // Never hand <img> an empty src: that resolves to the page URL, fails to
+  // decode as an image and logs a console error. The glass NO-PREVIEW artwork
+  // is the documented default for a model without a preview.
+  if (!preview) return NO_PREVIEW_URL
+  if (Array.isArray(preview)) return preview[0] || NO_PREVIEW_URL
   return preview
 }
 

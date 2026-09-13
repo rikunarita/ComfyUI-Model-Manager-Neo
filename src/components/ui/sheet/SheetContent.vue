@@ -27,7 +27,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       v-bind="{ ...forwarded, ...$attrs }"
       :class="
         cn(
-          'mm-glass mm-scope fixed z-50 gap-4 border border-mm-border p-6 shadow-mm-3 transition ease-in-out',
+          'mm-glass mm-scope fixed z-(--mm-z-nested-dialog) gap-4 border border-mm-border p-6 shadow-mm-3 transition ease-in-out',
           'animate-in duration-300 data-[state=closed]:animate-out data-[state=closed]:duration-300',
           side === 'top' &&
             'inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',

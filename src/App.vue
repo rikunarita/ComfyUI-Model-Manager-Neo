@@ -3,7 +3,6 @@
     <TooltipProvider :delay-duration="400">
       <Sonner />
       <GlobalConfirm />
-      <GlobalLoading />
       <GlobalDialogStack />
     </TooltipProvider>
   </ConfigProvider>
@@ -19,7 +18,6 @@ import DialogHfUpload from 'components/DialogHfUpload.vue'
 import DialogManager from 'components/DialogManager.vue'
 import GlobalConfirm from 'components/GlobalConfirm.vue'
 import GlobalDialogStack from 'components/GlobalDialogStack.vue'
-import GlobalLoading from 'components/GlobalLoading.vue'
 import { Sonner } from 'components/ui/sonner'
 import { TooltipProvider } from 'components/ui/tooltip'
 import { useStoreProvider } from 'hooks/store'
@@ -39,7 +37,7 @@ onMounted(() => {
     await Promise.all([models.refresh(true)])
     toast.add({
       severity: 'success',
-      summary: 'Refreshed Models',
+      summary: t('refreshedModels'),
       life: 2000,
     })
   }
