@@ -463,6 +463,90 @@ async def main() -> None:
             (CKPT / "nodesc.md").exists(),
         )
 
+        # ---------------- environment auto-fill (feature) --------------------
+        # An empty private.key + a token in the environment must be adopted
+        # (and persisted) exactly once; keys absent from the environment stay
+        # untouched.
+        import os as _os
+
+        from cmmn.py import auth as _auth
+
+        _os.environ["HF_TOKEN"] = "hf_env_token_1234567890"
+        _auth.get_api_key()._store = {"civitai": None, "huggingface": None}
+        _auth.get_api_key()._update()
+        _, seeded = await post("/model-manager/download/init", json={})
+        check(
+            "P28 env-only token is adopted into private.key",
+            seeded["success"]
+            and seeded["data"].get("huggingface", "").startswith("hf_e")
+            and seeded["data"].get("civitai") is None,
+            str(seeded.get("data")),
+        )
+        _raw = (REPO / "private.key").read_text(encoding="utf-8")
+        check(
+            "P28b private.key is JSON (not pickle) and holds the seeded token",
+            _raw.lstrip().startswith("{") and "hf_env_token_1234567890" in _raw,
+        )
+        _os.environ.pop("HF_TOKEN", None)
+        _auth.get_api_key()._store = {"civitai": None, "huggingface": None}
+        _auth.get_api_key()._update()
+
+        # ---------------- cache headers (optimizations A-1 / B-2) ------------
+        _st, _svg = await get("/model-manager/assets/folder-closed.svg")
+        check("P29 svg artwork served", _st == 200 and _svg[:4] == b"<svg")
+        import aiohttp as _aiohttp
+
+        async with _aiohttp.ClientSession() as _sess:
+            async with _sess.get(f"{base}/model-manager/assets/folder-closed.svg") as _r:
+                _etag = _r.headers.get("ETag")
+                _cc = _r.headers.get("Cache-Control")
+                await _r.read()
+            async with _sess.get(
+                f"{base}/model-manager/assets/folder-closed.svg",
+                headers={"If-None-Match": _etag or ""},
+            ) as _r2:
+                _st2 = _r2.status
+        check(
+            "P29b svg carries ETag + max-age and revalidates with 304",
+            bool(_etag) and "max-age=" in (_cc or "") and _st2 == 304,
+            f"{_etag} {_cc} {_st2}",
+        )
+        async with _aiohttp.ClientSession() as _sess:
+            _purl = f"{base}/model-manager/preview/checkpoints/0/renamed_model.webp"
+            async with _sess.get(_purl) as _r:
+                _petag = _r.headers.get("ETag")
+                _pcc = _r.headers.get("Cache-Control")
+                await _r.read()
+            async with _sess.get(_purl, headers={"If-None-Match": _petag or ""}) as _r2:
+                _pst2 = _r2.status
+        check(
+            "P29c previews carry ETag + cache-control and revalidate with 304",
+            bool(_petag) and "max-age=" in (_pcc or "") and _pst2 == 304,
+            f"{_petag} {_pcc} {_pst2}",
+        )
+
+        # ---------------- multi-preview save (feature) -----------------------
+        form = aiohttp.FormData()
+        form.add_field("previewFile", io.BytesIO(_buf.getvalue()), filename="p.webp", content_type="image/webp")
+        form.add_field("previewFile2", io.BytesIO(_buf.getvalue()), filename="p2.webp", content_type="image/webp")
+        _, upd2 = await put("/model-manager/model/checkpoints/0/sub/nested_model.safetensors", data=form)
+        check(
+            "P30 both previews are stored under the naming scheme",
+            upd2["success"]
+            and (CKPT / "sub" / "nested_model.webp").exists()
+            and (CKPT / "sub" / "nested_model.preview.webp").exists(),
+            str(upd2),
+        )
+        _, models3 = await get("/model-manager/models/checkpoints")
+        _nested = next(m for m in models3["data"] if m["basename"] == "nested_model")
+        check(
+            "P30b the model list exposes the gallery as two distinct urls",
+            isinstance(_nested["preview"], list)
+            and len(_nested["preview"]) == 2
+            and _nested["preview"][0] != _nested["preview"][1],
+            str(_nested["preview"]),
+        )
+
         # ---------------- misc routes ------------------------------------------
         _, exts = await get("/model-manager/supported-extensions")
         check("P17 supported extensions", exts["success"] and ".safetensors" in exts["data"])

@@ -185,5 +185,18 @@
   "uploadStarted": "正在后台上传 {name}",
   "modelInfoFailed": "模型信息加载失败: {message}",
   "previewSaved": "预览已更新",
-  "previewRemoved": "预览已移除"
+  "previewRemoved": "预览已移除",
+  "previousPreview": "上一张预览",
+  "nextPreview": "下一张预览",
+  "previewFullscreen": "预览（全屏）",
+  "uploadTooLarge": "文件超过了 ComfyUI 服务器的上传上限。请使用命令行参数 --max-upload-size（单位 MB）提高上限后重启 ComfyUI，或拆分文件。",
+  "selectFolder": "选择文件夹",
+  "openModelPage": "打开模型页面",
+  "addNode": "向画布添加节点",
+  "copyNode": "复制节点到剪贴板",
+  "loadWorkflow": "从预览载入工作流",
+  "editModel": "编辑模型",
+  "deleteModel": "删除模型",
+  "pause": "暂停",
+  "resume": "恢复"
 }

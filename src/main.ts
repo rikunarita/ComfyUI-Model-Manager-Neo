@@ -1,7 +1,7 @@
 import { createApp } from 'vue'
 import { app } from 'scripts/comfyAPI'
 import App from './App.vue'
-import { i18n } from './i18n'
+import { ensureLocale, i18n } from './i18n'
 import './style.css'
 
 const CONTAINER_ID = 'comfyui-model-manager'
@@ -34,6 +34,8 @@ app.registerExtension({
     container.id = CONTAINER_ID
     document.body.appendChild(container)
 
-    createVueApp(container)
+    // The active locale bundle is a dynamic import (optimization B-5); mount
+    // only once it resolved so the first paint is already translated.
+    void ensureLocale(i18n.global.locale.value).finally(() => createVueApp(container))
   },
 })

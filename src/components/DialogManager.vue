@@ -41,6 +41,7 @@
               <TooltipTrigger as-child>
                 <ModelCard
                   :model="model"
+                  :width="cardSize.width"
                   :style="{
                     width: `${cardSize.width}px`,
                     height: `${cardSize.height}px`,
@@ -68,6 +69,8 @@
                           variant="secondary"
                           size="icon-sm"
                           class="rounded-full"
+                          :title="$t('addNode')"
+                          :aria-label="$t('addNode')"
                           @click.stop="addModelNode(model)"
                         >
                           <Plus class="size-4" />
@@ -76,6 +79,8 @@
                           variant="secondary"
                           size="icon-sm"
                           class="rounded-full"
+                          :title="$t('copyNode')"
+                          :aria-label="$t('copyNode')"
                           @click.stop="copyModelNode(model)"
                         >
                           <Copy class="size-4" />
@@ -85,6 +90,8 @@
                           variant="secondary"
                           size="icon-sm"
                           class="rounded-full"
+                          :title="$t('loadWorkflow')"
+                          :aria-label="$t('loadWorkflow')"
                           @click.stop="loadPreviewWorkflow(model)"
                         >
                           <Workflow class="size-4" />
@@ -116,7 +123,7 @@
 
 <script setup lang="ts" name="manager-dialog">
 import { Box, Copy, Plus, Workflow } from '@lucide/vue'
-import { useElementSize } from '@vueuse/core'
+import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -145,10 +152,11 @@ const contentContainer = ref<HTMLElement | null>(null)
 const { $lg: $content_lg } = useContainerQueries(contentContainer)
 
 const searchContent = ref<string>()
+// Optimization B-3: the grid filter+sort is O(n log n); running it on every
+// keystroke of a large library stalls input. 150 ms of debounce keeps the
+// search feeling instant while collapsing bursts into one recompute.
+const debouncedSearch = refDebounced(searchContent, 150)
 
-// Value of the "everything" entry in the type filter. The VALUE stays a
-// stable literal (it is compared against real folder names); only its label is
-// translated.
 const allType = '__all__'
 const currentType = ref(allType)
 const typeOptions = computed(() => {
@@ -230,7 +238,7 @@ const list = computed(() => {
     const showAllModel = currentType.value === allType
     const matchType = showAllModel || model.type === currentType.value
 
-    const rawFilter = searchContent.value ?? ''
+    const rawFilter = debouncedSearch.value ?? ''
     const tokens = rawFilter.split(/\s+/).filter(Boolean)
     const regexes = tokens.map(buildRegex)
 

@@ -66,6 +66,9 @@ for idx, (name, directory) in enumerate(
 ):
     (directory / f"{name}.safetensors").write_bytes(b"M" * (2 * 1024 * 1024))
     (directory / f"{name}.webp").write_bytes(_gradient(idx))
+# The first model carries a SECOND preview so the gallery plumbing (nav
+# buttons, counter, lightbox, multi-file save) is exercisable end to end.
+(CKPT / "anima-aesthetic-v1.preview.webp").write_bytes(_gradient(3))
 (CKPT / "sub").mkdir(exist_ok=True)
 (CKPT / "sub" / "nested.safetensors").write_bytes(b"NN" * 128)
 

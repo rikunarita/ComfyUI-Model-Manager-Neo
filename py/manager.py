@@ -8,6 +8,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from . import utils
 
 
+def _preview_field_keys(model_data: dict) -> list[str]:
+    """`previewFile`, `previewFile2`, ... in gallery order."""
+    keys = []
+    for key in model_data:
+        if key == "previewFile":
+            keys.append((0, key))
+        elif key.startswith("previewFile") and key[len("previewFile"):].isdigit():
+            keys.append((int(key[len("previewFile"):]), key))
+    return [key for _, key in sorted(keys)]
+
+
 class ModelManager:
 
     def add_routes(self, routes):
@@ -86,8 +97,11 @@ class ModelManager:
             All fields are optional, but type, pathIndex and fullname must appear together.
             """
             model_type = request.match_info.get("type", None)
-            path_index = int(request.match_info.get("index", None))
+            index_raw = request.match_info.get("index", None)
             filename = request.match_info.get("filename", None)
+            if index_raw is None or model_type is None or filename is None:
+                raise RuntimeError("Invalid model route parameters")
+            path_index = int(index_raw)
 
             model_data = await request.post()
             model_data = dict(model_data)
@@ -155,7 +169,7 @@ class ModelManager:
             basename = os.path.splitext(filename)[0] if is_file else filename
             extension = os.path.splitext(filename)[1] if is_file else ""
 
-            model_preview = None
+            model_preview: str | list[str] | None = None
             if is_file:
                 # Optimization A-2: resolve previews against the directory's
                 # name set collected during the walk - zero extra stat() calls
@@ -171,15 +185,15 @@ class ModelManager:
                 else:
                     urls = []
                     for preview_name in preview_names:
-                        preview_ext = f".{preview_name.split('.')[-1]}"
-                        # BUG FIX: str.replace() swapped EVERY occurrence of the
-                        # extension inside the relative path (directory names like
-                        # "my.ckpt/" were rewritten too). Only the trailing file
-                        # extension must be exchanged for the preview extension.
-                        if extension and relative_path.endswith(extension):
-                            preview_relative = relative_path[: -len(extension)] + preview_ext
-                        else:
-                            preview_relative = relative_path + preview_ext
+                        # BUG FIX: the preview URL used to be derived by
+                        # swapping the model's trailing extension, which mapped
+                        # EVERY preview of a model onto the primary preview's
+                        # path (a gallery collapsed into N copies of one URL).
+                        # The preview file's own name, joined onto the model's
+                        # directory, is the correct relative path.
+                        preview_relative = (
+                            f"{sub_folder}/{preview_name}" if sub_folder else preview_name
+                        )
                         urls.append(
                             f"/model-manager/preview/{folder}/{path_index}/{preview_relative}"
                         )
@@ -271,13 +285,15 @@ class ModelManager:
 
     def update_model(self, model_path: str, model_data: dict):
 
-        if "previewFile" in model_data:
-            previewFile = model_data["previewFile"]
-            # Always remove existing preview files first in case the file extension has changed
+        if _preview_field_keys(model_data):
+            # The client sends the whole gallery as previewFile, previewFile2,
+            # previewFile3, ... (feature: keep every preview). Remove the old
+            # set first - extensions may change - then store the new one.
             utils.remove_model_preview(model_path)
-            # Nothing else to do if the preview file was being removed
-            if not (type(previewFile) is str and previewFile == "undefined"):
-                utils.save_model_preview(model_path, previewFile)
+            items = [model_data[k] for k in _preview_field_keys(model_data)]
+            items = [i for i in items if not (type(i) is str and i in ("undefined", ""))]
+            if items:
+                utils.save_model_previews(model_path, items)
 
         if "description" in model_data:
             description = model_data["description"]
@@ -285,10 +301,11 @@ class ModelManager:
 
         if "type" in model_data and "pathIndex" in model_data and "fullname" in model_data:
             model_type = model_data.get("type", None)
-            path_index = int(model_data.get("pathIndex", None))
+            raw_index = model_data.get("pathIndex", None)
             fullname = model_data.get("fullname", None)
-            if model_type is None or path_index is None or fullname is None:
+            if model_type is None or raw_index is None or fullname is None:
                 raise RuntimeError("Invalid type or pathIndex or fullname")
+            path_index = int(raw_index)
 
             # get new path
             new_model_path = utils.get_full_path(model_type, path_index, fullname)

@@ -168,7 +168,11 @@ import { genModelKey } from 'utils/model'
 const { t } = useI18n()
 const { toast } = useToast()
 const loading = useLoading()
-const { folders } = useModels()
+// Optimization B-8: the model store already caches every folder it fetched,
+// so re-opening this dialog (or switching back to a type) no longer
+// re-requests the whole listing - it reads the cache and only fetches what
+// is missing.
+const { folders, data: modelsCache, refreshFolder } = useModels()
 
 const stepValue = ref('1')
 const currentType = ref<string>()
@@ -200,10 +204,15 @@ const typeOptions = computed(() => {
 const modelList = ref<Model[]>([])
 
 const fetchModels = async (type: string) => {
+  const cached = modelsCache.value[type]
+  if (cached) {
+    modelList.value = cached.filter(item => !item.isFolder)
+    return
+  }
   loading.show()
   try {
-    const resData = (await request(`/models/${type}`)) as Model[]
-    modelList.value = (resData ?? []).filter(item => !item.isFolder)
+    await refreshFolder(type)
+    modelList.value = (modelsCache.value[type] ?? []).filter(item => !item.isFolder)
   } catch (error) {
     toast.add({
       severity: 'error',

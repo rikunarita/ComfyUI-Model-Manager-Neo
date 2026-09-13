@@ -41,7 +41,8 @@ declare module 'hooks/store' {
 }
 
 export const useLoading = () => {
-  const targetTimer = ref<Record<string, NodeJS.Timeout | undefined>>({})
+  // Standards catch-up C-5: the UI must not depend on @types/node globals.
+  const targetTimer = ref<Record<string, ReturnType<typeof setTimeout> | undefined>>({})
 
   const show = (target: string = '_default') => {
     /*

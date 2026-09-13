@@ -40,6 +40,16 @@ export interface TreeNode {
 
 const systemStat = ref()
 
+/** Preview field -> ordered URL list (the no-preview artwork counts as none). */
+export const normalizePreviews = (preview: string | string[] | undefined): string[] => {
+  if (!preview) return []
+  const list = Array.isArray(preview) ? preview : [preview]
+  return list.filter(item => Boolean(item) && item !== NO_PREVIEW_SENTINEL)
+}
+
+const samePreviews = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((item, i) => item === b[i])
+
 type ModelFolder = Record<string, string[]>
 
 const modelFolderProvideKey = Symbol('modelFolder') as InjectionKey<Ref<ModelFolder>>
@@ -109,23 +119,31 @@ export const useModels = defineStore('models', store => {
     let oldKey: string | null = null
     let needUpdate = false
 
-    // Check current preview
-    if (model.preview !== data.preview) {
-      const preview = data.preview
-      if (preview && preview !== NO_PREVIEW_SENTINEL) {
-        try {
-          const previewFile = await previewUrlToFile(data.preview as string)
-          updateData.set('previewFile', previewFile)
-        } catch (e) {
-          console.warn('Failed to convert preview URL to file:', e)
-        }
-      } else {
+    // Check current preview. A gallery is compared element-wise; a changed set
+    // is sent as previewFile / previewFile2 / ... so every image survives.
+    const modelPreviews = normalizePreviews(model.preview)
+    const dataPreviews = normalizePreviews(data.preview)
+    if (!samePreviews(modelPreviews, dataPreviews)) {
+      if (dataPreviews.length === 0) {
         // BUG FIX: the backend (py/manager.py update_model) only removes the
         // existing preview files when `previewFile` is present, using the
         // literal string "undefined" as its "remove preview" sentinel.
         // Without this, choosing the "None" preview option silently kept the
         // old preview image on disk.
         updateData.set('previewFile', 'undefined')
+      } else {
+        let index = 0
+        for (const item of dataPreviews) {
+          index += 1
+          const field = index === 1 ? 'previewFile' : `previewFile${index}`
+          try {
+            updateData.set(field, await previewUrlToFile(item))
+          } catch (e) {
+            // Hand the raw URL over: the backend downloads it server-side.
+            console.warn('Failed to convert preview URL to file:', e)
+            updateData.set(field, item)
+          }
+        }
       }
       needUpdate = true
     }
@@ -288,6 +306,7 @@ export const useModels = defineStore('models', store => {
     folders: folders,
     data: models,
     refresh: refreshAllModels,
+    refreshFolder: refreshModels,
     remove: deleteModel,
     update: updateModel,
     openModelDetail: openModelDetail,
@@ -648,7 +667,10 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
     })
 
     registerSubmit(data => {
-      data.preview = preview.value
+      // Keeping the "default" source means keeping the WHOLE saved gallery -
+      // dropping to a single URL here is what used to silently delete every
+      // extra preview on save.
+      data.preview = currentType.value === 'default' ? [...defaultContent.value] : preview.value
     })
   })
 

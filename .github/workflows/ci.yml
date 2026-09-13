@@ -1,0 +1,56 @@
+# Standards catch-up C-7: the verification harness is self-contained (stubbed
+# ComfyUI + headless Chromium), so the whole gate runs on a plain runner.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt mypy
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Static types (mypy)
+        run: python -m mypy --config-file mypy.ini
+
+      - name: Python route/lifecycle probe
+        run: pnpm verify:py
+
+      - name: Headless E2E + glass contract
+        run: pnpm verify:e2e

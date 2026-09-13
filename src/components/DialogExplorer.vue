@@ -61,6 +61,7 @@
               <TooltipTrigger as-child>
                 <ModelCard
                   :model="rowItem"
+                  :width="cardSize.width"
                   :style="{
                     width: `${cardSize.width}px`,
                     height: `${cardSize.height}px`,
@@ -108,7 +109,7 @@
 
 <script setup lang="ts">
 import { ChevronUp, Menu, X } from '@lucide/vue'
-import { useElementSize } from '@vueuse/core'
+import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { type ReferenceElement } from 'reka-ui'
 import { computed, ref } from 'vue'
@@ -172,6 +173,8 @@ const cols = computed(() => {
 })
 
 const searchContent = ref<string>()
+// Optimization B-3: collapse keystroke bursts into one tree filter pass.
+const debouncedSearch = refDebounced(searchContent, 150)
 
 const sortOrder = ref('name')
 const sortOrderOptions = ref(
@@ -197,7 +200,7 @@ const currentDataList = computed(() => {
     renderedList = found?.children || []
   }
 
-  const filter = searchContent.value?.toLowerCase().trim() ?? ''
+  const filter = debouncedSearch.value?.toLowerCase().trim() ?? ''
   if (filter) {
     const filterItems: ModelTreeNode[] = []
 

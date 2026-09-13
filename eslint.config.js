@@ -96,6 +96,11 @@ export default tseslint.config(
   },
 
   // ---- Parsers -------------------------------------------------------------------
+  // NOTE (standards C-4, evaluated and REJECTED): `projectService` was trialled
+  // here, but on memory-constrained machines (<= 2 GB) it makes ESLint load the
+  // whole TS project and abort with an OOM, so the lint gate became unusable.
+  // Kept on the classic parser wiring until type-aware rules are actually
+  // wanted (they would need `configs.recommendedTypeChecked` anyway).
   {
     name: 'mm-neo/parser-vue',
     files: ['**/*.vue'],

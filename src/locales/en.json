@@ -185,5 +185,18 @@
   "uploadStarted": "Uploading {name} in the background",
   "modelInfoFailed": "Failed to load model information: {message}",
   "previewSaved": "Preview updated",
-  "previewRemoved": "Preview removed"
+  "previewRemoved": "Preview removed",
+  "previousPreview": "Previous preview",
+  "nextPreview": "Next preview",
+  "previewFullscreen": "Preview, full screen",
+  "uploadTooLarge": "The file is larger than the upload limit of your ComfyUI server. Raise it with the --max-upload-size command line option (megabytes) and restart ComfyUI, or split the file.",
+  "selectFolder": "Select folder",
+  "openModelPage": "Open model page",
+  "addNode": "Add node to graph",
+  "copyNode": "Copy node to clipboard",
+  "loadWorkflow": "Load workflow from preview",
+  "editModel": "Edit model",
+  "deleteModel": "Delete model",
+  "pause": "Pause",
+  "resume": "Resume"
 }

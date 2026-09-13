@@ -14,7 +14,7 @@ const delegatedProps = reactiveOmit(props, 'class')
     v-bind="delegatedProps"
     :class="
       cn(
-        'fixed inset-0 z-(--mm-z-nested-overlay) animate-in bg-black/50 backdrop-blur-sm duration-300 fade-in-0',
+        'mm-anim-fade fixed inset-0 z-(--mm-z-nested-overlay) bg-black/50 backdrop-blur-sm',
         props.class,
       )
     "

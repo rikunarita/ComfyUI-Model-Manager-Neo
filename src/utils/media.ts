@@ -17,6 +17,16 @@ export const NO_PREVIEW_URL = '/model-manager/no-preview.svg'
  */
 export const NO_PREVIEW_SENTINEL = 'no-preview.png'
 
+/**
+ * Base path of the browser-cacheable SVG artwork served by the backend
+ * (`GET /model-manager/assets/<name>.svg`, ETag + max-age). The icons used to
+ * be inlined as data: URIs, so every folder card carried its own copy and the
+ * browser could never cache any of it (optimization B-2).
+ */
+export const ASSET_BASE = '/model-manager/assets'
+
+export const assetUrl = (name: string) => `${ASSET_BASE}/${name}.svg`
+
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.m4v', '.ogv']
 
 const VIDEO_HOST_PATTERNS = [

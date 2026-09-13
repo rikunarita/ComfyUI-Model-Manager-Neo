@@ -24,8 +24,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       :class="
         cn(
           'mm-glass-light mm-scope relative z-(--mm-z-popover) max-h-96 min-w-32 overflow-hidden rounded-mm-ctl border border-mm-border shadow-mm-2',
-          'animate-in duration-160 fade-in-0 zoom-in-95',
-          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
+          'mm-anim-pop',
           position === 'popper' &&
             'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           props.class,

@@ -39,8 +39,13 @@ export interface VersionModel extends BaseModel {
   files?: VersionModelFile[]
 }
 
+/**
+ * The editor's resolved payload. `preview` may be a gallery: keeping the
+ * "default" source submits every saved preview so a save never deletes the
+ * extras (feature: keep all previews).
+ */
 export type WithResolved<T> = Omit<T, 'preview'> & {
-  preview: string | undefined
+  preview: string | string[] | undefined
 }
 
 export type PassThrough<T = void> = T | object | undefined

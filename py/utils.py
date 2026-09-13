@@ -48,7 +48,7 @@ VIDEO_CONTENT_TYPE_MAP = {
 }
 
 # 【修正】folder_paths.extension_mimetype_cache が ComfyUI v0.34.0 で削除されたため、独自のキャッシュを用意
-_extension_mimetypes_cache = {}
+_extension_mimetypes_cache: dict[str, str] = {}
 
 # ---------------------------------------------------------------------------
 # Dedicated executors (optimization A-4 / A-8).
@@ -120,7 +120,7 @@ def normalize_path(path: str):
     normpath = os.path.normpath(path)
     return normpath.replace(os.path.sep, "/")
 
-def join_path(path: str, *paths: list[str]):
+def join_path(path: str, *paths: str) -> str:
     return normalize_path(os.path.join(path, *paths))
 
 def get_current_version():
@@ -383,7 +383,7 @@ def save_model_preview(
         if not isinstance(file_obj, web.FileField):
             raise RuntimeError("Invalid file")
 
-        content_type: str = file_obj.content_type
+        content_type = file_obj.content_type
         filename: str = getattr(file_obj, 'filename', '')
         
         if content_type.startswith("video/"):
@@ -520,7 +520,7 @@ def rename_model(model_path: str, new_model_path: str):
 
 import pickle
 
-def save_dict_pickle_file(filename: str, data: dict):
+def save_dict_pickle_file(filename: str, data: Any) -> None:
     with open(filename, "wb") as f:
         pickle.dump(data, f)
 
@@ -531,7 +531,7 @@ def load_dict_pickle_file(filename: str) -> dict:
 
 def resolve_setting_key(key: str) -> str:
     key_paths = key.split(".")
-    setting_id = config.setting_key
+    setting_id: Any = config.setting_key
     try:
         for key_path in key_paths:
             setting_id = setting_id[key_path]
@@ -560,7 +560,7 @@ def get_setting_value(request: web.Request, key: str, default: Any = None) -> An
         print_debug(f"Failed to load setting {key}: {e}")
         return default
 
-async def send_json(event: str, data: Any, sid: str = None):
+async def send_json(event: str, data: Any, sid: str | None = None):
     await config.serverInstance.send_json(event, data, sid)
 
 import sys

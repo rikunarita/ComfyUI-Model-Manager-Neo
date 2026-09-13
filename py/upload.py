@@ -181,6 +181,8 @@ class ModelUploader:
 
                 if name == "file":
                     filename = part.filename
+                    if file_folder is None or filename is None:
+                        raise RuntimeError("Invalid upload payload")
                     self.validate_upload_target(file_folder, filename)
                     # join_path normalizes: the client sends the folder exactly
                     # as the tree produced it, which can carry a trailing

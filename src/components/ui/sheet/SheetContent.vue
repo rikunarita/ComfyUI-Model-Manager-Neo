@@ -28,15 +28,11 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       :class="
         cn(
           'mm-glass mm-scope fixed z-(--mm-z-nested-dialog) gap-4 border border-mm-border p-6 shadow-mm-3 transition ease-in-out',
-          'animate-in duration-300 data-[state=closed]:animate-out data-[state=closed]:duration-300',
-          side === 'top' &&
-            'inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
-          side === 'bottom' &&
-            'inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
-          side === 'left' &&
-            'inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm',
-          side === 'right' &&
-            'inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm',
+          `mm-anim-sheet-${side}`,
+          side === 'top' && 'inset-x-0 top-0 border-b',
+          side === 'bottom' && 'inset-x-0 bottom-0 border-t',
+          side === 'left' && 'inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm',
+          side === 'right' && 'inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm',
           props.class,
         )
       "

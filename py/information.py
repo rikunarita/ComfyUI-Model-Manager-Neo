@@ -11,6 +11,7 @@ import folder_paths
 
 from aiohttp import web
 from abc import ABC, abstractmethod
+from typing import Any
 from urllib.parse import urlparse, parse_qs
 from PIL import Image
 from io import BytesIO
@@ -127,7 +128,7 @@ class CivitaiModelSearcher(ModelSearcher):
             shortname = version.get("name", None) if len(model_files) > 0 else None
 
             for file in model_files:
-                name = file.get("name", None)
+                name = file.get("name", None) or ""
                 extension = os.path.splitext(name)[1]
                 basename = os.path.splitext(name)[0]
 
@@ -256,7 +257,9 @@ class HuggingfaceModelSearcher(ModelSearcher):
         except Exception as e:
             utils.print_warning(f"Failed to fetch file tree for size info: {e}")
 
-        sibling_files: list[str] = [x.get("rfilename") for x in res_data.get("siblings", [])]
+        sibling_files: list[str] = [
+            x.get("rfilename") or "" for x in res_data.get("siblings", [])
+        ]
 
         model_files = utils.filter_with(
             utils.filter_with(sibling_files, self._match_model_files()),
@@ -527,8 +530,9 @@ class Information:
             exif_data = img.info.get("exif")
             icc_profile = img.info.get("icc_profile")
 
-            if getattr(img, "is_animated", False) and img.n_frames > 1:
-                total_frames = img.n_frames
+            frame_count = int(getattr(img, "n_frames", 1))
+            if getattr(img, "is_animated", False) and frame_count > 1:
+                total_frames = frame_count
                 step = max(1, math.ceil(total_frames / 30))
 
                 frames, durations = [], []
@@ -541,7 +545,7 @@ class Information:
                     frames.append(frame)
                     durations.append(img.info.get("duration", 100) * step)
 
-                save_args = {
+                save_args: dict[str, Any] = {
                     "format": "WEBP",
                     "save_all": True,
                     "append_images": frames[1:],

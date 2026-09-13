@@ -52,8 +52,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
       :class="
         cn(
           'mm-glass mm-scope fixed top-1/2 left-1/2 z-(--mm-z-nested-dialog) grid w-full max-w-lg -translate-1/2 gap-4 rounded-mm-dlg border border-mm-border p-6',
-          'animate-in duration-200 fade-in-0 zoom-in-95',
-          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
+          'mm-anim-pop',
           forceMount && 'data-[state=closed]:hidden',
           props.class,
         )

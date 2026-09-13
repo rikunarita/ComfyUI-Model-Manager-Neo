@@ -236,12 +236,22 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
     if (Object.hasOwn(payload, key)) {
       let value = (payload as any)[key]
 
-      // set preview file
+      // set preview file(s): the editor hands over the whole gallery now
       if (key === 'preview') {
-        if (value) {
-          const previewFile = await previewUrlToFile(value).catch(() => null)
+        const gallery = Array.isArray(value) ? value : value ? [value] : []
+        if (gallery.length === 0) {
+          // No preview: send an empty string (the backend's "nothing to do"
+          // sentinel) instead of stringifying `undefined`.
+          formData.append('previewFile', value ?? '')
+          continue
+        }
+        let fieldIndex = 0
+        for (const item of gallery) {
+          fieldIndex += 1
+          const field = fieldIndex === 1 ? 'previewFile' : `previewFile${fieldIndex}`
+          const previewFile = await previewUrlToFile(item).catch(() => null)
           if (previewFile) {
-            formData.append('previewFile', previewFile)
+            formData.append(field, previewFile)
           } else {
             // BUG FIX: the browser-side preview fetch can fail (CORS, hotlink
             // protection, offline CDN, ...). Aborting the whole submission
@@ -255,12 +265,8 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
               detail: t('previewFetchFallback'),
               life: 5000,
             })
-            formData.append('previewFile', value)
+            formData.append(field, item)
           }
-        } else {
-          // No preview: send an empty string (the backend's "nothing to do"
-          // sentinel) instead of stringifying `undefined`.
-          formData.append('previewFile', value ?? '')
         }
         continue
       }

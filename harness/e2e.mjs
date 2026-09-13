@@ -73,14 +73,61 @@ const waitServer = async () => {
   throw new Error('harness server did not start')
 }
 
-const browser = await chromium.launch()
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+// The headless shell occasionally dies while booting under load; a bounded
+// relaunch keeps the suite deterministic without hiding real failures (any
+// failure *after* a page loads still fails the run).
+const launchBrowser = async () => {
+  let lastError
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await chromium.launch()
+    } catch (error) {
+      lastError = error
+      await new Promise(r => setTimeout(r, 1500))
+    }
+  }
+  throw lastError
+}
+
+let browser = await launchBrowser()
 
 const consoleErrors = []
-page.on('console', msg => {
-  if (msg.type() === 'error') consoleErrors.push(msg.text())
-})
-page.on('pageerror', err => consoleErrors.push(`pageerror: ${err.message}`))
+
+const attachConsole = target => {
+  target.on('console', msg => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text())
+  })
+  target.on('pageerror', err => consoleErrors.push(`pageerror: ${err.message}`))
+}
+
+/**
+ * Pages (and, should the renderer die under load, the whole browser) are
+ * retried: a headless-shell crash while *creating* a page is an environment
+ * artefact, not a product failure. Everything asserted once a page exists
+ * still fails the run as usual.
+ */
+const safeNewPage = async (opts = {}) => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const created = await browser.newPage({ viewport: { width: 1440, height: 900 }, ...opts })
+      attachConsole(created)
+      return created
+    } catch (error) {
+      if (attempt === 2) throw error
+      try {
+        await browser.close()
+      } catch {
+        /* already dead */
+      }
+      browser = await launchBrowser()
+      await new Promise(r => setTimeout(r, 1000))
+    }
+  }
+  throw new Error('unreachable')
+}
+
+const page = await safeNewPage()
+attachConsole(page)
 
 /** alpha of a computed color in rgba()/oklab()/color() serialization */
 const alphaOf = bg => {
@@ -149,7 +196,25 @@ try {
   const idleSrc = await folderImg.getAttribute('src')
   check(
     'E15 folder card renders the glass svg icon',
-    (idleSrc ?? '').startsWith('data:image/svg+xml'),
+    (idleSrc ?? '').includes('/model-manager/assets/folder-'),
+    String(idleSrc),
+  )
+  // the artwork must be browser-cacheable and revalidate with a 304
+  const svgCache = await page.evaluate(async url => {
+    const first = await fetch(url)
+    const etag = first.headers.get('etag')
+    const cacheControl = first.headers.get('cache-control')
+    await first.arrayBuffer()
+    const second = await fetch(url, { headers: { 'If-None-Match': etag ?? '' } })
+    return { status1: first.status, etag, cacheControl, status2: second.status }
+  }, idleSrc)
+  check(
+    'E15g folder svg is served with ETag + max-age and revalidates with 304',
+    svgCache.status1 === 200 &&
+      Boolean(svgCache.etag) &&
+      /max-age=\d+/.test(svgCache.cacheControl ?? '') &&
+      svgCache.status2 === 304,
+    JSON.stringify(svgCache),
   )
   await folderCard.hover()
   await page.waitForTimeout(500)
@@ -159,7 +224,8 @@ try {
   const hoverSrc = await folderCard.locator('img').first().getAttribute('src')
   check(
     'E15c sustained hover swaps to the opening animation',
-    hoverSrc !== idleSrc && (hoverSrc ?? '').startsWith('data:image/svg+xml'),
+    hoverSrc !== idleSrc && (hoverSrc ?? '').includes('/model-manager/assets/folder-opening'),
+    String(hoverSrc),
   )
   await page.mouse.move(10, 10)
   await page.waitForTimeout(500)
@@ -190,7 +256,7 @@ try {
   })
 
   // E03 — header icon buttons are glass push buttons
-  const headerButtons = await glassButtonAudit('[role="dialog"] button[title]')
+  const headerButtons = await glassButtonAudit('[role="dialog"] > div:first-child button[title]')
   check('E03 header button count', headerButtons.length === 7, `got ${headerButtons.length}`)
   check(
     'E03b header buttons translucent + hairline + blur + shadow',
@@ -730,14 +796,17 @@ try {
 
   // E21 — the description is edited through an explicit icon; clicking the
   // rendered markdown no longer opens the textarea
-  await det.locator('form button').nth(4).click() // pencil -> edit mode
+  await det.locator('button[aria-label="Edit model"]').click() // pencil -> edit mode
   await page.waitForTimeout(500)
   const editBtn = det.locator('button[title="Edit description"]')
   check('E21 description exposes an explicit Edit button', (await editBtn.count()) === 1)
-  // the textarea is v-show'd, so visibility (not presence) is the contract
+  // the textarea is v-show'd, so visibility (not presence) is the contract.
+  // Click the base-info table (a neutral area): clicking the preview itself is
+  // supposed to open the lightbox now, so it is not a valid "neutral" target.
   await det
-    .locator('form')
-    .click({ position: { x: 20, y: 20 } })
+    .locator('form table')
+    .first()
+    .click({ position: { x: 10, y: 10 } })
     .catch(() => {})
   await page.waitForTimeout(300)
   check(
@@ -809,7 +878,7 @@ try {
   await page.locator('[data-draggable-overlay]').first().click()
   await page.waitForTimeout(800)
   const det2 = page.locator('[role="dialog"]').last()
-  await det2.locator('form button').nth(4).click()
+  await det2.locator('button[aria-label="Edit model"]').click()
   await page.waitForTimeout(400)
   const nameInput2 = det2.locator('input[placeholder="name or folder/name"]')
   await nameInput2.fill('bad:name')
@@ -900,7 +969,7 @@ try {
   check('E18d the scrim goes away when the request settles', afterLoad === 0, String(afterLoad))
 
   // E22 — the Japanese bundle is wired to ComfyUI's locale
-  const jaPage = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  const jaPage = await safeNewPage()
   jaPage.on('pageerror', e => consoleErrors.push(`ja pageerror: ${e.message}`))
   jaPage.on('console', m => {
     if (m.type() === 'error') consoleErrors.push(`ja: ${m.text()}`)
@@ -939,6 +1008,118 @@ try {
   )
   await jaPage.screenshot({ path: path.join(SHOTS, 'ja-detail.png') })
   await jaPage.close()
+
+  /* ====================================================================== */
+  /* Galleries, lightbox, toast dismiss button, preview cache headers        */
+  /* ====================================================================== */
+
+  // E24 — a saved model with two preview files shows paging on the preview
+  // area (the harness workspace gives anima-aesthetic-v1 a second preview).
+  for (let i = 0; i < 5; i++) {
+    const b = page.locator('[role="dialog"] button[title="Close"]').last()
+    if (!(await b.isVisible().catch(() => false))) break
+    await b.click()
+    await page.waitForTimeout(250)
+  }
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await page.waitForSelector('[role="dialog"]')
+  await page.waitForFunction(() => document.querySelectorAll('[data-card-main]').length >= 3)
+  // The two-preview model was renamed by E20 (its previews travel with it), so
+  // open it by name instead of assuming it is still the first card.
+  await page
+    .locator('[data-card-main]', { hasText: 'renamed-model' })
+    .first()
+    .locator('xpath=following-sibling::*[@data-draggable-overlay]')
+    .click()
+  await page.waitForTimeout(1200)
+  const gal = page.locator('[role="dialog"]').last()
+  const counter = gal.locator('div.tabular-nums', { hasText: '/' }).first()
+  const counterText = (await counter.textContent().catch(() => '')) ?? ''
+  check('E24 saved gallery shows a page counter', /1\s*\/\s*2/.test(counterText), counterText)
+  await gal.locator('button[aria-label="Next preview"]').click()
+  await page.waitForTimeout(400)
+  const counterText2 = (await counter.textContent().catch(() => '')) ?? ''
+  check(
+    'E24b the next button pages the saved gallery',
+    /2\s*\/\s*2/.test(counterText2),
+    counterText2,
+  )
+
+  // E23 — tapping the preview opens the lightbox; arrows page it; Escape closes
+  await gal.locator('.preview-aspect').click({ position: { x: 60, y: 60 } })
+  await page.waitForSelector('[data-mm-lightbox]')
+  check('E23 tapping the preview opens the lightbox', true)
+  const lbCounter = await page.locator('[data-mm-lightbox] div.tabular-nums').textContent()
+  check(
+    'E23b the lightbox shows the gallery position',
+    /2\s*\/\s*2/.test(lbCounter ?? ''),
+    String(lbCounter),
+  )
+  await page.locator('[data-mm-lightbox] button[aria-label="Previous preview"]').click()
+  await page.waitForTimeout(300)
+  const lbCounter2 = await page.locator('[data-mm-lightbox] div.tabular-nums').textContent()
+  check(
+    'E23c the lightbox pages backwards',
+    /1\s*\/\s*2/.test(lbCounter2 ?? ''),
+    String(lbCounter2),
+  )
+  await page.keyboard.press('Escape')
+  await page.waitForFunction(() => !document.querySelector('[data-mm-lightbox]'), null, {
+    timeout: 5000,
+  })
+  check('E23d Escape closes the lightbox', true)
+  await gal.locator('button[title="Close"]').click()
+  await page.waitForTimeout(400)
+
+  // E25 — every toast carries a manual dismiss button that really dismisses
+  await page.evaluate(() => {
+    window.dispatchEvent(
+      new CustomEvent('mm:hf_upload_error', { detail: { taskId: 'dismiss', error: 'DISMISS' } }),
+    )
+  })
+  const dismissToast = page.locator('[data-sonner-toast]', { hasText: 'DISMISS' }).first()
+  await dismissToast.waitFor({ timeout: 8000 })
+  const closeBtn = dismissToast.locator('[data-close-button]')
+  check('E25 toasts expose a manual close button', (await closeBtn.count()) === 1)
+  await closeBtn.click()
+  await page.waitForFunction(
+    () =>
+      ![...document.querySelectorAll('[data-sonner-toast]')].some(t =>
+        t.textContent?.includes('DISMISS'),
+      ),
+    null,
+    { timeout: 5000 },
+  )
+  check('E25b the close button dismisses the toast', true)
+
+  // E26 — preview responses carry an ETag and answer 304 when revalidated
+  const previewUrl = await page.evaluate(async () => {
+    const r = await fetch('/model-manager/models/diffusion_models')
+    const j = await r.json()
+    const withPreview = (j.data || []).find(m => Array.isArray(m.preview))
+    return withPreview ? withPreview.preview[0] : null
+  })
+  check(
+    'E26 the model list returns preview galleries as arrays',
+    Boolean(previewUrl),
+    String(previewUrl),
+  )
+  const previewCache = await page.evaluate(async url => {
+    const first = await fetch(url)
+    const etag = first.headers.get('etag')
+    const cacheControl = first.headers.get('cache-control')
+    await first.arrayBuffer()
+    const second = await fetch(url, { headers: { 'If-None-Match': etag ?? '' } })
+    return { status1: first.status, etag, cacheControl, status2: second.status }
+  }, previewUrl)
+  check(
+    'E26b previews are served with ETag + cache-control and revalidate with 304',
+    previewCache.status1 === 200 &&
+      Boolean(previewCache.etag) &&
+      /max-age=\d+/.test(previewCache.cacheControl ?? '') &&
+      previewCache.status2 === 304,
+    JSON.stringify(previewCache),
+  )
 
   // E12 — no console / page errors anywhere along the way
   const realErrors = consoleErrors.filter(e => !e.includes('favicon'))

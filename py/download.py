@@ -6,7 +6,7 @@ import shutil
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Literal, Optional, Union
+from typing import Any, Callable, Coroutine, Literal, Optional, Union
 from urllib.parse import urlparse
 
 import aiohttp
@@ -24,7 +24,7 @@ class TaskStatus:
     taskId: str
     type: str
     fullname: str
-    preview: str
+    preview: Optional[str]
     status: Literal["pause", "waiting", "doing"] = "pause"
     platform: Union[str, None] = None
     downloadedSize: float = 0
@@ -34,10 +34,10 @@ class TaskStatus:
     error: Optional[str] = None
     source: str = "remote"
 
-    def __init__(self, **kwargs):
-        self.taskId = kwargs.get("taskId", None)
-        self.type = kwargs.get("type", None)
-        self.fullname = kwargs.get("fullname", None)
+    def __init__(self, **kwargs: Any):
+        self.taskId = kwargs.get("taskId") or ""
+        self.type = kwargs.get("type") or ""
+        self.fullname = kwargs.get("fullname") or ""
         self.preview = kwargs.get("preview", None)
         self.status = kwargs.get("status", "pause")
         self.platform = kwargs.get("platform", None)
@@ -71,19 +71,19 @@ class TaskContent:
     fullname: str
     description: str
     downloadPlatform: str
-    downloadUrl: str
+    downloadUrl: Optional[str]
     sizeBytes: float
     hashes: Optional[dict[str, str]] = None
     revision: Optional[str] = None
     source: str = "remote"
     subFolder: Optional[str] = None  # ← 追加
 
-    def __init__(self, **kwargs):
-        self.type = kwargs.get("type", None)
+    def __init__(self, **kwargs: Any):
+        self.type = kwargs.get("type") or ""
         self.pathIndex = int(kwargs.get("pathIndex", 0))
-        self.fullname = kwargs.get("fullname", None)
-        self.description = kwargs.get("description", None)
-        self.downloadPlatform = kwargs.get("downloadPlatform", None)
+        self.fullname = kwargs.get("fullname") or ""
+        self.description = kwargs.get("description") or ""
+        self.downloadPlatform = kwargs.get("downloadPlatform") or ""
         self.downloadUrl = kwargs.get("downloadUrl", None)
         self.sizeBytes = float(kwargs.get("sizeBytes", 0))
         self.hashes = kwargs.get("hashes", None)
@@ -251,10 +251,16 @@ class ModelDownload:
     async def create_model_download_task(self, task_data: dict, request):
         model_type = task_data.get("type", None)
         # `int(None)` raised TypeError instead of the intended validation
-        # error when a client omitted pathIndex.
-        path_index = int(task_data.get("pathIndex") or 0)
+        # error when a client omitted pathIndex. Defaulting to 0 would silently
+        # file such a download into the wrong folder, so reject it explicitly.
+        raw_index = task_data.get("pathIndex")
+        if raw_index is None:
+            raise RuntimeError("pathIndex is required")
+        path_index = int(raw_index)
         fullname = task_data.get("fullname", None)
         sub_folder = task_data.get("subFolder", None)  # ← 追加
+        if model_type is None or fullname is None:
+            raise RuntimeError("type and fullname are required")
 
         # サブフォルダを fullname に結合
         if sub_folder:
@@ -278,8 +284,19 @@ class ModelDownload:
         download_platform = task_data.get("downloadPlatform", None)
 
         try:
-            preview_file = task_data.pop("previewFile", None)
-            utils.save_model_preview(task_path, preview_file, download_platform)
+            # The gallery arrives as previewFile / previewFile2 / ... in order.
+            preview_items = []
+            for key in list(task_data):
+                if key == "previewFile" or (
+                    key.startswith("previewFile") and key[len("previewFile"):].isdigit()
+                ):
+                    preview_items.append((0 if key == "previewFile" else int(key[len("previewFile"):]), task_data.pop(key)))
+            preview_items = [v for _, v in sorted(preview_items)]
+            preview_items = [
+                v for v in preview_items if not (type(v) is str and v in ("", "undefined"))
+            ]
+            if preview_items:
+                utils.save_model_previews(task_path, preview_items, download_platform)
             self.set_task_content(task_id, task_data)
             task_status = TaskStatus(
                 taskId=task_id,
@@ -431,7 +448,7 @@ class ModelDownload:
         self,
         task_id: str,
         headers: dict,
-        progress_callback: Callable[[TaskStatus], Awaitable[Any]],
+        progress_callback: Callable[[TaskStatus], Coroutine[Any, Any, Any]],
         interval: float = 1.0,
     ) -> None:
         """Stream a download to `<task>.download` with aiohttp.
@@ -544,7 +561,7 @@ class ModelDownload:
     async def download_model_file_hf(
         self,
         task_id: str,
-        progress_callback: Callable[[TaskStatus], Awaitable[Any]],
+        progress_callback: Callable[[TaskStatus], Coroutine[Any, Any, Any]],
         interval: float = 1.0,
     ):
         try:
@@ -615,7 +632,7 @@ class ModelDownload:
 
         last_progress_time = [time.time()]
 
-        class ModelManagerTqdm(base_tqdm if base_tqdm else object):
+        class ModelManagerTqdm(base_tqdm if base_tqdm else object):  # type: ignore[misc]
             def __init__(self, *args, **kwargs):
                 kwargs.pop("name", None)
                 kwargs["disable"] = False

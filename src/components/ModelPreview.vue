@@ -5,53 +5,55 @@
         class="preview-aspect relative mx-auto w-full overflow-hidden rounded-lg"
         :style="$sm({ width: `${cardWidth}px` })"
       >
+        <!--
+          The visible media is the *current page* of the gallery. The old
+          markup stacked a second copy of the current page on top of the base
+          image just to host the arrows; the arrows now sit directly on the
+          single media element.
+        -->
         <div
           v-if="
-            preview && isVideoUrl(preview, currentType === 'local' ? localContentType : undefined)
+            currentPreview &&
+            isVideoUrl(currentPreview, currentType === 'local' ? localContentType : undefined)
           "
-          class="size-full p-1 hover:p-0"
+          class="size-full cursor-zoom-in p-1 hover:p-0"
+          @click="openLightbox"
         >
-          <PreviewVideo :src="preview" />
+          <PreviewVideo :src="currentPreview" />
+        </div>
+        <div v-else class="size-full cursor-zoom-in" @click="openLightbox">
+          <ResponseImage :src="currentPreview" :error="noPreviewContent"></ResponseImage>
         </div>
 
-        <ResponseImage v-else :src="preview" :error="noPreviewContent"></ResponseImage>
-
-        <!-- Carousel replacement: simple slider -->
-        <div
-          v-if="defaultContent.length > 1"
-          v-show="currentType === 'default'"
-          class="absolute top-0 size-full"
-        >
-          <div class="size-full">
-            <div
-              v-if="isVideoUrl(defaultContent[defaultContentPage])"
-              class="size-full p-1 hover:p-0"
-            >
-              <PreviewVideo :src="defaultContent[defaultContentPage]" />
-            </div>
-            <ResponseImage
-              v-else
-              :src="defaultContent[defaultContentPage]"
-              :error="noPreviewContent"
-            ></ResponseImage>
-          </div>
-          <!-- type="button": inside ModelContent's <form>, a bare <button>
-               defaults to type="submit" and would save + close the editor. -->
+        <!--
+          Gallery paging: `<` / `>` icon buttons on the preview area itself, in
+          edit *and* read-only mode, whenever the model has more than one
+          preview (feature: every preview is kept now, so this is reachable on
+          saved models too).
+        -->
+        <template v-if="canPage">
           <button
             type="button"
-            class="mm-transition absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-full border border-mm-fg/12 bg-mm-bg/40 p-1 shadow-mm-glass-1 backdrop-blur-md hover:bg-mm-fg/15"
-            @click="prevPage"
+            class="mm-transition absolute top-1/2 left-2 z-10 -translate-y-1/2 rounded-full border border-mm-fg/12 bg-mm-bg/40 p-1 shadow-mm-glass-1 backdrop-blur-md hover:bg-mm-fg/15 focus-visible:ring-2 focus-visible:ring-mm-ring focus-visible:outline-none active:scale-95"
+            :aria-label="$t('previousPreview')"
+            @click.stop="prevPage"
           >
             <ChevronLeft class="size-4" />
           </button>
           <button
             type="button"
-            class="mm-transition absolute top-1/2 right-4 z-10 -translate-y-1/2 rounded-full border border-mm-fg/12 bg-mm-bg/40 p-1 shadow-mm-glass-1 backdrop-blur-md hover:bg-mm-fg/15"
-            @click="nextPage"
+            class="mm-transition absolute top-1/2 right-2 z-10 -translate-y-1/2 rounded-full border border-mm-fg/12 bg-mm-bg/40 p-1 shadow-mm-glass-1 backdrop-blur-md hover:bg-mm-fg/15 focus-visible:ring-2 focus-visible:ring-mm-ring focus-visible:outline-none active:scale-95"
+            :aria-label="$t('nextPreview')"
+            @click.stop="nextPage"
           >
             <ChevronRight class="size-4" />
           </button>
-        </div>
+          <div
+            class="absolute right-2 bottom-2 z-10 rounded-full border border-mm-fg/12 bg-mm-bg/50 px-2 py-0.5 text-xs text-mm-fg tabular-nums backdrop-blur-md"
+          >
+            {{ defaultContentPage + 1 }} / {{ defaultContent.length }}
+          </div>
+        </template>
       </div>
     </div>
 
@@ -90,11 +92,19 @@
         <div class="h-24"></div>
       </div>
     </div>
+
+    <PreviewLightbox
+      v-model:open="lightboxOpen"
+      v-model:index="lightboxIndex"
+      :items="lightboxItems"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight } from '@lucide/vue'
+import { computed, ref } from 'vue'
+import PreviewLightbox from 'components/PreviewLightbox.vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
 import ResponseFileUpload from 'components/ResponseFileUpload.vue'
 import ResponseImage from 'components/ResponseImage.vue'
@@ -122,6 +132,17 @@ const {
 
 const { $sm, $xl } = useContainerQueries()
 
+/** The gallery the `<` / `>` buttons page through (default source only). */
+const canPage = computed(() => currentType.value === 'default' && defaultContent.value.length > 1)
+
+/** What the preview area shows right now. */
+const currentPreview = computed(() => {
+  if (currentType.value === 'default') {
+    return defaultContent.value[defaultContentPage.value]
+  }
+  return preview.value
+})
+
 const prevPage = () => {
   defaultContentPage.value =
     (defaultContentPage.value - 1 + defaultContent.value.length) % defaultContent.value.length
@@ -129,5 +150,20 @@ const prevPage = () => {
 
 const nextPage = () => {
   defaultContentPage.value = (defaultContentPage.value + 1) % defaultContent.value.length
+}
+
+/* ---- lightbox ---------------------------------------------------------- */
+const lightboxOpen = ref(false)
+const lightboxIndex = ref(0)
+
+const lightboxItems = computed(() => {
+  if (canPage.value) return defaultContent.value
+  return currentPreview.value ? [currentPreview.value] : []
+})
+
+const openLightbox = () => {
+  if (!currentPreview.value) return
+  lightboxIndex.value = canPage.value ? defaultContentPage.value : 0
+  lightboxOpen.value = true
 }
 </script>

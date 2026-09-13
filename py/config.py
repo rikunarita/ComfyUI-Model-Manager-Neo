@@ -1,6 +1,6 @@
 extension_tag = "ComfyUI Model Manager Neo"
 
-extension_uri: str = None
+extension_uri: str = ""  # set by __init__.py before any route exists
 
 
 setting_key = {

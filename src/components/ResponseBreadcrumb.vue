@@ -27,10 +27,11 @@
 import { ChevronRight } from '@lucide/vue'
 import { ref } from 'vue'
 import { type BreadcrumbItem } from 'types/breadcrumb'
-import allFitRaw from '../../assets/Folder-Icons/close-folder_all-fit.svg?raw'
+import { assetUrl } from 'utils/media'
 
-/** `close-folder_all-fit.svg` reads best at small sizes: breadcrumb glyphs. */
-const folderGlyph = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(allFitRaw)}`
+/** `close-folder_all-fit.svg` reads best at small sizes: breadcrumb glyphs.
+ *  Served cached like the rest of the artwork (optimization B-2). */
+const folderGlyph = assetUrl('folder-glyph')
 
 interface Props {
   items?: BreadcrumbItem[]

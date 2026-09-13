@@ -185,5 +185,18 @@
   "uploadStarted": "{name} をバックグラウンドでアップロードします",
   "modelInfoFailed": "モデル情報を読み込めませんでした: {message}",
   "previewSaved": "プレビューを更新しました",
-  "previewRemoved": "プレビューを削除しました"
+  "previewRemoved": "プレビューを削除しました",
+  "previousPreview": "前のプレビュー",
+  "nextPreview": "次のプレビュー",
+  "previewFullscreen": "プレビュー（全画面）",
+  "uploadTooLarge": "ファイルが ComfyUI サーバーのアップロード上限を超えています。起動オプション --max-upload-size（単位: MB）で上限を引き上げて再起動するか、ファイルを分割してください。",
+  "selectFolder": "フォルダを選択",
+  "openModelPage": "モデルページを開く",
+  "addNode": "グラフにノードを追加",
+  "copyNode": "ノードをクリップボードへコピー",
+  "loadWorkflow": "プレビューからワークフローを読込",
+  "editModel": "モデルを編集",
+  "deleteModel": "モデルを削除",
+  "pause": "一時停止",
+  "resume": "再開"
 }

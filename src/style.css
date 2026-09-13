@@ -28,8 +28,15 @@
 @import 'tailwindcss/theme.css' layer(theme);
 
 @import 'tailwindcss/utilities' layer(mm-utilities) source(none);
-/* tw-animate-css uses @utility internally and cannot be nested in @layer */
-@import 'tw-animate-css';
+/*
+ * ENTER / EXIT ANIMATIONS (optimization B-7).
+ *
+ * `tw-animate-css` used to be imported wholesale to provide exactly nine class
+ * combinations. They are now hand-rolled in the mm-components layer below: the
+ * keyframes animate `opacity` + `transform` only, which cannot clash with
+ * Tailwind v4's `translate:`/`scale:` properties used for centering, so a
+ * dialog keeps its `-translate-1/2` while popping in.
+ */
 
 /*
  * SOURCE-SCAN FIX (deterministic builds):
@@ -174,6 +181,7 @@
   --mm-z-popover: 2800;
   --mm-z-confirm-overlay: 2890;
   --mm-z-confirm: 2900;
+  --mm-z-lightbox: 2950;
   --mm-z-toast: 3000;
 }
 
@@ -472,6 +480,215 @@
        ran off the right edge of the viewport. */
     box-sizing: border-box;
     overflow-wrap: anywhere;
+  }
+
+  /* --- enter/exit animation classes (keyframes at the bottom of the file) --- */
+  .mm-anim-pop {
+    animation: mm-pop-in 200ms var(--mm-ease) both;
+  }
+
+  .mm-anim-pop[data-state='closed'] {
+    animation: mm-pop-out 160ms var(--mm-ease) both;
+  }
+
+  .mm-anim-fade {
+    animation: mm-fade-in 200ms var(--mm-ease) both;
+  }
+
+  .mm-anim-fade[data-state='closed'] {
+    animation: mm-fade-out 200ms var(--mm-ease) both;
+  }
+
+  .mm-anim-menu {
+    animation: mm-menu-in 160ms var(--mm-ease) both;
+  }
+
+  .mm-anim-menu[data-side='bottom'] {
+    --mm-menu-from-y: -8px;
+  }
+
+  .mm-anim-menu[data-side='top'] {
+    --mm-menu-from-y: 8px;
+  }
+
+  .mm-anim-menu[data-side='left'] {
+    --mm-menu-from-x: 8px;
+  }
+
+  .mm-anim-menu[data-side='right'] {
+    --mm-menu-from-x: -8px;
+  }
+
+  .mm-anim-menu[data-state='closed'] {
+    animation: mm-fade-out 140ms var(--mm-ease) both;
+  }
+
+  .mm-anim-sheet-top {
+    animation: mm-sheet-top-in 300ms var(--mm-ease) both;
+  }
+
+  .mm-anim-sheet-top[data-state='closed'] {
+    animation: mm-sheet-top-out 300ms var(--mm-ease) both;
+  }
+
+  .mm-anim-sheet-bottom {
+    animation: mm-sheet-bottom-in 300ms var(--mm-ease) both;
+  }
+
+  .mm-anim-sheet-bottom[data-state='closed'] {
+    animation: mm-sheet-bottom-out 300ms var(--mm-ease) both;
+  }
+
+  .mm-anim-sheet-left {
+    animation: mm-sheet-left-in 300ms var(--mm-ease) both;
+  }
+
+  .mm-anim-sheet-left[data-state='closed'] {
+    animation: mm-sheet-left-out 300ms var(--mm-ease) both;
+  }
+
+  .mm-anim-sheet-right {
+    animation: mm-sheet-right-in 300ms var(--mm-ease) both;
+  }
+
+  .mm-anim-sheet-right[data-state='closed'] {
+    animation: mm-sheet-right-out 300ms var(--mm-ease) both;
+  }
+}
+
+@keyframes mm-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes mm-pop-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes mm-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mm-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes mm-menu-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--mm-menu-from-x, 0px)) translateY(var(--mm-menu-from-y, 0px));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mm-sheet-top-in {
+  from {
+    transform: translateY(-100%);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes mm-sheet-top-out {
+  from {
+    transform: none;
+  }
+
+  to {
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes mm-sheet-bottom-in {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes mm-sheet-bottom-out {
+  from {
+    transform: none;
+  }
+
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes mm-sheet-left-in {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes mm-sheet-left-out {
+  from {
+    transform: none;
+  }
+
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes mm-sheet-right-in {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes mm-sheet-right-out {
+  from {
+    transform: none;
+  }
+
+  to {
+    transform: translateX(100%);
   }
 }
 

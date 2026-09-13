@@ -20,7 +20,14 @@
             </span>
           </div>
         </div>
-        <Button variant="ghost" size="icon-sm" :disabled="!type" @click="handleSelectFolder">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          :disabled="!type"
+          :title="$t('selectFolder')"
+          :aria-label="$t('selectFolder')"
+          @click="handleSelectFolder"
+        >
           <FolderOpen class="size-4" />
         </Button>
 

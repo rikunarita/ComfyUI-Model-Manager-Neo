@@ -1,4 +1,5 @@
 import { onMounted, ref } from 'vue'
+import { useI18nGlobal } from 'hooks/i18n'
 import { useLoading } from 'hooks/loading'
 import { api } from 'scripts/comfyAPI'
 
@@ -9,6 +10,15 @@ export const request = async (url: string, options?: RequestInit) => {
       // 【修正】HTTPエラーステータス（401や403など）のハンドリング
       if (!response.ok) {
         let errorMessage = `HTTP Error: ${response.status} ${response.statusText}`
+        // Optimization A-7 (frontend half): a multipart upload larger than
+        // ComfyUI's `client_max_size` (`--max-upload-size`, default 100 MB) is
+        // rejected by the host before our route ever sees it. aiohttp answers a
+        // bare 413, which used to surface as an opaque "HTTP Error: 413" -
+        // translate it into the one sentence that actually helps.
+        if (response.status === 413) {
+          const { t } = useI18nGlobal()
+          errorMessage = t('uploadTooLarge')
+        }
         try {
           const text = await response.text()
           // ComfyUI-LoginなどがHTMLを返してくる場合、JSONパースを防ぐ

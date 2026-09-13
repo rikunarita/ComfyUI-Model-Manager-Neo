@@ -19,6 +19,8 @@
             v-show="item.status === 'doing' && !isLocal"
             type="button"
             class="mm-transition h-6 cursor-pointer border-0 bg-transparent p-0 hover:scale-110"
+            :title="$t('pause')"
+            :aria-label="$t('pause')"
             @click="item.pauseTask"
           >
             <PauseCircle class="size-5 text-mm-muted-fg hover:text-mm-fg" />
@@ -27,6 +29,8 @@
             v-show="item.status === 'pause' && !isLocal"
             type="button"
             class="mm-transition h-6 cursor-pointer border-0 bg-transparent p-0 hover:scale-110"
+            :title="$t('resume')"
+            :aria-label="$t('resume')"
             @click="item.resumeTask"
           >
             <PlayCircle class="size-5 text-mm-muted-fg hover:text-mm-fg" />
@@ -34,6 +38,8 @@
           <button
             type="button"
             class="mm-transition h-6 cursor-pointer border-0 bg-transparent p-0 hover:scale-110"
+            :title="$t('delete')"
+            :aria-label="$t('delete')"
             @click="item.deleteTask"
           >
             <Trash2 class="size-5 text-mm-danger hover:brightness-110" />

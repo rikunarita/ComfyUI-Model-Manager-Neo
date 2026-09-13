@@ -21,15 +21,14 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
 <template>
   <AlertDialogPortal>
     <AlertDialogOverlay
-      class="fixed inset-0 z-(--mm-z-confirm-overlay) animate-in bg-black/50 backdrop-blur-sm duration-200 fade-in-0"
+      class="mm-anim-fade fixed inset-0 z-(--mm-z-confirm-overlay) bg-black/50 backdrop-blur-sm"
     />
     <AlertDialogContent
       v-bind="{ ...forwarded, ...$attrs }"
       :class="
         cn(
           'mm-glass mm-scope fixed top-1/2 left-1/2 z-(--mm-z-confirm) grid w-full max-w-lg -translate-1/2 gap-4 rounded-mm-dlg border border-mm-border p-6',
-          'animate-in duration-200 fade-in-0 zoom-in-95',
-          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
+          'mm-anim-pop',
           props.class,
         )
       "

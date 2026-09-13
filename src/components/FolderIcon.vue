@@ -15,16 +15,18 @@
  * folder-closing-animation.svg (0.2 s delay + 1.35 s morph), then idle.
  */
 import { computed, onBeforeUnmount, ref } from 'vue'
-import closedRaw from '../../assets/Folder-Icons/close-folder_beside-fit.svg?raw'
-import closingRaw from '../../assets/Folder-Icons/folder-closing-animation.svg?raw'
-import openingRaw from '../../assets/Folder-Icons/folder-opening-animation.svg?raw'
+import { assetUrl } from 'utils/media'
 
-const toDataUri = (raw: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(raw)}`
-
+/**
+ * The artwork is served over HTTP with an ETag + max-age, so the browser
+ * decodes each animation once per session and every folder card shares the
+ * cached copy. Swapping `<img src>` still restarts the SMIL timeline, which is
+ * how the opening/closing morphs replay on hover.
+ */
 const SOURCES = {
-  idle: toDataUri(closedRaw),
-  opening: toDataUri(openingRaw),
-  closing: toDataUri(closingRaw),
+  idle: assetUrl('folder-closed'),
+  opening: assetUrl('folder-opening'),
+  closing: assetUrl('folder-closing'),
 } as const
 
 /** 0.2s begin delay + 1.35s morph, with a little slack. */

@@ -62,7 +62,6 @@
 </template>
 
 <script setup lang="ts">
-import { useElementSize } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import FolderIcon from 'components/FolderIcon.vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
@@ -73,9 +72,18 @@ import { isVideoUrl } from 'utils/media'
 
 interface Props {
   model: BaseModel
+  /**
+   * Card width in px, supplied by the grid that owns the layout.
+   *
+   * Optimization B-1: the badge scale used to come from a per-card
+   * `useElementSize`, i.e. one ResizeObserver (and one reactive width) per
+   * rendered card. The width is already known to the parent grid - passing it
+   * down makes the scale a pure computation and removes every observer.
+   */
+  width?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { width: 200 })
 
 const preview = computed(() =>
   Array.isArray(props.model.preview) ? props.model.preview[0] : props.model.preview,
@@ -84,11 +92,7 @@ const preview = computed(() =>
 const container = ref<HTMLElement | null>(null)
 const folderIcon = ref<InstanceType<typeof FolderIcon> | null>(null)
 
-const { width } = useElementSize(container)
-
-const badgeScale = computed(() => {
-  return width.value / 200
-})
+const badgeScale = computed(() => props.width / 200)
 
 const { dragToAddModelNode } = useModelNodeAction()
 </script>

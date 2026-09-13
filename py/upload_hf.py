@@ -4,6 +4,7 @@ import io
 import os
 import time
 import uuid
+from typing import Any
 
 from aiohttp import web
 
@@ -114,7 +115,7 @@ class _ProgressFile(io.BufferedIOBase):
     def writable(self) -> bool:
         return False
 
-    def read(self, size: int = -1) -> bytes:
+    def read(self, size: int | None = -1) -> bytes:
         if self._saw_eof and not self._in_transfer:
             # A full pass finished and the consumer rewound: the hashing pass
             # is over, the transfer is starting.
@@ -207,6 +208,8 @@ class HfUploader:
         model_type = data.get("type", None)
         path_index = int(data.get("pathIndex", 0))
         fullname = data.get("fullname", None)
+        if model_type is None or fullname is None:
+            raise RuntimeError("type and fullname are required")
         repo_id = (data.get("repoId") or "").strip()
         path_in_repo = (data.get("pathInRepo") or "").strip()
         private = bool(data.get("private", False))
@@ -276,7 +279,7 @@ class HfUploader:
 
         loop = asyncio.get_running_loop()
 
-        progress_state = {"last": 0.0, "phase": None}
+        progress_state: dict[str, Any] = {"last": 0.0, "phase": None}
 
         def report_progress(sent_bytes: int, total_bytes: int, phase: str = PHASE_UPLOAD) -> None:
             """Marshal an accurate progress push back onto the main loop."""
@@ -407,7 +410,11 @@ class HfUploader:
             # protocol, which is the price of per-chunk accuracy here.
             with _ProgressFile(local_path, report_progress) as payload:
                 try:
-                    result = api.upload_file(
+                    # `_ProgressFile` is a BufferedIOBase: huggingface_hub's
+                    # stubs only advertise BinaryIO, but the runtime validation
+                    # (and the harness fake) accept exactly this class - proven
+                    # by the probe and by the four emulated upload scenarios.
+                    result = api.upload_file(  # type: ignore[call-overload]
                         path_or_fileobj=payload,
                         path_in_repo=path_in_repo,
                         repo_id=repo_id,

@@ -41,6 +41,7 @@
               variant="ghost"
               size="icon-sm"
               :title="action.tooltip"
+              :aria-label="action.tooltip"
               @click.stop="action.command"
             >
               <component
@@ -54,12 +55,19 @@
               variant="ghost"
               size="icon-sm"
               :title="states[item.key].isMaximized ? t('restore') : t('maximize')"
+              :aria-label="states[item.key].isMaximized ? t('restore') : t('maximize')"
               @click="toggleMaximize(item)"
             >
               <Maximize2 v-if="!states[item.key].isMaximized" class="size-4" />
               <Minimize2 v-else class="size-4" />
             </Button>
-            <Button variant="ghost" size="icon-sm" :title="t('close')" @click="close(item)">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              :title="t('close')"
+              :aria-label="t('close')"
+              @click="close(item)"
+            >
               <X class="size-4" />
             </Button>
           </div>
