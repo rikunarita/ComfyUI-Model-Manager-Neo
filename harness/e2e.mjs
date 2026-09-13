@@ -126,7 +126,7 @@ const safeNewPage = async (opts = {}) => {
   throw new Error('unreachable')
 }
 
-const page = await safeNewPage()
+let page = await safeNewPage()
 attachConsole(page)
 
 /** alpha of a computed color in rgba()/oklab()/color() serialization */
@@ -968,7 +968,11 @@ try {
   const afterLoad = await page.evaluate(() => document.querySelectorAll('[data-mm-loading]').length)
   check('E18d the scrim goes away when the request settles', afterLoad === 0, String(afterLoad))
 
-  // E22 — the Japanese bundle is wired to ComfyUI's locale
+  // E22 — the Japanese bundle is wired to ComfyUI's locale.
+  // The main page is closed first: two 1600x1000 blur-heavy pages alive at
+  // once is enough to get a background renderer OOM-killed on small machines,
+  // which used to surface as a crash several assertions later.
+  await page.close()
   const jaPage = await safeNewPage()
   jaPage.on('pageerror', e => consoleErrors.push(`ja pageerror: ${e.message}`))
   jaPage.on('console', m => {
@@ -1008,6 +1012,8 @@ try {
   )
   await jaPage.screenshot({ path: path.join(SHOTS, 'ja-detail.png') })
   await jaPage.close()
+  page = await safeNewPage()
+  await page.goto(`http://127.0.0.1:${PORT}/harness`)
 
   /* ====================================================================== */
   /* Galleries, lightbox, toast dismiss button, preview cache headers        */
@@ -1021,6 +1027,11 @@ try {
     await b.click()
     await page.waitForTimeout(250)
   }
+  // The page was re-created after the Japanese section, so wait for the
+  // extension to register its listener before dispatching the open event.
+  await page.waitForFunction(
+    () => window.comfyAPI?.app?.app?.ui?.menuContainer?.children?.length > 0,
+  )
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
   await page.waitForSelector('[role="dialog"]')
   await page.waitForFunction(() => document.querySelectorAll('[data-card-main]').length >= 3)

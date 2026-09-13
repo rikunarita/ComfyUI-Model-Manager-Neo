@@ -154,7 +154,7 @@ try {
   const detail = page.locator('[role="dialog"]').last()
   await detail.locator('table').first().waitFor()
   await shot(page, 'model-info.png', detail)
-  await detail.locator('form button').nth(4).click() // pencil -> edit mode
+  await detail.locator('button[aria-label="Edit model"]').click() // pencil -> edit mode
   await page.waitForTimeout(600)
   await shot(page, 'model-edit.png', detail)
   await detail.locator('button[title="Edit description"]').click()
@@ -169,7 +169,7 @@ try {
   await page.locator('[data-draggable-overlay]').first().click()
   await page.waitForTimeout(1000)
   const det2 = page.locator('[role="dialog"]').last()
-  await det2.locator('form button').nth(4).click()
+  await det2.locator('button[aria-label="Edit model"]').click()
   await page.waitForTimeout(500)
   await det2.locator('form button:has(svg.lucide-folder-open)').first().click()
   await page.waitForTimeout(900)
@@ -290,6 +290,53 @@ try {
   await page.locator('[data-draggable-overlay]').first().click()
   await page.waitForTimeout(1200)
   await shot(page, 'ja-model-info.png', page.locator('[role="dialog"]').last())
+  await page.close()
+
+  /* ------------------------------------------------------------------ */
+  /* Toast stack + lightbox                                              */
+  /* ------------------------------------------------------------------ */
+  page = await newPage()
+  mgr = await openManager(page)
+  await page.evaluate(() => {
+    const fire = (type, detail) => window.dispatchEvent(new CustomEvent('mm:' + type, { detail }))
+    fire('hf_upload_complete', {
+      taskId: 'a',
+      repoId: 'rikunarita/HosekiAnima-V1',
+      pathInRepo: 'HosekiAnima-V1.safetensors',
+      skipped: false,
+      deduplicated: false,
+    })
+    fire('hf_upload_complete', {
+      taskId: 'b',
+      repoId: 'rikunarita/HosekiAnima-V1',
+      pathInRepo: 'same.safetensors',
+      skipped: true,
+      deduplicated: true,
+      url: 'https://huggingface.co/rikunarita/HosekiAnima-V1/blob/main/same.safetensors',
+    })
+    fire('hf_upload_error', { taskId: 'c', error: 'Network is unreachable' })
+  })
+  await page.waitForTimeout(900)
+  await shot(page, 'toast-stack.png')
+  await page.waitForTimeout(400)
+
+  // lightbox over the two-preview model
+  for (let i = 0; i < 5; i++) {
+    const b = page.locator('[role="dialog"] button[title="Close"]').last()
+    if (!(await b.isVisible().catch(() => false))) break
+    await b.click()
+    await page.waitForTimeout(250)
+  }
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await page.waitForSelector('[role="dialog"]')
+  await page.waitForFunction(() => document.querySelectorAll('[data-card-main]').length >= 3)
+  await page.locator('[data-draggable-overlay]').first().click()
+  await page.waitForTimeout(1200)
+  await page.locator('.preview-aspect').click({ position: { x: 60, y: 60 } })
+  await page.waitForSelector('[data-mm-lightbox]')
+  await page.waitForTimeout(500)
+  await shot(page, 'lightbox.png')
+  await page.keyboard.press('Escape')
   await page.close()
 
   /* ------------------------------------------------------------------ */

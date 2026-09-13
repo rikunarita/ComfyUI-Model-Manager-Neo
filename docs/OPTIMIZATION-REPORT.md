@@ -11,6 +11,43 @@
 
 ---
 
+## 実装ステータス（第10パスで反映済み）
+
+| ID           | 状態             | 備考                                                                                                                                |
+| ------------ | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| A-1          | **実装**         | WebP メモ化 + ETag/304 + `Cache-Control`。検証: P29c / E26b                                                                         |
+| A-2          | **実装**         | walk 中の名前集合で preview 解決(stat 0 回)                                                                                         |
+| A-3          | **実装**         | 生構造のタプル署名比較、変化時のみ正規化                                                                                            |
+| A-4          | **実装**         | `mm-io`(8) / `mm-cpu`(cpu/2)                                                                                                        |
+| A-5          | **実装(慎重)**   | aiohttp ストリーミング。pause/resume/delete/Range/206/エラー文言は互換維持、connect=30s/sock_read=600s を追加。検証: P10〜P12 / E13 |
+| A-6          | **実装**         | JSON + 0600 + pickle 自動移行。検証: P28b                                                                                           |
+| A-7          | **実装**         | 413 を `--max-upload-size` 案内トーストへ                                                                                           |
+| A-8          | **実装**         | ハッシュは cpu プール、preflight は io/cpu に分割                                                                                   |
+| A-9          | **実装**         | 単一 dict、"running" == "not done()"                                                                                                |
+| B-1          | **実装**         | `width` prop 化、ResizeObserver 全廃                                                                                                |
+| B-2          | **実装**         | `/model-manager/assets/*.svg` を ETag+max-age で配信、data URI 廃止(バンドル -52KB)。検証: E15g / P29b                              |
+| B-3          | **実装**         | 検索 150ms デバウンス(両ビュー)                                                                                                     |
+| B-4          | **実装**         | 単一 `<source>` + URL 由来 MIME                                                                                                     |
+| B-5          | **実装**         | en 静的 + 他ロケール動的 import、mount 前に await                                                                                   |
+| B-6          | **見送り(維持)** | ComfyUI の単一ファイル注入方式上、分割は不可能                                                                                      |
+| B-7          | **実装**         | tw-animate-css 削除、自前キーフレーム9種。依存も除去                                                                                |
+| B-8          | **実装**         | HF ダイアログはストアキャッシュ優先                                                                                                 |
+| C-1          | **実装**         | ピンを `<1.32.0` へ。**1.31.0 を4シナリオで実検証済み**                                                                             |
+| C-2          | **実装**         | `get_event_loop()` フォールバック撤去                                                                                               |
+| C-3          | **実装**         | `mypy.ini` + 9ファイル **Success: no issues** + CI 組込                                                                             |
+| C-4          | **見送り**       | `projectService` は ≤2GB 環境で ESLint が OOM(abort)。理由を `eslint.config.js` に恒久記録                                          |
+| C-5          | **実装**         | `NodeJS.Timeout` → `ReturnType<typeof setTimeout>`                                                                                  |
+| C-6          | **実装**         | pre-commit に `pnpm typecheck`                                                                                                      |
+| C-7          | **実装**         | `.github/workflows/ci.yml`(typecheck/lint/format/build/mypy/verify×2)                                                               |
+| C-8          | **実装**         | tsconfig `sourceMap` 削除                                                                                                           |
+| C-9          | **実装**         | アイコン専用ボタンへ `title` + `aria-label`(i18n 済み)                                                                              |
+| D (xet 進捗) | **見送り(維持)** | ライブラリがコールバック非公開。設計トレードオフとして README に明記済み                                                            |
+
+実装後の検証: `verify:py` **53** / `verify:e2e` **75** / mypy clean /
+typecheck・lint・format:check・build clean。
+
+---
+
 ## A. バックエンド
 
 ### A-1 ★ プレビュー画像を毎回 PIL で再エンコードしている（最大級の無駄）

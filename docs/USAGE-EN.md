@@ -253,6 +253,28 @@ The upload is registered as a **local task** in the Download List with accurate
 progress and completes into the chosen folder. The destination is validated
 server‑side (no arbitrary writes, no path traversal).
 
+## 8b. Feedback, galleries and the lightbox
+
+- **Toasts.** Every action reports its outcome: success (green), warning
+  (amber), error (red), info (accent). Each toast carries a severity icon, a
+  tinted left bar, and a **close button** in its top-right corner; they stack at
+  the top-right above every dialog and auto-dismiss after their lifetime.
+  ![toasts](screenshots/toast-stack.png)
+- **All previews are kept.** Downloads and saves store every preview image of a
+  model (`<name>.webp`, `<name>.preview.webp`, `<name>.preview2.webp`, …).
+- **Paging.** When a model has more than one preview, the preview area shows
+  **`<` / `>` buttons** and an `i / n` counter, in view mode and in edit mode.
+- **Lightbox.** Clicking (tapping) the preview opens it full-screen; `<` / `>`
+  or the arrow keys page through the gallery, `Esc`, the backdrop or the close
+  button dismiss it.
+  ![lightbox](screenshots/lightbox.png)
+- **Environment keys.** If `private.key` is empty and `HF_TOKEN` /
+  `CIVITAI_API_KEY` are exported, those keys are adopted into `private.key`
+  automatically (only the ones actually present).
+- **Oversized uploads.** A file above your ComfyUI server's upload limit
+  (`--max-upload-size`, default 100 MB) is reported with a toast explaining
+  exactly how to raise the limit, instead of a bare "HTTP 413".
+
 ## 9. Settings
 
 ComfyUI **Settings → Model Manager Neo**:

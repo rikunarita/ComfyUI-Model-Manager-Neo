@@ -44,6 +44,8 @@ previews the harness synthesises for its demo library.
 | `card-size.png`              | docs          | the Custom Size dialog (width/height sliders)                                                                                                                                  |
 | `ja-view-flat.png`           | docs          | the flat layout in **Japanese**                                                                                                                                                |
 | `ja-model-info.png`          | README, docs  | model detail in **Japanese**                                                                                                                                                   |
+| `toast-stack.png`            | docs          | the three severities at once: glass body, severity icon, tinted left bar, manual close button                                                                                  |
+| `lightbox.png`               | docs          | the full-screen preview viewer opened from a card preview, with `<` / `>` paging                                                                                               |
 
 ## Not captured here (capture live instead)
 

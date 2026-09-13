@@ -42,7 +42,8 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
   [Fifth reliability pass](#pass-5) · [Sixth reliability pass](#pass-6) ·
   [Seventh reliability pass](#pass-7) ·
   [Eighth reliability pass](#pass-8) ·
-  [Ninth reliability pass](#pass-9)
+  [Ninth reliability pass](#pass-9) ·
+  [Tenth pass](#pass-10)
 - [Documentation](#documentation) · [Development](#development) ·
   [Credits & Attribution](#credits) · [License](#license)
 
@@ -990,6 +991,54 @@ Two further reference documents:
   audit of backend/frontend hot spots and standards‑catch‑up candidates, each
   with cost, benefit and risk.
 
+<a id="pass-10"></a>
+
+## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f43f5e" width="28" height="28" align="middle" alt=""> Tenth pass (feedback surfaces, galleries, and the optimisation backlog)
+
+**Toasts became the first-class feedback channel.** Every mutating operation now
+reports its outcome — layout and hidden-file toggles, node add/copy, workflow
+load, model update, pause/resume/delete of tasks, API-key save/remove, card-size
+save/reset, local-upload start, model-info load failure — and the toasts
+themselves were rebuilt: denser glass (22 px blur + saturation), a severity icon,
+a tinted left bar and outer glow per severity, and a **manual dismiss button**
+with a translated `aria-label`.
+
+![toast stack](docs/screenshots/toast-stack.png)
+
+**Previews are kept in full and can actually be looked at.** A model's whole
+gallery is stored now (`<base>.<ext>`, `<base>.preview.<ext>`,
+`<base>.preview<N>.<ext>`), the model list returns it as an array, the preview
+area carries permanent **`<` / `>` buttons and an `i / n` counter** in both view
+and edit mode, and tapping the preview opens a **full-screen lightbox**
+(arrow keys and Escape work too). Saving with the "default" source keeps every
+stored preview instead of silently deleting the extras.
+
+![lightbox](docs/screenshots/lightbox.png)
+
+**Environment-provided API keys are adopted.** With an empty `private.key`, a
+token present in `HF_TOKEN` / `CIVITAI_API_KEY` is written into `private.key`
+once (only the keys actually present in the environment), so it behaves exactly
+like a key entered through the UI. `private.key` also moved from pickle to
+**JSON with 0600 permissions**, removing a deserialization code-execution
+surface.
+
+**The optimisation backlog was executed** (everything except the single-chunk
+bundle, which ComfyUI's injection model forbids): preview re-encode memoisation
+with `ETag`/304, zero-stat model walks, cached folder tables, separated I/O and
+CPU executors, an **aiohttp streaming downloader** (pause/resume/delete/Range
+semantics unchanged, connect/read timeouts added), SVG artwork served over HTTP
+with cache headers (the bundle lost 52 KB of inlined data URIs), per-card
+ResizeObservers removed, debounced search, lazy locale bundles, `tw-animate-css`
+replaced by nine hand-rolled keyframe classes, and the `huggingface_hub` pin
+lifted to `<1.32.0` **after verifying 1.31.0 against all four emulated upload
+scenarios**. `mypy` now checks the backend clean, a GitHub Actions workflow runs
+the whole gate, and `eslint`'s `projectService` was trialled and rejected (it
+OOMs ESLint on ≤2 GB machines — recorded in `eslint.config.js`).
+
+Verification after this pass: `verify:py` **53 assertions**, `verify:e2e`
+**75 assertions**, `mypy` clean, `typecheck` / `lint` / `format:check` / `build`
+clean.
+
 <a id="development"></a>
 
 ## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Development
@@ -1002,19 +1051,20 @@ corepack enable          # uses the pinned pnpm version
 pnpm install
 ```
 
-| Script                              | Purpose                                                                  |
-| ----------------------------------- | ------------------------------------------------------------------------ |
-| `pnpm dev`                          | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI)  |
-| `pnpm build`                        | Production build into `web/`                                             |
-| `pnpm build:clean`                  | Remove `web/` then rebuild                                               |
-| `pnpm rebuild`                      | Remove `node_modules/` **and** `web/`, reinstall, then rebuild           |
-| `pnpm typecheck`                    | `vue-tsc --noEmit` type checking                                         |
-| `pnpm lint` / `pnpm lint:fix`       | ESLint (flat config)                                                     |
-| `pnpm format` / `pnpm format:check` | Prettier (with the Tailwind plugin)                                      |
-| `pnpm verify:py`                    | Python route/lifecycle probe (`harness/py_probe.py`, 46 assertions)      |
-| `pnpm verify:e2e`                   | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 64)     |
-| `pnpm capture`                      | Render the docs screenshots from the real bundle (`harness/capture.mjs`) |
-| `pnpm capture --video`              | Same, plus a recorded `hero.webm` / `hero.gif` tour                      |
+| Script                                  | Purpose                                                                  |
+| --------------------------------------- | ------------------------------------------------------------------------ |
+| `pnpm dev`                              | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI)  |
+| `pnpm build`                            | Production build into `web/`                                             |
+| `pnpm build:clean`                      | Remove `web/` then rebuild                                               |
+| `pnpm rebuild`                          | Remove `node_modules/` **and** `web/`, reinstall, then rebuild           |
+| `pnpm typecheck`                        | `vue-tsc --noEmit` type checking                                         |
+| `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                     |
+| `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                      |
+| `pnpm verify:py`                        | Python route/lifecycle probe (`harness/py_probe.py`, 53 assertions)      |
+| `pnpm verify:e2e`                       | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 75)     |
+| `python -m mypy --config-file mypy.ini` | Backend static types (C-3), clean                                        |
+| `pnpm capture`                          | Render the docs screenshots from the real bundle (`harness/capture.mjs`) |
+| `pnpm capture --video`                  | Same, plus a recorded `hero.webm` / `hero.gif` tour                      |
 
 > [!WARNING]
 > `pnpm dev` **deletes the whole `web/` directory** before writing
