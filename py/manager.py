@@ -1,5 +1,8 @@
 import asyncio
 import os
+import re
+
+import yaml
 import folder_paths
 from aiohttp import web
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,6 +20,37 @@ def _preview_field_keys(model_data: dict) -> list[str]:
         elif key.startswith("previewFile") and key[len("previewFile"):].isdigit():
             keys.append((int(key[len("previewFile"):]), key))
     return [key for _, key in sorted(keys)]
+
+
+_MODEL_PAGE_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
+
+
+def _model_page_of(names: set[str], basename: str, directory: str, sub_folder: str) -> str | None:
+    """The model page URL recorded in the notes front-matter, if any.
+
+    Civitai / HuggingFace downloads store `modelPage` in the YAML front-matter
+    of the `.md` sidecar. Reading just that header (a few hundred bytes) at
+    scan time is what lets the grid offer an "open model page" action without
+    loading every description in full.
+    """
+    candidate = f"{basename}.md"
+    if candidate not in names:
+        return None
+    path = utils.join_path(directory, sub_folder, candidate) if sub_folder else utils.join_path(directory, candidate)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            head = f.read(4096)
+    except OSError:
+        return None
+    match = _MODEL_PAGE_RE.match(head)
+    if not match:
+        return None
+    try:
+        meta = yaml.safe_load(match.group(1)) or {}
+    except Exception:
+        return None
+    page = meta.get("modelPage") if isinstance(meta, dict) else None
+    return page if isinstance(page, str) and page.startswith("http") else None
 
 
 class ModelManager:
@@ -216,6 +250,9 @@ class ModelManager:
                 "pathIndex": path_index,
                 "sizeBytes": stat.st_size if is_file else 0,
                 "preview": model_preview,
+                "modelPage": _model_page_of(names, basename, directory=base_path, sub_folder=sub_folder)
+                if is_file
+                else None,
                 "createdAt": round(stat.st_ctime_ns / 1000000),
                 "updatedAt": round(stat.st_mtime_ns / 1000000),
             }

@@ -37,6 +37,7 @@ _SVG_ASSETS = {
     "folder-opening": ("assets", "Folder-Icons", "folder-opening-animation.svg"),
     "folder-closing": ("assets", "Folder-Icons", "folder-closing-animation.svg"),
     "no-preview": ("assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"),
+    "zipnn-button": ("assets", "ZipNN-icon", "ZipNN-Button_Icon.svg"),
 }
 _SVG_CACHE: dict[str, tuple[str, bytes]] = {}
 

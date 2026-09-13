@@ -246,6 +246,24 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
   }
 
   onMounted(() => {
+    // One-time migration: earlier builds (and the upstream project) defaulted
+    // the flat layout to OFF and stored that, so the "flat is the default"
+    // instruction never reached existing installations. Reset it once, then
+    // let the user's own choice stick (the flag below records the migration).
+    const FLAT_MIGRATION_KEY = 'ModelManager.UI.FlatDefaultV2'
+    app.ui?.settings.addSetting({
+      id: FLAT_MIGRATION_KEY,
+      category: [t('modelManager'), t('setting.ui'), 'FlatDefaultV2'],
+      name: 'flat default migration marker',
+      type: 'hidden',
+      defaultValue: false,
+    })
+    if (!app.ui?.settings.getSettingValue<boolean>(FLAT_MIGRATION_KEY)) {
+      app.ui?.settings.setSettingValue('ModelManager.UI.Flat', true)
+      app.ui?.settings.setSettingValue(FLAT_MIGRATION_KEY, true)
+      store.config.flat.value = true
+    }
+
     // API keys
     app.ui?.settings.addSetting({
       id: 'ModelManager.APIKey.HuggingFace',

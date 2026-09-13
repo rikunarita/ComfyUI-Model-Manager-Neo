@@ -19,6 +19,8 @@ export interface Model extends BaseModel {
   createdAt: number
   updatedAt: number
   children?: Model[]
+  /** Model page URL recorded in the notes front-matter (Civitai / HF downloads). */
+  modelPage?: string
 }
 
 export interface VersionModelFile {

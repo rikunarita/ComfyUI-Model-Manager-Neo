@@ -198,5 +198,20 @@
   "editModel": "编辑模型",
   "deleteModel": "删除模型",
   "pause": "暂停",
-  "resume": "恢复"
+  "resume": "恢复",
+  "selectFiles": "选择文件",
+  "selectedCount": "已选 {count} 项",
+  "addToWorkflow": "添加到工作流",
+  "clearSelection": "清除选择",
+  "deselectModel": "取消选择该模型",
+  "noModelPage": "该模型没有记录的模型页面",
+  "zipnnCompress": "ZipNN 压缩",
+  "zipnnDecompress": "ZipNN 解压",
+  "zipnnCompressHint": "使用 ZipNN 无损压缩此 safetensors 模型。压缩成功后原文件替换为 <name>.znn.safetensors；经 zipnn_safetensors() 补丁的加载器可透明读取。",
+  "zipnnDecompressHint": "将此 ZipNN 模型解压回普通 .safetensors 文件。",
+  "zipnnConfirmCompress": "使用 ZipNN 压缩此模型？压缩成功后原文件将替换为 <name>.znn.safetensors。",
+  "zipnnConfirmDecompress": "解压此模型？解压成功后 .znn.safetensors 将替换为普通 .safetensors。",
+  "zipnnCompressed": "ZipNN 压缩完成",
+  "zipnnDecompressed": "ZipNN 解压完成",
+  "zipnnFailed": "ZipNN 操作失败"
 }

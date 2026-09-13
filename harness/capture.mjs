@@ -340,6 +340,28 @@ try {
   await page.close()
 
   /* ------------------------------------------------------------------ */
+  /* ZipNN button + selection mode                                       */
+  /* ------------------------------------------------------------------ */
+  page = await newPage()
+  mgr = await openManager(page)
+  await page.waitForFunction(() => document.querySelectorAll('[data-card-main]').length >= 3)
+  await page.locator('button[aria-label="Select files"]').first().click()
+  await page.waitForTimeout(400)
+  await page.locator('[data-card-main]').first().click()
+  await page.waitForTimeout(400)
+  await shot(page, 'selection-mode.png')
+  await page.locator('button', { hasText: 'Clear selection' }).first().click()
+  await page.locator('button[aria-label="Select files"]').first().click()
+  await page.waitForTimeout(300)
+  const znnCard = page.locator('[data-card-main]', { hasText: 'qwen_vae' }).first()
+  await znnCard.locator('xpath=following-sibling::*[@data-draggable-overlay]').click()
+  await page.waitForTimeout(1200)
+  await shot(page, 'zipnn-button.png', page.locator('[role="dialog"]').last())
+  await page.locator('[role="dialog"]').last().locator('button[title="Close"]').click()
+  await page.waitForTimeout(400)
+  await page.close()
+
+  /* ------------------------------------------------------------------ */
   /* Optional: recorded tour (hero)                                      */
   /* ------------------------------------------------------------------ */
   if (WITH_VIDEO) {

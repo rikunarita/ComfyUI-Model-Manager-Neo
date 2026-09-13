@@ -445,6 +445,29 @@
     filter: drop-shadow(0 0 6px var(--mm-toast-glow));
   }
 
+  /* ZipNN call-to-action: a gentle lift + brighten on hover, a press-in on
+     click, and a focus ring that matches the rest of the glass controls. */
+  .mm-zipnn-button {
+    transition:
+      transform 160ms var(--mm-ease),
+      filter 160ms var(--mm-ease),
+      background-color 120ms var(--mm-ease),
+      border-color 120ms var(--mm-ease),
+      box-shadow 160ms var(--mm-ease);
+  }
+
+  .mm-zipnn-button:hover {
+    transform: translateY(-1px) scale(1.02);
+    filter: brightness(1.08) saturate(1.1);
+    box-shadow:
+      var(--mm-shadow-2),
+      0 8px 26px -10px color-mix(in oklab, var(--mm-accent) 45%, transparent);
+  }
+
+  .mm-zipnn-button:active {
+    transform: scale(0.97);
+  }
+
   /* lucide defaults to 24px; the toast grid is built around an 18px glyph */
   .mm-toast-icon svg {
     width: 18px;

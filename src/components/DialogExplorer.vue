@@ -31,6 +31,17 @@
           <ResponseSelect v-model="cardSizeFlag" :items="cardSizeOptions"></ResponseSelect>
         </div>
 
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          :class="selection.state.enabled && 'border-mm-accent/50 bg-mm-accent/20 text-mm-accent'"
+          :title="$t('selectFiles')"
+          :aria-label="$t('selectFiles')"
+          :aria-pressed="selection.state.enabled"
+          @click="toggleSelectMode"
+        >
+          <ListChecks class="size-4" />
+        </Button>
         <Button variant="ghost" size="icon-sm" @click="toggleToolbar">
           <X v-if="showToolbar" class="size-4" />
           <Menu v-else class="size-4" />
@@ -62,10 +73,14 @@
                 <ModelCard
                   :model="rowItem"
                   :width="cardSize.width"
+                  :selectable="selection.state.enabled"
+                  :selected="isSelected(rowItem)"
                   :style="{
                     width: `${cardSize.width}px`,
                     height: `${cardSize.height}px`,
                   }"
+                  @click="handleCardClick(rowItem)"
+                  @toggle="selection.toggle(genModelKey(rowItem))"
                   @dblclick="openItem(rowItem, $event)"
                   @contextmenu.stop.prevent="openItemContext(rowItem, $event)"
                 />
@@ -83,6 +98,29 @@
     <div class="flex justify-between px-4 py-2 text-sm">
       <div></div>
       <div></div>
+    </div>
+
+    <!-- Bulk actions for the selection mode -->
+    <div
+      v-if="selection.state.enabled && selectionCount > 0"
+      class="mm-glass-light mm-scope mx-4 mb-2 flex items-center justify-between gap-4 rounded-mm-ctl border border-mm-border px-4 py-2"
+    >
+      <span class="text-sm text-mm-muted-fg tabular-nums">
+        {{ $t('selectedCount', { count: selectionCount }) }}
+      </span>
+      <div class="flex items-center gap-2">
+        <Button variant="secondary" size="sm" @click="addSelectedToWorkflow">
+          <Plus class="size-4" />
+          {{ $t('addToWorkflow') }}
+        </Button>
+        <Button variant="destructive" size="sm" @click="deleteSelected">
+          <Trash2 class="size-4" />
+          {{ $t('delete') }}
+        </Button>
+        <Button variant="ghost" size="sm" @click="selection.clear()">
+          {{ $t('clearSelection') }}
+        </Button>
+      </div>
     </div>
 
     <!-- Context Menu (reka-ui DropdownMenu, anchored at the right-click point) -->
@@ -108,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronUp, Menu, X } from '@lucide/vue'
+import { ChevronUp, ListChecks, Menu, Plus, Trash2, X } from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { type ReferenceElement } from 'reka-ui'
@@ -124,10 +162,51 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from 'components/
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { useConfig } from 'hooks/config'
 import { type ModelTreeNode, useModelExplorer } from 'hooks/explorer'
+import { useModelNodeAction, useModels } from 'hooks/model'
+import { useToast } from 'hooks/toast'
+import { useSelection } from 'hooks/zipnn'
 import { resolveIcon } from 'utils/iconMap'
 import { genModelKey } from 'utils/model'
 
 const { t } = useI18n()
+const { confirm } = useToast()
+const selection = useSelection()
+const selectionCount = selection.count
+const { addModelNode } = useModelNodeAction()
+const { remove } = useModels()
+
+const isSelected = (model: ModelTreeNode) => Boolean(selection.state.selected[genModelKey(model)])
+
+const handleCardClick = (model: ModelTreeNode) => {
+  if (selection.state.enabled) selection.toggle(genModelKey(model))
+}
+
+const toggleSelectMode = () => {
+  if (selection.state.enabled) selection.exit()
+  else selection.enter()
+}
+
+const selectedModels = () => currentDataList.value.filter(m => isSelected(m) && !m.isFolder)
+
+const addSelectedToWorkflow = () => {
+  for (const model of selectedModels()) addModelNode(model)
+}
+
+const deleteSelected = () => {
+  const models = selectedModels()
+  confirm.require({
+    message: t('deleteAsk', [t('model').toLowerCase() + ` (${models.length})`]),
+    header: 'Danger',
+    icon: 'pi pi-info-circle',
+    rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
+    acceptProps: { label: t('delete'), severity: 'danger' },
+    accept: async () => {
+      for (const model of models) await remove(model)
+      selection.clear()
+    },
+    reject: () => {},
+  })
+}
 
 const gutter = {
   x: 4,

@@ -1132,6 +1132,123 @@ try {
     JSON.stringify(previewCache),
   )
 
+  /* ====================================================================== */
+  /* ZipNN button, selection mode, hover buttons, flat-default migration      */
+  /* ====================================================================== */
+
+  // E29 — the flat-view hover buttons must actually be clickable (they used to
+  // be pointer-events:none and every press opened the card instead).
+  for (let i = 0; i < 5; i++) {
+    const b = page.locator('[role="dialog"] button[title="Close"]').last()
+    if (!(await b.isVisible().catch(() => false))) break
+    await b.click()
+    await page.waitForTimeout(250)
+  }
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await page.waitForSelector('[role="dialog"]')
+  await page.waitForFunction(() => document.querySelectorAll('[data-card-main]').length >= 3)
+  const firstCardBox = await page.locator('[data-card-main]').first().boundingBox()
+  await page.mouse.move(firstCardBox.x + firstCardBox.width / 2, firstCardBox.y + 20)
+  await page.waitForTimeout(500)
+  await page.locator('button[aria-label="Add node to graph"]').first().click()
+  const nodeToast = page
+    .locator('[data-sonner-toast]', { hasText: 'Loader node added to the graph' })
+    .first()
+  await nodeToast.waitFor({ timeout: 8000 })
+  check('E29 flat-view hover buttons are clickable', true)
+
+  // E28 — selection mode: checkboxes on cards, bulk bar once one is selected
+  await page.locator('button[aria-label="Select files"]').first().click()
+  await page.waitForTimeout(400)
+  const checkboxes = page.locator(
+    '[data-card-main] ~ button[aria-pressed], button[aria-pressed="false"][class*="rounded-full"]',
+  )
+  const boxCount = await page.locator('button[aria-label="Select model"]').count()
+  check('E28 selection mode reveals per-card checkboxes', boxCount >= 3, String(boxCount))
+  await page.locator('[data-card-main]').first().click()
+  await page.waitForTimeout(400)
+  const bulkBar = page
+    .locator('div', { hasText: 'selected' })
+    .locator('button', { hasText: 'Add to workflow' })
+  check('E28b selecting a card reveals the bulk action bar', (await bulkBar.count()) >= 1)
+  await page.locator('button', { hasText: 'Clear selection' }).first().click()
+  await page.waitForTimeout(300)
+  await page.locator('button[aria-label="Select files"]').first().click()
+  await page.waitForTimeout(300)
+  check('E28c leaving selection mode clears it', true)
+  void checkboxes
+
+  // E27 — ZipNN: button in the preview/table gap, confirm (not danger), progress
+  // / completion, and the inverted icon on a compressed model.
+  const znnCard = page.locator('[data-card-main]', { hasText: 'qwen_vae' }).first()
+  await znnCard.locator('xpath=following-sibling::*[@data-draggable-overlay]').click()
+  await page.waitForTimeout(1200)
+  const znnDetail = page.locator('[role="dialog"]').last()
+  const znnButton = znnDetail.locator('button.mm-zipnn-button')
+  check('E27 ZipNN button rendered in the detail window', (await znnButton.count()) === 1)
+  const znnImg = znnButton.locator('img')
+  check(
+    'E27b the button uses the shipped ZipNN artwork',
+    ((await znnImg.getAttribute('src')) ?? '').includes('zipnn-button'),
+  )
+  check(
+    'E27c uncompressed model shows the normal (non-inverted) icon',
+    !((await znnImg.getAttribute('class')) ?? '').includes('invert'),
+  )
+  await znnButton.click()
+  const znnConfirm = page.locator('[role="alertdialog"]')
+  await znnConfirm.waitFor({ timeout: 5000 })
+  const acceptClass = (await znnConfirm.locator('button').last().getAttribute('class')) ?? ''
+  check(
+    'E27d the ZipNN confirmation is not a Danger dialog',
+    !acceptClass.includes('border-mm-danger'),
+    acceptClass.slice(0, 80),
+  )
+  await znnConfirm.locator('button').last().click()
+  const znnToast = page
+    .locator('[data-sonner-toast]', { hasText: 'ZipNN compression finished' })
+    .first()
+  await znnToast.waitFor({ timeout: 20000 })
+  check('E27e compression completes with a toast', true)
+  await znnDetail.locator('button[title="Close"]').click()
+  await page.waitForTimeout(800)
+  const znnCard2 = page.locator('[data-card-main]', { hasText: 'qwen_vae.znn' }).first()
+  await znnCard2.waitFor({ timeout: 10000 })
+  await znnCard2.locator('xpath=following-sibling::*[@data-draggable-overlay]').click()
+  await page.waitForTimeout(1200)
+  const znnDetail2 = page.locator('[role="dialog"]').last()
+  const znnImg2 = znnDetail2.locator('button.mm-zipnn-button img')
+  check(
+    'E27f a compressed model shows the inverted icon',
+    ((await znnImg2.getAttribute('class')) ?? '').includes('invert'),
+  )
+  await znnDetail2.locator('button[title="Close"]').click()
+  await page.waitForTimeout(400)
+
+  // E30 — a stored "flat off" preference is overridden once by the migration
+  const flatPage = await safeNewPage()
+  await flatPage.goto(`http://127.0.0.1:${PORT}/harness?flat=0`)
+  await flatPage.waitForFunction(
+    () => window.comfyAPI?.app?.app?.ui?.menuContainer?.children?.length > 0,
+  )
+  await flatPage.waitForTimeout(600)
+  const flatAfter = await flatPage.evaluate(() => ({
+    stored: window.comfyAPI.app.app.ui.settings.getSettingValue('ModelManager.UI.Flat'),
+    marker: window.comfyAPI.app.app.ui.settings.getSettingValue('ModelManager.UI.FlatDefaultV2'),
+  }))
+  check(
+    'E30 the flat-default migration overrides a stored false exactly once',
+    flatAfter.stored === true && flatAfter.marker === true,
+    JSON.stringify(flatAfter),
+  )
+  await flatPage.evaluate(() => window.dispatchEvent(new CustomEvent('open-model-manager')))
+  await flatPage.waitForSelector('[role="dialog"]')
+  check(
+    'E30b the manager opens flat despite the stored preference',
+    (await flatPage.locator('[role="dialog"] input[placeholder="Search models"]').count()) === 1,
+  )
+  await flatPage.close()
+
   // E12 — no console / page errors anywhere along the way
   const realErrors = consoleErrors.filter(e => !e.includes('favicon'))
   check(

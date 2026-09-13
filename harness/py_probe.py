@@ -547,6 +547,75 @@ async def main() -> None:
             str(_nested["preview"]),
         )
 
+        # ---------------- ZipNN compress / decompress -------------------------
+        import safetensors.torch as stub_st
+        from safetensors import StubTensor
+
+        znn_model = CKPT / "znn_target.safetensors"
+        stub_st.save_file(
+            {"w": StubTensor("float32", [4096], b"\x00" * 4096 * 4)},
+            str(znn_model),
+            {"note": "zipnn probe"},
+        )
+        (CKPT / "znn_target.webp").write_bytes(_buf.getvalue())
+
+        _, zbad = await post(
+            "/model-manager/zipnn/compress",
+            json={"type": "checkpoints", "pathIndex": 0, "fullname": "renamed_model.md"},
+        )
+        check("P31 non-safetensors rejected", zbad["success"] is False, str(zbad))
+
+        _, zc = await post(
+            "/model-manager/zipnn/compress",
+            json={"type": "checkpoints", "pathIndex": 0, "fullname": "znn_target.safetensors"},
+        )
+        check("P31b compress accepted", zc["success"], str(zc))
+        deadline = time.time() + 20
+        while time.time() < deadline and not any(
+            e == "zipnn_complete" for e, _ in serverInstance.sent
+        ):
+            await asyncio.sleep(0.1)
+        check(
+            "P32 compressed file replaced the original",
+            (CKPT / "znn_target.znn.safetensors").exists() and not znn_model.exists(),
+        )
+        check(
+            "P32b preview sidecar followed the rename",
+            (CKPT / "znn_target.znn.webp").exists() and not (CKPT / "znn_target.webp").exists(),
+        )
+        check(
+            "P32c completion event pushed",
+            any(e == "zipnn_complete" for e, _ in serverInstance.sent),
+        )
+        _, models4 = await get("/model-manager/models/checkpoints")
+        _z = next((m for m in models4["data"] if m["basename"] == "znn_target.znn"), None)
+        check("P32d the compressed model shows up in the list", _z is not None)
+
+        _, zd = await post(
+            "/model-manager/zipnn/decompress",
+            json={
+                "type": "checkpoints",
+                "pathIndex": 0,
+                "fullname": "znn_target.znn.safetensors",
+            },
+        )
+        check("P33 decompress accepted", zd["success"], str(zd))
+        deadline = time.time() + 20
+        seen = sum(1 for e, _ in serverInstance.sent if e == "zipnn_complete")
+        while time.time() < deadline and sum(
+            1 for e, _ in serverInstance.sent if e == "zipnn_complete"
+        ) < seen + 1:
+            await asyncio.sleep(0.1)
+        check(
+            "P33b decompressed file replaced the compressed one",
+            znn_model.exists() and not (CKPT / "znn_target.znn.safetensors").exists(),
+        )
+        check(
+            "P33c preview sidecar moved back",
+            (CKPT / "znn_target.webp").exists()
+            and not (CKPT / "znn_target.znn.webp").exists(),
+        )
+
         # ---------------- misc routes ------------------------------------------
         _, exts = await get("/model-manager/supported-extensions")
         check("P17 supported extensions", exts["success"] and ".safetensors" in exts["data"])

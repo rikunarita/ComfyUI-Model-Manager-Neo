@@ -198,5 +198,20 @@
   "editModel": "Edit model",
   "deleteModel": "Delete model",
   "pause": "Pause",
-  "resume": "Resume"
+  "resume": "Resume",
+  "selectFiles": "Select files",
+  "selectedCount": "{count} selected",
+  "addToWorkflow": "Add to workflow",
+  "clearSelection": "Clear selection",
+  "deselectModel": "Deselect model",
+  "noModelPage": "This model has no recorded model page",
+  "zipnnCompress": "ZipNN compress",
+  "zipnnDecompress": "ZipNN decompress",
+  "zipnnCompressHint": "Losslessly compress this safetensors model with ZipNN. The compressed file replaces the original as <name>.znn.safetensors; loaders patched with zipnn_safetensors() read it transparently.",
+  "zipnnDecompressHint": "Decompress this ZipNN model back to a plain .safetensors file.",
+  "zipnnConfirmCompress": "Compress this model with ZipNN? The original file is replaced by <name>.znn.safetensors once the compression succeeds.",
+  "zipnnConfirmDecompress": "Decompress this model? The .znn.safetensors file is replaced by the plain .safetensors once the decompression succeeds.",
+  "zipnnCompressed": "ZipNN compression finished",
+  "zipnnDecompressed": "ZipNN decompression finished",
+  "zipnnFailed": "ZipNN operation failed"
 }

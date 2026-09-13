@@ -43,7 +43,8 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
   [Seventh reliability pass](#pass-7) ·
   [Eighth reliability pass](#pass-8) ·
   [Ninth reliability pass](#pass-9) ·
-  [Tenth pass](#pass-10)
+  [Tenth pass](#pass-10) ·
+  [Eleventh pass](#pass-11)
 - [Documentation](#documentation) · [Development](#development) ·
   [Credits & Attribution](#credits) · [License](#license)
 
@@ -63,6 +64,11 @@ the experience from the ground up:
   **[Lucide]** icons (shadcn‑vue style components you can read and tweak).
 - <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Upload to Hugging Face** — publish any local model straight to a HF repo
   (creates the repo if needed, private option, live progress) — _new in Neo_.
+- <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN lossless compression** — compress / decompress safetensors models in
+  place (`.znn.safetensors`) with confirmation, progress and an inverted icon on
+  compressed models — _new in Neo_.
+- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Multi-select** — tick cards to add several models to the workflow or
+  delete them in one go — _new in Neo_.
 - <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Direct‑link downloads** — paste a raw `.safetensors`/`.ckpt`/`.gguf` URL,
   pick the target folder, optionally choose a custom sub‑folder.
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` acceleration** — Hugging Face transfers use the chunked,
@@ -1039,6 +1045,59 @@ Verification after this pass: `verify:py` **53 assertions**, `verify:e2e`
 **75 assertions**, `mypy` clean, `typecheck` / `lint` / `format:check` / `build`
 clean.
 
+<a id="pass-11"></a>
+
+## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Eleventh pass (selection mode, ZipNN, hover fixes, flat default)
+
+**Reported hover/swipe artefact — root cause confirmed and fixed.** The
+hover-revealed glass action buttons fade in over the type/size chips whenever a
+card is hovered, and an HTML5 drag keeps the hover state alive for its whole
+duration, so mid-drag the backdrop-blurred buttons tinted the chips beneath
+them ("unrelated elements glow on their own"). The button column now sits
+_below_ the chips and is suppressed for the whole drag via a `data-dragging`
+attribute on the card. No glass styling was changed.
+
+**Flat view is the default again, for real.** Earlier builds (and the upstream
+project) stored `ModelManager.UI.Flat = false`, and a stored value always wins
+over a new default, so existing installations never saw the change. A one-time
+migration (`ModelManager.UI.FlatDefaultV2`) resets the preference once; any
+choice made afterwards sticks. Verified by `E30`/`E30b` with a pre-seeded
+`false`.
+
+**The flat-view hover buttons work now.** They were `pointer-events: none`
+(inherited from their fade-in wrapper) so every press landed on the drag overlay
+and simply opened the card. The wrapper re-enables pointer events exactly while
+the card is hovered (`E29`), and the set gained an **open model page** button
+using the conventional external-link arrow instead of the eye glyph. The page
+URL is read from the notes front-matter at scan time (a few hundred bytes per
+model that has notes), so the grid can offer it without loading descriptions.
+
+**"Select files" multi-select.** A toolbar toggle reveals a round checkbox on
+every card and folder; selecting one or more raises a bulk bar with **Add to
+workflow** and **Delete** (danger-confirmed), plus a clear action. Works in both
+layouts (`E28`–`E28c`).
+
+**ZipNN compression, the headline feature.** Built strictly against the official
+reference implementation ([zipnn/zipnn](https://github.com/zipnn/zipnn) 0.5.4,
+`scripts/zipnn_compress_safetensors.py` / `zipnn_decompress_safetensors.py`):
+tensor-by-tensor Huffman compression of floating-point tensors, passthrough for
+everything else, `znn_compressed_vectors` metadata, and the official
+`<base>.znn.safetensors` naming so `zipnn_safetensors()`-patched loaders read the
+result transparently. The call-to-action uses the shipped
+`assets/ZipNN-icon/ZipNN-Button_Icon.svg`, sits in the gap between the preview
+and the info table, lifts and brightens on hover with a tooltip, and asks for a
+**non-danger confirmation** before doing anything. A progress bar replaces the
+button while the cpu-pool task runs; previews and notes follow the rename, and a
+compressed model shows the icon **fully inverted** with a decompress action
+behind the same confirmation. ZipNN has no Linux wheels (it builds from source),
+so it is installed **on demand** at first use instead of being forced onto every
+ComfyUI installation.
+
+Verification after this pass: `verify:py` **62 assertions** (P31–P33c exercise
+the whole ZipNN pipeline through harness stubs of `zipnn`/`safetensors`/`torch`),
+`verify:e2e` **87 assertions** (E27–E30b), `mypy` clean, `typecheck` / `lint` /
+`format:check` / `build` clean.
+
 <a id="development"></a>
 
 ## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Development
@@ -1060,8 +1119,8 @@ pnpm install
 | `pnpm typecheck`                        | `vue-tsc --noEmit` type checking                                        |
 | `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                    |
 | `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                     |
-| `pnpm verify:py`                        | Python route/lifecycle probe (`harness/py_probe.py`, 53 assertions)     |
-| `pnpm verify:e2e`                       | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 75)    |
+| `pnpm verify:py`                        | Python route/lifecycle probe (`harness/py_probe.py`, 62 assertions)     |
+| `pnpm verify:e2e`                       | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 87)    |
 | `python -m mypy --config-file mypy.ini` | Backend static types (C-3), clean                                       |
 
 The harness needs `aiohttp` / `pillow` / `pyyaml` (ComfyUI provides them at

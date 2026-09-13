@@ -198,5 +198,20 @@
   "editModel": "モデルを編集",
   "deleteModel": "モデルを削除",
   "pause": "一時停止",
-  "resume": "再開"
+  "resume": "再開",
+  "selectFiles": "ファイルを選択",
+  "selectedCount": "{count} 件選択中",
+  "addToWorkflow": "ワークフローに追加",
+  "clearSelection": "選択を解除",
+  "deselectModel": "このモデルの選択を解除",
+  "noModelPage": "このモデルにはモデルページが記録されていません",
+  "zipnnCompress": "ZipNN 圧縮",
+  "zipnnDecompress": "ZipNN 解凍",
+  "zipnnCompressHint": "ZipNN でこの safetensors モデルを可逆圧縮します。成功すると元ファイルは <name>.znn.safetensors に置き換わります。zipnn_safetensors() パッチ済みのローダーは透過的に読めます。",
+  "zipnnDecompressHint": "この ZipNN モデルを通常の .safetensors へ解凍します。",
+  "zipnnConfirmCompress": "ZipNN でこのモデルを圧縮しますか？成功すると元ファイルは <name>.znn.safetensors に置き換わります。",
+  "zipnnConfirmDecompress": "このモデルを解凍しますか？成功すると .znn.safetensors は通常の .safetensors に置き換わります。",
+  "zipnnCompressed": "ZipNN 圧縮が完了しました",
+  "zipnnDecompressed": "ZipNN 解凍が完了しました",
+  "zipnnFailed": "ZipNN 処理に失敗しました"
 }

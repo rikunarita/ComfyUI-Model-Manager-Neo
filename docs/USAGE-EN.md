@@ -275,6 +275,41 @@ server‑side (no arbitrary writes, no path traversal).
   (`--max-upload-size`, default 100 MB) is reported with a toast explaining
   exactly how to raise the limit, instead of a bare "HTTP 413".
 
+## 8c. Multi-select and ZipNN compression
+
+### Select files
+
+The toolbar of both layouts has a **Select files** toggle (list-checks icon).
+While it is on, every card and folder shows a round checkbox at its top-left;
+clicking a card ticks it instead of opening it. As soon as one item is selected
+a bulk bar appears at the bottom of the window:
+
+- **Add to workflow** — creates one loader node per selected model;
+- **Delete** — deletes every selected model after a Danger confirmation
+  (previews and notes included);
+- **Clear selection** — unticks everything. Leaving the mode also clears it.
+
+### ZipNN compression
+
+Opening a `.safetensors` model shows a large **ZipNN compress** button in the
+gap between the preview and the info table (it uses the project's ZipNN
+artwork, lifts and brightens on hover, and explains itself in a tooltip).
+Pressing it asks for a confirmation that is deliberately _not_ styled as
+Danger, then compresses tensor-by-tensor in the background:
+
+- the button is replaced by a **progress bar** while the task runs;
+- on success the original file is replaced by `<name>.znn.safetensors`;
+  previews and notes follow the rename, and the grid refreshes by itself;
+- opening a compressed model shows the same button with **inverted colours**
+  and the label **ZipNN decompress**; pressing it confirms and restores the
+  plain `.safetensors` file.
+
+Compressed files follow the official ZipNN layout (`znn_compressed_vectors`
+metadata, Huffman-compressed floating-point tensors), so loaders patched with
+`zipnn_safetensors()` read them transparently. ZipNN is installed on first use
+(`pip install zipnn`); it needs a C++ toolchain on Linux because PyPI ships no
+Linux wheels.
+
 ## 9. Settings
 
 ComfyUI **Settings → Model Manager Neo**:

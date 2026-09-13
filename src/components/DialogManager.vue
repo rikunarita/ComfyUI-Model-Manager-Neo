@@ -28,6 +28,19 @@
               class="flex-1"
               :items="cardSizeOptions"
             ></ResponseSelect>
+            <Button
+              variant="secondary"
+              size="icon-sm"
+              :class="
+                selection.state.enabled && 'border-mm-accent/50 bg-mm-accent/20 text-mm-accent'
+              "
+              :title="$t('selectFiles')"
+              :aria-label="$t('selectFiles')"
+              :aria-pressed="selection.state.enabled"
+              @click="toggleSelectMode"
+            >
+              <ListChecks class="size-4" />
+            </Button>
           </div>
         </div>
       </div>
@@ -42,12 +55,15 @@
                 <ModelCard
                   :model="model"
                   :width="cardSize.width"
+                  :selectable="selection.state.enabled"
+                  :selected="isSelected(model)"
                   :style="{
                     width: `${cardSize.width}px`,
                     height: `${cardSize.height}px`,
                   }"
                   class="group/card cursor-pointer p-0!"
-                  @click="openModelDetail(model)"
+                  @click="handleCardClick(model)"
+                  @toggle="selection.toggle(genModelKey(model))"
                 >
                   <template #name>
                     <div v-show="showModelName" class="absolute top-0 size-full p-2">
@@ -60,9 +76,17 @@
                   </template>
 
                   <template #extra>
+                    <!--
+                      BUG FIX: the wrapper is `pointer-events-none` (so the
+                      invisible buttons never swallow card clicks) but the
+                      buttons themselves never re-enabled pointer events, so
+                      every press landed on the drag overlay underneath and
+                      simply opened the card. The inner column now turns
+                      pointer-events back on exactly while the card is hovered.
+                    -->
                     <div
                       v-show="showModelName"
-                      class="pointer-events-none absolute top-2 right-2 opacity-0 duration-300 group-hover/card:opacity-100"
+                      class="pointer-events-none absolute top-12 right-2 opacity-0 duration-300 group-hover/card:pointer-events-auto group-hover/card:opacity-100 group-data-[dragging=true]/card:pointer-events-none! group-data-[dragging=true]/card:opacity-0!"
                     >
                       <div class="flex flex-col gap-2">
                         <Button
@@ -96,6 +120,16 @@
                         >
                           <Workflow class="size-4" />
                         </Button>
+                        <Button
+                          variant="secondary"
+                          size="icon-sm"
+                          class="rounded-full"
+                          :title="$t('openModelPage')"
+                          :aria-label="$t('openModelPage')"
+                          @click.stop="openModelPage(model)"
+                        >
+                          <ExternalLink class="size-4" />
+                        </Button>
                       </div>
                     </div>
                   </template>
@@ -118,11 +152,34 @@
         </div>
       </template>
     </ResponseScroll>
+
+    <!-- Bulk actions for the selection mode -->
+    <div
+      v-if="selection.state.enabled && selectionCount > 0"
+      class="mm-glass-light mm-scope mx-8 mb-2 flex items-center justify-between gap-4 rounded-mm-ctl border border-mm-border px-4 py-2"
+    >
+      <span class="text-sm text-mm-muted-fg tabular-nums">
+        {{ $t('selectedCount', { count: selectionCount }) }}
+      </span>
+      <div class="flex items-center gap-2">
+        <Button variant="secondary" size="sm" @click="addSelectedToWorkflow">
+          <Plus class="size-4" />
+          {{ $t('addToWorkflow') }}
+        </Button>
+        <Button variant="destructive" size="sm" @click="deleteSelected">
+          <Trash2 class="size-4" />
+          {{ $t('delete') }}
+        </Button>
+        <Button variant="ghost" size="sm" @click="selection.clear()">
+          {{ $t('clearSelection') }}
+        </Button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts" name="manager-dialog">
-import { Box, Copy, Plus, Workflow } from '@lucide/vue'
+import { Box, Copy, ExternalLink, ListChecks, Plus, Trash2, Workflow } from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { computed, ref } from 'vue'
@@ -136,14 +193,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { configSetting, useConfig } from 'hooks/config'
 import { useContainerQueries } from 'hooks/container'
 import { useModelNodeAction, useModels } from 'hooks/model'
+import { useToast } from 'hooks/toast'
+import { useSelection } from 'hooks/zipnn'
 import { app } from 'scripts/comfyAPI'
 import { type Model } from 'types/typings'
 import { genModelKey } from 'utils/model'
 
 const { isMobile, gutter, cardSize, cardSizeMap, cardSizeFlag, dialog: settings } = useConfig()
 
-const { data, folders, openModelDetail, getFullPath } = useModels()
+const { data, folders, openModelDetail, getFullPath, remove } = useModels()
 const { t } = useI18n()
+const { toast, confirm } = useToast()
 
 const toolbarContainer = ref<HTMLElement | null>(null)
 const { $2xl: $toolbar_2xl } = useContainerQueries(toolbarContainer)
@@ -315,4 +375,53 @@ const showModelName = computed(() => {
 })
 
 const { addModelNode, copyModelNode, loadPreviewWorkflow } = useModelNodeAction()
+const selection = useSelection()
+const selectionCount = selection.count
+
+const isSelected = (model: Model) => Boolean(selection.state.selected[genModelKey(model)])
+
+const handleCardClick = (model: Model) => {
+  if (selection.state.enabled) {
+    selection.toggle(genModelKey(model))
+    return
+  }
+  openModelDetail(model)
+}
+
+const toggleSelectMode = () => {
+  if (selection.state.enabled) selection.exit()
+  else selection.enter()
+}
+
+const selectedModels = () =>
+  list.value.flatMap(row => (row as any).row).filter((m: Model) => isSelected(m))
+
+const addSelectedToWorkflow = () => {
+  for (const model of selectedModels()) addModelNode(model)
+}
+
+const deleteSelected = () => {
+  const models = selectedModels()
+  confirm.require({
+    message: t('deleteAsk', [t('model').toLowerCase() + ` (${models.length})`]),
+    header: 'Danger',
+    icon: 'pi pi-info-circle',
+    rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
+    acceptProps: { label: t('delete'), severity: 'danger' },
+    accept: async () => {
+      for (const model of models) await remove(model)
+      selection.clear()
+    },
+    reject: () => {},
+  })
+}
+
+const openModelPage = (model: Model) => {
+  const page = (model as Model & { modelPage?: string }).modelPage
+  if (!page) {
+    toast.add({ severity: 'info', summary: t('noModelPage'), life: 4000 })
+    return
+  }
+  window.open(page, '_blank')
+}
 </script>

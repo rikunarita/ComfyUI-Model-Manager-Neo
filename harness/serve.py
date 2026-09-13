@@ -66,6 +66,17 @@ for idx, (name, directory) in enumerate(
 ):
     (directory / f"{name}.safetensors").write_bytes(b"M" * (2 * 1024 * 1024))
     (directory / f"{name}.webp").write_bytes(_gradient(idx))
+
+# One model is a real (stub-format) safetensors container with a compressible
+# float tensor, so the ZipNN pipeline can be exercised end to end.
+import safetensors.torch as _stub_st  # noqa: E402  (harness stub)
+from safetensors import StubTensor as _StubTensor  # noqa: E402
+
+_stub_st.save_file(
+    {"w": _StubTensor("float32", [65536], b"\x00" * 65536)},
+    str(VAE / "qwen_vae.safetensors"),
+    {"note": "zipnn e2e"},
+)
 # The first model carries a SECOND preview so the gallery plumbing (nav
 # buttons, counter, lightbox, multi-file save) is exercisable end to end.
 (CKPT / "anima-aesthetic-v1.preview.webp").write_bytes(_gradient(3))
@@ -315,6 +326,9 @@ PAGE = """<!doctype html>
   const params = new URLSearchParams(location.search)
   const wantedLocale = params.get('locale')
   const settings = wantedLocale ? {{ 'Comfy.Locale': wantedLocale }} : {{}}
+  // `?flat=0` pre-seeds a stored "flat off" preference so the one-time
+  // flat-default migration can be asserted.
+  if (params.get('flat') === '0') settings['ModelManager.UI.Flat'] = false
   const settingDefs = []
   const listeners = new Map()
   function $el(tag, props, children) {{

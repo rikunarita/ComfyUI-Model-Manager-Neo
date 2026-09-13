@@ -46,6 +46,8 @@ previews the harness synthesises for its demo library.
 | `ja-model-info.png`          | README, docs  | model detail in **Japanese**                                                                                                                                                   |
 | `toast-stack.png`            | docs          | the three severities at once: glass body, severity icon, tinted left bar, manual close button                                                                                  |
 | `lightbox.png`               | docs          | the full-screen preview viewer opened from a card preview, with `<` / `>` paging                                                                                               |
+| `selection-mode.png`         | docs          | selection mode: round per-card checkboxes and the bulk action bar (add to workflow / delete)                                                                                   |
+| `zipnn-button.png`           | docs          | the model detail window with the ZipNN call-to-action in the gap between preview and table                                                                                     |
 
 ## Not captured here (capture live instead)
 

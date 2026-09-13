@@ -39,6 +39,7 @@ from .py import download
 from .py import information
 from .py import upload
 from .py import upload_hf
+from .py import compress
 
 routes = config.routes
 
@@ -49,6 +50,7 @@ download.get_model_download().add_routes(routes)
 information.Information().add_routes(routes)
 upload.ModelUploader().add_routes(routes)
 upload_hf.HfUploader().add_routes(routes)
+compress.ZipNNRoutes().add_routes(routes)
 
 WEB_DIRECTORY = "web"
 NODE_CLASS_MAPPINGS = {}
