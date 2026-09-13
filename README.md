@@ -1144,6 +1144,40 @@ strategy order, caching, CFLAGS, wheel directory, prerequisite hint and the
 artwork-as-button contract), plus `mypy`, `typecheck`, `lint`, `format:check`
 and `build` clean.
 
+<a id="thirteenth-pass"></a>
+
+## <img src="https://api.iconify.design/lucide/hammer.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Thirteenth pass (recorded-compiler substitution, folded failures, 2× artwork)
+
+A field report from a Gentoo-flavoured host exposed the last blind spot of the
+installer: CPython remembers the compiler it was _built_ with in `sysconfig`
+(`x86_64-pc-linux-gnu-gcc`), and distutils execs exactly that name - so the
+build died with `[Errno 2] No such file or directory:
+'x86_64-pc-linux-gnu-gcc'` even though a usable compiler could have done the
+job, while the log repeated the same 25-line pip tail three times:
+
+- **`$CC` substitution.** When the recorded compiler cannot be found, the
+  installer looks for a working one (`cc`/`gcc`/`clang` on `PATH`, then the
+  standard bindirs - ComfyUI is often started with a stripped-down `PATH`) and
+  runs every pip attempt with `CC` pointed at it (plus an `LDSHARED` splice so
+  the link step uses the same binary on older distutils copies). `CC` entries
+  _replace_ the inherited environment; flag lists like `CFLAGS` still append.
+- **Honest warnings.** The prerequisite warning only claims "no C compiler"
+  when nothing usable exists anywhere; `/etc/os-release` `ID_LIKE` is consulted
+  for the distro fix command, and unknown distros get a generic one instead of
+  silence.
+- **Folded details.** Identical pip tails across strategies collapse into one
+  block (`[no-deps - the identical failure repeated for: full,
+no-build-isolation]`), and the two signatures worth naming - the missing
+  _recorded_ compiler and missing `Python.h` - each get a plain-language
+  sentence in the final error.
+- **2× artwork.** The ZipNN button is now 88 px (`size-22`, double its previous
+  size); E27g pins the exact geometry.
+
+Verification after this pass: `verify:py` **79 assertions** (P34k–P34o pin the
+substitution, warning honesty, folding, diagnosis and the replace/append env
+semantics), `verify:e2e` **89 assertions**, plus `mypy`, `typecheck`, `lint`,
+`format:check` and `build` clean; all 22 screenshots re-rendered.
+
 <a id="development"></a>
 
 ## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Development
@@ -1165,7 +1199,7 @@ pnpm install
 | `pnpm typecheck`                        | `vue-tsc --noEmit` type checking                                        |
 | `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                    |
 | `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                     |
-| `pnpm verify:py`                        | Python route/lifecycle probe (`harness/py_probe.py`, 74 assertions)     |
+| `pnpm verify:py`                        | Python route/lifecycle probe (`harness/py_probe.py`, 79 assertions)     |
 | `pnpm verify:e2e`                       | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 89)    |
 | `python -m mypy --config-file mypy.ini` | Backend static types (C-3), clean                                       |
 

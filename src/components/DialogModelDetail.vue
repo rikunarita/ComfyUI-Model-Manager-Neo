@@ -39,7 +39,7 @@
                 -->
                 <button
                   type="button"
-                  class="mm-zipnn-button mr-auto size-11 shrink-0"
+                  class="mm-zipnn-button mr-auto size-22 shrink-0"
                   :aria-label="isCompressed ? $t('zipnnDecompress') : $t('zipnnCompress')"
                   :title="isCompressed ? $t('zipnnDecompress') : $t('zipnnCompress')"
                   @click="requestZipnn"

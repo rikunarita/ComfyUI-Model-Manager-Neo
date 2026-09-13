@@ -315,7 +315,14 @@ the ComfyUI console), names the missing prerequisite together with the
 distro-specific command that fixes it, and offers a **retry** action - a failed
 install is cached for five minutes so hammering the button never re-runs a
 doomed build. Air-gapped hosts can drop a prebuilt wheel into
-`assets/zipnn-wheels/`; it is preferred over PyPI.
+`assets/zipnn-wheels/`; it is preferred over PyPI. When the compiler CPython
+recorded at build time (e.g. Gentoo's `x86_64-pc-linux-gnu-gcc`) is missing
+while another `cc`/`gcc`/`clang` exists, the installer silently substitutes it
+through the `CC` environment variable; identical failures of the several
+install strategies are folded into one block in the error message, which also
+names in plain words the compiler that could not be executed or the missing
+Python headers. To choose the compiler yourself, export `CC=/path/to/gcc`
+before starting ComfyUI.
 
 ## 9. Settings
 

@@ -22,6 +22,7 @@ first time the feature is used.
 
 import asyncio
 import os
+import re
 import uuid
 from typing import Any, Callable, Optional
 
@@ -98,6 +99,18 @@ _ZIPNN_BUILD_CFLAGS = (
 # wheels into this directory and they are preferred over PyPI.
 _ZIPNN_WHEEL_DIR = "zipnn-wheels"
 
+# Compiler binary names worth picking up as a substitute, and the pip failure
+# signature of "distutils tried to exec a compiler that does not exist"
+# (e.g. `error: [Errno 2] No such file or directory: 'x86_64-pc-linux-gnu-gcc'`).
+_CC_NAME_RE = re.compile(
+    r"^(?:cc|clang(?:-\d+)?|gcc(?:-\d+(?:\.\d+)*)?|(?:[A-Za-z0-9_.]+-)+gcc(?:-\d+)?)$"
+)
+_CC_MISSING_RE = re.compile(r"No such file or directory: '([^']*(?:gcc|clang|cc)[^']*)'")
+
+# Values for these keys are *appended* to whatever the environment already has
+# (they are flag lists); every other key passed to `_run_pip` replaces it.
+_ENV_APPEND_KEYS = frozenset({"CFLAGS", "CPPFLAGS", "CXXFLAGS", "LDFLAGS"})
+
 # A failed install is remembered so that hammering the button does not re-run a
 # doomed multi-minute build - but only for a while: the user may fix their
 # toolchain, and the UI offers an explicit retry (`force`).
@@ -128,15 +141,105 @@ _PKG_MANAGER_HINTS = {
 }
 
 
-def _distro_id() -> str:
+def _distro_ids() -> list[str]:
+    """IDs from /etc/os-release (``ID`` plus every ``ID_LIKE`` token).
+
+    Derivatives often miss from a distro -> command table while their
+    ``ID_LIKE`` (e.g. ``gentoo``, ``debian``) hits, so both are consulted.
+    """
+    ids: list[str] = []
     try:
         with open("/etc/os-release", encoding="utf-8") as f:
             for line in f:
-                if line.startswith("ID="):
-                    return line.split("=", 1)[1].strip().strip('"').lower()
+                key, _, value = line.partition("=")
+                if key.strip() in ("ID", "ID_LIKE"):
+                    ids += [tok.strip().strip('"').lower() for tok in value.split()]
     except OSError:
         pass
-    return ""
+    return ids
+
+
+def _recorded_cc() -> str:
+    """The compiler binary a source build will try to exec.
+
+    distutils/setuptools use ``$CC`` when set, otherwise the compiler CPython
+    itself was built with (``sysconfig`` ``CC``). On distros such as Gentoo
+    that recorded name is a triplet-prefixed binary
+    (``x86_64-pc-linux-gnu-gcc``) which can be absent even when a perfectly
+    usable ``gcc`` exists - the build then dies with the cryptic
+    ``[Errno 2] No such file or directory: 'x86_64-pc-linux-gnu-gcc'``.
+    """
+    import sysconfig
+
+    cc = os.environ.get("CC") or sysconfig.get_config_var("CC") or "cc"
+    return cc.split()[0]
+
+
+def _find_cc(recorded: str) -> str | None:
+    """A usable substitute compiler, or ``None``.
+
+    Only meaningful when ``recorded`` (what distutils would exec) cannot be
+    found. Looks on ``PATH`` first, then scans the standard bindirs: ComfyUI is
+    often started from a GUI/session/service with a stripped-down ``PATH``,
+    and a perfectly good ``/usr/bin/gcc`` then "does not exist" as far as
+    ``shutil.which()`` is concerned.
+    """
+    import shutil
+    import sys
+
+    if shutil.which(recorded):
+        return None
+    for name in ("cc", "gcc", "clang"):
+        found = shutil.which(name)
+        if found:
+            return found
+    dirs: list[str] = []
+    conda = os.environ.get("CONDA_PREFIX")
+    if conda:
+        dirs.append(os.path.join(conda, "bin"))
+    dirs.append(os.path.join(sys.prefix, "bin"))
+    dirs += ["/usr/bin", "/bin", "/usr/local/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin"]
+    seen: set[str] = set()
+    for directory in dirs:
+        if directory in seen:
+            continue
+        seen.add(directory)
+        try:
+            entries = os.listdir(directory)
+        except OSError:
+            continue
+        # Prefer the plainest name ("cc" < "gcc" < "gcc-13" < "x86_64-...-gcc").
+        for name in sorted(entries, key=lambda e: (len(e), e)):
+            if _CC_NAME_RE.match(name):
+                path = os.path.join(directory, name)
+                if os.path.isfile(path) and os.access(path, os.X_OK):
+                    return path
+    return None
+
+
+def _cc_env_patch() -> tuple[dict[str, str], str | None]:
+    """Environment overrides rescuing a build whose recorded compiler is gone.
+
+    Exporting ``CC`` makes distutils (including the copy vendored into pip's
+    build isolation) exec the substitute instead, and splicing ``LDSHARED``
+    keeps the link step on the same binary (older distutils do this
+    themselves, but not every vendored copy does).
+    """
+    import sysconfig
+
+    recorded = _recorded_cc()
+    alt = _find_cc(recorded)
+    if not alt:
+        return {}, None
+    env = {"CC": alt}
+    ldshared = sysconfig.get_config_var("LDSHARED") or ""
+    if ldshared.startswith(recorded):
+        env["LDSHARED"] = alt + ldshared[len(recorded):]
+    note = (
+        f"the compiler this Python expects (`{recorded}`) was not found; "
+        f"building with CC={alt} instead"
+    )
+    return env, note
 
 
 def _python_headers_missing() -> bool:
@@ -161,22 +264,23 @@ def _build_prereq_hint() -> str | None:
     """Explain *why* a source build would fail, with the command that fixes it.
 
     PyPI ships no Linux wheel for ZipNN, so `pip install zipnn` compiles a C
-    extension. The two overwhelmingly common reasons that fails are a missing
+    extension. The overwhelmingly common reasons that fails are a missing
     compiler and missing Python headers (`fatal error: Python.h: No such file
-    or directory`) - neither is visible in a bare "exit status 1".
+    or directory`) - neither is visible in a bare "exit status 1". A missing
+    *recorded* compiler (the triplet-prefixed one from sysconfig) does not
+    count when :func:`_find_cc` can substitute a working one via ``$CC``.
     """
     import shutil
     import sys
     import sysconfig
 
     missing: list[str] = []
-    cc = (
-        shutil.which(os.environ.get("CC", ""))
-        if os.environ.get("CC")
-        else None
-    ) or shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
-    if not cc:
-        missing.append("no C compiler (cc/gcc/clang) on PATH")
+    recorded = _recorded_cc()
+    if not shutil.which(recorded) and not _find_cc(recorded):
+        missing.append(
+            f"no C compiler anywhere (the one this Python expects is "
+            f"`{recorded}`, and no cc/gcc/clang substitute was found)"
+        )
     if _python_headers_missing():
         missing.append(
             f"no Python headers (Python.h not found for {sysconfig.get_paths().get('include')})"
@@ -187,14 +291,22 @@ def _build_prereq_hint() -> str | None:
     if sys.platform == "darwin":
         fix = "xcode-select --install"
     else:
-        fix = _PKG_MANAGER_HINTS.get(_distro_id(), "")
+        fix = ""
+        for distro in _distro_ids():
+            fix = _PKG_MANAGER_HINTS.get(distro, "")
+            if fix:
+                break
     if os.environ.get("CONDA_PREFIX"):
         fix = (fix + "  |  conda: ").strip("  |  ") + (
             "conda install -y -c conda-forge cxx-compiler"
         )
+    if not fix:
+        fix = (
+            "install a C compiler (gcc or clang) and the Python development "
+            "headers (python3-dev / python3-devel or your distro's equivalent)"
+        )
     hint = "Build prerequisites look incomplete: " + "; ".join(missing) + "."
-    if fix:
-        hint += f" Fix it with: {fix}"
+    hint += f" Fix it with: {fix}"
     return hint
 
 
@@ -222,13 +334,21 @@ def _run_pip(args: list[str], extra_env: dict[str, str] | None = None) -> str:
     The previous implementation used ``subprocess.run(..., check=True)`` without
     capturing anything, so a failed build surfaced as a bare
     "returned non-zero exit status 1" with no way to tell *why*.
+
+    ``extra_env`` entries for flag-list keys (:data:`_ENV_APPEND_KEYS`) are
+    *appended* to whatever the environment already carries; every other key
+    (``CC``, ``LDSHARED``, ...) *replaces* it - appending to a broken ``CC``
+    would just produce a broken two-word command line.
     """
     import subprocess
     import sys
 
     env = os.environ.copy()
     for key, value in (extra_env or {}).items():
-        env[key] = f"{env.get(key, '')} {value}".strip()
+        if key in _ENV_APPEND_KEYS:
+            env[key] = f"{env.get(key, '')} {value}".strip()
+        else:
+            env[key] = value
     proc = subprocess.run(
         [sys.executable, "-m", "pip", *args],
         capture_output=True,
@@ -271,8 +391,12 @@ def ensure_zipnn(force: bool = False) -> None:
     Every attempt is compiled with a few ``-Wno-error=...`` flags: gcc >= 14 and
     clang >= 16 default ``implicit-function-declaration`` /
     ``incompatible-pointer-types`` to hard errors, which made ZipNN 0.5.4's C
-    sources fail to build on modern toolchains. Failures carry the tail of pip's
-    own output plus a host-specific prerequisite hint, and are cached for
+    sources fail to build on modern toolchains. When the compiler this Python
+    was configured with (``sysconfig`` ``CC``, e.g. a Gentoo
+    ``x86_64-pc-linux-gnu-gcc``) is not installed but some other usable
+    compiler is, every attempt runs with ``CC`` pointed at the substitute.
+    Failures carry the tail of pip's own output (identical tails folded into
+    one block) plus a host-specific prerequisite hint, and are cached for
     :data:`_ZIPNN_INSTALL_TTL` seconds so repeated presses do not re-run a
     doomed build (``force=True``, used by the UI retry, bypasses the cache).
     """
@@ -293,9 +417,12 @@ def ensure_zipnn(force: bool = False) -> None:
     hint = _build_prereq_hint()
     if hint:
         utils.print_info(f"  warning: {hint}")
-    cflags = {"CFLAGS": _ZIPNN_BUILD_CFLAGS}
+    cc_env, cc_note = _cc_env_patch()
+    if cc_note:
+        utils.print_info(f"  note: {cc_note}")
+    build_env = {"CFLAGS": _ZIPNN_BUILD_CFLAGS, **cc_env}
     wheel_dir = utils.join_path(config.extension_uri, "assets", _ZIPNN_WHEEL_DIR)
-    errors: list[str] = []
+    failures: list[tuple[str, str]] = []
 
     attempts: list[tuple[str, list[str]]] = []
     wheels = (
@@ -312,11 +439,14 @@ def ensure_zipnn(force: bool = False) -> None:
     for label, args in attempts:
         try:
             if label == "no-build-isolation":
-                _run_pip(["install", "setuptools", "wheel", "numpy", "safetensors", "torch"])
+                _run_pip(
+                    ["install", "setuptools", "wheel", "numpy", "safetensors", "torch"],
+                    cc_env,
+                )
             utils.print_info(f"  trying: pip {' '.join(args)} ({label})")
-            _run_pip(args, cflags)
+            _run_pip(args, build_env)
         except Exception as e:
-            errors.append(f"[{label}] {e}")
+            failures.append((label, str(e)))
             continue
         if zipnn_available():
             _zipnn_install_failed = None
@@ -332,14 +462,52 @@ def ensure_zipnn(force: bool = False) -> None:
             utils.print_error(message)
             raise ZipNNInstallError(message)
 
+    # Every strategy failed. The same root cause usually kills all of them, so
+    # identical pip tails are folded into one block instead of being printed
+    # three times, and the two signatures worth calling out by name (a missing
+    # *recorded* compiler, missing Python.h) get a sentence of their own.
+    blocks: list[str] = []
+    labels_by_text: dict[str, list[str]] = {}
+    for label, text in failures:
+        if text in labels_by_text:
+            labels_by_text[text].append(label)
+            continue
+        labels_by_text[text] = [label]
+        blocks.append(text)
+    details: list[str] = []
+    for text in blocks[-3:]:
+        labels = labels_by_text[text]
+        head = (
+            f"[{labels[0]}]"
+            if len(labels) == 1
+            else f"[{labels[0]} - the identical failure repeated for: {', '.join(labels[1:])}]"
+        )
+        details.append(f"{head} {text}")
+    joined = "\n".join(text for _, text in failures)
+    diagnosis = ""
+    match = _CC_MISSING_RE.search(joined)
+    if match and "CC" not in cc_env:
+        diagnosis += (
+            f" The build tried to run `{match.group(1)}` - the compiler this "
+            "Python was configured with - and no substitute exists on this "
+            "machine: install any C compiler (or export CC=/path/to/gcc before "
+            "starting ComfyUI), then use the toast's retry action."
+        )
+    if "Python.h" in joined and _python_headers_missing():
+        diagnosis += (
+            " The Python development headers are missing as well - a compiler "
+            "alone is not enough; install the matching headers package "
+            "(python3-dev / python3-devel or your distro's equivalent)."
+        )
     message = (
         "ZipNN could not be installed on this machine. PyPI ships no Linux "
         "wheels for it, so it has to be built from source, which needs a C "
         "compiler and the Python headers (Python.h). "
         + (hint + " " if hint else "")
-        + "Alternatively drop a prebuilt wheel into `assets/zipnn-wheels/`. "
-        "Details:\n"
-        + "\n".join(errors[-4:])
+        + "Alternatively drop a prebuilt wheel into `assets/zipnn-wheels/`."
+        + diagnosis
+        + " Details:\n"
+        + "\n".join(details)
     )
     _zipnn_install_failed = (message, time.time())
     utils.print_error(message)

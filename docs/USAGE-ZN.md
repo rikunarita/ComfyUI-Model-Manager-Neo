@@ -273,7 +273,11 @@ HTTP `Range` 断点续传。
 (`Python.h`)**。若安装失败，错误提示会显示 pip 的第一条关键信息(完整输出在 ComfyUI
 控制台)、缺失的依赖以及对应发行版的修复命令，并提供**重试**操作——失败的安装会
 缓存 5 分钟，反复点击不会重复执行注定失败的构建。离线环境可将预编译 wheel 放入
-`assets/zipnn-wheels/`，它优先于 PyPI 使用。
+`assets/zipnn-wheels/`，它优先于 PyPI 使用。若 Python 构建时记录的编译器名(如
+Gentoo 系的 `x86_64-pc-linux-gnu-gcc`)未安装、但存在其他可用的 `cc`/`gcc`/`clang`，
+安装器会通过 `CC` 环境变量自动替代它；多个安装策略因同一原因失败时，
+pip 日志会在错误信息中折叠为一条，并以平实语言点名无法执行的编译器或缺失的
+Python 头文件。如需自行指定编译器，请在启动 ComfyUI 前导出 `CC=/path/to/gcc`。
 
 ## 9. 设置
 

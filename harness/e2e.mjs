@@ -1223,10 +1223,10 @@ try {
   )
   const znnBox = await znnButton.boundingBox()
   check(
-    'E27g the button *is* the SVG artwork: bare, square, no text label',
+    'E27g the button *is* the SVG artwork: bare, square (2x = 88px), no text label',
     (await znnButton.innerText()).trim() === '' &&
       !!znnBox &&
-      znnBox.width >= 40 &&
+      Math.abs(znnBox.width - 88) <= 4 &&
       Math.abs(znnBox.width - znnBox.height) < 2,
     JSON.stringify(znnBox),
   )

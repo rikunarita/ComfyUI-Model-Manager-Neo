@@ -16,3 +16,11 @@ pip wheel zipnn --no-deps -w assets/zipnn-wheels/
 ```
 
 Wheels themselves are git-ignored (`*.whl`); only this README is tracked.
+
+Before reaching for a wheel, note the installer also self-heals one very common
+failure on its own: when the compiler CPython recorded at build time (e.g.
+Gentoo's `x86_64-pc-linux-gnu-gcc`) is not installed but *some* usable
+`cc`/`gcc`/`clang` exists (even outside a stripped-down `PATH`), every build
+attempt runs with `CC` pointed at the substitute. Check the ComfyUI console for
+a `note: the compiler this Python expects (...) was not found; building with
+CC=...` line to see whether that happened.

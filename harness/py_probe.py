@@ -730,6 +730,114 @@ async def main() -> None:
                 str(_calls[:1]),
             )
 
+            # P34k-P34o: the failure reported from the field - distutils execs
+            # the compiler this Python was *built* with (Gentoo and friends
+            # record a triplet name like `x86_64-pc-linux-gnu-gcc`), which can
+            # be missing even when a usable `cc`/`gcc` exists. The installer
+            # must substitute it via $CC, fold identical attempt failures into
+            # one block, and name the compiler the build could not exec.
+            _cc_bin = Path(tempfile.mkdtemp(prefix="mmneo-cc-"))
+            (_cc_bin / "gcc").write_text("#!/bin/sh\nexit 0\n")
+            (_cc_bin / "gcc").chmod(0o755)
+            _saved_recorded = _compress._recorded_cc
+            _saved_cc_patch = _compress._cc_env_patch
+            _saved_env_path = os.environ.get("PATH")
+            _saved_env_cc = os.environ.get("CC")
+            _saved_env_cflags = os.environ.get("CFLAGS")
+            try:
+                os.environ["PATH"] = str(_cc_bin)
+                os.environ.pop("CC", None)
+                _compress._recorded_cc = lambda: "x86_64-pc-linux-gnu-gcc"
+                _env, _note = _compress._cc_env_patch()
+                check(
+                    "P34k a missing recorded compiler is substituted via $CC",
+                    _env.get("CC") == str(_cc_bin / "gcc")
+                    and "x86_64-pc-linux-gnu-gcc" in (_note or ""),
+                    f"{_env} {_note}",
+                )
+                _hint2 = _compress._build_prereq_hint() or ""
+                check(
+                    "P34l with a substitute found the warning stops claiming 'no C compiler'",
+                    "no C compiler" not in _hint2,
+                    _hint2[:200],
+                )
+
+                def _boom_cc(args, extra_env=None):
+                    _calls.append((list(args), dict(extra_env or {})))
+                    raise RuntimeError(
+                        "`pip install --no-deps zipnn` failed (exit 1):\n"
+                        "error: [Errno 2] No such file or directory: "
+                        "'x86_64-pc-linux-gnu-gcc'"
+                    )
+
+                _compress._run_pip = _boom_cc
+                _compress._cc_env_patch = lambda: ({}, None)  # nothing found
+                _compress._zipnn_install_failed = None
+                _calls.clear()
+                try:
+                    _compress.ensure_zipnn()
+                    _p34m = ""
+                except Exception as e:
+                    _p34m = str(e)
+                check(
+                    "P34m identical attempt failures are folded into one block",
+                    _p34m.count("failed (exit 1)") == 1
+                    and "identical failure repeated for" in _p34m,
+                    _p34m[:300],
+                )
+                check(
+                    "P34n the message names the compiler distutils could not exec",
+                    "The build tried to run `x86_64-pc-linux-gnu-gcc`" in _p34m,
+                    _p34m[:300],
+                )
+
+                # P34o: _run_pip replaces $CC (a broken inherited value must
+                # not be kept) while flag lists like CFLAGS are appended.
+                import subprocess as _sp
+
+                _real_run = _sp.run
+                _spy_env: dict = {}
+
+                def _spy_run(cmd, **kw):
+                    _spy_env.update(kw.get("env") or {})
+                    return _real_run(
+                        [sys.executable, "-c", "pass"],
+                        capture_output=True,
+                        text=True,
+                        env=kw.get("env"),
+                    )
+
+                _sp.run = _spy_run
+                try:
+                    os.environ["CC"] = "/broken/x86_64-pc-linux-gnu-gcc"
+                    os.environ["CFLAGS"] = "-O0"
+                    _saved["_run_pip"](
+                        ["--version"], {"CC": "/usr/bin/cc", "CFLAGS": "-Wno-x"}
+                    )
+                finally:
+                    _sp.run = _real_run
+                check(
+                    "P34o $CC is replaced (not appended) while CFLAGS is appended",
+                    _spy_env.get("CC") == "/usr/bin/cc"
+                    and _spy_env.get("CFLAGS", "").startswith("-O0")
+                    and "-Wno-x" in _spy_env.get("CFLAGS", ""),
+                    f"CC={_spy_env.get('CC')} CFLAGS={_spy_env.get('CFLAGS')}",
+                )
+            finally:
+                _compress._recorded_cc = _saved_recorded
+                _compress._cc_env_patch = _saved_cc_patch
+                _compress._run_pip = _saved["_run_pip"]
+                if _saved_env_path is None:
+                    os.environ.pop("PATH", None)
+                else:
+                    os.environ["PATH"] = _saved_env_path
+                for _k, _v in (("CC", _saved_env_cc), ("CFLAGS", _saved_env_cflags)):
+                    if _v is None:
+                        os.environ.pop(_k, None)
+                    else:
+                        os.environ[_k] = _v
+                shutil.rmtree(_cc_bin, ignore_errors=True)
+
             # P34j: an install failure is flagged so the UI can offer a retry.
             _compress._zipnn_install_failed = None
 
