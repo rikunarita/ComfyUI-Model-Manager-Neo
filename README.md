@@ -18,20 +18,11 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 
 <!--
   ┌──────────────────────────────────────────────────────────────────────────┐
-  │  IMAGES TO PREPARE (this fork intentionally ships NO upstream images)    │
-  │  Create a `docs/screenshots/` folder and drop the files listed below.      │
-  │  Each placeholder in this README already points at its final path, so the  │
-  │  picture appears automatically once you add the file. Suggested capture:   │
-  │  a real ComfyUI window running this extension, dark theme, ~1600px wide.   │
-  │                                                                            │
-  │    1. docs/screenshots/hero.gif            – 8‑10s looping overview        │
-  │    2. docs/screenshots/view-flat.png       – Flat "Models" grid            │
-  │    3. docs/screenshots/view-folders.png    – Folder (explorer) view        │
-  │    4. docs/screenshots/node-graph.gif      – drag a card onto the canvas   │
-  │    5. docs/screenshots/download.png        – Create Download Task dialog   │
-  │    6. docs/screenshots/hf-upload.png       – Upload to HuggingFace dialog  │
-  │    7. docs/screenshots/model-info.png      – Model info (preview + tabs)   │
-  │    8. docs/screenshots/settings.png        – ComfyUI settings (API keys)   │
+  │  SCREENSHOTS                                                             │
+  │  The images referenced below ship in `docs/screenshots/` and are rendered │
+  │  by the verification harness from the real production bundle             │
+  │  (`pnpm capture`, see docs/screenshots/README.md for the full manifest    │
+  │  and for which two shots are better taken from a live ComfyUI window).    │
   └──────────────────────────────────────────────────────────────────────────┘
 -->
 
@@ -50,8 +41,10 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
   [Third reliability pass](#pass-3) · [Fourth reliability pass](#pass-4) ·
   [Fifth reliability pass](#pass-5) · [Sixth reliability pass](#pass-6) ·
   [Seventh reliability pass](#pass-7) ·
-  [Eighth reliability pass](#pass-8)
-- [Development](#development) · [Credits & Attribution](#credits) · [License](#license)
+  [Eighth reliability pass](#pass-8) ·
+  [Ninth reliability pass](#pass-9)
+- [Documentation](#documentation) · [Development](#development) ·
+  [Credits & Attribution](#credits) · [License](#license)
 
 ---
 
@@ -101,22 +94,32 @@ the experience from the ground up:
 
 ![Flat models grid](docs/screenshots/view-flat.png)
 
-_What to capture:_ the manager dialog in **Flat** layout showing a grid of model
-cards with previews, the search bar, and the type / sort / card‑size selectors.
+The manager window in **Flat** layout: a grid of glass model cards with preview,
+type and size chips, the search bar, and the type / sort / card‑size selectors.
 
 ### Folder (explorer) view — navigate your directory tree
 
 ![Folder explorer view](docs/screenshots/view-folders.png)
 
-_What to capture:_ the **Folder** layout with the breadcrumb trail and folder
-cards, ideally one level deep inside a model type.
+The **Folder** layout one level deep, with the breadcrumb trail (each crumb
+carries the tiny folder glyph) and the animated glass folder cards.
 
-### Drag a model straight onto the graph
+### Model detail, editing, and the HuggingFace upload
 
-![Drag onto node graph](docs/screenshots/node-graph.gif)
+|                                                                                                   |                                                                                                  |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| ![Model info](docs/screenshots/model-info.png)                                                    | ![Edit mode](docs/screenshots/model-edit.png)                                                    |
+| _Model info: preview, base‑info table (note the trailing `/` on **Directory**), Description tab._ | _Edit mode: type dropdown, folder picker button, file name that accepts a `folder/name` prefix._ |
 
-_What to capture:_ a 4–6 s clip dragging a model card from the manager onto the
-ComfyUI canvas, spawning a loader node with the model already selected.
+|                                                                                |                                                                                          |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| ![HuggingFace upload](docs/screenshots/hf-upload.png)                          | ![Japanese UI](docs/screenshots/ja-model-info.png)                                       |
+| _Upload to HuggingFace, step 3: repo id, private‑on‑create, destination path._ | _The same window in **日本語** — the UI ships complete English / 中文 / 日本語 bundles._ |
+
+A 10‑second tour (open → folder view → hover a folder → back → open a model) is
+[`docs/screenshots/hero.gif`](docs/screenshots/hero.gif); dragging a card onto a
+live canvas is best captured from a real ComfyUI window — see
+[`docs/screenshots/README.md`](docs/screenshots/README.md).
 
 ---
 
@@ -231,7 +234,9 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   (with `CIVITAI_API_KEY` / `HF_TOKEN` environment fallbacks). Keys migrate out
   of ComfyUI user settings on first run.
 - Exclude model types from the model list; include/exclude hidden files.
-- UI language follows ComfyUI's locale — **English** and **中文** bundled.
+- UI language follows ComfyUI's locale — **English**, **中文** and **日本語**
+  bundled in full; region/script subtags (`ja-JP`, `zh-Hant-TW`, …) fold onto
+  their base language.
 
 </details>
 
@@ -317,8 +322,9 @@ you are looking at, everything the scan used to backfill in bulk.
   from the safetensors header) and the Markdown notes stored beside the file.
 - The preview is served by `GET /model-manager/preview/{type}/{index}/{filename}`,
   which resolves whichever preview file exists (`.webp` / `.png` / `.jpg` / video,
-  as `name.ext` or `name.preview.ext`) and otherwise falls back to the bundled
-  placeholder.
+  as `name.ext` or `name.preview.ext`). A model without one carries the bundled
+  glass `NO-PREVIEW.svg` URL straight in the model list, so the route has no
+  fallback chain and answers a plain 404 for anything that does not exist.
 
 A library‑wide walk that hashed every model and queried Civitai by hash was a
 second, far slower route to the same information — plus a modal dialog, a global
@@ -854,6 +860,127 @@ Harness totals after this pass: `pnpm verify:py` 40 assertions,
 `pnpm verify:e2e` 38 assertions, plus `typecheck` / `lint` / `format:check` /
 clean `build`.
 
+<a id="pass-9"></a>
+
+## <img src="https://api.iconify.design/lucide/scroll-text.svg?color=%230891b2" width="28" height="28" align="middle" alt=""> Ninth reliability pass (upload honesty, stacking order, panel‑scoped loading, editing reach, Japanese)
+
+A user‑reported failure (“uploading to an existing private repository prints
+`Upload 0 LFS files` and the upload never starts”) was reproduced against the
+**real** `huggingface_hub` 1.30.0 pointed at a local Hub emulator that replays
+the reported HTTP trace byte for byte, then root‑caused and fixed; the same
+audit fixed the popup stacking, the loading overlay and the editing reach.
+
+**HuggingFace upload**
+
+- **A zero‑byte commit was reported as a plain “Success”.** When the Hub already
+  holds the exact bytes, the LFS batch answer carries no upload action
+  (`Upload 0 LFS files`) yet a **new commit is still created** — so the old
+  HEAD‑comparison never noticed, the progress bar never moved once, and a
+  bare success toast appeared next to it. `_ProgressFile` now counts the bytes
+  it actually hands to the transfer; a commit that moved none is reported as
+  `deduplicated`, and the UI explains it with a link to the committed file.
+- **The local hash pass was invisible.** Hashing a multi‑gigabyte checkpoint
+  takes minutes during which nothing was sent and nothing was shown — the real
+  reason an upload “never starts”. The hash pass is now a named phase
+  (`Preparing…` / `Hashing…` / `Uploading…`) with live percentages, and the
+  pre‑flight duplicate check compares **sizes first** so an unrelated file no
+  longer pays for a full hash.
+- **`_ProgressFile` mis‑detected its phase for files ≤ 512 B** (`from_fileobj`
+  starts with `read(512)`, so the sample read already hit EOF and the hashing
+  pass was mistaken for the transfer). Phase now flips on the first _true_ EOF.
+- **huggingface_hub 1.30.0 crashes on a spec‑legal LFS batch answer.**
+  `_validate_batch_actions` reads `response.get("actions", {}).get("upload")`,
+  which raises `AttributeError` when the Hub answers `"actions": null` (the
+  git‑-lfs way of saying “already in storage”). Verified against the real
+  library; the upload now retries **once** through the file‑path route, which
+  takes the `hf_xet` code path and never calls the batch endpoint.
+
+**Popup stacking order**
+
+- z‑indexes were scattered literals (`z-50` … `z-2800`, `9999`) plus three
+  ad‑hoc inline `:style="{ zIndex: 2600 }"` patches. Everything teleported to
+  `<body>` at Tailwind's default `z-50` — the **folder‑path picker**, the dialog
+  overlay/content defaults, `SelectContent`, `SheetContent`/`SheetOverlay` —
+  painted _behind_ the 2400+ dialog windows, i.e. at the very back. A single
+  `--mm-z-*` scale in `style.css` (2400 dialog / 2700 nested / 2800 popover /
+  2900 confirm / 3000 toast) is now the only source of truth, and every `ui/*`
+  wrapper defaults to it.
+- **Toasts were `position: static`.** `Sonner` runs `unstyled` and deliberately
+  does not import vue‑sonner's stylesheet — which silently dropped the toaster's
+  `position: fixed`, offsets **and z‑index** with it. Measured consequences: the
+  toast container gave `#comfyui-model-manager` a real 70 px height (pushing the
+  host page down), painted at `z-index: auto` underneath every dialog, and each
+  toast overflowed its 356 px slot by 37 px because `box-sizing` fell back to the
+  UA `content-box`. Positioning and box model are restored with scoped CSS only;
+  the library stylesheet stays unimported so the host `<html>` is never polluted.
+
+**Loading overlay**
+
+- The viewport‑wide `fixed inset-0`, `z-index: 9999` scrim is gone. The overlay
+  (`PanelLoading`) now renders **inside the topmost window only**, so a refresh
+  dims and blurs that one panel while the canvas, the top bar and every other
+  window stay visible and usable.
+- `useLoading` had a live leak: a second `show()` for a target whose 200 ms grace
+  timer was still pending orphaned the first timer, whose later firing left the
+  global counter at 1 — the overlay then **never went away**. Pending shows for
+  the same target are now a no‑op, and the counter can no longer go negative.
+
+**Editing reach**
+
+- The **Directory** row renders as a directory, with its trailing separator
+  (`…/models/unet/`), in both the download editor and the saved‑model detail.
+  The folder Tree keeps keying on the plain path through a dedicated
+  `folderKey`, so display and selection cannot drift.
+- The file‑name field accepts a **folder prefix** (`sub/name.safetensors`); `/`
+  is no longer rejected as an illegal character (empty / `.` / `..` segments
+  still are, and the backend re‑checks traversal). Missing directories are
+  created on save.
+- Editing a description no longer requires clicking an invisible full‑size
+  overlay on top of the rendered markdown (which also swallowed the markdown's
+  own links): an explicit **Edit** icon button opens the textarea.
+
+**Japanese**
+
+- `src/locales/ja.json` added; all three bundles carry the same 150 leaf keys
+  (mechanically asserted), `Comfy.Locale` / `navigator.language` region and
+  script subtags are normalised, and ~40 strings that were hard‑coded English
+  (toast summaries, empty states, validation messages, model‑type labels, the
+  API‑key dialog) moved into i18n. Note for future translators: vue‑i18n treats
+  `|` as its plural separator, so a literal pipe must be written `{'|'}` —
+  leaving it raw makes `t()` throw and silently disables the validator.
+
+**Verification**
+
+- `pnpm verify:py` 40 → **46 assertions** (folder‑prefix rename landing in a new
+  sub‑folder, traversal still refused, missing `pathIndex` validated, a task
+  without a description completing — the last one proven by a negative control:
+  reverting the one‑line guard fails it).
+- `pnpm verify:e2e` 38 → **64 assertions**: measured z‑index _and_ hit‑testing
+  for menu / tooltip / nested picker / confirm / toasts, the panel‑scoped
+  loading scrim (present inside the panel, absent over the host, gone when the
+  request settles), the trailing‑slash Directory row, a real folder‑prefix
+  rename moving the file on disk, the description Edit icon, and the Japanese
+  bundle rendering under `?locale=ja`.
+- `pnpm capture` / `pnpm capture --video` render every documentation image from
+  the shipped bundle (see [Documentation](#documentation)).
+
+<a id="documentation"></a>
+
+## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="28" height="28" align="middle" alt=""> Documentation
+
+Step‑by‑step usage guides, each complete and self‑contained:
+
+- [`docs/USAGE-EN.md`](docs/USAGE-EN.md) — English
+- [`docs/USAGE-JA.md`](docs/USAGE-JA.md) — 日本語
+- [`docs/USAGE-ZN.md`](docs/USAGE-ZN.md) — 中文
+
+They cover installation, both layouts, card interactions and drag‑to‑graph, the
+model editor (folder picker, folder‑prefixed names, previews, descriptions),
+downloads and the task list, the HuggingFace upload phases and completion
+messages, settings and locales, plus a troubleshooting table. The screenshots
+they embed live in [`docs/screenshots/`](docs/screenshots/) with a per‑file
+manifest in [`docs/screenshots/README.md`](docs/screenshots/README.md).
+
 <a id="development"></a>
 
 ## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Development
@@ -866,17 +993,19 @@ corepack enable          # uses the pinned pnpm version
 pnpm install
 ```
 
-| Script                              | Purpose                                                                 |
-| ----------------------------------- | ----------------------------------------------------------------------- |
-| `pnpm dev`                          | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI) |
-| `pnpm build`                        | Production build into `web/`                                            |
-| `pnpm build:clean`                  | Remove `web/` then rebuild                                              |
-| `pnpm rebuild`                      | Remove `node_modules/` **and** `web/`, reinstall, then rebuild          |
-| `pnpm typecheck`                    | `vue-tsc --noEmit` type checking                                        |
-| `pnpm lint` / `pnpm lint:fix`       | ESLint (flat config)                                                    |
-| `pnpm format` / `pnpm format:check` | Prettier (with the Tailwind plugin)                                     |
-| `pnpm verify:py`                    | Python route/lifecycle probe (`harness/py_probe.py`, 36 assertions)     |
-| `pnpm verify:e2e`                   | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`)        |
+| Script                              | Purpose                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| `pnpm dev`                          | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI)  |
+| `pnpm build`                        | Production build into `web/`                                             |
+| `pnpm build:clean`                  | Remove `web/` then rebuild                                               |
+| `pnpm rebuild`                      | Remove `node_modules/` **and** `web/`, reinstall, then rebuild           |
+| `pnpm typecheck`                    | `vue-tsc --noEmit` type checking                                         |
+| `pnpm lint` / `pnpm lint:fix`       | ESLint (flat config)                                                     |
+| `pnpm format` / `pnpm format:check` | Prettier (with the Tailwind plugin)                                      |
+| `pnpm verify:py`                    | Python route/lifecycle probe (`harness/py_probe.py`, 46 assertions)      |
+| `pnpm verify:e2e`                   | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 64)     |
+| `pnpm capture`                      | Render the docs screenshots from the real bundle (`harness/capture.mjs`) |
+| `pnpm capture --video`              | Same, plus a recorded `hero.webm` / `hero.gif` tour                      |
 
 > [!WARNING]
 > `pnpm dev` **deletes the whole `web/` directory** before writing
@@ -923,18 +1052,28 @@ ordering), `eslint-plugin-tailwindcss` (class hygiene) and `eslint-config-pretti
 
 ## <img src="https://api.iconify.design/lucide/heart-handshake.svg?color=%23ec4899" width="28" height="28" align="middle" alt=""> Credits & Attribution
 
-ComfyUI‑Model‑Manager‑Neo is a derivative work of
+ComfyUI‑Model‑Manager‑Neo exists only because
 **[`ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)**
-by **[hayden‑cn](https://github.com/hayden-cn)**, used and modified here in
-accordance with the **GNU General Public License v3.0**. The original project's
-architecture — model folder listing, the download task system, Civitai/Hugging Face
-search, node‑graph drag integration and the overall design — is their work, and
-this fork is deeply grateful for it.
+by **[hayden‑cn](https://github.com/hayden-cn)** existed first. Every structural
+idea in this fork — the model‑folder abstraction, the resumable download task
+system with its websocket progress protocol, the Civitai / HuggingFace page
+parsers, the drag‑a‑card‑onto‑the‑graph integration, the model editor's form
+plumbing, even the little affordances like the card‑size presets — is hayden‑cn's
+design. Neo changes the skin, the dependencies and a great many bugs; it did not
+have to invent the body. Reading the original remains the fastest way to
+understand _why_ this codebase is shaped the way it is, and the honest
+attribution for the architecture is: **theirs**.
 
-Modifications in Neo (the UI rebuild, PrimeVue removal, Hugging Face upload,
-package modernisation, toolchain, the reliability/security passes above, and the
-batch‑scan removal) are provided under the same GPL‑3.0 license. Per the license, the original copyright
-notice and the full license text are preserved in [`LICENSE`](LICENSE).
+This fork is a derivative work used and modified in accordance with the
+**GNU General Public License v3.0**. Modifications in Neo (the UI rebuild,
+PrimeVue removal, Hugging Face upload, package modernisation, toolchain, the
+reliability/security passes above, the batch‑scan removal and the Japanese
+localisation) are provided under the same GPL‑3.0 license. Per the license, the
+original copyright notice and the full license text are preserved in
+[`LICENSE`](LICENSE).
+
+If this fork is useful to you, the upstream repository deserves the star: the
+work standing on its shoulders is what makes any of the above possible.
 
 Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 [VueUse], [es-toolkit], [valibot], [vue-sonner], [huggingface_hub], [hf_xet].

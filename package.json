@@ -16,7 +16,9 @@
     "format:check": "prettier --check .",
     "prepare": "husky",
     "verify:py": "python3 harness/py_probe.py",
-    "verify:e2e": "node harness/e2e.mjs"
+    "verify:e2e": "node harness/e2e.mjs",
+    "capture": "node harness/capture.mjs",
+    "capture:video": "node harness/capture.mjs --video"
   },
   "devDependencies": {
     "@comfyorg/comfyui-frontend-types": "1.49.3",

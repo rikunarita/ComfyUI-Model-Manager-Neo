@@ -34,14 +34,38 @@ VAE = TMP / "models" / "vae"
 for d in (CKPT, LORAS, VAE):
     d.mkdir(parents=True, exist_ok=True)
 
-_img = Image.new("RGB", (140, 180), (90, 140, 220))
-_buf = io.BytesIO()
-_img.save(_buf, "WEBP")
-_preview = _buf.getvalue()
+def _gradient(seed: int) -> bytes:
+    """A soft diagonal gradient, so the documentation screenshots show
+    recognisable "previews" instead of flat colour blocks. Purely cosmetic and
+    confined to the harness workspace."""
+    import math
 
-for name, directory in (("anima-aesthetic-v1", CKPT), ("novaAnimeAM_v40", LORAS), ("qwen_vae", VAE)):
+    w, h = 360, 460
+    img = Image.new("RGB", (w, h))
+    px = img.load()
+    palettes = [
+        ((64, 120, 220), (150, 60, 190)),
+        ((40, 170, 160), (60, 90, 200)),
+        ((220, 120, 80), (120, 50, 160)),
+        ((80, 90, 200), (30, 160, 200)),
+    ]
+    a, b = palettes[seed % len(palettes)]
+    for y in range(h):
+        for x in range(w):
+            t = (x / w * 0.6 + y / h * 0.4)
+            wave = 0.5 + 0.5 * math.sin((x / 34.0) + (y / 26.0) + seed * 2.1)
+            mix = min(1.0, max(0.0, t * 0.75 + wave * 0.35))
+            px[x, y] = tuple(int(a[i] + (b[i] - a[i]) * mix) for i in range(3))
+    buf = io.BytesIO()
+    img.save(buf, "WEBP", quality=82)
+    return buf.getvalue()
+
+
+for idx, (name, directory) in enumerate(
+    (("anima-aesthetic-v1", CKPT), ("novaAnimeAM_v40", LORAS), ("qwen_vae", VAE))
+):
     (directory / f"{name}.safetensors").write_bytes(b"M" * (2 * 1024 * 1024))
-    (directory / f"{name}.webp").write_bytes(_preview)
+    (directory / f"{name}.webp").write_bytes(_gradient(idx))
 (CKPT / "sub").mkdir(exist_ok=True)
 (CKPT / "sub" / "nested.safetensors").write_bytes(b"NN" * 128)
 
