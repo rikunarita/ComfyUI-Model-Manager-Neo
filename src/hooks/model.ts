@@ -833,7 +833,12 @@ export const useModelNodeAction = () => {
   })
 
   const loadPreviewWorkflow = wrapperToastError(async (model: BaseModel) => {
-    const previewUrl = model.preview as string
+    // `model.preview` is a single URL string OR a gallery array (scan_models
+    // emits an array when a model has several previews). BUG FIX: this used to
+    // cast the value straight to `string`, so for a gallery `fetch()` received
+    // "url1,url2" (the array's toString) and always failed. The embedded
+    // workflow lives in the primary preview, which is the first entry.
+    const previewUrl = normalizePreviews(model.preview)[0]
     const response = await fetch(previewUrl)
     const data = await response.blob()
     const type = data.type

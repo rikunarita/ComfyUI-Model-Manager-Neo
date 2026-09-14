@@ -211,7 +211,16 @@ package-lock.json
 # accidental archives
 node.zip
 
-# verification harness artifacts
-harness/shots/
-webdbg/
-assets/zipnn-wheels/*.whl
+# ---------------------------------------------------------------------------
+# Vendored ZipNN (third_party/): the generic Python ignores above (*.so, lib/,
+# build/) would otherwise drop the bundled prebuilt binaries and the
+# FiniteStateEntropy sources that must ship with the extension. Re-include
+# exactly those (build artifacts under third_party/ stay ignored).
+# ---------------------------------------------------------------------------
+!third_party/zipnn-core-bin/
+!third_party/zipnn-core-bin/linux-x86_64/
+!third_party/zipnn-core-bin/**/*.so
+!third_party/zipnn-core/include/
+!third_party/zipnn-core/include/FiniteStateEntropy/
+!third_party/zipnn-core/include/FiniteStateEntropy/lib/
+!third_party/zipnn-core/include/FiniteStateEntropy/lib/**

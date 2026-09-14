@@ -14,14 +14,28 @@ https://github.com/zipnn/zipnn, version 0.5.4):
 * the compressed file is named ``<base>.znn.safetensors`` - the exact suffix the
   official scripts (and ``zipnn_safetensors()`` loaders) expect.
 
-ZipNN is an OPTIONAL dependency: PyPI ships no Linux wheels for it, so it is
-built from source and must never be forced onto every ComfyUI installation. It
-is therefore installed on demand (with an explicit confirmation in the UI) the
-first time the feature is used.
+ZipNN is VENDORED, not pip-installed. PyPI ships no Linux wheels for it (only a
+macOS arm64 wheel plus an sdist that compiles a C extension), so a plain
+``pip install zipnn`` forces a source build that dies on any host without a C
+compiler and the Python headers - which is exactly the failure this used to hit.
+Instead the whole library now ships inside the extension under ``third_party/``:
+
+* ``third_party/zipnn/`` - the ZipNN 0.5.4 Python package (MIT);
+* ``third_party/zipnn-core-bin/<platform>/`` - prebuilt ``zipnn_core`` C
+  extension binaries, so on the common platforms ZipNN works with **no compiler
+  and no pip at all** - the module is simply put on ``sys.path``;
+* ``third_party/zipnn-core/`` - the C sources (csrc + FiniteStateEntropy, BSD/
+  GPLv2) used for a single clean source build on platforms that have no prebuilt
+  binary (macOS / Windows / other arches). There is no cascade of pip
+  strategies any more: one prebuilt lookup, else one source build.
+
+Its only runtime dependencies are ``numpy`` / ``safetensors`` / ``torch``, all
+of which ComfyUI already provides.
 """
 
 import asyncio
 import os
+import platform
 import re
 import uuid
 from typing import Any, Callable, Optional
@@ -49,11 +63,12 @@ def is_compressed_name(name: str) -> bool:
 
 
 def zipnn_installed() -> bool:
-    """True when the ZipNN files exist on disk (without importing them).
+    """True when both ZipNN parts are importable-by-name (without importing).
 
-    ``importlib.invalidate_caches()`` matters here: ZipNN is installed by a
-    *subprocess* after this interpreter has already scanned site-packages, so
-    without it a successful install can still look absent.
+    ``importlib.invalidate_caches()`` matters here: the vendored directories are
+    appended to ``sys.path`` (and a source build drops a fresh ``zipnn_core``
+    into site-packages) *after* this interpreter already scanned those paths, so
+    without it a successful setup can still look absent.
     """
     import importlib.util
 
@@ -80,12 +95,25 @@ def zipnn_available() -> bool:
         return False
 
 
-# ZipNN ships no Linux wheels: `pip install zipnn` compiles a C extension from
-# the sdist. Modern toolchains (gcc >= 14, clang >= 16) turn a few historical C
-# patterns into hard errors by default (-Werror=implicit-function-declaration,
-# -Werror=incompatible-pointer-types), which made the build die with a bare
-# "exit status 1". Relaxing exactly those diagnostics keeps every real error
-# visible while letting the official sources build.
+# ---------------------------------------------------------------------------
+# Vendored ZipNN layout (see third_party/README.md).
+#
+# `third_party/zipnn/` holds the pure-Python package; `zipnn_core` (the C
+# extension) is either a prebuilt binary under
+# `third_party/zipnn-core-bin/<platform-tag>/` or, on platforms with no prebuilt
+# binary, compiled once from `third_party/zipnn-core/`. Nothing is downloaded.
+# ---------------------------------------------------------------------------
+_THIRD_PARTY_DIR = "third_party"
+_ZIPNN_PKG_DIR = "zipnn"
+_ZIPNN_CORE_BIN_DIR = "zipnn-core-bin"
+_ZIPNN_CORE_SRC_DIR = "zipnn-core"
+
+# The C sources are ZipNN 0.5.4's; modern toolchains (gcc >= 14, clang >= 16)
+# turn a few historical C patterns into hard errors by default
+# (-Werror=implicit-function-declaration, -Werror=incompatible-pointer-types),
+# which would make a source build die with a bare "exit status 1". Relaxing
+# exactly those diagnostics keeps every real error visible while letting the
+# official sources build. (The prebuilt binaries need none of this.)
 _ZIPNN_BUILD_CFLAGS = (
     "-Wno-error=implicit-function-declaration "
     "-Wno-implicit-function-declaration "
@@ -95,17 +123,12 @@ _ZIPNN_BUILD_CFLAGS = (
     "-Wno-int-conversion"
 )
 
-# Optional escape hatch for offline / air-gapped machines: drop platform
-# wheels into this directory and they are preferred over PyPI.
-_ZIPNN_WHEEL_DIR = "zipnn-wheels"
 
-# Compiler binary names worth picking up as a substitute, and the pip failure
-# signature of "distutils tried to exec a compiler that does not exist"
-# (e.g. `error: [Errno 2] No such file or directory: 'x86_64-pc-linux-gnu-gcc'`).
+# Compiler binary names worth picking up as a substitute when the one CPython
+# recorded in `sysconfig` (e.g. Gentoo's `x86_64-pc-linux-gnu-gcc`) is absent.
 _CC_NAME_RE = re.compile(
     r"^(?:cc|clang(?:-\d+)?|gcc(?:-\d+(?:\.\d+)*)?|(?:[A-Za-z0-9_.]+-)+gcc(?:-\d+)?)$"
 )
-_CC_MISSING_RE = re.compile(r"No such file or directory: '([^']*(?:gcc|clang|cc)[^']*)'")
 
 # Values for these keys are *appended* to whatever the environment already has
 # (they are flag lists); every other key passed to `_run_pip` replaces it.
@@ -365,40 +388,189 @@ def _run_pip(args: list[str], extra_env: dict[str, str] | None = None) -> str:
 
 
 def _zipnn_import_error() -> str | None:
-    """Why ``import zipnn`` fails, or None when it works."""
+    """Why ZipNN cannot be imported, or None when it can.
+
+    ``zipnn_core`` is probed first: ``zipnn/__init__`` imports it at module load,
+    so a broken core surfaces as a ``zipnn`` import error and the real cause
+    (a glibc/ABI mismatch on a prebuilt binary, a missing compiler for a source
+    build) would otherwise be hidden behind ``import zipnn``.
+    """
     if zipnn_available():
         return None
     try:
+        import zipnn_core  # noqa: F401
+    except Exception as e:  # pragma: no cover - depends on the host env
+        return f"zipnn_core: {type(e).__name__}: {e}"
+    try:
         import zipnn  # noqa: F401
     except Exception as e:  # pragma: no cover - depends on the host env
-        return f"{type(e).__name__}: {e}"
-    return "zipnn_core extension not importable"
+        return f"zipnn: {type(e).__name__}: {e}"
+    return "unknown import failure"
+
+
+def _third_party_dir() -> str:
+    """Absolute path of the vendored-code directory (``third_party/``)."""
+    return utils.join_path(config.extension_uri, _THIRD_PARTY_DIR)
+
+
+def _platform_tag() -> str:
+    """The ``zipnn-core-bin/`` subdirectory name for this interpreter.
+
+    e.g. ``linux-x86_64`` / ``macos-arm64`` / ``windows-x86_64``. Python's
+    import machinery then picks the ``zipnn_core.cpython-3XX-*.so`` inside it
+    that matches the *running* ABI, so one directory serves every Python
+    version on that platform.
+    """
+    system = platform.system().lower()
+    if system == "darwin":
+        system = "macos"
+    machine = platform.machine().lower()
+    if machine in ("x86_64", "amd64"):
+        machine = "x86_64"
+    elif machine in ("arm64", "aarch64"):
+        machine = "arm64"
+    return f"{system}-{machine}"
+
+
+def _prebuilt_core_dir() -> str:
+    """Directory holding the prebuilt ``zipnn_core`` for this platform."""
+    return utils.join_path(_third_party_dir(), _ZIPNN_CORE_BIN_DIR, _platform_tag())
+
+
+def _has_loadable_prebuilt(bin_dir: str) -> bool:
+    """True when ``bin_dir`` holds a ``zipnn_core`` this interpreter can load.
+
+    Matches against ``importlib.machinery.EXTENSION_SUFFIXES`` (e.g.
+    ``.cpython-313-x86_64-linux-gnu.so``), so a directory of cores for *other*
+    Python versions correctly counts as "no prebuilt here".
+    """
+    import importlib.machinery
+
+    if not os.path.isdir(bin_dir):
+        return False
+    suffixes = tuple(importlib.machinery.EXTENSION_SUFFIXES)
+    return any(
+        f.startswith("zipnn_core") and f.endswith(suffixes)
+        for f in os.listdir(bin_dir)
+    )
+
+
+def _add_sys_path(path: str) -> None:
+    import sys
+
+    if path and os.path.isdir(path) and path not in sys.path:
+        sys.path.insert(0, path)
+
+
+def _remove_sys_path(path: str) -> None:
+    import sys
+
+    while path in sys.path:
+        sys.path.remove(path)
+
+
+def _clear_zipnn_modules() -> None:
+    """Drop cached/half-imported ``zipnn``/``zipnn_core`` and refresh finders.
+
+    A previous attempt may have cached a failed lookup or a partially
+    initialised package; clearing both (and invalidating the import caches)
+    lets a fresh import see directories just added to ``sys.path`` - or a
+    ``zipnn_core`` just built into site-packages.
+    """
+    import importlib
+    import sys
+
+    for name in list(sys.modules):
+        if name == "zipnn_core" or name == "zipnn" or name.startswith("zipnn."):
+            del sys.modules[name]
+    importlib.invalidate_caches()
+
+
+def _build_core_from_source() -> str | None:
+    """One clean build of ``zipnn_core`` from the bundled C sources.
+
+    Returns ``None`` on success or an error string on failure. This is the
+    fallback for platforms with no prebuilt binary (macOS / Windows / uncommon
+    arches / a brand-new CPython). Unlike the old installer it is a *single*
+    command - no cascade of pip strategies and no PyPI download, because the
+    sources are vendored in ``third_party/zipnn-core/``. It needs only a C
+    compiler and the Python headers; when the compiler CPython recorded in
+    ``sysconfig`` is absent but another usable one exists, ``CC`` is pointed at
+    the substitute (see :func:`_cc_env_patch`).
+    """
+    src_dir = utils.join_path(_third_party_dir(), _ZIPNN_CORE_SRC_DIR)
+    if not os.path.isdir(src_dir):
+        return "the bundled zipnn-core source directory is missing"
+    try:
+        _ensure_pip()
+        hint = _build_prereq_hint()
+        if hint:
+            utils.print_info(f"  warning: {hint}")
+        cc_env, cc_note = _cc_env_patch()
+        if cc_note:
+            utils.print_info(f"  note: {cc_note}")
+        build_env = {"CFLAGS": _ZIPNN_BUILD_CFLAGS, **cc_env}
+        utils.print_info(
+            "  building: pip install --no-build-isolation --no-deps "
+            f"{utils.join_path(_THIRD_PARTY_DIR, _ZIPNN_CORE_SRC_DIR)}"
+        )
+        _run_pip(["install", "--no-build-isolation", "--no-deps", src_dir], build_env)
+        return None
+    except Exception as e:
+        return str(e)
+
+
+def _compose_failure_message(
+    had_prebuilt: bool, prebuilt_error: str | None, build_error: str | None
+) -> str:
+    """A single, honest, actionable message when neither path produced a core."""
+    lines = [
+        "ZipNN could not be made available on this machine.",
+        "",
+        f"Platform: {_platform_tag()} (Python {platform.python_version()}).",
+    ]
+    if had_prebuilt:
+        lines.append(
+            "A prebuilt zipnn_core ships for this platform but could not be "
+            f"loaded (usually a glibc/ABI mismatch): {prebuilt_error}"
+        )
+    else:
+        lines.append(
+            "No prebuilt zipnn_core ships for this platform, so it was built "
+            "from the bundled C source - which needs a C compiler and the "
+            "Python headers (Python.h)."
+        )
+    hint = _build_prereq_hint()
+    if hint:
+        lines.append(hint)
+    if build_error:
+        lines += ["", "Source build output:", build_error]
+    lines += [
+        "",
+        "Fix the toolchain (or run on a platform that has a prebuilt core), "
+        "then use the toast's retry action.",
+    ]
+    return "\n".join(lines)
 
 
 def ensure_zipnn(force: bool = False) -> None:
-    """Install ZipNN on first use (opt-in: it compiles from source on Linux).
+    """Make the vendored ZipNN importable. Two ordered paths, no pip cascade.
 
-    Strategies, in order - the first that yields an importable ZipNN wins:
+    1. **Prebuilt (primary).** Put ``third_party/`` and this platform's
+       ``third_party/zipnn-core-bin/<tag>/`` on ``sys.path``. On the common
+       platforms the matching ``zipnn_core.cpython-3XX-*.so`` already ships, so
+       ZipNN imports immediately - **no compiler, no pip, no network**. This is
+       the path a normal Linux/macOS ComfyUI install takes.
+    2. **Source build (fallback).** Only when no prebuilt core matches this
+       platform/Python (macOS, Windows, an uncommon arch, or a brand-new CPython)
+       is ``zipnn_core`` compiled from the bundled C sources with a single
+       ``pip install --no-build-isolation --no-deps``.
 
-    1. a wheel placed in ``assets/zipnn-wheels/`` (offline / air-gapped hosts);
-    2. ``pip install --no-deps zipnn`` - ComfyUI venvs always ship numpy,
-       safetensors and torch, and resolving them again makes pip pull a
-       ~550 MB torch wheel for no reason;
-    3. a full ``pip install zipnn`` (dependencies actually missing);
-    4. ``pip install --no-build-isolation zipnn`` (hosts whose build isolation
-       cannot reach PyPI), after making sure the build backends exist.
-
-    Every attempt is compiled with a few ``-Wno-error=...`` flags: gcc >= 14 and
-    clang >= 16 default ``implicit-function-declaration`` /
-    ``incompatible-pointer-types`` to hard errors, which made ZipNN 0.5.4's C
-    sources fail to build on modern toolchains. When the compiler this Python
-    was configured with (``sysconfig`` ``CC``, e.g. a Gentoo
-    ``x86_64-pc-linux-gnu-gcc``) is not installed but some other usable
-    compiler is, every attempt runs with ``CC`` pointed at the substitute.
-    Failures carry the tail of pip's own output (identical tails folded into
-    one block) plus a host-specific prerequisite hint, and are cached for
-    :data:`_ZIPNN_INSTALL_TTL` seconds so repeated presses do not re-run a
-    doomed build (``force=True``, used by the UI retry, bypasses the cache).
+    A prebuilt core that exists but cannot be loaded is taken off ``sys.path``
+    before the build so it never shadows the freshly built one. Failures are
+    cached for :data:`_ZIPNN_INSTALL_TTL` seconds so hammering the button does
+    not re-run a doomed build (``force=True``, used by the UI retry, bypasses
+    the cache).
     """
     global _zipnn_install_failed
     import time
@@ -412,106 +584,41 @@ def ensure_zipnn(force: bool = False) -> None:
             raise ZipNNInstallError(message)
         _zipnn_install_failed = None
 
-    utils.print_info("Installing zipnn (first use of the ZipNN feature)...")
-    _ensure_pip()
-    hint = _build_prereq_hint()
-    if hint:
-        utils.print_info(f"  warning: {hint}")
-    cc_env, cc_note = _cc_env_patch()
-    if cc_note:
-        utils.print_info(f"  note: {cc_note}")
-    build_env = {"CFLAGS": _ZIPNN_BUILD_CFLAGS, **cc_env}
-    wheel_dir = utils.join_path(config.extension_uri, "assets", _ZIPNN_WHEEL_DIR)
-    failures: list[tuple[str, str]] = []
-
-    attempts: list[tuple[str, list[str]]] = []
-    wheels = (
-        sorted(w for w in os.listdir(wheel_dir) if w.endswith(".whl"))
-        if os.path.isdir(wheel_dir)
-        else []
-    )
-    if wheels:
-        attempts.append(("local wheel", ["install", "--no-deps", os.path.join(wheel_dir, wheels[-1])]))
-    attempts.append(("no-deps", ["install", "--no-deps", "zipnn"]))
-    attempts.append(("full", ["install", "zipnn"]))
-    attempts.append(("no-build-isolation", ["install", "--no-build-isolation", "zipnn"]))
-
-    for label, args in attempts:
-        try:
-            if label == "no-build-isolation":
-                _run_pip(
-                    ["install", "setuptools", "wheel", "numpy", "safetensors", "torch"],
-                    cc_env,
-                )
-            utils.print_info(f"  trying: pip {' '.join(args)} ({label})")
-            _run_pip(args, build_env)
-        except Exception as e:
-            failures.append((label, str(e)))
-            continue
+    # 1. Prebuilt core: vendored package + the platform's binary directory.
+    _add_sys_path(_third_party_dir())
+    bin_dir = _prebuilt_core_dir()
+    had_prebuilt = _has_loadable_prebuilt(bin_dir)
+    prebuilt_error: str | None = None
+    if had_prebuilt:
+        _add_sys_path(bin_dir)
+        _clear_zipnn_modules()
         if zipnn_available():
             _zipnn_install_failed = None
+            utils.print_info("ZipNN ready (bundled package + prebuilt core).")
             return
-        if zipnn_installed():
-            # Built fine, but something it imports is missing (torch /
-            # safetensors / numpy). Re-installing would not help - and would
-            # needlessly re-download a ~550 MB torch wheel.
-            message = (
-                f"ZipNN was installed but cannot be imported: {_zipnn_import_error()}"
-            )
-            _zipnn_install_failed = (message, time.time())
-            utils.print_error(message)
-            raise ZipNNInstallError(message)
+        # It ships but will not load (e.g. glibc too old): remember why, then
+        # get it off sys.path so the source build below is not shadowed by it.
+        prebuilt_error = _zipnn_import_error()
+        _remove_sys_path(bin_dir)
+        _clear_zipnn_modules()
 
-    # Every strategy failed. The same root cause usually kills all of them, so
-    # identical pip tails are folded into one block instead of being printed
-    # three times, and the two signatures worth calling out by name (a missing
-    # *recorded* compiler, missing Python.h) get a sentence of their own.
-    blocks: list[str] = []
-    labels_by_text: dict[str, list[str]] = {}
-    for label, text in failures:
-        if text in labels_by_text:
-            labels_by_text[text].append(label)
-            continue
-        labels_by_text[text] = [label]
-        blocks.append(text)
-    details: list[str] = []
-    for text in blocks[-3:]:
-        labels = labels_by_text[text]
-        head = (
-            f"[{labels[0]}]"
-            if len(labels) == 1
-            else f"[{labels[0]} - the identical failure repeated for: {', '.join(labels[1:])}]"
-        )
-        details.append(f"{head} {text}")
-    joined = "\n".join(text for _, text in failures)
-    diagnosis = ""
-    match = _CC_MISSING_RE.search(joined)
-    if match and "CC" not in cc_env:
-        diagnosis += (
-            f" The build tried to run `{match.group(1)}` - the compiler this "
-            "Python was configured with - and no substitute exists on this "
-            "machine: install any C compiler (or export CC=/path/to/gcc before "
-            "starting ComfyUI), then use the toast's retry action."
-        )
-    if "Python.h" in joined and _python_headers_missing():
-        diagnosis += (
-            " The Python development headers are missing as well - a compiler "
-            "alone is not enough; install the matching headers package "
-            "(python3-dev / python3-devel or your distro's equivalent)."
-        )
-    message = (
-        "ZipNN could not be installed on this machine. PyPI ships no Linux "
-        "wheels for it, so it has to be built from source, which needs a C "
-        "compiler and the Python headers (Python.h). "
-        + (hint + " " if hint else "")
-        + "Alternatively drop a prebuilt wheel into `assets/zipnn-wheels/`."
-        + diagnosis
-        + " Details:\n"
-        + "\n".join(details)
+    # 2. Single clean source build (platforms without a usable prebuilt core).
+    utils.print_info(
+        "No usable prebuilt zipnn_core for this platform; building from the "
+        "bundled source (needs a C compiler + Python headers)..."
     )
+    build_error = _build_core_from_source()
+    _clear_zipnn_modules()
+    if zipnn_available():
+        _zipnn_install_failed = None
+        utils.print_info("ZipNN ready (built core from the bundled source).")
+        return
+
+    message = _compose_failure_message(had_prebuilt, prebuilt_error, build_error)
     _zipnn_install_failed = (message, time.time())
     utils.print_error(message)
     raise ZipNNInstallError(message)
+
 
 
 def _sidecar_move(old_model: str, new_model: str) -> None:
@@ -542,10 +649,15 @@ def compress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str, 
     from zipnn.util_safetensors import (
         COMPRESSION_METHOD,
         COMPRESSED_DTYPE,
+        METADATA_KEY,
         build_compressed_tensor_info,
         set_compressed_tensors_metadata,
     )
     from zipnn.util_torch import zipnn_is_floating_point
+
+    import json
+
+    import torch
 
     tensors: dict[str, Any] = {}
     infos: dict[str, Any] = {}
@@ -564,7 +676,6 @@ def compress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str, 
                 compressed_bytes += size
                 progress(index + 1, total, "tensors")
                 continue
-            infos[name] = build_compressed_tensor_info(tensor)
             znn = ZipNN(
                 input_format="torch",
                 bytearray_dtype=tensor.dtype,
@@ -572,20 +683,39 @@ def compress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str, 
             )
             uncompressed_size = tensor.element_size() * tensor.nelement()
             original_bytes += uncompressed_size
-            compressed_buf = znn.compress(tensor)
+            # `ZipNN.compress()` reorders the float bits of its input IN PLACE
+            # for f32/bf16 (the C core's `reorder_all_floats`), so compress a
+            # throwaway clone and keep `tensor` pristine: when the compressed
+            # form is not smaller we must store the ORIGINAL bytes, not the
+            # bit-reordered ones.
+            compressed_buf = znn.compress(tensor.clone())
             if len(compressed_buf) >= uncompressed_size:
-                # Not worth it: keep the tensor as-is (official behaviour).
+                # Not worth it: keep the tensor as-is AND - exactly like the
+                # official script - do NOT record it in `infos`. A tensor that
+                # is listed in `znn_compressed_vectors` but stored in its
+                # original (e.g. bfloat16) dtype cannot be Huffman-decoded, so
+                # the decompressor must copy it through untouched instead.
                 tensors[name] = tensor
                 compressed_bytes += uncompressed_size
             else:
-                import torch
-
                 tensors[name] = torch.frombuffer(compressed_buf, dtype=COMPRESSED_DTYPE)
+                infos[name] = build_compressed_tensor_info(tensor)
                 compressed_bytes += len(compressed_buf)
             progress(index + 1, total, "tensors")
         metadata = f.metadata()
 
     set_compressed_tensors_metadata(infos, metadata)
+    # BUG FIX: `set_compressed_tensors_metadata` only writes into a *truthy*
+    # dict, so a source file with no metadata (`f.metadata()` is None) would
+    # silently drop the `znn_compressed_vectors` record - and decompression
+    # would then copy the Huffman-coded uint8 vectors through untouched,
+    # corrupting the model. Always persist the record when something was
+    # actually compressed. (Format-compatible with the official helper.)
+    if infos:
+        if metadata is None:
+            metadata = {}
+        if METADATA_KEY not in metadata:
+            metadata[METADATA_KEY] = json.dumps(infos)
     tmp_dst = f"{dst}.tmp"
     save_file(tensors, tmp_dst, metadata)
     os.replace(tmp_dst, dst)

@@ -5,6 +5,9 @@ node_modules/
 coverage/
 *.tsbuildinfo
 
+# Vendored third-party code & prebuilt binaries (ZipNN)
+third_party/
+
 # Binaries & media
 demo/
 assets/

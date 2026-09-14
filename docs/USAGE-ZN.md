@@ -1,8 +1,8 @@
 # ComfyUI‑Model‑Manager‑Neo 使用指南（中文）
 
 > 姊妹文档: [English](USAGE-EN.md) · [日本語](USAGE-JA.md)
-> 文中截图位于 [`docs/screenshots/`](screenshots/)，可用 `pnpm capture` 随时重新生成
-> （见 [Screenshots](#screenshots截图)）。
+> 文中截图位于 [`docs/screenshots/`](screenshots/)（各文件清单见
+> [Screenshots](#screenshots截图)）。
 
 ComfyUI‑Model‑Manager‑Neo 是一个为 ComfyUI 增加模型**浏览、下载、上传、编辑**
 能力的自定义节点。它完全运行在 ComfyUI 进程内部：后端是 ComfyUI 服务器中的一组
@@ -268,16 +268,20 @@ HTTP `Range` 断点续传。
   `.safetensors`。
 
 压缩文件遵循官方 ZipNN 布局(`znn_compressed_vectors` 元数据、浮点张量 Huffman
-压缩)，因此经 `zipnn_safetensors()` 补丁的加载器可透明读取。ZipNN 在首次使用时
-安装(`pip install zipnn`)；PyPI 无 Linux wheel，Linux 上需要 **C 编译器与 Python 头文件
-(`Python.h`)**。若安装失败，错误提示会显示 pip 的第一条关键信息(完整输出在 ComfyUI
-控制台)、缺失的依赖以及对应发行版的修复命令，并提供**重试**操作——失败的安装会
-缓存 5 分钟，反复点击不会重复执行注定失败的构建。离线环境可将预编译 wheel 放入
-`assets/zipnn-wheels/`，它优先于 PyPI 使用。若 Python 构建时记录的编译器名(如
-Gentoo 系的 `x86_64-pc-linux-gnu-gcc`)未安装、但存在其他可用的 `cc`/`gcc`/`clang`，
-安装器会通过 `CC` 环境变量自动替代它；多个安装策略因同一原因失败时，
-pip 日志会在错误信息中折叠为一条，并以平实语言点名无法执行的编译器或缺失的
-Python 头文件。如需自行指定编译器，请在启动 ComfyUI 前导出 `CC=/path/to/gcc`。
+压缩)，因此经 `zipnn_safetensors()` 补丁的加载器可透明读取。压缩是**无损且可逆**的：
+只有在 `.znn.safetensors` 完整写入后才会删除原始的 `.safetensors`，失败时会清理
+未完成的产物。
+
+**无需安装步骤。** ZipNN 已**随扩展内置**于 [`third_party/`](../third_party/)，
+并附带 Linux x86_64(CPython 3.10–3.13)的**预编译 `zipnn_core` 二进制**。在这些平台上，
+首次压缩只是把内置包与对应二进制加入导入路径即可工作——**无需 `pip install`、无需
+C 编译器、无需联网、无需等待**。只有当没有匹配的预编译二进制时(macOS、Windows、
+少见架构，或非常新的 CPython)，才会从内置 C 源码**一次性**构建核心，这需要 C 编译器
+与 Python 头文件(`Python.h`)。若该回退构建失败，错误提示会显示第一条关键信息
+(完整输出在 ComfyUI 控制台)、缺失的依赖以及对应发行版的修复命令，并提供**重试**操作。
+如需为该构建自行指定编译器，请在启动 ComfyUI 前导出 `CC=/path/to/gcc`。平台/glibc
+覆盖范围以及如何为其他系统添加二进制，见
+[`third_party/README.md`](../third_party/README.md)。
 
 ## 9. 设置
 
@@ -319,12 +323,5 @@ ComfyUI **设置 → Model Manager Neo**：
 
 ## Screenshots（截图）
 
-本指南中的所有图片都由验证 harness 渲染**真实生产打包产物**生成：
-
-```bash
-pnpm capture          # 生成 PNG 到 docs/screenshots/
-pnpm capture --video  # 另录制 hero.webm 并转换为 hero.gif
-```
-
-完整清单以及如何替换为真实 ComfyUI 窗口截图，见
-[`screenshots/README.md`](screenshots/README.md)。
+本指南中的图片位于 [`docs/screenshots/`](screenshots/)。完整清单以及如何替换为
+真实 ComfyUI 窗口截图，见 [`screenshots/README.md`](screenshots/README.md)。

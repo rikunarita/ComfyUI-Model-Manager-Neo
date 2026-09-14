@@ -14,11 +14,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky",
-    "verify:py": "python3 harness/py_probe.py",
-    "verify:e2e": "node harness/e2e.mjs",
-    "capture": "node harness/capture.mjs",
-    "capture:video": "node harness/capture.mjs --video"
+    "prepare": "husky"
   },
   "devDependencies": {
     "@comfyorg/comfyui-frontend-types": "1.49.3",
@@ -35,7 +31,6 @@
     "husky": "^9.1.7",
     "less": "^4.9.0",
     "lint-staged": "^17.4.1",
-    "playwright": "^1.63.0",
     "postcss": "^8.5.26",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",

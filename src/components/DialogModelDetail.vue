@@ -59,57 +59,57 @@
             <Button
               v-show="model.modelPage"
               variant="ghost"
-              size="icon-sm"
+              size="icon-action"
               :title="$t('openModelPage')"
               :aria-label="$t('openModelPage')"
               @click="openModelPage(model.modelPage)"
             >
-              <ExternalLink class="size-4" />
+              <ExternalLink class="size-[1.6rem]" />
             </Button>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon-action"
               :title="$t('addNode')"
               :aria-label="$t('addNode')"
               @click.stop="addModelNode(model)"
             >
-              <Plus class="size-4" />
+              <Plus class="size-[1.6rem]" />
             </Button>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon-action"
               :title="$t('copyNode')"
               :aria-label="$t('copyNode')"
               @click.stop="copyModelNode(model)"
             >
-              <Copy class="size-4" />
+              <Copy class="size-[1.6rem]" />
             </Button>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon-action"
               :title="$t('loadWorkflow')"
               :aria-label="$t('loadWorkflow')"
               @click.stop="loadPreviewWorkflow(model)"
             >
-              <Workflow class="size-4" />
+              <Workflow class="size-[1.6rem]" />
             </Button>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon-action"
               :title="$t('editModel')"
               :aria-label="$t('editModel')"
               @click="editable = true"
             >
-              <PenSquare class="size-4" />
+              <PenSquare class="size-[1.6rem]" />
             </Button>
             <Button
               variant="destructive"
-              size="icon-sm"
+              size="icon-action"
               :title="$t('deleteModel')"
               :aria-label="$t('deleteModel')"
               @click="handleDelete"
             >
-              <Trash2 class="size-4" />
+              <Trash2 class="size-[1.6rem]" />
             </Button>
           </template>
         </template>

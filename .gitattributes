@@ -1,0 +1,7 @@
+# Vendored prebuilt ZipNN core binaries are true binaries: never apply
+# end-of-line conversion or textual diffs to them.
+*.so binary
+*.so -text -diff
+*.pyd binary
+*.dll binary
+*.dylib binary

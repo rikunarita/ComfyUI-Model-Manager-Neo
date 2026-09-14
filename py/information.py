@@ -452,15 +452,24 @@ class Information:
             index = int(request.match_info.get("index", None))
             filename = request.match_info.get("filename", None)
 
+            # `filename` is always a concrete preview file name produced by
+            # `scan_models` (e.g. `model.webp`, `sub/model.preview2.png`), so
+            # the route serves exactly that file - there is no re-resolution to
+            # a "primary" preview and therefore no fallback chain. BUG FIX: the
+            # old code ran `get_model_preview_name()` on the requested path,
+            # which re-resolved to the highest-priority sibling and (a) collapsed
+            # a gallery onto its first frame whenever a model carried two base
+            # previews of different extensions, and (b) only stayed inside the
+            # model folder by accident. The explicit realpath guard below makes
+            # the containment deliberate.
             try:
                 folders = folder_paths.get_folder_paths(model_type)
                 base_path = folders[index]
                 abs_path = utils.join_path(base_path, filename)
-                preview_name = utils.get_model_preview_name(abs_path)
-                if preview_name == utils.NO_PREVIEW_SENTINEL:
+                real_base = os.path.realpath(base_path)
+                real_abs = os.path.realpath(abs_path)
+                if not (real_abs == real_base or real_abs.startswith(real_base + os.sep)):
                     raise web.HTTPNotFound()
-                dir_name = os.path.dirname(abs_path)
-                abs_path = utils.join_path(dir_name, preview_name)
             except web.HTTPNotFound:
                 raise
             except Exception:

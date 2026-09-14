@@ -45,6 +45,19 @@ export const buttonVariants = cva(
         'icon-xs': "size-6 rounded-mm-ctl [&_svg:not([class*='size-'])]:size-3",
         'icon-sm': 'size-8',
         'icon-lg': 'size-10',
+        /*
+         * Semantic sizes for the two icon-button rows the fork was asked to
+         * enlarge. Both keep the 1:2 icon-to-button ratio of `icon-sm`
+         * (size-8 = 2rem box, size-4 = 1rem glyph):
+         *   - `icon-header` = 1.2× → the dialog top-bar buttons (layout /
+         *     hidden-files / refresh / download / upload, maximize, close);
+         *   - `icon-action` = 1.6× → the model-detail action buttons (open
+         *     model page, add / copy node, load workflow, edit, delete).
+         * The glyphs themselves carry an explicit `size-[…]` class so the base
+         * `[&_svg:not([class*='size-'])]:size-4` rule never fights them.
+         */
+        'icon-header': 'size-[2.4rem]',
+        'icon-action': 'size-[3.2rem]',
       },
     },
     defaultVariants: {

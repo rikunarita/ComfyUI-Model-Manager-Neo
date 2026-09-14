@@ -39,36 +39,36 @@
               v-for="action in item.headerButtons"
               :key="action.key"
               variant="ghost"
-              size="icon-sm"
+              size="icon-header"
               :title="action.tooltip"
               :aria-label="action.tooltip"
               @click.stop="action.command"
             >
               <component
                 :is="resolveIcon(action.icon) || Info"
-                class="size-4"
+                class="size-[1.2rem]"
                 :class="{ 'animate-spin': action.icon === 'pi pi-spinner pi-spin' }"
               />
             </Button>
             <Button
               v-if="allowResize"
               variant="ghost"
-              size="icon-sm"
+              size="icon-header"
               :title="states[item.key].isMaximized ? t('restore') : t('maximize')"
               :aria-label="states[item.key].isMaximized ? t('restore') : t('maximize')"
               @click="toggleMaximize(item)"
             >
-              <Maximize2 v-if="!states[item.key].isMaximized" class="size-4" />
-              <Minimize2 v-else class="size-4" />
+              <Maximize2 v-if="!states[item.key].isMaximized" class="size-[1.2rem]" />
+              <Minimize2 v-else class="size-[1.2rem]" />
             </Button>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon-header"
               :title="t('close')"
               :aria-label="t('close')"
               @click="close(item)"
             >
-              <X class="size-4" />
+              <X class="size-[1.2rem]" />
             </Button>
           </div>
         </DialogHeader>

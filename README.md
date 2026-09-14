@@ -19,10 +19,9 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 <!--
   ┌──────────────────────────────────────────────────────────────────────────┐
   │  SCREENSHOTS                                                             │
-  │  The images referenced below ship in `docs/screenshots/` and are rendered │
-  │  by the verification harness from the real production bundle             │
-  │  (`pnpm capture`, see docs/screenshots/README.md for the full manifest    │
-  │  and for which two shots are better taken from a live ComfyUI window).    │
+  │  The images referenced below ship in `docs/screenshots/`. See             │
+  │  docs/screenshots/README.md for the full per-file manifest and for how to │
+  │  re-capture each view from a live ComfyUI window.                         │
   └──────────────────────────────────────────────────────────────────────────┘
 -->
 
@@ -36,15 +35,8 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 
 - [Why Neo?](#why-neo) · [Screenshots](#screenshots) · [Installation](#installation) ·
   [Features](#features)
-- [What changed from the original](#what-changed) · [Removed feature: batch scan](#removed-feature)
-- [First reliability pass](#pass-1) · [Second reliability pass](#pass-2) ·
-  [Third reliability pass](#pass-3) · [Fourth reliability pass](#pass-4) ·
-  [Fifth reliability pass](#pass-5) · [Sixth reliability pass](#pass-6) ·
-  [Seventh reliability pass](#pass-7) ·
-  [Eighth reliability pass](#pass-8) ·
-  [Ninth reliability pass](#pass-9) ·
-  [Tenth pass](#pass-10) ·
-  [Eleventh pass](#pass-11)
+- [ZipNN lossless compression](#zipnn) · [What changed from the original](#what-changed) ·
+  [Removed feature: batch scan](#removed-feature)
 - [Documentation](#documentation) · [Development](#development) ·
   [Credits & Attribution](#credits) · [License](#license)
 
@@ -249,6 +241,95 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 
 ---
 
+<a id="zipnn"></a>
+
+## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> ZipNN lossless compression
+
+**Neo's headline feature.** Large `.safetensors` checkpoints eat disk space fast.
+Neo can compress and decompress them **in place, losslessly**, using the
+[ZipNN](https://github.com/zipnn/zipnn) format — the same tensor-aware scheme the
+official ZipNN project uses, so the results stay interchangeable with the wider
+ZipNN ecosystem.
+
+### How it works
+
+Model weights are mostly floating-point numbers, and floating-point numbers are
+mostly _redundant_: the exponent bytes of a well-behaved weight tensor repeat
+over and over. ZipNN exploits exactly that. For every tensor it:
+
+- **splits** the value into its byte planes and re-orders the sign / exponent /
+  mantissa bits so like bytes land together, then
+- **Huffman-codes** each plane with the FiniteStateEntropy (FSE) codec.
+
+Tensors that are _not_ floating point (integer indices, masks, …) are copied
+through untouched, and a floating-point tensor whose compressed form would not
+actually be smaller is **left as-is** rather than padded. Each compressed tensor
+is stored as a `uint8` vector, and the file records the original `dtype` and
+`shape` of every one of them in a single `znn_compressed_vectors` metadata entry.
+Nothing is approximated or dropped — decompression reproduces the original file
+**bit for bit**.
+
+The compressed model is written next to the original as
+`<name>.znn.safetensors` — the exact suffix the official ZipNN tooling (and
+loaders patched with `zipnn_safetensors()`) expect, so a patched ComfyUI loader
+reads a Neo-compressed model transparently. Realistic checkpoints typically land
+around **60–80 %** of their original size (random-ish data compresses far less;
+low-entropy weights compress much more).
+
+### Using it
+
+Open any `.safetensors` model. In the gap between the preview and the info table
+sits the **ZipNN artwork itself as the button** — the shipped SVG draws its own
+glass plate (with a dark-mode variant), lifts and brightens on hover, and
+explains itself in a tooltip and to screen readers. Pressing it:
+
+1. asks for a confirmation that is deliberately _not_ styled as "Danger"
+   (compression is reversible and never deletes the original until the
+   compressed file is fully written and verified);
+2. replaces the button with a **live progress bar** while the work runs on the
+   CPU pool (tensor by tensor), so the rest of ComfyUI stays responsive;
+3. on success, swaps the original for `<name>.znn.safetensors` — previews and
+   Markdown notes follow the rename, and the grid refreshes itself.
+
+Opening a **compressed** model shows the same artwork with its colours
+**inverted** and the action flipped to _decompress_, behind the same
+confirmation, restoring the plain `.safetensors`.
+
+### Bundled, so it just works
+
+<details>
+<summary><b>Why this used to be painful — and how Neo fixes it</b></summary>
+
+ZipNN's Python side is trivial, but its compressor is a C extension
+(`zipnn_core`, built on FiniteStateEntropy). **PyPI ships no Linux wheels for
+it** — only a macOS-arm64 wheel and a source tarball — so a plain
+`pip install zipnn` compiles from source and dies on any machine without a C
+compiler and the Python headers (`Python.h`). That is a very common way to run
+ComfyUI, and the failure is cryptic (`error: [Errno 2] No such file or
+directory: 'x86_64-pc-linux-gnu-gcc'`).
+
+Neo therefore **vendors the whole library** under [`third_party/`](third_party/)
+and ships **prebuilt `zipnn_core` binaries** for Linux x86_64 (CPython 3.10 –
+3.13). On those platforms the first compression simply puts the bundled package
+and the matching binary on `sys.path` — **no compiler, no pip, no network, no
+waiting**. Only where no prebuilt binary matches (macOS, Windows, an uncommon
+architecture, or a brand-new CPython) does Neo fall back to a **single** clean
+build from the bundled C sources — never a cascade of pip strategies.
+
+See [`third_party/README.md`](third_party/README.md) for the layout, the
+platform/glibc coverage, the licences (ZipNN is MIT; FiniteStateEntropy is
+BSD-2-Clause OR GPL-2.0), and how to rebuild or add binaries.
+
+</details>
+
+> [!NOTE]
+> Compression needs the model's tensors in memory, so it runs on the CPU pool
+> and is bounded by RAM, not VRAM. It is **lossless and reversible**: the plain
+> `.safetensors` is only removed after the `.znn.safetensors` file has been
+> written and closed, and a failed run cleans up its partial output.
+
+---
+
 <a id="what-changed"></a>
 
 ## <img src="https://api.iconify.design/lucide/git-compare.svg?color=%23a855f7" width="28" height="28" align="middle" alt=""> What changed from the original
@@ -371,17 +452,14 @@ which had to be maintained. All of it is gone.
   `.`‑prefixed files are shown) and the toolbar's show/hide‑hidden‑files toggle.
   **These two setting ID strings are intentionally unchanged**: the ID is the key
   ComfyUI persists the user's value under, so renaming it would silently orphan
-  every existing installation's saved setting. A harness assertion now pins all
-  seven IDs so they cannot drift.
+  every existing installation's saved setting.
 - Everything _around_ those IDs was still de‑scan‑ned, because none of it is
   persisted: the settings category is now **Model List** (was “Scan”), the label
   is **“Exclude model types (separate with commas)”** (was “Exclude scan types”),
   the i18n keys are `setting.modelList` / `setting.excludeModelTypes`, the
   TypeScript identifier is `configSetting.excludeModelTypes`, and the backend
   setting group in `py/config.py` is `model_list` (so `manager.py` now resolves
-  `model_list.include_hidden_files`). Verified end to end: with
-  `IncludeHiddenFiles` off the list is `[alpha, beta, gamma]`, with it on
-  `[.hidden, alpha, beta, gamma]`.
+  `model_list.include_hidden_files`).
 - `ModelManager.scan_models()` / `os.scandir` — builds the model **list** (“scan”
   here means “enumerate a folder”, as it did upstream). Left as‑is on purpose:
   renaming it would churn code that has nothing to do with the removed feature.
@@ -399,578 +477,6 @@ which had to be maintained. All of it is gone.
 > through _Create Download Task_, which does carry a preview. Reading a model's
 > information is unaffected — that always came from disk, on demand.
 
-<a id="pass-1"></a>
-
-## <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2314b8a6" width="28" height="28" align="middle" alt=""> First reliability pass (Tailwind layers, dialog stack, Python hardening)
-
-Neo was audited end‑to‑end and hardened. Highlights:
-
-**Frontend**
-
-- Restored the Tailwind **theme layer** so standard utilities (`p-*`, `text-*`,
-  `size-*`, `gap-*`, …) are actually emitted — previously every theme‑dependent
-  class was silently dropped from the stylesheet.
-- Excluded build output from Tailwind's source scan → **deterministic** CSS
-  (no more “garbage” utilities pulled from the bundled `web/manager.js`).
-- Rebuilt the dialog stack to honour **per‑dialog** `defaultSize`, `min/max`
-  sizes, `resizeAllow` and `modal`; non‑modal by default again so the canvas
-  stays interactive (drag‑to‑graph works); dialogs no longer close on
-  Escape/outside click; header drag‑to‑move restored.
-- Fixed the flat grid crash on first paint (`chunk()` with a non‑positive column
-  count), the “None” preview not deleting existing previews, custom sub‑folders
-  being dropped/doubled on download, the embedding drag inserting the file
-  _extension_ instead of the name, an unanchored right‑click menu, the
-  indeterminate progress bar, and several icon/i18n gaps.
-- `<GlobalLoading/>` is rendered again (the global spinner was dead).
-
-**Backend (Python)**
-
-- **Critical:** removed `hf_hub_download(resume_download=…)`, deleted in
-  `huggingface_hub` 1.x — every Hugging Face download was failing with a
-  `TypeError`.
-- Persist the joined sub‑folder into the task so completed downloads land in the
-  chosen folder (not the type root).
-- Correct progress payloads, recursive HF file‑tree sizes, HF `tree`/`blob` URL
-  filtering, preview URL construction, and Python 3.13‑safe `mimetypes` usage.
-- `is_installed()` now parses requirement specifiers, so pip no longer re‑runs on
-  every startup.
-- **Security:** local uploads validate the target path (blocks arbitrary writes
-  and path traversal); model paths are traversal‑checked.
-
-All changes preserve existing behaviour and are covered by the checks in
-[Development](#development).
-
----
-
-<a id="pass-2"></a>
-
-## <img src="https://api.iconify.design/lucide/clipboard-check.svg?color=%2314b8a6" width="28" height="28" align="middle" alt=""> Second reliability pass (progress slot, model editor, task pool)
-
-A second end‑to‑end audit — driven by a headless harness that runs the real
-`web/manager.js` bundle against the real Python routes over HTTP + WebSocket —
-found and fixed the following. Nothing here changes intended behaviour; each
-item restores behaviour that was documented but silently broken.
-
-**Blocking I/O in request handlers**
-
-- **`GET /models/{folder}` blocked the event loop** — every model list refresh
-  stat'ed every file inline. Moved to the executor, with the request‑scoped
-  hidden‑files setting resolved beforehand.
-
-**Model editor**
-
-- **Every `<Button>` defaulted to `type="submit"`.** reka‑ui's `Primitive` does
-  not add a type, and the HTML default is `submit`; PrimeVue's Button injects
-  `type="button"`. Inside `ModelContent`'s `<form>` that meant each icon button
-  submitted the form — pressing the pencil set `editable = true` and then
-  immediately ran the save handler, which set it back to `false`. **The model
-  editor could not be opened at all.** `Button` now defaults to `type="button"`
-  (explicit `type="submit"`/`"reset"` still win). The same latent hazard was
-  removed from the hand‑written `<button>` elements that can end up inside that
-  form (`ResponseInput`'s clear button, `ModelPreview`'s carousel arrows) and,
-  for hygiene, from `ResponseBreadcrumb` / `DownloadTaskItem`.
-- **Entering edit mode erased the model type.** A `watch(editable, …)` that
-  upstream never had reset `type` to `''`, so saving a move/rename sent
-  `type: ""` and the backend rejected it, and the Create Download Task dialog
-  lost the type resolved from the search.
-- **Renaming and moving a model were silently ignored.** `updateModel` only
-  compared `subFolder` and `pathIndex`, so changing just the file name — or the
-  model _type_ at the same path index — sent no request at all; the editor
-  simply closed as if the change had been saved. All five fields are compared
-  now, and a move across types refreshes both folders.
-- **Civitai model types are resolved again.** `_resolve_model_type` had been
-  deleted and the type hardcoded to `""`. It is restored, hardened to only
-  return a type ComfyUI actually has a folder for (so categories such as
-  "Wildcards" degrade to empty instead of an unusable value).
-
-**Layout & task pool**
-
-- **The folder view broke after a layout/hidden‑files toggle.** Both call
-  `dialog.closeAll()`, which unmounts the explorer; `watch(initialized, …)`
-  lacked `immediate`, so on every mount after the first it never fired and the
-  explorer rendered a single `root` card with no breadcrumb.
-- **`DownloadThreadPool` lost its duplicate‑submit guard** in the
-  thread‑pool → asyncio rewrite. Resuming a task that was still running started
-  a _second_ download writing to the same `<task>.download` file. `submit()`
-  returns `"Existing"` again, and the asyncio lock is created lazily inside the
-  running loop (Python 3.9 bound it at import time, outside any loop).
-
----
-
-<a id="pass-3"></a>
-
-## <img src="https://api.iconify.design/lucide/bug.svg?color=%2314b8a6" width="28" height="28" align="middle" alt=""> Third reliability pass (blocking I/O, PrimeVue leftovers, false failures)
-
-A third end‑to‑end audit, again driven by a headless harness that runs the real
-`web/manager.js` bundle inside jsdom against the real Python routes over
-HTTP + WebSocket (with a faithful mock of `window.comfyAPI`, including
-`api.fetchApi`'s 60 s response‑header timeout and the `_registered` gate that
-decides whether a custom websocket event is dispatched at all), plus a
-Python‑only probe that drives the download task lifecycle directly. Every item
-below was first _reproduced_, then fixed, then re‑verified.
-
-**Blocking I/O in request handlers**
-
-- **`GET /model-manager/model-info` blocked the event loop** — the Civitai /
-  Hugging Face URL search behind _Create Download Task_ performs several
-  blocking `requests.get` round trips inline (for Hugging Face: the model info
-  **and** the recursive file tree). Moved to the executor.
-
-**Downloads froze the whole ComfyUI server (regression from the asyncio rewrite)**
-
-- Upstream ran every download in a **dedicated worker thread with its own event
-  loop**, so the blocking `requests` calls were harmless. `DownloadThreadPool`
-  was rewritten to asyncio and now schedules the coroutine on ComfyUI's **main**
-  loop, but `download_model_file_http` still called `requests.get(stream=True)`
-  and iterated `iter_content()` inline. Consequences, all measured: the connect /
-  response‑header phase blocked the entire server with **no socket timeout** (one
-  unresponsive host hung ComfyUI outright); between chunks the loop only regained
-  control once per second, starving every other websocket push and request; a download URL served by ComfyUI itself **deadlocked permanently**.
-  Probe result on the unmodified backend: `GET /download/task` two seconds into a
-  transfer **timed out**; after the fix it answers in 0.00 s while the transfer
-  runs. The Hugging Face branch already used `run_in_executor`; the plain HTTP
-  branch was missed and now offloads the same way, marshalling progress back with
-  `asyncio.run_coroutine_threadsafe` exactly like the HF `tqdm` hook.
-- **The response must be closed from inside the worker thread.** Closing it in a
-  loop‑side `finally` ran concurrently with the thread's `iter_content()` and
-  blocked the event loop on urllib3's read lock — measured at **8 s of total
-  server unresponsiveness after every pause**.
-- **Pausing never reached the UI.** `pause_model_download_task` cancels the task,
-  so the download coroutine never reached its own “paused” push; the Download
-  List kept showing the pause button and a live speed read‑out for a task that
-  had already stopped, until a manual refresh. The state is now pushed from the
-  pause handler. Verified end to end: pause → resume → complete, size frozen
-  while paused, growing again after resume, and exactly **one** task per file
-  (the duplicate‑submit guard holds).
-
-**“Upload to Hugging Face” reported a false failure for every real model**
-
-- `POST /hf/upload` only answers once the whole file has been transferred, so it
-  always outlives the same 60 s client timeout: the UI showed a red
-  `Error / Fetch timeout` toast and hid the progress bar while the server carried
-  on and uploaded the file successfully. `py/upload_hf.py` emitted
-  `hf_upload_complete` — and **nothing listened for it**. Completion is now driven
-  by the websocket events; a client abort is only ignored once the server has
-  acknowledged the upload (first progress push), so a genuine failure still
-  reports. Verified: with a 12 s server‑side upload and a 4 s client timeout the
-  bar stays up throughout and the success toast arrives on completion.
-- The bar sat motionless at 0 % for the entire transfer (`huggingface_hub`
-  exposes no per‑chunk callback, so only 0 % and 100 % are ever sent). It now
-  renders **indeterminate** until a real percentage exists.
-
-**One click created two download tasks**
-
-- The Create Download Task button carried both `type="submit"` **and**
-  `@click="createDownTask(currentModel)"`, inside `ModelContent`'s
-  `<form @submit.prevent>`. Every click therefore created two tasks: the second
-  failed with `File already exists: …` (observed), or — when they raced — two
-  tasks downloaded the same file into different `<task>.download` files and both
-  moved onto the same model path. The first one also used the **unedited** model,
-  discarding every change made in the editor (preview choice, description,
-  type / sub‑folder). Upstream had only `type="submit"`; that is restored.
-
-**PrimeVue was removed, but its icons and CSS variables were not**
-
-Nine places still rendered raw PrimeIcons markup. Nothing defines `.pi-*` any
-more (the built stylesheet contains **zero** such rules and no icon font), so
-every one of them was an empty, invisible box:
-
-- `<GlobalLoading/>`'s spinner — the overlay dimmed the screen with **no spinner**
-  in it, so long operations gave no feedback at all.
-- `DialogCreateTask`'s **search button** — invisible; only the Enter key still
-  started a Civitai / Hugging Face / direct‑link search.
-- `hooks/config.ts`'s `iconButton` — the **API‑key edit and delete controls in
-  ComfyUI's settings panel** were invisible 16 px gaps. ComfyUI's settings dialog
-  lives outside this extension's Vue app, so the Lucide icon is mounted with Vue's
-  low‑level `render()`.
-- `ResponseSelect`'s prefix — `<i :class="prefixIcon">` (the sort‑order indicator
-  in both model views). A dynamic `:class` binding, which is why the class‑name
-  linter never saw it.
-- The `Box` empty‑state icons in `DialogManager` / `DialogCreateTask` /
-  `DialogHfUpload`, the `CheckCircle` on the direct‑file banner, and the two
-  `Info` icons in `ModelDescription`.
-- `ModelDescription` also styled itself with **undefined PrimeVue variables**
-  (`--p-form-field-border-color`, `--p-form-field-focus-border-color`,
-  `--p-surface-500/700`, `--p-dialog-background`). Those declarations are invalid
-  at computed‑value time, so the description textarea had **no border and no
-  focus ring**, and the rendered markdown lost its heading rules, blockquote bar
-  and code background. All mapped onto the `--mm-*` tokens.
-- The right‑click menu built an `icon` for every item and never rendered it.
-
-**Confirm dialogs ignored their own options**
-
-- Every caller passes `icon: 'pi pi-info-circle'` and
-  `acceptProps: { severity: 'danger' }` / `rejectProps: { outlined: true }`, and
-  `GlobalConfirm` discarded all of them — so “Delete this model?”, “Delete this
-  download task?” and “Delete API key?” looked **exactly like Cancel**. The icon
-  resolves through the Lucide map and `severity: 'danger'` now maps to the
-  `destructive` button variant.
-
-**Credentials were one `git add .` away from being committed**
-
-- `.gitignore` contained `private.keypackage-lock.json` — two patterns
-  concatenated onto one line, so **neither was ignored**. `private.key` is the
-  pickle holding the user's Civitai and Hugging Face tokens, and it showed up as
-  untracked in every checkout. Split apart; `git check-ignore` now confirms both.
-
-**Prose was leaking into the shipped stylesheet**
-
-- Tailwind v4 auto‑detects source files across the whole project, so ordinary
-  English words in `README.md` and in Python comments became class candidates:
-  the build really did emit global `.paused{animation-play-state:paused}` and
-  `.contents{display:contents}` rules into the stylesheet this extension injects
-  into ComfyUI's page. `src/style.css` now turns automatic detection off
-  (`source(none)`) and declares `@source '../src'` + `@source '../index.html'`,
-  the only places real class names live. The stylesheet is a pure function of
-  the sources again, and the generated selector set is unchanged apart from the
-  four utilities this pass stopped using (the two `--p-form-field-*` borders,
-  `text-4xl` and the prose‑derived `contents`) — **nothing was added**.
-
-**The linter was configured to hide exactly this bug class**
-
-- `eslint-plugin-tailwindcss` whitelisted `^(pi|md|mdi)(-.+)?$` with the comment
-  _“PrimeIcons classes rendered by the ComfyUI host stylesheet”_ — the host does
-  not ship PrimeIcons. The entry is removed and the rule verified to flag a
-  re‑introduced `pi pi-box`, so a future leftover fails `pnpm lint`.
-
-All of the above was verified with `pnpm typecheck`, `pnpm lint`,
-`pnpm format:check`, a clean `pnpm build`, and the harness suites. The Python
-changes were additionally checked with `ruff` (`E9,F82,F811,F841,B,PLE`): no new
-findings.
-
-<a id="pass-4"></a>
-
-## <img src="https://api.iconify.design/lucide/gem.svg?color=%238b5cf6" width="28" height="28" align="middle" alt=""> Fourth reliability pass (glassmorphism completion, scoped preflight, last bug fixes)
-
-A UI-wide audit against live screenshots found the one thing the earlier
-passes could not see: **the browser's own stylesheet was painting half the
-interface**. Neo intentionally ships without Tailwind's preflight (the ComfyUI
-host page must stay untouched), and the dialogs teleport to `<body>`, outside
-the `#comfyui-model-manager` scope that normalises border colours. Every
-native `<button>`/`<input>`/`<textarea>` without an explicit background or
-border therefore kept the **UA face** — an opaque grey slab with a light
-outline under a dark colour-scheme — which is exactly the "grey box, white
-ring" look on toolbar icons, tabs, checkboxes, toast buttons and the
-select/input fields. Colour-less `border` utilities also fell back to
-Tailwind v4's `currentColor` default, drawing **white table grids** inside the
-model-info dialog.
-
-**Design contract now enforced everywhere**
-
-- _Grey push buttons_ (`secondary`, `ghost`, `outline`) render on a
-  **translucent foreground tint** (`bg-mm-fg/5…/9`) with a **hairline border**
-  (`border-mm-fg/10…/15`), `backdrop-blur` and a density-matched neutral glass
-  shadow (`--mm-shadow-glass-1/2`).
-- _Coloured push buttons_ (`default`, `destructive`) render as a **skeleton of
-  their own colour** (`bg-mm-accent/16`, `bg-mm-danger/14`) with a hairline of
-  the same colour and a **shadow tinted with the lightened colour**
-  (`--mm-shadow-accent-*`, `--mm-shadow-danger-*`, built with `color-mix` so
-  they follow the host palette).
-- _Non-push controls_ (select/input triggers, dropdown tabs, tabs list,
-  checkbox, slider, progress, badges, chips, toast buttons) each got their own
-  translucent treatment; hover/selected tints (`--mm-surface-hover`,
-  `--mm-surface-selected`) are now pure translucent mixes instead of opaque
-  surface fills, so glass stays see-through.
-- Neutral elevation tokens are **theme-aware** (soft slate shadows in light
-  mode, deep black ones under `.dark-theme`); hard-coded `bg-gray-*`,
-  `text-gray-*`, `bg-green-50`… panels were mapped onto the `--mm-*` tokens.
-- A **scoped preflight** (`@layer base`, `:where(#comfyui-model-manager,
-.mm-scope) :where(button, input, textarea, select)`) resets UA faces, fonts
-  and borders at zero specificity; every teleported root (dialog, alert-dialog,
-  sheet, dropdown, select, tooltip) carries the new `.mm-scope` marker so the
-  reset reaches `<body>`-level portals. Utilities still override it, so no
-  component lost its explicit styling.
-
-**Bug fixes in this pass** (behaviour-preserving, each reproduced first)
-
-- `DialogCreateTask`: a failed preview download re-threw inside
-  `createDownTask`, whose promise nobody awaits — the failure surfaced as an
-  **unhandled promise rejection** after the toast had already reported it. The
-  submit now aborts cleanly.
-- `useModels.remove`: a failed `DELETE` never settled the returned promise, so
-  callers awaiting it hung forever; the error toast still shows.
-- `py/information.py`: `version["images"]` raised `KeyError` for Civitai
-  versions without images, and `markdownify(None)` raised `TypeError` when the
-  API sent an explicit JSON `null` description — both aborted the whole
-  search. Both are guarded now.
-
-**Verification harness (new, `harness/`)**
-
-Two suites drive the **real** code, not mocks of it:
-
-- `pnpm verify:py` — imports the actual extension package against stubbed
-  ComfyUI modules (`folder_paths`, `server`, `comfy.utils`) and exercises every
-  route over real HTTP: listing + hidden-file toggle, info read, edit /
-  rename / preview set & remove / delete, direct-link download **into a
-  sub-folder**, pause / resume / delete of a throttled download, local upload
-  plus its path-traversal and folder-validation guards, preview serving and
-  the Hugging Face token guards. 37 assertions.
-- `pnpm verify:e2e` — serves the committed production bundle
-  (`web/manager.js` + stylesheet) from that same backend, loads it in headless
-  Chromium behind a faithful `window.comfyAPI` mock, and asserts behaviour
-  (open manager, flat ⇄ folder, model detail, tabs, confirm dialog, download
-  dialogs, light/dark) **and the glass contract** (translucency `0 < alpha < 1`,
-  1px borders, `backdrop-filter`, non-empty shadows, zero console errors).
-  26 assertions; screenshots land in `harness/shots/` (git-ignored).
-
-All of the above passes `pnpm typecheck`, `pnpm lint`, `pnpm format:check` and
-a clean `pnpm build` on the committed bundle.
-
-<a id="pass-5"></a>
-
-## <img src="https://api.iconify.design/lucide/life-buoy.svg?color=%23f97316" width="28" height="28" align="middle" alt=""> Fifth reliability pass (download creation & HuggingFace upload lifecycle)
-
-Two user-reported failures were reproduced in the harness first, then fixed:
-
-**"Create Download Task does nothing"**
-
-- The direct-link model-type selector offered a **hard-coded catalogue of all
-  16 ComfyUI model types**. Choosing one the running ComfyUI has no folder for
-  ("GLIGEN", "Classifiers", …) only failed at task-creation time with
-  `PathIndex 0 is not in <type>` — from the user's side the Download click
-  appeared dead. The list is now built from the folders that **actually
-  exist** (pretty labels kept), so every offered target is placeable.
-- A failed **browser-side preview fetch** (CORS, hotlink protection, offline
-  CDN) aborted the whole submission. The raw preview URL is now handed to the
-  backend as a fallback string: `save_model_preview()` downloads it
-  server-side, where CORS does not exist, and degrades to "no preview" if
-  that fails too. The task is always created. (`py` probe `P08b` covers the
-  URL-preview path.)
-- While reproducing this, `PUT /model-manager/model/…` turned out to run its
-  preview download + PIL re-encode **inline in the handler**, freezing the
-  event loop (deadlocking outright when the preview URL points back at
-  ComfyUI). It now runs in the executor, like the other blocking handlers.
-
-**"HuggingFace upload: no progress, and closing the window cancels it"**
-
-- `POST /hf/upload` used to answer only after the **whole transfer**, inside
-  the request handler. ComfyUI's `api.fetchApi` aborts header-slow requests
-  after 60 s and aiohttp cancels handlers whose client goes away — closing
-  the dialog (or just exceeding the timeout on a multi-GB file) killed the
-  coroutine that reports progress and completion.
-- The upload now runs as a **background task on the shared download pool**;
-  the handler validates, emits the initial progress event and returns a
-  `taskId` immediately. Completion/failure travel as `hf_upload_complete` /
-  `hf_upload_error` websocket events, so no client behaviour can cancel a
-  running upload any more.
-- The upload state moved into a module-level store (`hooks/hfUpload`): the
-  progress bar keeps running while the dialog is closed, **re-appears when the
-  dialog is re-opened**, and the success/error toast is raised exactly once,
-  even with the dialog closed.
-
-The harness gained a websocket bridge (the stub server forwards every
-`send_json` push to the page, like ComfyUI's socket does) and two regression
-scenarios: `E13` (direct-link task creation end-to-end) and `E14` (HF upload
-progress survives closing the dialog and completes). Current totals:
-`pnpm verify:py` 37 assertions, `pnpm verify:e2e` 26 assertions, plus
-`typecheck` / `lint` / `format:check` / clean `build`.
-
-<a id="pass-6"></a>
-
-## <img src="https://api.iconify.design/lucide/rocket.svg?color=%2322c55e" width="28" height="28" align="middle" alt=""> Sixth reliability pass (HF upload acceptance, preview defaults, view & hover defaults)
-
-- **HuggingFace upload accepted again**: `huggingface_hub` validates
-  `path_or_fileobj` with `isinstance(..., (str, bytes, io.BufferedIOBase))`,
-  so the progress‑reporting wrapper introduced in the fifth pass was
-  rejected with `ValueError: path_or_fileobj must be either an instance of
-str, bytes or io.BufferedIOBase` before any transfer started. `_ProgressFile`
-  now subclasses `io.BufferedIOBase` (verified against the real library's
-  `CommitOperationAdd`), and the harness fake enforces the very same
-  validation so this class of regression fails `pnpm verify:e2e` instead of
-  production.
-- **`NO-PREVIEW.svg` is the default, not a fallback**: preview‑less models
-  carry the dedicated `GET /model-manager/no-preview.svg` URL in the model
-  list (and download tasks map their `no-preview` sentinel to it). The
-  preview routes lost their substitute‑artwork fallbacks and the
-  `except: abs_path = extension_uri` catch‑all; unknown previews are a plain
-  404 now.
-- **The flat grid is the initial view** (`ModelManager.UI.Flat` defaults to
-  `true`; a persisted user setting still wins).
-- **Folder hover animations are gated**: the opening morph starts after the
-  pointer rested on a folder for ≥ 1 s, the closing morph after it stayed
-  away for ≥ 1 s.
-
-Harness totals after this pass: `pnpm verify:py` 40 assertions,
-`pnpm verify:e2e` 36 assertions (including the 1 s hover gates, the default
-flat view, the default no‑preview artwork and the BufferedIOBase acceptance),
-plus `typecheck` / `lint` / `format:check` / clean `build`.
-
-<a id="pass-7"></a>
-
-## <img src="https://api.iconify.design/lucide/git-commit-horizontal.svg?color=%23ef4444" width="28" height="28" align="middle" alt=""> Seventh reliability pass (honest HuggingFace completions)
-
-Re‑uploading a model whose identical content already sits at the destination
-looked like a broken upload: HuggingFace accepts the request, transfers
-nothing (`Upload 0 LFS files`), skips the empty commit
-(`No files have been modified since last commit`) and returns a `CommitInfo`
-built from the **existing** HEAD — which this extension used to report as a
-plain successful upload, with no transfer progress to show either.
-
-- `run_upload` now records the repository HEAD sha before the transfer and
-  compares it with the returned commit oid. Equal oids mean the Hub skipped
-  the commit, and the completion event carries `skipped: true`.
-- The UI raises an explicit warning toast — _"An identical file already
-  exists at '<path>' in '<repo>' — HuggingFace skipped the empty commit"_ —
-  instead of a silent success; real commits still toast success and new
-  content still streams accurate percentages through the `_ProgressFile`
-  wrapper (the documented trade‑off: binary‑IO payloads use the classic LFS
-  transfer, not Xet).
-- The harness fake reproduces the Hub's skip semantics (second upload of the
-  same `(repo, path)` returns the existing head sha), and `E14g` asserts the
-  warning toast, so a future regression to silent no‑ops fails
-  `pnpm verify:e2e`.
-
-- **Dependency pin `huggingface_hub>=0.34.0,<1.31.0`** (resolves to 1.30.0):
-  the `hf` CLI distribution ("CLI extracted from the huggingface_hub library")
-  is version‑paired with the library (`hf` X requires
-  `huggingface_hub==X`), and the 1.31 line additionally changed upload
-  streaming internals (`SliceFileObj.__iter__`) relative to the field‑proven
-  1.30 line. Environments that keep the `hf` CLI beside this extension
-  therefore stay on the 1.30 line. The pin is **enforced at startup**:
-  `is_installed()` now evaluates version ranges, so an out‑of‑range
-  installation (e.g. 1.31.x) triggers a correcting `pip install` instead of
-  being accepted silently. Verified against the real 1.30.0 wheel
-  (`CommitOperationAdd` acceptance, `repo_info`, skip semantics).
-
-Harness totals after this pass: `pnpm verify:py` 40 assertions,
-`pnpm verify:e2e` 37 assertions, plus `typecheck` / `lint` / `format:check` /
-clean `build`.
-
-<a id="pass-8"></a>
-
-## <img src="https://api.iconify.design/lucide/link.svg?color=%23f97316" width="28" height="28" align="middle" alt=""> Eighth reliability pass (pre-flight duplicate detection for HuggingFace uploads)
-
-Re‑uploading unchanged content made the Hub refuse an empty commit
-(`Upload 0 LFS files` + `No files have been modified since last commit`),
-which from the outside still looked like a broken upload even with the
-seventh pass's post‑hoc warning: the extension first paid for a hash pass, a
-preupload and an LFS batch round‑trip that could never produce a commit.
-
-- `run_upload` now runs a **pre-flight check** before any transfer: it hashes
-  the local file and compares the digest with the sha256 of the matching
-  entry in the remote tree (`model_info(..., files_metadata=True)`). An
-  exact match short‑circuits the upload — no transfer attempt, no confusing
-  Hub round‑trips.
-- The completion event then carries the **blob URL** of the file that already
-  lives in the repository, and the UI toast links it: _"An identical file
-  already exists in '<repo>': https://huggingface.co/<repo>/blob/main/<path> —
-  HuggingFace skips empty commits, so nothing was transferred. Use a
-  different destination path to create a new commit."_
-- Any pre-flight failure degrades to "go", so a real upload is never blocked
-  by the check itself; the seventh pass's oid comparison stays as a backstop
-  for races (file changed between check and transfer).
-- Harness: the fake Hub now serves a real sha256 tree (`model_info`), `E14g`
-  asserts the linked skip toast and `E14h` asserts that a duplicate upload
-  performs **zero** transfer reads.
-
-Harness totals after this pass: `pnpm verify:py` 40 assertions,
-`pnpm verify:e2e` 38 assertions, plus `typecheck` / `lint` / `format:check` /
-clean `build`.
-
-<a id="pass-9"></a>
-
-## <img src="https://api.iconify.design/lucide/scroll-text.svg?color=%230891b2" width="28" height="28" align="middle" alt=""> Ninth reliability pass (upload honesty, stacking order, panel‑scoped loading, editing reach, Japanese)
-
-A user‑reported failure (“uploading to an existing private repository prints
-`Upload 0 LFS files` and the upload never starts”) was reproduced against the
-**real** `huggingface_hub` 1.30.0 pointed at a local Hub emulator that replays
-the reported HTTP trace byte for byte, then root‑caused and fixed; the same
-audit fixed the popup stacking, the loading overlay and the editing reach.
-
-**HuggingFace upload**
-
-- **A zero‑byte commit was reported as a plain “Success”.** When the Hub already
-  holds the exact bytes, the LFS batch answer carries no upload action
-  (`Upload 0 LFS files`) yet a **new commit is still created** — so the old
-  HEAD‑comparison never noticed, the progress bar never moved once, and a
-  bare success toast appeared next to it. `_ProgressFile` now counts the bytes
-  it actually hands to the transfer; a commit that moved none is reported as
-  `deduplicated`, and the UI explains it with a link to the committed file.
-- **The local hash pass was invisible.** Hashing a multi‑gigabyte checkpoint
-  takes minutes during which nothing was sent and nothing was shown — the real
-  reason an upload “never starts”. The hash pass is now a named phase
-  (`Preparing…` / `Hashing…` / `Uploading…`) with live percentages, and the
-  pre‑flight duplicate check compares **sizes first** so an unrelated file no
-  longer pays for a full hash.
-- **`_ProgressFile` mis‑detected its phase for files ≤ 512 B** (`from_fileobj`
-  starts with `read(512)`, so the sample read already hit EOF and the hashing
-  pass was mistaken for the transfer). Phase now flips on the first _true_ EOF.
-- **huggingface_hub 1.30.0 crashes on a spec‑legal LFS batch answer.**
-  `_validate_batch_actions` reads `response.get("actions", {}).get("upload")`,
-  which raises `AttributeError` when the Hub answers `"actions": null` (the
-  git‑-lfs way of saying “already in storage”). Verified against the real
-  library; the upload now retries **once** through the file‑path route, which
-  takes the `hf_xet` code path and never calls the batch endpoint.
-
-**Popup stacking order**
-
-- z‑indexes were scattered literals (`z-50` … `z-2800`, `9999`) plus three
-  ad‑hoc inline `:style="{ zIndex: 2600 }"` patches. Everything teleported to
-  `<body>` at Tailwind's default `z-50` — the **folder‑path picker**, the dialog
-  overlay/content defaults, `SelectContent`, `SheetContent`/`SheetOverlay` —
-  painted _behind_ the 2400+ dialog windows, i.e. at the very back. A single
-  `--mm-z-*` scale in `style.css` (2400 dialog / 2700 nested / 2800 popover /
-  2900 confirm / 3000 toast) is now the only source of truth, and every `ui/*`
-  wrapper defaults to it.
-- **Toasts were `position: static`.** `Sonner` runs `unstyled` and deliberately
-  does not import vue‑sonner's stylesheet — which silently dropped the toaster's
-  `position: fixed`, offsets **and z‑index** with it. Measured consequences: the
-  toast container gave `#comfyui-model-manager` a real 70 px height (pushing the
-  host page down), painted at `z-index: auto` underneath every dialog, and each
-  toast overflowed its 356 px slot by 37 px because `box-sizing` fell back to the
-  UA `content-box`. Positioning and box model are restored with scoped CSS only;
-  the library stylesheet stays unimported so the host `<html>` is never polluted.
-
-**Loading overlay**
-
-- The viewport‑wide `fixed inset-0`, `z-index: 9999` scrim is gone. The overlay
-  (`PanelLoading`) now renders **inside the topmost window only**, so a refresh
-  dims and blurs that one panel while the canvas, the top bar and every other
-  window stay visible and usable.
-- `useLoading` had a live leak: a second `show()` for a target whose 200 ms grace
-  timer was still pending orphaned the first timer, whose later firing left the
-  global counter at 1 — the overlay then **never went away**. Pending shows for
-  the same target are now a no‑op, and the counter can no longer go negative.
-
-**Editing reach**
-
-- The **Directory** row renders as a directory, with its trailing separator
-  (`…/models/unet/`), in both the download editor and the saved‑model detail.
-  The folder Tree keeps keying on the plain path through a dedicated
-  `folderKey`, so display and selection cannot drift.
-- The file‑name field accepts a **folder prefix** (`sub/name.safetensors`); `/`
-  is no longer rejected as an illegal character (empty / `.` / `..` segments
-  still are, and the backend re‑checks traversal). Missing directories are
-  created on save.
-- Editing a description no longer requires clicking an invisible full‑size
-  overlay on top of the rendered markdown (which also swallowed the markdown's
-  own links): an explicit **Edit** icon button opens the textarea.
-
-**Japanese**
-
-- `src/locales/ja.json` added; all three bundles carry the same 150 leaf keys
-  (mechanically asserted), `Comfy.Locale` / `navigator.language` region and
-  script subtags are normalised, and ~40 strings that were hard‑coded English
-  (toast summaries, empty states, validation messages, model‑type labels, the
-  API‑key dialog) moved into i18n. Note for future translators: vue‑i18n treats
-  `|` as its plural separator, so a literal pipe must be written `{'|'}` —
-  leaving it raw makes `t()` throw and silently disables the validator.
-
-**Verification**
-
-- `pnpm verify:py` 40 → **46 assertions** (folder‑prefix rename landing in a new
-  sub‑folder, traversal still refused, missing `pathIndex` validated, a task
-  without a description completing — the last one proven by a negative control:
-  reverting the one‑line guard fails it).
-- `pnpm verify:e2e` 38 → **64 assertions**: measured z‑index _and_ hit‑testing
-  for menu / tooltip / nested picker / confirm / toasts, the panel‑scoped
-  loading scrim (present inside the panel, absent over the host, gone when the
-  request settles), the trailing‑slash Directory row, a real folder‑prefix
-  rename moving the file on disk, the description Edit icon, and the Japanese
-  bundle rendering under `?locale=ja`.
-- `pnpm capture` / `pnpm capture --video` render every documentation image from
-  the shipped bundle (see [Documentation](#documentation)).
-
 <a id="documentation"></a>
 
 ## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="28" height="28" align="middle" alt=""> Documentation
@@ -984,199 +490,10 @@ Step‑by‑step usage guides, each complete and self‑contained:
 They cover installation, both layouts, card interactions and drag‑to‑graph, the
 model editor (folder picker, folder‑prefixed names, previews, descriptions),
 downloads and the task list, the HuggingFace upload phases and completion
-messages, settings and locales, plus a troubleshooting table. The screenshots
-they embed live in [`docs/screenshots/`](docs/screenshots/) with a per‑file
-manifest in [`docs/screenshots/README.md`](docs/screenshots/README.md).
-
-Two further reference documents:
-
-- [`docs/SPEC-ANSWERS.md`](docs/SPEC-ANSWERS.md) — the top‑bar button's
-  customisation surface, the API‑key lifecycle, every ComfyUI setting this
-  extension registers, and exactly how (and how many) preview images are stored.
-- [`docs/OPTIMIZATION-REPORT.md`](docs/OPTIMIZATION-REPORT.md) — a no‑change
-  audit of backend/frontend hot spots and standards‑catch‑up candidates, each
-  with cost, benefit and risk.
-
-<a id="pass-10"></a>
-
-## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f43f5e" width="28" height="28" align="middle" alt=""> Tenth pass (feedback surfaces, galleries, and the optimisation backlog)
-
-**Toasts became the first-class feedback channel.** Every mutating operation now
-reports its outcome — layout and hidden-file toggles, node add/copy, workflow
-load, model update, pause/resume/delete of tasks, API-key save/remove, card-size
-save/reset, local-upload start, model-info load failure — and the toasts
-themselves were rebuilt: denser glass (22 px blur + saturation), a severity icon,
-a tinted left bar and outer glow per severity, and a **manual dismiss button**
-with a translated `aria-label`.
-
-![toast stack](docs/screenshots/toast-stack.png)
-
-**Previews are kept in full and can actually be looked at.** A model's whole
-gallery is stored now (`<base>.<ext>`, `<base>.preview.<ext>`,
-`<base>.preview<N>.<ext>`), the model list returns it as an array, the preview
-area carries permanent **`<` / `>` buttons and an `i / n` counter** in both view
-and edit mode, and tapping the preview opens a **full-screen lightbox**
-(arrow keys and Escape work too). Saving with the "default" source keeps every
-stored preview instead of silently deleting the extras.
-
-![lightbox](docs/screenshots/lightbox.png)
-
-**Environment-provided API keys are adopted.** With an empty `private.key`, a
-token present in `HF_TOKEN` / `CIVITAI_API_KEY` is written into `private.key`
-once (only the keys actually present in the environment), so it behaves exactly
-like a key entered through the UI. `private.key` also moved from pickle to
-**JSON with 0600 permissions**, removing a deserialization code-execution
-surface.
-
-**The optimisation backlog was executed** (everything except the single-chunk
-bundle, which ComfyUI's injection model forbids): preview re-encode memoisation
-with `ETag`/304, zero-stat model walks, cached folder tables, separated I/O and
-CPU executors, an **aiohttp streaming downloader** (pause/resume/delete/Range
-semantics unchanged, connect/read timeouts added), SVG artwork served over HTTP
-with cache headers (the bundle lost 52 KB of inlined data URIs), per-card
-ResizeObservers removed, debounced search, lazy locale bundles, `tw-animate-css`
-replaced by nine hand-rolled keyframe classes, and the `huggingface_hub` pin
-lifted to `<1.32.0` **after verifying 1.31.0 against all four emulated upload
-scenarios**. `mypy` now checks the backend clean, a GitHub Actions workflow runs
-the whole gate, and `eslint`'s `projectService` was trialled and rejected (it
-OOMs ESLint on ≤2 GB machines — recorded in `eslint.config.js`).
-
-Verification after this pass: `verify:py` **53 assertions**, `verify:e2e`
-**75 assertions**, `mypy` clean, `typecheck` / `lint` / `format:check` / `build`
-clean.
-
-<a id="pass-11"></a>
-
-## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Eleventh pass (selection mode, ZipNN, hover fixes, flat default)
-
-**Reported hover/swipe artefact — root cause confirmed and fixed.** The
-hover-revealed glass action buttons fade in over the type/size chips whenever a
-card is hovered, and an HTML5 drag keeps the hover state alive for its whole
-duration, so mid-drag the backdrop-blurred buttons tinted the chips beneath
-them ("unrelated elements glow on their own"). The button column now sits
-_below_ the chips and is suppressed for the whole drag via a `data-dragging`
-attribute on the card. No glass styling was changed.
-
-**Flat view is the default again, for real.** Earlier builds (and the upstream
-project) stored `ModelManager.UI.Flat = false`, and a stored value always wins
-over a new default, so existing installations never saw the change. A one-time
-migration (`ModelManager.UI.FlatDefaultV2`) resets the preference once; any
-choice made afterwards sticks. Verified by `E30`/`E30b` with a pre-seeded
-`false`.
-
-**The flat-view hover buttons work now.** They were `pointer-events: none`
-(inherited from their fade-in wrapper) so every press landed on the drag overlay
-and simply opened the card. The wrapper re-enables pointer events exactly while
-the card is hovered (`E29`), and the set gained an **open model page** button
-using the conventional external-link arrow instead of the eye glyph. The page
-URL is read from the notes front-matter at scan time (a few hundred bytes per
-model that has notes), so the grid can offer it without loading descriptions.
-
-**"Select files" multi-select.** A toolbar toggle reveals a round checkbox on
-every card and folder; selecting one or more raises a bulk bar with **Add to
-workflow** and **Delete** (danger-confirmed), plus a clear action. Works in both
-layouts (`E28`–`E28c`).
-
-**ZipNN compression, the headline feature.** Built strictly against the official
-reference implementation ([zipnn/zipnn](https://github.com/zipnn/zipnn) 0.5.4,
-`scripts/zipnn_compress_safetensors.py` / `zipnn_decompress_safetensors.py`):
-tensor-by-tensor Huffman compression of floating-point tensors, passthrough for
-everything else, `znn_compressed_vectors` metadata, and the official
-`<base>.znn.safetensors` naming so `zipnn_safetensors()`-patched loaders read the
-result transparently. The call-to-action uses the shipped
-`assets/ZipNN-icon/ZipNN-Button_Icon.svg`, sits in the gap between the preview
-and the info table, lifts and brightens on hover with a tooltip, and asks for a
-**non-danger confirmation** before doing anything. A progress bar replaces the
-button while the cpu-pool task runs; previews and notes follow the rename, and a
-compressed model shows the icon **fully inverted** with a decompress action
-behind the same confirmation — and since the twelfth pass the artwork _is_ the
-button (no chrome, no label; it draws its own glass plate and dark variant).
-ZipNN has no Linux wheels (it builds from source), so it is installed **on
-demand** at first use instead of being forced onto every ComfyUI installation;
-a failed install reports pip's own output plus the distro-specific fix command
-and offers a retry toast action.
-
-Verification after this pass: `verify:py` **62 assertions** (P31–P33c exercise
-the whole ZipNN pipeline through harness stubs of `zipnn`/`safetensors`/`torch`),
-`verify:e2e` **87 assertions** (E27–E30b), `mypy` clean, `typecheck` / `lint` /
-`format:check` / `build` clean.
-
-<a id="twelfth-pass"></a>
-
-## <img src="https://api.iconify.design/lucide/wrench.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Twelfth pass (ZipNN installer hardening, artwork-as-button)
-
-A production report — `pip install zipnn` dying with a bare _"returned non-zero
-exit status 1"_ — showed the on-demand installer was swallowing pip's entire
-output, retrying doomed strategies and caching failures forever. Fixed end to
-end:
-
-- **Diagnosable failures.** `_run_pip` captures stdout/stderr; every raised
-  message carries pip's last 25 lines, so `fatal error: Python.h: No such file
-or directory`, a missing compiler or a resolver conflict is visible instead of
-  an opaque exit code.
-- **Prerequisite detection.** Before building, the extension checks for a C
-  compiler and `Python.h`, prints a warning, and on failure names the exact
-  distro/conda command that fixes it (`sudo apt-get install -y build-essential
-python3-dev`, `sudo dnf install -y gcc gcc-c++ python3-devel`, …).
-- **Sane strategy order.** Local wheel → `--no-deps` (a ComfyUI venv already has
-  numpy/safetensors/torch; a full resolve re-downloads a ~550 MB torch wheel) →
-  full install → `--no-build-isolation`. A build that succeeds but cannot be
-  imported stops the chain instead of re-downloading torch.
-- **Modern-toolchain CFLAGS.** gcc ≥ 14 / clang ≥ 16 default
-  `implicit-function-declaration` / `incompatible-pointer-types` to hard errors,
-  which ZipNN 0.5.4's C sources trip on; exactly those diagnostics are relaxed
-  (real errors stay loud).
-- **Retry instead of restart.** Failures are cached for five minutes; the error
-  toast shows the first interesting pip line (full output in the console), and a
-  **retry** action re-runs the strategies with `force`.
-- **Offline escape hatch.** Wheels dropped into `assets/zipnn-wheels/` are
-  preferred over PyPI (see the README inside that directory).
-- **The SVG artwork is the button.** The rectangular chrome and the text label
-  are gone; `assets/ZipNN-icon/ZipNN-Button_Icon.svg` _is_ the control — hover
-  lift/brighten, tooltip, `aria-label`, focus ring and the inverted state for
-  compressed models all still apply.
-- `harness/e2e.mjs` / `capture.mjs` / `repro.mjs` honour `$PYTHON` so the
-  harness can run against any interpreter.
-
-Verification after this pass: `verify:py` **74 assertions** (P34–P34j pin the
-strategy order, caching, CFLAGS, wheel directory, prerequisite hint and the
-`installFailed` flag), `verify:e2e` **89 assertions** (E08c/E27g pin the
-artwork-as-button contract), plus `mypy`, `typecheck`, `lint`, `format:check`
-and `build` clean.
-
-<a id="thirteenth-pass"></a>
-
-## <img src="https://api.iconify.design/lucide/hammer.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Thirteenth pass (recorded-compiler substitution, folded failures, 2× artwork)
-
-A field report from a Gentoo-flavoured host exposed the last blind spot of the
-installer: CPython remembers the compiler it was _built_ with in `sysconfig`
-(`x86_64-pc-linux-gnu-gcc`), and distutils execs exactly that name - so the
-build died with `[Errno 2] No such file or directory:
-'x86_64-pc-linux-gnu-gcc'` even though a usable compiler could have done the
-job, while the log repeated the same 25-line pip tail three times:
-
-- **`$CC` substitution.** When the recorded compiler cannot be found, the
-  installer looks for a working one (`cc`/`gcc`/`clang` on `PATH`, then the
-  standard bindirs - ComfyUI is often started with a stripped-down `PATH`) and
-  runs every pip attempt with `CC` pointed at it (plus an `LDSHARED` splice so
-  the link step uses the same binary on older distutils copies). `CC` entries
-  _replace_ the inherited environment; flag lists like `CFLAGS` still append.
-- **Honest warnings.** The prerequisite warning only claims "no C compiler"
-  when nothing usable exists anywhere; `/etc/os-release` `ID_LIKE` is consulted
-  for the distro fix command, and unknown distros get a generic one instead of
-  silence.
-- **Folded details.** Identical pip tails across strategies collapse into one
-  block (`[no-deps - the identical failure repeated for: full,
-no-build-isolation]`), and the two signatures worth naming - the missing
-  _recorded_ compiler and missing `Python.h` - each get a plain-language
-  sentence in the final error.
-- **2× artwork.** The ZipNN button is now 88 px (`size-22`, double its previous
-  size); E27g pins the exact geometry.
-
-Verification after this pass: `verify:py` **79 assertions** (P34k–P34o pin the
-substitution, warning honesty, folding, diagnosis and the replace/append env
-semantics), `verify:e2e` **89 assertions**, plus `mypy`, `typecheck`, `lint`,
-`format:check` and `build` clean; all 22 screenshots re-rendered.
+messages, ZipNN compression, settings and locales, plus a troubleshooting table.
+The screenshots they embed live in [`docs/screenshots/`](docs/screenshots/) with
+a per‑file manifest in
+[`docs/screenshots/README.md`](docs/screenshots/README.md).
 
 <a id="development"></a>
 
@@ -1199,15 +516,7 @@ pnpm install
 | `pnpm typecheck`                        | `vue-tsc --noEmit` type checking                                        |
 | `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                    |
 | `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                     |
-| `pnpm verify:py`                        | Python route/lifecycle probe (`harness/py_probe.py`, 79 assertions)     |
-| `pnpm verify:e2e`                       | Headless-Chromium E2E + glass-contract audit (`harness/e2e.mjs`, 89)    |
-| `python -m mypy --config-file mypy.ini` | Backend static types (C-3), clean                                       |
-
-The harness needs `aiohttp` / `pillow` / `pyyaml` (ComfyUI provides them at
-runtime, so they live in [`harness/requirements-dev.txt`](harness/requirements-dev.txt),
-not in the runtime list): `pip install -r requirements.txt -r harness/requirements-dev.txt`.
-| `pnpm capture` | Render the docs screenshots from the real bundle (`harness/capture.mjs`) |
-| `pnpm capture --video` | Same, plus a recorded `hero.webm` / `hero.gif` tour |
+| `python -m mypy --config-file mypy.ini` | Backend static types, clean                                             |
 
 > [!WARNING]
 > `pnpm dev` **deletes the whole `web/` directory** before writing
@@ -1237,8 +546,10 @@ ordering), `eslint-plugin-tailwindcss` (class hygiene) and `eslint-config-pretti
 │  ├─ download.py         #   download tasks (http + huggingface_hub)
 │  ├─ upload.py           #   local file upload (path-validated)
 │  ├─ upload_hf.py        #   upload to Hugging Face
+│  ├─ compress.py         #   ZipNN compress / decompress (vendored core)
 │  ├─ information.py      #   Civitai/HF search by URL, preview serving
 │  ├─ auth.py · config.py · thread.py · utils.py
+├─ third_party/           # vendored ZipNN (Python pkg + prebuilt zipnn_core + C src)
 ├─ src/                   # Vue 3 frontend
 │  ├─ components/         #   app components + ui/ (reka-ui wrappers)
 │  ├─ hooks/              #   store, models, download, config, dialog, …
@@ -1268,17 +579,28 @@ attribution for the architecture is: **theirs**.
 
 This fork is a derivative work used and modified in accordance with the
 **GNU General Public License v3.0**. Modifications in Neo (the UI rebuild,
-PrimeVue removal, Hugging Face upload, package modernisation, toolchain, the
-reliability/security passes above, the batch‑scan removal and the Japanese
-localisation) are provided under the same GPL‑3.0 license. Per the license, the
-original copyright notice and the full license text are preserved in
-[`LICENSE`](LICENSE).
+PrimeVue removal, Hugging Face upload, ZipNN compression, package
+modernisation, toolchain, the reliability and security hardening, the
+batch‑scan removal and the Japanese localisation) are provided under the same
+GPL‑3.0 license. Per the license, the original copyright notice and the full
+license text are preserved in [`LICENSE`](LICENSE).
+
+### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="22" height="22" align="middle" alt=""> Built with Qwen Studio
+
+A large part of this fork was built with **[Qwen Studio]**. The ZipNN
+integration — vendoring the library, producing the prebuilt `zipnn_core`
+binaries, and the tensor-by-tensor compress/decompress port — the glassmorphism
+UI rebuild, the Hugging Face upload flow, the reliability and security passes,
+and much of the debugging were all developed in close collaboration with Qwen
+Studio. Its careful, iterative engineering is a big reason Neo is as robust as
+it is, and this project is grateful for that contribution.
 
 If this fork is useful to you, the upstream repository deserves the star: the
 work standing on its shoulders is what makes any of the above possible.
 
 Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
-[VueUse], [es-toolkit], [valibot], [vue-sonner], [huggingface_hub], [hf_xet].
+[VueUse], [es-toolkit], [valibot], [vue-sonner], [huggingface_hub], [hf_xet],
+and [ZipNN].
 
 ---
 
@@ -1306,4 +628,6 @@ Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 [vue-sonner]: https://vue-sonner.vercel.app
 [huggingface_hub]: https://github.com/huggingface/huggingface_hub
 [hf_xet]: https://github.com/huggingface/xet-core
+[ZipNN]: https://github.com/zipnn/zipnn
+[Qwen Studio]: https://chat.qwen.ai/
 [ComfyUI-Manager]: https://github.com/ltdrdata/ComfyUI-Manager

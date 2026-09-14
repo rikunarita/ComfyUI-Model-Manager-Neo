@@ -412,8 +412,8 @@ class HfUploader:
                 try:
                     # `_ProgressFile` is a BufferedIOBase: huggingface_hub's
                     # stubs only advertise BinaryIO, but the runtime validation
-                    # (and the harness fake) accept exactly this class - proven
-                    # by the probe and by the four emulated upload scenarios.
+                    # accepts exactly this class, so the `type: ignore` below
+                    # silences the overload mismatch without hiding a real bug.
                     result = api.upload_file(  # type: ignore[call-overload]
                         path_or_fileobj=payload,
                         path_in_repo=path_in_repo,

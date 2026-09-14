@@ -1,8 +1,8 @@
 # ComfyUI‑Model‑Manager‑Neo — Usage Guide (English)
 
 > Sister documents: [日本語](USAGE-JA.md) · [中文](USAGE-ZN.md)
-> Screenshots referenced below live in [`docs/screenshots/`](screenshots/) and are
-> reproducible with `pnpm capture` (see [Screenshots](#screenshots)).
+> Screenshots referenced below live in [`docs/screenshots/`](screenshots/) (see
+> [Screenshots](#screenshots) for the per-file manifest).
 
 ComfyUI‑Model‑Manager‑Neo is a custom node that adds a model browser, downloader,
 uploader and editor to ComfyUI. It never leaves the ComfyUI process: the backend
@@ -307,22 +307,26 @@ tensor-by-tensor in the background:
 
 Compressed files follow the official ZipNN layout (`znn_compressed_vectors`
 metadata, Huffman-compressed floating-point tensors), so loaders patched with
-`zipnn_safetensors()` read them transparently. ZipNN is installed on first use
-(`pip install zipnn`); it needs a C compiler **and** the Python headers
-(`Python.h`) on Linux because PyPI ships no Linux wheels. If the install fails,
-the error toast shows the first interesting pip line (the full output stays in
-the ComfyUI console), names the missing prerequisite together with the
-distro-specific command that fixes it, and offers a **retry** action - a failed
-install is cached for five minutes so hammering the button never re-runs a
-doomed build. Air-gapped hosts can drop a prebuilt wheel into
-`assets/zipnn-wheels/`; it is preferred over PyPI. When the compiler CPython
-recorded at build time (e.g. Gentoo's `x86_64-pc-linux-gnu-gcc`) is missing
-while another `cc`/`gcc`/`clang` exists, the installer silently substitutes it
-through the `CC` environment variable; identical failures of the several
-install strategies are folded into one block in the error message, which also
-names in plain words the compiler that could not be executed or the missing
-Python headers. To choose the compiler yourself, export `CC=/path/to/gcc`
-before starting ComfyUI.
+`zipnn_safetensors()` read them transparently. Compression is **lossless and
+reversible**: the plain `.safetensors` is only removed after the
+`.znn.safetensors` file has been fully written, and a failed run cleans up its
+partial output.
+
+**No installation step.** ZipNN is _vendored_ inside the extension
+([`third_party/`](../third_party/)), together with **prebuilt `zipnn_core`
+binaries** for Linux x86_64 (CPython 3.10–3.13). On those platforms the first
+compression simply puts the bundled package and the matching binary on the
+import path — **no `pip install`, no C compiler, no network, no waiting**. Only
+where no prebuilt binary matches the platform/Python (macOS, Windows, an
+uncommon architecture, or a brand-new CPython) does Neo build the C core **once**
+from the bundled sources, which needs a C compiler and the Python headers
+(`Python.h`). If that fallback build fails, the error toast shows the first
+interesting line (the full output stays in the ComfyUI console), names the
+missing prerequisite together with the distro-specific command that fixes it,
+and offers a **retry** action. To choose the compiler yourself for that build,
+export `CC=/path/to/gcc` before starting ComfyUI. See
+[`third_party/README.md`](../third_party/README.md) for the platform/glibc
+coverage and how to add binaries for other systems.
 
 ## 9. Settings
 
@@ -369,13 +373,6 @@ else falls back to English.
 
 ## Screenshots
 
-All images in this guide are generated from the **real production bundle** by
-the verification harness:
-
-```bash
-pnpm capture          # PNGs into docs/screenshots/
-pnpm capture --video  # also records hero.webm and converts it to hero.gif
-```
-
-See [`screenshots/README.md`](screenshots/README.md) for the full manifest and
-for how to replace them with captures from a live ComfyUI window.
+The images in this guide live in [`docs/screenshots/`](screenshots/). See
+[`screenshots/README.md`](screenshots/README.md) for the full per-file manifest
+and for how to (re)capture each view from a live ComfyUI window.

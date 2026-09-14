@@ -464,9 +464,9 @@ class ModelDownload:
         - progress is pushed directly, throttled to `interval` seconds;
         - resume still works through the `Range` header and the partial file.
 
-        Behaviour, error strings and the completion rules are unchanged; the
-        harness (P10/P11/P12, E13) covers resume, pause, delete and the
-        sub-folder landing.
+        Behaviour, error strings and the completion rules are unchanged;
+        resume, pause, delete and the sub-folder landing all keep working
+        through the same `await` points.
         """
 
         async def push_progress(bps: float) -> None:

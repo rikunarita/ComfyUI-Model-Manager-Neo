@@ -1,8 +1,8 @@
 # ComfyUI‑Model‑Manager‑Neo 使い方ガイド（日本語）
 
 > 姉妹ドキュメント: [English](USAGE-EN.md) · [中文](USAGE-ZN.md)
-> 本文中のスクリーンショットは [`docs/screenshots/`](screenshots/) にあり、
-> `pnpm capture` でいつでも再生成できます（[Screenshots](#スクリーンショット)参照）。
+> 本文中のスクリーンショットは [`docs/screenshots/`](screenshots/) にあります
+> （各ファイルの一覧は[スクリーンショット](#スクリーンショット)参照）。
 
 ComfyUI‑Model‑Manager‑Neo は、ComfyUI にモデルの**閲覧・ダウンロード・
 アップロード・編集**機能を追加するカスタムノードです。ComfyUI プロセスの外には
@@ -297,20 +297,25 @@ HuggingFace API キー**（または環境変数 `HF_TOKEN`）。
 
 圧縮ファイルは公式 ZipNN のレイアウト(`znn_compressed_vectors` メタデータ、
 浮動小数点テンサルの Huffman 圧縮)に従うため、`zipnn_safetensors()` パッチ済みの
-ローダーは透過的に読めます。ZipNN は初回使用時にインストールされます
-(`pip install zipnn`)。PyPI に Linux wheel が無いため、Linux では **C コンパイラと
-Python ヘッダー(`Python.h`)** が必要です。インストールに失敗した場合、エラー
-トーストに pip の最初の重要行(全文は ComfyUI コンソール)と、不足している前提条件+
+ローダーは透過的に読めます。圧縮は**可逆・無損失**で、`.znn.safetensors` が完全に
+書き込まれた後にのみ元の `.safetensors` を削除し、失敗した場合は途中ファイルを
+片付けます。
+
+**インストール作業は不要です。** ZipNN は拡張機能内
+([`third_party/`](../third_party/))に**同梱**されており、Linux x86_64
+(CPython 3.10〜3.13)向けの**ビルド済み `zipnn_core` バイナリ**も含まれます。
+これらの環境では、初回の圧縮は同梱パッケージと該当バイナリを import パスに
+載せるだけで動作します ― **`pip install` も C コンパイラもネットワークも待ち時間も
+ありません**。ビルド済みバイナリが一致しない場合(macOS、Windows、珍しい
+アーキテクチャ、または非常に新しい CPython)のみ、同梱の C ソースから**一度だけ**
+コアをビルドします。これには C コンパイラと Python ヘッダー(`Python.h`)が必要です。
+このフォールバックビルドが失敗した場合、エラー
+トーストに最初の重要行(全文は ComfyUI コンソール)と、不足している前提条件+
 ディストリビューション別の修復コマンドが表示され、**再試行**アクションから
-やり直せます。失敗したインストールは 5 分間キャッシュされるため、ボタンを
-連打しても無駄なビルドは再実行されません。オフライン環境では
-`assets/zipnn-wheels/` に wheel を置いておくと PyPI より優先して使われます。
-Python 内に記録されたコンパイラ名(Gentoo 系の `x86_64-pc-linux-gnu-gcc` など)が
-インストールされておらず、別の `cc`/`gcc`/`clang` が存在する場合、インストーラは
-`CC` 環境変数経由でそれを自動的に代替します。複数のインストール戦略が同一原因で
-失敗した場合は pip のログを 1 つにまとめ、実行できなかったコンパイラ名や Python
-ヘッダーの欠如を平文で説明します。コンパイラを自分で指定したい場合は、ComfyUI
-起動前に `CC=/path/to/gcc` をエクスポートしてください。
+やり直せます。このビルドでコンパイラを自分で指定したい場合は、ComfyUI
+起動前に `CC=/path/to/gcc` をエクスポートしてください。プラットフォーム/glibc の
+対応範囲や、他のシステム向けバイナリの追加方法は
+[`third_party/README.md`](../third_party/README.md) を参照してください。
 
 ## 9. 設定
 
@@ -356,13 +361,6 @@ UI は ComfyUI のロケール（**設定 → ComfyUI → Locale**）に従い�
 
 ## スクリーンショット
 
-本書の画像はすべて**実物のプロダクションバンドル**を検証ハーネスで描画して
-生成しています。
-
-```bash
-pnpm capture          # docs/screenshots/ へ PNG を生成
-pnpm capture --video  # さらに hero.webm を録画し hero.gif へ変換
-```
-
-全マニフェストと、実働 ComfyUI での撮り直し手順は
+本書の画像は [`docs/screenshots/`](screenshots/) にあります。全マニフェストと、
+実働 ComfyUI での撮り直し手順は
 [`screenshots/README.md`](screenshots/README.md) を参照してください。

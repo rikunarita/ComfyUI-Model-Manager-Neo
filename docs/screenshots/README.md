@@ -1,24 +1,15 @@
 # `docs/screenshots/` — manifest
 
-Every image in this folder is a **real render of the shipped bundle**, produced by
-the verification harness (`harness/serve.py` boots the actual Python routes plus
-the committed `web/` bundle in headless Chromium at 1600×1000, dark theme):
+This folder holds the images referenced by the README and the usage guides.
+Each file documents a specific view of the extension; the table below says
+exactly what every image should show so they can be (re)captured from a live
+ComfyUI session.
 
-```bash
-pnpm capture          # PNGs only          (~60 s)
-pnpm capture --video  # also records hero.webm and converts it to hero.gif
-```
-
-The capture driver is [`harness/capture.mjs`](../../harness/capture.mjs). Re-run
-it any time the UI changes; the output is deterministic apart from the gradient
-previews the harness synthesises for its demo library.
-
-> **Where the shots come from.** The harness stand-in host is a plain gradient
-> (ComfyUI itself is not running) and the model names/preview art come from the
-> harness workspace, so these images document _this extension's_ chrome
-> faithfully but not your own library. For README-quality shots of a real
-> session, open ComfyUI with the extension loaded and grab the same views by
-> hand — the table below says exactly what each file should show.
+> **Where the shots come from.** For README-quality images, open ComfyUI with
+> the extension loaded and capture the views by hand — the table below says
+> exactly what each file should show. Prefer the **dark theme** (the UI follows
+> the host palette and the glass treatment reads best on dark) and aim for
+> ~**1600 px** wide windows for consistency.
 
 ## Files
 
@@ -33,7 +24,7 @@ previews the harness synthesises for its demo library.
 | `model-info.png`             | README, docs  | model detail: preview, base-info table (**Directory ends with `/`**), Description tab                                                                                          |
 | `model-edit.png`             | docs          | the same window in **edit mode**: type dropdown, folder button, name field with its folder-prefix hint                                                                         |
 | `model-edit-description.png` | docs          | the description textarea opened through the **Edit icon**                                                                                                                      |
-| `folder-picker.png`          | docs          | the nested folder-picker dialog painted **above** the model window (the stacking-order regression test)                                                                        |
+| `folder-picker.png`          | docs          | the nested folder-picker dialog painted **above** the model window (the stacking-order behaviour)                                                                              |
 | `download.png`               | README, docs  | **Create Download Task** with a direct URL typed in                                                                                                                            |
 | `download-resolved.png`      | docs          | the resolved editor: version/file selectors, destination, preview, description                                                                                                 |
 | `hf-upload-step2.png`        | docs          | HuggingFace upload, model-selection step                                                                                                                                       |
@@ -48,13 +39,6 @@ previews the harness synthesises for its demo library.
 | `lightbox.png`               | docs          | the full-screen preview viewer opened from a card preview, with `<` / `>` paging                                                                                               |
 | `selection-mode.png`         | docs          | selection mode: round per-card checkboxes and the bulk action bar (add to workflow / delete)                                                                                   |
 | `zipnn-button.png`           | docs          | the model detail window with the ZipNN call-to-action in the gap between preview and table                                                                                     |
-
-## Not captured here (capture live instead)
-
-| File             | Why                                                                                   | What to shoot                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `settings.png`   | the API-key rows live in **ComfyUI's own** Settings page, which the harness stubs out | ComfyUI Settings → _Model Manager Neo_ → _API Key_, showing both key rows with their edit/delete icons |
-| `node-graph.gif` | needs a real LiteGraph canvas                                                         | 4–6 s clip dragging a model card onto the canvas, spawning a loader node with the model preselected    |
 
 ## Capture tips for live shots
 
