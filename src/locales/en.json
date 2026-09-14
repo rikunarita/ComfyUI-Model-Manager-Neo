@@ -104,6 +104,9 @@
     "pathIndex": "Directory",
     "basename": "File Name",
     "sizeBytes": "File Size",
+    "znnOriginalSize": "Original File Size",
+    "znnCompressedSize": "Compressed File Size",
+    "znnRatio": "% of Original Size",
     "createdAt": "Created At",
     "updatedAt": "Updated At"
   },

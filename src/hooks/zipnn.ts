@@ -76,6 +76,32 @@ let lastRequest: {
   modelKey: string
 } | null = null
 
+/**
+ * What the most recently finished task did, consumed by the app-lifetime
+ * watcher in `App.vue` that refreshes the grids and swaps an open model card
+ * to the renamed file. Module-level state because the completion event fires
+ * whether or not the dialog the task was started from is still mounted.
+ */
+export interface ZipnnSettle {
+  ok: boolean
+  /** Dialog-store key (`genModelKey`) of the model the task was started for. */
+  targetKey: string | null
+  type: string
+  pathIndex: number
+  subFolder: string
+  /** File name (basename + extension) the model was renamed to, on success. */
+  newFullname: string | null
+}
+
+let lastSettle: ZipnnSettle | null = null
+
+/** Consume (once) the settle record of the most recently finished task. */
+export const takeZipnnSettle = (): ZipnnSettle | null => {
+  const settle = lastSettle
+  lastSettle = null
+  return settle
+}
+
 api.addEventListener('zipnn_complete', (event: CustomEvent) => {
   const detail = event.detail as
     | {
@@ -83,6 +109,7 @@ api.addEventListener('zipnn_complete', (event: CustomEvent) => {
         ok?: boolean
         error?: string
         mode?: string
+        fullname?: string
         installFailed?: boolean
         stats?: { originalBytes?: number; compressedBytes?: number }
       }
@@ -93,6 +120,23 @@ api.addEventListener('zipnn_complete', (event: CustomEvent) => {
   zipnnState.taskId = null
   zipnnState.lastTargetKey = zipnnState.targetKey
   zipnnState.targetKey = null
+
+  // Record the outcome BEFORE any awaits elsewhere can consume it: the
+  // `zipnnState.active` watcher in App.vue reads this right after this
+  // handler flips `active` to false.
+  const req = lastRequest
+  const reqFullname = req?.model.fullname ?? ''
+  const slash = reqFullname.lastIndexOf('/')
+  lastSettle = req
+    ? {
+        ok: Boolean(detail.ok),
+        targetKey: zipnnState.lastTargetKey,
+        type: req.model.type,
+        pathIndex: req.model.pathIndex,
+        subFolder: slash >= 0 ? reqFullname.slice(0, slash) : '',
+        newFullname: detail.ok ? (detail.fullname ?? null) : null,
+      }
+    : null
 
   if (!detail.ok) {
     const raw = detail.error ?? t('zipnnFailed')

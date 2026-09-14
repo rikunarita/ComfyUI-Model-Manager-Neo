@@ -40,6 +40,14 @@ export interface TreeNode {
 
 const systemStat = ref()
 
+/**
+ * Metadata key under which the compressor records the pre-compression on-disk
+ * size of a ZipNN-compressed model (mirror of `ZNN_ORIGINAL_SIZE_KEY` in
+ * `py/compress.py`). The model-info table uses it for the original-size /
+ * compressed-size / ratio breakdown on `.znn.safetensors` models.
+ */
+const ZNN_ORIGINAL_SIZE_KEY = 'znn_neo_original_bytes'
+
 /** Preview field -> ordered URL list (the no-preview artwork counts as none). */
 export const normalizePreviews = (preview: string | string[] | undefined): string[] => {
   if (!preview) return []
@@ -430,11 +438,50 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
   }
 
   interface FieldsItem {
-    key: keyof Model
+    /** i18n key under `info.*`; usually also a `Model` field name. */
+    key: string
     formatter: (val: any) => string | undefined | null
+    /** Explicit value for rows that do not map to a `Model` field. */
+    value?: unknown
   }
 
   const baseInfo = computed(() => {
+    // FEATURE: for a ZipNN-compressed model (`.znn.safetensors`) the single
+    // "File Size" row is replaced by an original-size / compressed-size /
+    // ratio breakdown. The original on-disk size was recorded in the file's
+    // metadata at compression time (`znn_neo_original_bytes` - the source
+    // file is gone by the time this renders); the compressed size is the
+    // live file size. Files compressed before that key existed (or by the
+    // official ZipNN CLI, which does not write it) simply keep the plain
+    // "File Size" row.
+    const originalBytes = Number(model.value.metadata?.[ZNN_ORIGINAL_SIZE_KEY])
+    const znnCompressed =
+      model.value.extension === '.safetensors' &&
+      (model.value.basename ?? '').endsWith('.znn') &&
+      Number.isFinite(originalBytes) &&
+      originalBytes > 0
+
+    const sizeFields: FieldsItem[] = znnCompressed
+      ? [
+          {
+            key: 'znnOriginalSize',
+            value: originalBytes,
+            formatter: val => bytesToSize(val),
+          },
+          {
+            key: 'znnCompressedSize',
+            value: model.value.sizeBytes,
+            formatter: val => (val ? bytesToSize(val) : undefined),
+          },
+          {
+            key: 'znnRatio',
+            value: model.value.sizeBytes,
+            formatter: val =>
+              val ? `${Math.round((Number(val) / originalBytes) * 100)}%` : undefined,
+          },
+        ]
+      : [{ key: 'sizeBytes', formatter: val => (val === 0 ? t('unknown') : bytesToSize(val)) }]
+
     const fields: FieldsItem[] = [
       {
         key: 'type',
@@ -470,10 +517,7 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
         key: 'basename',
         formatter: val => `${val}${model.value.extension}`,
       },
-      {
-        key: 'sizeBytes',
-        formatter: val => (val === 0 ? t('unknown') : bytesToSize(val)),
-      },
+      ...sizeFields,
       {
         key: 'createdAt',
         formatter: val => val && formatDate(val),
@@ -487,7 +531,7 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
     const information: Record<string, BaseInfoItem> = {}
     for (const item of fields) {
       const key = item.key
-      const value = (model.value as any)[key]
+      const value = 'value' in item ? item.value : (model.value as any)[key]
       const display = item.formatter(value)
 
       if (display) {

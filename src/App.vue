@@ -10,7 +10,7 @@
 
 <script setup lang="ts">
 import { ConfigProvider } from 'reka-ui'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DialogDownload from 'components/DialogDownload.vue'
 import DialogExplorer from 'components/DialogExplorer.vue'
@@ -22,6 +22,7 @@ import { Sonner } from 'components/ui/sonner'
 import { TooltipProvider } from 'components/ui/tooltip'
 import { useStoreProvider } from 'hooks/store'
 import { useToast } from 'hooks/toast'
+import { takeZipnnSettle, zipnnState } from 'hooks/zipnn'
 import { $el, app, ComfyButton } from 'scripts/comfyAPI'
 
 const { t } = useI18n()
@@ -31,6 +32,44 @@ const { dialog, models, config, download } = useStoreProvider()
 const { toast } = useToast()
 
 const firstOpenManager = ref(true)
+
+/**
+ * ZipNN completion handling, at APP lifetime.
+ *
+ * BUG FIX: the post-task refresh used to live in a `DialogModelDetail`
+ * watcher, so it only ran while that model card happened to be open - and a
+ * multi-gigabyte compression outlives most dialogs (close the card while it
+ * runs and NOTHING refreshed when it finished; the grids kept showing the
+ * pre-rename file and re-opening it 404'd). Both layouts derive from the
+ * same models store, so one `refreshFolder()` updates the flat grid AND the
+ * folder explorer. If the card of the renamed model is still open it is
+ * swapped for a fresh one showing the new file
+ * (`.safetensors` <-> `.znn.safetensors`).
+ */
+const handleZipnnSettled = async () => {
+  const settle = takeZipnnSettle()
+  if (!settle?.ok) return
+  await models.refreshFolder(settle.type)
+  if (!settle.targetKey) return
+  const staleOpen = dialog.stack.value.some(item => item.key === settle.targetKey)
+  if (!staleOpen) return
+  const renamed = (models.data.value[settle.type] ?? []).find(
+    m =>
+      !m.isFolder &&
+      m.pathIndex === settle.pathIndex &&
+      m.subFolder === settle.subFolder &&
+      `${m.basename}${m.extension}` === settle.newFullname,
+  )
+  dialog.close({ key: settle.targetKey })
+  if (renamed) models.openModelDetail(renamed)
+}
+
+watch(
+  () => zipnnState.active,
+  (active, wasActive) => {
+    if (!active && wasActive) void handleZipnnSettled()
+  },
+)
 
 onMounted(() => {
   const refreshModelsAndConfig = async () => {

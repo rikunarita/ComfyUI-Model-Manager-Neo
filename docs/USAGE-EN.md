@@ -305,6 +305,10 @@ tensor-by-tensor in the background:
   and the label **ZipNN decompress**; pressing it confirms and restores the
   plain `.safetensors` file.
 
+For a compressed model the info table also swaps its single _File Size_ row for
+**Original File Size** / **Compressed File Size** / **% of Original Size** (the
+pre-compression size is recorded in the file's metadata at compression time).
+
 Compressed files follow the official ZipNN layout (`znn_compressed_vectors`
 metadata, Huffman-compressed floating-point tensors), so loaders patched with
 `zipnn_safetensors()` read them transparently. Compression is **lossless and

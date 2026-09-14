@@ -104,6 +104,9 @@
     "pathIndex": "目录",
     "basename": "文件名",
     "sizeBytes": "文件大小",
+    "znnOriginalSize": "原文件大小",
+    "znnCompressedSize": "压缩后文件大小",
+    "znnRatio": "占原大小比例",
     "createdAt": "创建时间",
     "updatedAt": "更新时间"
   },

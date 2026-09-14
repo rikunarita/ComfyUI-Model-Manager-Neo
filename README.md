@@ -293,7 +293,12 @@ explains itself in a tooltip and to screen readers. Pressing it:
 
 Opening a **compressed** model shows the same artwork with its colours
 **inverted** and the action flipped to _decompress_, behind the same
-confirmation, restoring the plain `.safetensors`.
+confirmation, restoring the plain `.safetensors`. Its info table changes too:
+the single _File Size_ row is replaced by **Original File Size**, **Compressed
+File Size** and **% of Original Size** — the pre-compression size is recorded
+in the file's metadata at compression time, so the breakdown survives the
+rename (files compressed by the official ZipNN CLI, which does not write that
+key, simply keep the plain _File Size_ row).
 
 ### Bundled, so it just works
 

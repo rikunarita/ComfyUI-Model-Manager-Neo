@@ -51,13 +51,13 @@ export const buttonVariants = cva(
          * (size-8 = 2rem box, size-4 = 1rem glyph):
          *   - `icon-header` = 1.2× → the dialog top-bar buttons (layout /
          *     hidden-files / refresh / download / upload, maximize, close);
-         *   - `icon-action` = 1.6× → the model-detail action buttons (open
+         *   - `icon-action` = 1.5× → the model-detail action buttons (open
          *     model page, add / copy node, load workflow, edit, delete).
          * The glyphs themselves carry an explicit `size-[…]` class so the base
          * `[&_svg:not([class*='size-'])]:size-4` rule never fights them.
          */
         'icon-header': 'size-[2.4rem]',
-        'icon-action': 'size-[3.2rem]',
+        'icon-action': 'size-12',
       },
     },
     defaultVariants: {

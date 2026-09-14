@@ -48,6 +48,14 @@ from . import utils
 ZNN_SUFFIX = ".znn.safetensors"
 SAFE_SUFFIX = ".safetensors"
 
+# Neo extension to the official ZipNN metadata layout: the pre-compression
+# on-disk size of the source file, recorded at compress time so the UI can
+# show the original size / compressed size / ratio breakdown for a compressed
+# model (the original file itself is gone by then). Other ZipNN tools ignore
+# unknown metadata keys, and decompression removes it again, so the restored
+# file carries exactly the metadata the original had.
+ZNN_ORIGINAL_SIZE_KEY = "znn_neo_original_bytes"
+
 # task_id -> bookkeeping, same shape as the HF upload tasks
 ZIPNN_TASKS: dict[str, dict] = {}
 
@@ -649,13 +657,10 @@ def compress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str, 
     from zipnn.util_safetensors import (
         COMPRESSION_METHOD,
         COMPRESSED_DTYPE,
-        METADATA_KEY,
         build_compressed_tensor_info,
         set_compressed_tensors_metadata,
     )
     from zipnn.util_torch import zipnn_is_floating_point
-
-    import json
 
     import torch
 
@@ -698,24 +703,32 @@ def compress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str, 
                 tensors[name] = tensor
                 compressed_bytes += uncompressed_size
             else:
-                tensors[name] = torch.frombuffer(compressed_buf, dtype=COMPRESSED_DTYPE)
+                # `znn.compress()` returns a read-only buffer; `torch.frombuffer`
+                # on it emits a scary "The given buffer is not writable"
+                # UserWarning into the ComfyUI console. The one-time copy into a
+                # writable `bytearray` silences it and is cheap next to the
+                # compression itself.
+                tensors[name] = torch.frombuffer(
+                    bytearray(compressed_buf), dtype=COMPRESSED_DTYPE
+                )
                 infos[name] = build_compressed_tensor_info(tensor)
                 compressed_bytes += len(compressed_buf)
             progress(index + 1, total, "tensors")
         metadata = f.metadata()
 
-    set_compressed_tensors_metadata(infos, metadata)
+    if metadata is None:
+        metadata = {}
+    # Neo extension: record the pre-compression on-disk size so the UI can
+    # show the original / compressed / ratio breakdown for this file later
+    # (the source file itself is gone by then).
+    metadata[ZNN_ORIGINAL_SIZE_KEY] = str(os.path.getsize(src))
     # BUG FIX: `set_compressed_tensors_metadata` only writes into a *truthy*
-    # dict, so a source file with no metadata (`f.metadata()` is None) would
+    # dict, so a source file with no metadata (`f.metadata()` is None) used to
     # silently drop the `znn_compressed_vectors` record - and decompression
     # would then copy the Huffman-coded uint8 vectors through untouched,
-    # corrupting the model. Always persist the record when something was
-    # actually compressed. (Format-compatible with the official helper.)
-    if infos:
-        if metadata is None:
-            metadata = {}
-        if METADATA_KEY not in metadata:
-            metadata[METADATA_KEY] = json.dumps(infos)
+    # corrupting the model. The dict ensured above guarantees the record
+    # always survives. (Format-compatible with the official helper.)
+    set_compressed_tensors_metadata(infos, metadata)
     tmp_dst = f"{dst}.tmp"
     save_file(tensors, tmp_dst, metadata)
     os.replace(tmp_dst, dst)
@@ -735,6 +748,7 @@ def decompress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str
     from zipnn.util_safetensors import (
         COMPRESSION_METHOD,
         COMPRESSED_DTYPE,
+        METADATA_KEY,
         get_compressed_tensors_metadata,
     )
 
@@ -757,7 +771,10 @@ def decompress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str
                 tensors[name] = znn.decompress(tensor.contiguous().numpy())
             progress(index + 1, total, "tensors")
         if metadata:
-            metadata.pop("znn_compressed_vectors", None)
+            # Strip both ZipNN records so the restored file carries exactly the
+            # metadata the original had (including the Neo-only size key).
+            metadata.pop(METADATA_KEY, None)
+            metadata.pop(ZNN_ORIGINAL_SIZE_KEY, None)
 
     tmp_dst = f"{dst}.tmp"
     save_file(tensors, tmp_dst, metadata)

@@ -110,6 +110,14 @@ class ModelManager:
 
             try:
                 model_path = utils.get_valid_full_path(model_type, path_index, filename)
+                # BUG FIX: get_valid_full_path() returns None for a file that
+                # no longer exists (e.g. the model was renamed by a ZipNN
+                # compress/decompress while this dialog was open), and
+                # get_model_info() then died with `os.path.dirname(None)` ->
+                # "expected str, bytes or os.PathLike object, not NoneType".
+                # The PUT/DELETE routes already had this guard; the GET did not.
+                if model_path is None:
+                    raise RuntimeError(f"File {filename} not found")
                 result = self.get_model_info(model_path)
                 return web.json_response({"success": True, "data": result})
             except Exception as e:

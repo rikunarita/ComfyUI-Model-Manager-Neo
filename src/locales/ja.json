@@ -104,6 +104,9 @@
     "pathIndex": "ディレクトリ",
     "basename": "ファイル名",
     "sizeBytes": "ファイルサイズ",
+    "znnOriginalSize": "元のファイルサイズ",
+    "znnCompressedSize": "圧縮後のファイルサイズ",
+    "znnRatio": "圧縮前サイズ比",
     "createdAt": "作成日時",
     "updatedAt": "更新日時"
   },

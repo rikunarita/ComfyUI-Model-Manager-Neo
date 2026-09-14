@@ -30,7 +30,7 @@
             ></ResponseSelect>
             <Button
               variant="secondary"
-              size="icon-sm"
+              size="icon"
               :class="
                 selection.state.enabled && 'border-mm-accent/50 bg-mm-accent/20 text-mm-accent'
               "

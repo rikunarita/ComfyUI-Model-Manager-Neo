@@ -16,11 +16,14 @@
             <!--
               ZipNN lives in the empty left half of this row (the gap between
               the preview and the table). While a task for THIS model runs the
-              button is replaced by its progress bar.
+              button is replaced by its progress bar. The bar is a FIXED,
+              compact width (and shrinkable, not `flex-1`): stretching it
+              across the whole gap pushed the row past the column's width and
+              its left end was clipped by the preview's `overflow-hidden`.
             -->
-            <div v-if="zipnnRunning" class="mr-auto flex h-10 min-w-40 flex-1 items-center gap-2">
+            <div v-if="zipnnRunning" class="mr-auto flex h-10 w-40 items-center gap-2">
               <Progress
-                class="flex-1"
+                class="min-w-0 flex-1"
                 :model-value="zipnnState.progress"
                 :mode="zipnnState.progress > 0 ? 'determinate' : 'indeterminate'"
               />
@@ -64,7 +67,7 @@
               :aria-label="$t('openModelPage')"
               @click="openModelPage(model.modelPage)"
             >
-              <ExternalLink class="size-[1.6rem]" />
+              <ExternalLink class="size-6" />
             </Button>
             <Button
               variant="ghost"
@@ -73,7 +76,7 @@
               :aria-label="$t('addNode')"
               @click.stop="addModelNode(model)"
             >
-              <Plus class="size-[1.6rem]" />
+              <Plus class="size-6" />
             </Button>
             <Button
               variant="ghost"
@@ -82,7 +85,7 @@
               :aria-label="$t('copyNode')"
               @click.stop="copyModelNode(model)"
             >
-              <Copy class="size-[1.6rem]" />
+              <Copy class="size-6" />
             </Button>
             <Button
               variant="ghost"
@@ -91,7 +94,7 @@
               :aria-label="$t('loadWorkflow')"
               @click.stop="loadPreviewWorkflow(model)"
             >
-              <Workflow class="size-[1.6rem]" />
+              <Workflow class="size-6" />
             </Button>
             <Button
               variant="ghost"
@@ -100,7 +103,7 @@
               :aria-label="$t('editModel')"
               @click="editable = true"
             >
-              <PenSquare class="size-[1.6rem]" />
+              <PenSquare class="size-6" />
             </Button>
             <Button
               variant="destructive"
@@ -109,7 +112,7 @@
               :aria-label="$t('deleteModel')"
               @click="handleDelete"
             >
-              <Trash2 class="size-[1.6rem]" />
+              <Trash2 class="size-6" />
             </Button>
           </template>
         </template>
@@ -120,7 +123,7 @@
 
 <script setup lang="ts">
 import { Copy, ExternalLink, PenSquare, Plus, Trash2, Workflow } from '@lucide/vue'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
@@ -142,7 +145,7 @@ const props = defineProps<Props>()
 
 const { t } = useI18n()
 const { toast, confirm } = useToast()
-const { remove, update, refreshFolder } = useModels()
+const { remove, update } = useModels()
 
 const editable = ref(false)
 
@@ -192,17 +195,10 @@ const isCompressed = computed(() => props.model.basename.endsWith('.znn'))
 const modelKey = computed(() => genModelKey(props.model))
 const zipnnRunning = computed(() => zipnnRunningFor(modelKey.value))
 
-// Refresh the grid once a ZipNN task for THIS model settles, so the card
-// switches between `.safetensors` and `.znn.safetensors` without a manual
-// refresh.
-watch(
-  () => zipnnState.active,
-  (active, wasActive) => {
-    if (!active && wasActive && zipnnState.lastTargetKey === modelKey.value) {
-      void refreshFolder(props.model.type)
-    }
-  },
-)
+// NOTE: the post-task grid refresh and the swap of this card to the renamed
+// file live in App.vue (app lifetime), NOT here - a watcher inside this
+// component only ran while the card was open, and a multi-gigabyte
+// compression usually outlives the dialog.
 
 const requestZipnn = () => {
   const compressing = !isCompressed.value

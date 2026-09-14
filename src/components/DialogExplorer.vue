@@ -33,7 +33,7 @@
 
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           :class="selection.state.enabled && 'border-mm-accent/50 bg-mm-accent/20 text-mm-accent'"
           :title="$t('selectFiles')"
           :aria-label="$t('selectFiles')"
@@ -42,7 +42,7 @@
         >
           <ListChecks class="size-4" />
         </Button>
-        <Button variant="ghost" size="icon-sm" @click="toggleToolbar">
+        <Button variant="ghost" size="icon" @click="toggleToolbar">
           <X v-if="showToolbar" class="size-4" />
           <Menu v-else class="size-4" />
         </Button>

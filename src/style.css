@@ -465,20 +465,17 @@
 
   .mm-zipnn-button img {
     display: block;
-    transition:
-      filter 180ms var(--mm-ease),
-      box-shadow 180ms var(--mm-ease);
   }
 
+  /*
+   * Deliberately NO hover glow (accent box-shadow) on this button: the shipped
+   * SVG artwork already draws its own glass plate and shading, so an extra
+   * coloured glow fought the artwork instead of enhancing it. The subtle
+   * lift + brightness below is kept - only the glow was removed.
+   */
   .mm-zipnn-button:hover {
     transform: translateY(-1px) scale(1.06);
     filter: brightness(1.06) saturate(1.08);
-  }
-
-  .mm-zipnn-button:hover img {
-    box-shadow:
-      var(--mm-shadow-2),
-      0 10px 28px -12px color-mix(in oklab, var(--mm-accent) 55%, transparent);
   }
 
   .mm-zipnn-button:active {
