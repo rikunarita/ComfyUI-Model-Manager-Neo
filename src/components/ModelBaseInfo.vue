@@ -80,9 +80,16 @@
       </div>
     </div>
 
-    <table class="w-full table-fixed border-collapse border border-mm-border">
+    <!--
+      Auto horizontal ratio: the label column shrink-wraps to its longest
+      (never-wrapping) label - which differs per locale, e.g. Japanese labels
+      are wider than English - while the value column takes the remainder.
+      `table-fixed` + a hard-coded `w-32` label column used to overflow the
+      translated labels into the value column ("table is broken").
+    -->
+    <table class="w-full border-collapse border border-mm-border">
       <colgroup>
-        <col class="w-32" />
+        <col class="w-[1%]" />
         <col />
       </colgroup>
       <tbody>

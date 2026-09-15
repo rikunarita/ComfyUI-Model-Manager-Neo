@@ -172,13 +172,28 @@ class ModelManager:
         @routes.delete("/model-manager/model/{type}/{index}/{filename:.*}")
         async def delete_model(request):
             """
-            Delete model.
+            Delete model (or, when the path is a directory, a whole folder -
+            the selection mode offers folders as deletable items).
             """
             model_type = request.match_info.get("type", None)
             path_index = int(request.match_info.get("index", None))
             filename = request.match_info.get("filename", None)
 
             try:
+                if not filename or filename in (".", ".."):
+                    raise RuntimeError("Invalid path")
+                full_path = utils.get_full_path(model_type, path_index, filename)
+                if os.path.isdir(full_path):
+                    # Folder delete (selection mode): recursive, and only
+                    # inside the model-type root (get_full_path guarantees
+                    # containment; the type root itself is refused).
+                    base = utils.resolve_model_base_paths().get(model_type, [])
+                    if path_index < len(base) and utils.normalize_path(
+                        full_path
+                    ) == utils.normalize_path(base[path_index]):
+                        raise RuntimeError("The model-type root folder cannot be deleted")
+                    self.remove_folder(full_path)
+                    return web.json_response({"success": True})
                 model_path = utils.get_valid_full_path(model_type, path_index, filename)
                 if model_path is None:
                     raise RuntimeError(f"File {filename} not found")
@@ -188,6 +203,52 @@ class ModelManager:
                 error_msg = f"Delete model failed: {str(e)}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
+
+        @routes.post("/model-manager/create-folder")
+        async def create_folder(request):
+            """Create a new (sub-)folder inside a model folder (folder view)."""
+            data = await utils.get_request_body(request)
+            model_type = data.get("type")
+            path_index = int(data.get("pathIndex") or 0)
+            sub_folder = (data.get("subFolder") or "").strip("/")
+            name = (data.get("name") or "").strip().strip("/")
+            if not model_type or not name:
+                return web.json_response(
+                    {"success": False, "error": "type and name are required"}
+                )
+            segments = name.split("/")
+            if any(segment in ("", ".", "..") for segment in segments) or any(
+                ch in name for ch in '\\:*?"<>|'
+            ):
+                return web.json_response(
+                    {"success": False, "error": f"Invalid folder name: {name}"}
+                )
+            if segments[-1].endswith(utils.ZNN_FOLDER_SUFFIX) or segments[-1].endswith(
+                utils.DELTA_FOLDER_SUFFIX
+            ):
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": (
+                            f"Names ending in {utils.ZNN_FOLDER_SUFFIX} / "
+                            f"{utils.DELTA_FOLDER_SUFFIX} are reserved for ZipNN"
+                        ),
+                    }
+                )
+            relative = utils.join_path(sub_folder, name) if sub_folder else name
+            try:
+                target = utils.get_full_path(model_type, path_index, relative)
+            except Exception as e:
+                return web.json_response({"success": False, "error": str(e)})
+            if os.path.exists(target):
+                return web.json_response(
+                    {"success": False, "error": f"Already exists: {name}"}
+                )
+            try:
+                os.makedirs(target)
+            except Exception as e:
+                return web.json_response({"success": False, "error": str(e)})
+            return web.json_response({"success": True})
 
     def scan_models(self, folder: str, include_hidden_files: bool = False):
         result = []
@@ -355,6 +416,10 @@ class ModelManager:
             # get new path
             new_model_path = utils.get_full_path(model_type, path_index, fullname)
 
+            # ZipNN bundle folders (*_ZNN) must never receive a non-compressed
+            # model file through a move/rename either.
+            utils.enforce_znn_folder_rule(new_model_path)
+
             utils.rename_model(model_path, new_model_path)
 
     def remove_model(self, model_path: str):
@@ -368,3 +433,13 @@ class ModelManager:
         model_descriptions = utils.get_model_all_descriptions(model_path)
         for description in model_descriptions:
             os.remove(utils.join_path(model_dirname, description))
+
+    def remove_folder(self, folder_path: str):
+        """Recursively delete a model folder (selection-mode folder delete).
+
+        Containment inside the model-type root is validated by the route
+        (`utils.get_full_path`), so this only ever touches model directories.
+        """
+        import shutil
+
+        shutil.rmtree(folder_path)

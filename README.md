@@ -58,9 +58,18 @@ the experience from the ground up:
   (creates the repo if needed, private option, live progress) — _new in Neo_.
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN lossless compression** — compress / decompress safetensors models in
   place (`.znn.safetensors`) with confirmation, progress and an inverted icon on
-  compressed models — _new in Neo_.
+  compressed models; whole folders batch-compress into sealed `<name>_ZNN`
+  bundles, and fine-tunes shrink to tiny **delta files** against their base —
+  _new in Neo_.
 - <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Multi-select** — tick cards to add several models to the workflow or
-  delete them in one go — _new in Neo_.
+  delete them in one go — _new in Neo_. Folders can be ticked too: "Add to
+  workflow" expands them recursively, "Delete" removes them wholesale.
+- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **Stars** — star models and folders (card badge, model-detail action row or
+  selection bar); starred entries wear a yellow badge and always sort first —
+  _new in Neo_.
+- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **Create folders** — the folder view offers an "Add Folder" button that
+  creates arbitrarily named (sub-)folders inside the open directory —
+  _new in Neo_.
 - <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Direct‑link downloads** — paste a raw `.safetensors`/`.ckpt`/`.gguf` URL,
   pick the target folder, optionally choose a custom sub‑folder.
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` acceleration** — Hugging Face transfers use the chunked,
@@ -299,6 +308,43 @@ File Size** and **% of Original Size** — the pre-compression size is recorded
 in the file's metadata at compression time, so the breakdown survives the
 rename (files compressed by the official ZipNN CLI, which does not write that
 key, simply keep the plain _File Size_ row).
+
+The same artwork also sits on the **top-right corner of every model and folder
+card**: one click compresses (or decompresses, inverted) with the identical
+confirmation and progress behaviour, without opening the model at all.
+
+### Batch compression (whole folders)
+
+ZipNN's official tooling compresses whole paths; Neo wires that into the
+manager. Select folders ("Select files") and press the **ZipNN artwork button
+in the bottom bar** — or use the corner button on a folder card — and every
+`.safetensors` model inside the folder tree is compressed (previews and notes
+follow their models), after which the folder is renamed **`<name>_ZNN`**. A
+`*_ZNN` folder is a sealed bundle:
+
+- only `*.znn.*` models may ever be placed inside one (uploads, downloads and
+  moves of plain models into it are refused);
+- selecting a `*_ZNN` folder together with a non-`*_ZNN` folder is impossible —
+  the bundle side is deselected automatically with a warning toast;
+- pressing the batch button on `*_ZNN` folders **decompresses** them and
+  renames them back to their original name.
+
+Several folders run as a queue: one confirmation, sequential tasks, one
+progress state at a time.
+
+### Delta compression (fine-tunes against a base)
+
+A fine-tuned model shares most of its bytes with its base, and ZipNN can store
+only the **difference**: select exactly two plain `.safetensors` models and
+press **ZipNN delta compress** in the bottom bar. A small dialog lets you pick
+which selection is the **base** and which the **fine-tune** (the official
+file-level API, `ZipNN(delta_compressed_type="file")`, is used under the hood).
+The result — typically a few percent of the fine-tune's size — is written to
+**`<base>_DeltaZNN/<ft>_delta_<base>.znn`** and the redundant fine-tune file is
+removed. Decompressing a delta (its card button, inverted) restores the
+fine-tuned model **byte-exactly** beside the base and retires the now-empty
+delta folder. Restoration needs the base model, and ZipNN verifies that both
+sides have the same byte length when the delta is created.
 
 ### Bundled, so it just works
 

@@ -73,6 +73,10 @@ class ModelUploader:
         if not (target == base or target.startswith(base.rstrip("/") + "/")):
             raise RuntimeError("Path traversal detected: target escapes the model folder")
 
+        # ZipNN bundle folders (*_ZNN) must never receive a non-compressed
+        # model file (previews/notes sidecars remain allowed).
+        utils.enforce_znn_folder_rule(target)
+
     def resolve_model_folder(self, file_folder: str):
         """
         Resolve the model type / pathIndex / relative directory for a given

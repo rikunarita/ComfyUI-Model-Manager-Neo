@@ -86,11 +86,17 @@ A single grid of every model of every type, with a toolbar:
 
 ### Folder layout
 
-A file‑manager style tree with a breadcrumb trail (each crumb carries a tiny
-folder glyph). Double‑click a folder to enter it, use the breadcrumb or the ↑
-button to go back. Right‑click a model for the context menu (**Open**).
+A file‑manager style tree with a breadcrumb trail (each crumb carries a folder
+glyph). Double‑click a folder to enter it, use the breadcrumb or the ↑ button
+to go back. Right‑click a model for the context menu (**Open**).
 
 ![folder layout](screenshots/view-folders-dialog.png)
+
+The row next to the search box offers **Add Folder** (folder‑plus icon): type
+any name and the folder is created inside the directory you are browsing
+(names ending in `_ZNN` / `_DeltaZNN` are reserved for ZipNN). The former
+hamburger/"filter" toggle was removed — navigating folders by name makes it
+redundant; the card size stays adjustable in the flat layout.
 
 Both layouts share the **show/hide hidden files** header button (files and
 folders whose name starts with `.`).
@@ -101,7 +107,13 @@ folders whose name starts with `.`).
 
 - **Preview** — image or looping video; models without a preview show the glass
   **NO PREVIEW** artwork.
-- **Chips** (top right) — model type and file size, scaled with the card.
+- **Chips** (bottom right) — model type and file size, scaled with the card.
+- **Star badge** (top left, only while starred) — a yellow star; clicking it
+  removes the star. Stars are added from the model detail action row or the
+  selection bar, and starred models/folders always sort first.
+- **ZipNN corner button** (top right) — the ZipNN artwork: one click compresses
+  (or decompresses, shown inverted) with the same confirmation and progress as
+  the detail-window button; on folder cards it runs the folder batch.
 - **Folder cards** — a hand‑drawn glass folder that opens after the pointer
   rests on it for a second and closes a second after it leaves.
 - **Hover actions** (flat layout, large cards) — **Add node**, **Copy node**,
@@ -281,13 +293,25 @@ server‑side (no arbitrary writes, no path traversal).
 
 The toolbar of both layouts has a **Select files** toggle (list-checks icon).
 While it is on, every card and folder shows a round checkbox at its top-left;
-clicking a card ticks it instead of opening it. As soon as one item is selected
-a bulk bar appears at the bottom of the window:
+clicking a card ticks it instead of opening it. As soon as one item is
+selected a bulk bar appears at the bottom of the window:
 
-- **Add to workflow** — creates one loader node per selected model;
+- **Add to workflow** — creates one loader node per selected model; selected
+  _folders_ contribute every model inside them (recursively);
 - **Delete** — deletes every selected model after a Danger confirmation
-  (previews and notes included);
+  (previews and notes included); selected _folders_ are removed recursively;
+- **ZipNN batch** (folders selected) — the ZipNN artwork button: batch
+  compress / decompress the selected folders (see below);
+- **ZipNN delta compress** (exactly two plain models selected) — opens the
+  base/fine-tune picker (see below);
+- **Star** (folders selected, icon only) — yellow when every selected folder
+  is starred (pressing unstars them all); otherwise it stars exactly the
+  unstarred ones;
 - **Clear selection** — unticks everything. Leaving the mode also clears it.
+
+ZipNN bundle folders (`*_ZNN`) and ordinary folders can never be selected at
+the same time: adding one kind while the other is ticked deselects the bundle
+folders and shows a warning toast.
 
 ### ZipNN compression
 
@@ -331,6 +355,28 @@ and offers a **retry** action. To choose the compiler yourself for that build,
 export `CC=/path/to/gcc` before starting ComfyUI. See
 [`third_party/README.md`](../third_party/README.md) for the platform/glibc
 coverage and how to add binaries for other systems.
+
+### ZipNN batch compression (folders)
+
+Select one or more folders and press the **ZipNN artwork button** in the bulk
+bar (or use the corner button on a folder card). After a confirmation, every
+`.safetensors` model inside the folder tree is compressed — previews and notes
+follow their models — and the folder is renamed **`<name>_ZNN`**. Such a bundle
+folder is sealed: only `*.znn.*` models can live inside it (uploads, downloads
+and moves of plain models into it are refused), and pressing the batch button
+on a `*_ZNN` folder **decompresses** it and renames it back. Several folders
+run one after another behind a single confirmation.
+
+### ZipNN delta compression (fine-tunes)
+
+Select exactly two plain `.safetensors` models (base + fine-tune) and press
+**ZipNN delta compress**. A dialog asks which selection is the **base model**;
+the other is the fine-tune. Confirming stores only the **difference** in
+`<base>_DeltaZNN/<ft>_delta_<base>.znn` (usually a few percent of the
+fine-tune's size) and removes the redundant fine-tune file. The delta's card
+button (inverted artwork) restores the fine-tuned model **byte-exactly** next
+to the base and deletes the delta folder once it empties. Restoring requires
+the base model to still be present.
 
 ## 9. Settings
 

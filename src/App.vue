@@ -10,7 +10,7 @@
 
 <script setup lang="ts">
 import { ConfigProvider } from 'reka-ui'
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DialogDownload from 'components/DialogDownload.vue'
 import DialogExplorer from 'components/DialogExplorer.vue'
@@ -20,9 +20,10 @@ import GlobalConfirm from 'components/GlobalConfirm.vue'
 import GlobalDialogStack from 'components/GlobalDialogStack.vue'
 import { Sonner } from 'components/ui/sonner'
 import { TooltipProvider } from 'components/ui/tooltip'
+import { loadStars } from 'hooks/stars'
 import { useStoreProvider } from 'hooks/store'
 import { useToast } from 'hooks/toast'
-import { takeZipnnSettle, zipnnState } from 'hooks/zipnn'
+import { takeZipnnSettle } from 'hooks/zipnn'
 import { $el, app, ComfyButton } from 'scripts/comfyAPI'
 
 const { t } = useI18n()
@@ -45,6 +46,10 @@ const firstOpenManager = ref(true)
  * folder explorer. If the card of the renamed model is still open it is
  * swapped for a fresh one showing the new file
  * (`.safetensors` <-> `.znn.safetensors`).
+ *
+ * Driven by the `mm-zipnn-settled` window event (one per finished task, also
+ * for queued folder batches) instead of a watcher on `zipnnState.active`,
+ * which stays true across queued batches.
  */
 const handleZipnnSettled = async () => {
   const settle = takeZipnnSettle()
@@ -64,14 +69,11 @@ const handleZipnnSettled = async () => {
   if (renamed) models.openModelDetail(renamed)
 }
 
-watch(
-  () => zipnnState.active,
-  (active, wasActive) => {
-    if (!active && wasActive) void handleZipnnSettled()
-  },
-)
-
 onMounted(() => {
+  loadStars()
+  window.addEventListener('mm-zipnn-settled', () => {
+    void handleZipnnSettled()
+  })
   const refreshModelsAndConfig = async () => {
     await Promise.all([models.refresh(true)])
     toast.add({

@@ -219,6 +219,45 @@ def get_full_path(model_type: str, path_index: int, filename: str):
         raise RuntimeError("Path traversal detected: filename escapes model directory")
     return full_path
 
+
+# ---------------------------------------------------------------------------
+# ZipNN folder conventions (mirror py/compress.py).
+#
+# A folder whose name ends with `_ZNN` is a ZipNN-compressed bundle: it may
+# only hold ZipNN-compressed models (`*.znn.*`). `_DeltaZNN` folders hold
+# delta-compressed files. Note `*_DeltaZNN` deliberately does NOT match the
+# `_ZNN` suffix (the character before "ZNN" is a letter, not an underscore),
+# so delta folders are not treated as compressed bundles.
+# ---------------------------------------------------------------------------
+ZNN_FOLDER_SUFFIX = "_ZNN"
+DELTA_FOLDER_SUFFIX = "_DeltaZNN"
+
+
+def is_znn_folder_name(name: str) -> bool:
+    """True for `X_ZNN` bundle folders (NOT for `X_DeltaZNN`)."""
+    return name.endswith(ZNN_FOLDER_SUFFIX)
+
+
+def enforce_znn_folder_rule(full_path: str) -> None:
+    """Refuse to place a non-ZipNN *model* file inside a `*_ZNN` folder.
+
+    Sidecar files (previews, notes) stay allowed - they belong to the
+    compressed model. Called by every code path that can put a new file into a
+    model folder: local upload, download tasks and editor rename/move.
+    """
+    filename = os.path.basename(full_path)
+    if ".znn." in filename:
+        return  # a ZipNN-compressed model: exactly what *_ZNN folders hold
+    extension = os.path.splitext(filename)[1]
+    if extension not in folder_paths.supported_pt_extensions:
+        return  # preview / notes / anything non-model
+    parts = normalize_path(full_path).split("/")
+    if any(is_znn_folder_name(part) for part in parts[:-1]):
+        raise RuntimeError(
+            f"ZipNN folders (*{ZNN_FOLDER_SUFFIX}) accept ZipNN-compressed "
+            f"models (*.znn.*) only, cannot place: {filename}"
+        )
+
 def get_valid_full_path(model_type: str, path_index: int, filename: str):
     """
     Like get_full_path but it will check whether the file is valid.

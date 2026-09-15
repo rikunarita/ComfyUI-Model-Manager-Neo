@@ -91,6 +91,8 @@ export interface ZipnnSettle {
   subFolder: string
   /** File name (basename + extension) the model was renamed to, on success. */
   newFullname: string | null
+  /** What the task operated on: single model, folder batch, or delta pair. */
+  kind: 'model' | 'folder' | 'delta'
 }
 
 let lastSettle: ZipnnSettle | null = null
@@ -110,6 +112,7 @@ api.addEventListener('zipnn_complete', (event: CustomEvent) => {
         error?: string
         mode?: string
         fullname?: string
+        kind?: string
         installFailed?: boolean
         stats?: { originalBytes?: number; compressedBytes?: number }
       }
@@ -135,8 +138,23 @@ api.addEventListener('zipnn_complete', (event: CustomEvent) => {
         pathIndex: req.model.pathIndex,
         subFolder: slash >= 0 ? reqFullname.slice(0, slash) : '',
         newFullname: detail.ok ? (detail.fullname ?? null) : null,
+        kind: detail.kind === 'folder' || detail.kind === 'delta' ? detail.kind : 'model',
       }
     : null
+
+  // Sequential folder-batch queue: start the next folder once this one
+  // succeeded; a failure aborts the rest of the queue.
+  if (detail.ok) {
+    const next = batchQueue.shift()
+    if (next) void startZipnnBatch(next.mode, next.folder, next.key)
+  } else {
+    batchQueue.length = 0
+  }
+
+  // App-level listener refreshes the grids / swaps an open card for every
+  // settled task. (A watcher on `active` would miss queued batches, which
+  // keep it true across tasks.)
+  window.dispatchEvent(new CustomEvent('mm-zipnn-settled'))
 
   if (!detail.ok) {
     const raw = detail.error ?? t('zipnnFailed')
@@ -227,32 +245,199 @@ export const zipnnRunningFor = (modelKey: string | null) =>
   zipnnState.active && zipnnState.targetKey === modelKey
 
 /**
+ * Folder-batch queue: several folders can be selected at once, but the
+ * progress state tracks a single task, so batches run one after another.
+ * The completion handler starts the next entry (and drops the queue on
+ * failure).
+ */
+export interface ZipnnBatchItem {
+  mode: 'compress' | 'decompress'
+  folder: { type: string; pathIndex: number; folder: string }
+  key: string
+}
+
+const batchQueue: ZipnnBatchItem[] = []
+
+export const queueZipnnBatches = (
+  mode: 'compress' | 'decompress',
+  items: Omit<ZipnnBatchItem, 'mode'>[],
+) => {
+  batchQueue.push(...items.map(item => ({ ...item, mode })))
+  const next = batchQueue.shift()
+  if (next) void startZipnnBatch(next.mode, next.folder, next.key)
+}
+
+/**
+ * Batch-compress / batch-decompress a whole folder (selection bar button and
+ * the folder-card corner button). The folder renames `X` <-> `X_ZNN` on the
+ * backend once every file succeeded.
+ */
+export const startZipnnBatch = async (
+  mode: 'compress' | 'decompress',
+  folder: { type: string; pathIndex: number; folder: string },
+  folderKey: string,
+): Promise<void> => {
+  lastRequest = {
+    mode,
+    model: { type: folder.type, pathIndex: folder.pathIndex, fullname: folder.folder },
+    modelKey: folderKey,
+  }
+  zipnnState.taskId = null
+  zipnnState.active = true
+  zipnnState.progress = 0
+  zipnnState.phase = 'prepare'
+  zipnnState.mode = mode
+  zipnnState.targetKey = folderKey
+  try {
+    const res = (await request(`/zipnn/batch-folder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode, ...folder }),
+    })) as { taskId: string }
+    zipnnState.taskId = res?.taskId ?? null
+  } catch (error) {
+    zipnnState.active = false
+    zipnnState.taskId = null
+    zipnnState.targetKey = null
+    toast.add({
+      severity: 'error',
+      summary: t('error'),
+      detail: error instanceof Error ? error.message : String(error),
+      life: 12000,
+    })
+  }
+}
+
+/** Delta-compress a fine-tuned model against its base (selection bar). */
+export const startZipnnDelta = async (
+  base: { type: string; pathIndex: number; fullname: string },
+  ft: { type: string; pathIndex: number; fullname: string },
+  ftKey: string,
+): Promise<void> => {
+  lastRequest = {
+    mode: 'compress',
+    model: { type: ft.type, pathIndex: ft.pathIndex, fullname: ft.fullname },
+    modelKey: ftKey,
+  }
+  zipnnState.taskId = null
+  zipnnState.active = true
+  zipnnState.progress = 0
+  zipnnState.phase = 'prepare'
+  zipnnState.mode = 'compress'
+  zipnnState.targetKey = ftKey
+  try {
+    const res = (await request(`/zipnn/delta-compress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: ft.type,
+        pathIndex: ft.pathIndex,
+        fullname: ft.fullname,
+        baseFullname: base.fullname,
+      }),
+    })) as { taskId: string }
+    zipnnState.taskId = res?.taskId ?? null
+  } catch (error) {
+    zipnnState.active = false
+    zipnnState.taskId = null
+    zipnnState.targetKey = null
+    toast.add({
+      severity: 'error',
+      summary: t('error'),
+      detail: error instanceof Error ? error.message : String(error),
+      life: 12000,
+    })
+  }
+}
+
+/** Restore a fine-tuned model from its delta file (needs the base model). */
+export const startZipnnDeltaDecompress = async (
+  model: { type: string; pathIndex: number; fullname: string },
+  modelKey: string,
+): Promise<void> => {
+  lastRequest = { mode: 'decompress', model, modelKey }
+  zipnnState.taskId = null
+  zipnnState.active = true
+  zipnnState.progress = 0
+  zipnnState.phase = 'prepare'
+  zipnnState.mode = 'decompress'
+  zipnnState.targetKey = modelKey
+  try {
+    const res = (await request(`/zipnn/delta-decompress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(model),
+    })) as { taskId: string }
+    zipnnState.taskId = res?.taskId ?? null
+  } catch (error) {
+    zipnnState.active = false
+    zipnnState.taskId = null
+    zipnnState.targetKey = null
+    toast.add({
+      severity: 'error',
+      summary: t('error'),
+      detail: error instanceof Error ? error.message : String(error),
+      life: 12000,
+    })
+  }
+}
+
+/**
  * Multi-select mode for the model grids ("Select files").
  *
  * Feature: a toolbar toggle reveals a round checkbox on every card/folder;
- * selecting one or more reveals bulk actions (add to workflow / delete).
+ * selecting one or more reveals bulk actions (add to workflow / delete /
+ * ZipNN batch / star).
+ *
+ * `kinds` records what each selected key is so the ZipNN bundle rule can be
+ * enforced: a `*_ZNN` folder and a non-`*_ZNN` folder can never be selected
+ * at the same time (adding one drops the `*_ZNN` side with a warning).
  */
+export type SelectionKind = 'model' | 'folder' | 'znn-folder'
+
 export const selectionState = reactive<{
   enabled: boolean
   selected: Record<string, boolean>
+  kinds: Record<string, SelectionKind>
 }>({
   enabled: false,
   selected: {},
+  kinds: {},
 })
 
 export const useSelection = () => {
   const count = computed(() => Object.keys(selectionState.selected).length)
 
-  const toggle = (key: string) => {
+  const selectedKeysOfKind = (kind: SelectionKind) =>
+    Object.keys(selectionState.selected).filter(key => selectionState.kinds[key] === kind)
+
+  const toggle = (key: string, kind: SelectionKind = 'model') => {
     if (selectionState.selected[key]) {
       delete selectionState.selected[key]
-    } else {
-      selectionState.selected[key] = true
+      delete selectionState.kinds[key]
+      return
     }
+    if (kind === 'znn-folder' && selectedKeysOfKind('folder').length > 0) {
+      // Mixing is refused: the already-selected plain folders stay, the
+      // `*_ZNN` folder never joins them.
+      toast.add({ severity: 'warn', summary: t('selectionZnnMixed'), life: 6000 })
+      return
+    }
+    if (kind === 'folder' && selectedKeysOfKind('znn-folder').length > 0) {
+      // Drop the already-selected `*_ZNN` folders and warn.
+      for (const znnKey of selectedKeysOfKind('znn-folder')) {
+        delete selectionState.selected[znnKey]
+        delete selectionState.kinds[znnKey]
+      }
+      toast.add({ severity: 'warn', summary: t('selectionZnnMixed'), life: 6000 })
+    }
+    selectionState.selected[key] = true
+    selectionState.kinds[key] = kind
   }
 
   const clear = () => {
     selectionState.selected = {}
+    selectionState.kinds = {}
   }
 
   const enter = () => {

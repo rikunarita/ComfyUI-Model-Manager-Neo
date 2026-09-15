@@ -27,3 +27,13 @@ export const resolveModelTypeLoader = (type: string) => {
 export const genModelKey = (model: BaseModel) => {
   return `${model.type}:${model.pathIndex}:${model.subFolder}:${model.basename}${model.extension}`
 }
+
+/**
+ * True for ZipNN bundle folders (`X_ZNN`). Mirrors `py/utils.py`:
+ * `X_DeltaZNN` does NOT match (the char before "ZNN" is a letter), so delta
+ * folders are never treated as compressed bundles.
+ */
+export const isZnnFolderName = (name: string) => name.endsWith('_ZNN')
+
+/** True for ZipNN delta folders (`X_DeltaZNN`). */
+export const isDeltaFolderName = (name: string) => name.endsWith('_DeltaZNN')

@@ -170,6 +170,17 @@
           <Trash2 class="size-4" />
           {{ $t('delete') }}
         </Button>
+        <!-- Delta compression: exactly two plain .safetensors models selected -->
+        <Button
+          v-if="deltaPair"
+          variant="secondary"
+          size="sm"
+          :title="$t('zipnnDeltaCompress')"
+          @click="openDeltaDialog"
+        >
+          <GitCompareArrows class="size-4" />
+          {{ $t('zipnnDeltaCompress') }}
+        </Button>
         <Button variant="ghost" size="sm" @click="selection.clear()">
           {{ $t('clearSelection') }}
         </Button>
@@ -179,11 +190,21 @@
 </template>
 
 <script setup lang="ts" name="manager-dialog">
-import { Box, Copy, ExternalLink, ListChecks, Plus, Trash2, Workflow } from '@lucide/vue'
+import {
+  Box,
+  Copy,
+  ExternalLink,
+  GitCompareArrows,
+  ListChecks,
+  Plus,
+  Trash2,
+  Workflow,
+} from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DialogZipnnDelta from 'components/DialogZipnnDelta.vue'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
@@ -192,7 +213,9 @@ import { Button } from 'components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { configSetting, useConfig } from 'hooks/config'
 import { useContainerQueries } from 'hooks/container'
+import { useDialog } from 'hooks/dialog'
 import { useModelNodeAction, useModels } from 'hooks/model'
+import { isModelStarred } from 'hooks/stars'
 import { useToast } from 'hooks/toast'
 import { useSelection } from 'hooks/zipnn'
 import { app } from 'scripts/comfyAPI'
@@ -326,7 +349,12 @@ const list = computed(() => {
       break
   }
 
-  const sortedList = filterList.sort(sortStrategy)
+  const sortedList = filterList.sort((a, b) => {
+    // Starred models always lead the grid; the chosen sort order decides
+    // within equal star state.
+    const byStar = Number(isModelStarred(genModelKey(b))) - Number(isModelStarred(genModelKey(a)))
+    return byStar || sortStrategy(a, b)
+  })
 
   // Guard: es-toolkit's chunk() throws on a non-positive size (unlike lodash,
   // which returned []). Before the container is measured `cols` can be <= 0;
@@ -395,6 +423,27 @@ const toggleSelectMode = () => {
 
 const selectedModels = () =>
   list.value.flatMap(row => (row as any).row).filter((m: Model) => isSelected(m))
+
+/* ---- delta compression (exactly two plain .safetensors models selected) -- */
+const dialog = useDialog()
+const deltaPair = computed(() => {
+  const models = selectedModels().filter(
+    m => m.extension === '.safetensors' && !m.basename.endsWith('.znn'),
+  )
+  return models.length === 2 ? models : null
+})
+
+const openDeltaDialog = () => {
+  const pair = deltaPair.value
+  if (!pair) return
+  dialog.open({
+    key: 'zipnn-delta',
+    title: t('zipnnDeltaCompress'),
+    content: DialogZipnnDelta,
+    contentProps: { models: pair },
+    defaultSize: { width: 480, height: 280 },
+  })
+}
 
 const addSelectedToWorkflow = () => {
   for (const model of selectedModels()) addModelNode(model)

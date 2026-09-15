@@ -4,7 +4,7 @@
     @contextmenu.prevent="nonContextMenu"
   >
     <div class="flex w-full gap-4 overflow-hidden px-4 pb-4">
-      <div :class="['flex gap-4 overflow-hidden', showToolbar || 'flex-1']">
+      <div class="flex flex-1 gap-4 overflow-hidden">
         <div class="flex overflow-hidden">
           <Button
             variant="ghost"
@@ -16,21 +16,29 @@
           </Button>
         </div>
 
-        <ResponseBreadcrumb
-          v-show="!showToolbar"
-          class="h-10 flex-1"
-          :items="breadcrumbItems"
-        ></ResponseBreadcrumb>
+        <ResponseBreadcrumb class="h-10 flex-1" :items="breadcrumbItems"></ResponseBreadcrumb>
       </div>
 
-      <div :class="['flex gap-4', showToolbar && 'flex-1']">
+      <div class="flex gap-4">
         <ResponseInput v-model="searchContent" :placeholder="$t('searchModels')"></ResponseInput>
 
-        <div v-show="showToolbar" class="flex flex-1 items-center justify-end gap-2">
-          <ResponseSelect v-model="sortOrder" :items="sortOrderOptions"></ResponseSelect>
-          <ResponseSelect v-model="cardSizeFlag" :items="cardSizeOptions"></ResponseSelect>
-        </div>
-
+        <!--
+          "Add folder": creates a sub-folder inside the currently open folder.
+          The former hamburger/"filter" toggle and its sort/card-size toolbar
+          were removed on purpose - folder navigation makes the extra filter
+          surface redundant, and the card size stays adjustable in the flat
+          view.
+        -->
+        <Button
+          variant="ghost"
+          size="icon"
+          :disabled="!currentFolderInfo"
+          :title="$t('addFolder')"
+          :aria-label="$t('addFolder')"
+          @click="openCreateFolder"
+        >
+          <FolderPlus class="size-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -41,10 +49,6 @@
           @click="toggleSelectMode"
         >
           <ListChecks class="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" @click="toggleToolbar">
-          <X v-if="showToolbar" class="size-4" />
-          <Menu v-else class="size-4" />
         </Button>
       </div>
     </div>
@@ -117,6 +121,55 @@
           <Trash2 class="size-4" />
           {{ $t('delete') }}
         </Button>
+        <!--
+          ZipNN batch (folder selection): the shipped SVG artwork *is* the
+          button, exactly like the model-card call-to-action - same
+          confirmation, same inverted colours for `*_ZNN` bundles, same
+          progress state (spinner while the batch task runs).
+        -->
+        <button
+          v-if="selectedFolderNodes.length > 0"
+          type="button"
+          class="mm-zipnn-button size-9 shrink-0 rounded-mm-ctl"
+          :title="batchLabel"
+          :aria-label="batchLabel"
+          :disabled="zipnnRunning"
+          @click="requestBatch"
+        >
+          <Loader2 v-if="zipnnRunning" class="size-5 animate-spin text-mm-accent" />
+          <img
+            v-else
+            :src="zipnnIcon"
+            alt=""
+            class="size-full rounded-mm-ctl"
+            :class="batchInverted && 'hue-rotate-180 invert'"
+          />
+        </button>
+        <!-- Delta compression: exactly two plain .safetensors models selected -->
+        <Button
+          v-if="deltaPair"
+          variant="secondary"
+          size="sm"
+          :title="$t('zipnnDeltaCompress')"
+          @click="openDeltaDialog"
+        >
+          <GitCompareArrows class="size-4" />
+          {{ $t('zipnnDeltaCompress') }}
+        </Button>
+        <!-- Star toggle for the selected folders (icon only, per spec) -->
+        <Button
+          v-if="selectedFolderNodes.length > 0"
+          variant="ghost"
+          size="icon-sm"
+          :title="allSelectedFoldersStarred ? $t('unstar') : $t('star')"
+          :aria-label="allSelectedFoldersStarred ? $t('unstar') : $t('star')"
+          @click="starSelectedFolders"
+        >
+          <Star
+            class="size-4"
+            :class="allSelectedFoldersStarred ? 'fill-current text-mm-warning' : ''"
+          />
+        </Button>
         <Button variant="ghost" size="sm" @click="selection.clear()">
           {{ $t('clearSelection') }}
         </Button>
@@ -146,39 +199,57 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronUp, ListChecks, Menu, Plus, Trash2, X } from '@lucide/vue'
+import {
+  ChevronUp,
+  FolderPlus,
+  GitCompareArrows,
+  ListChecks,
+  Loader2,
+  Plus,
+  Star,
+  Trash2,
+} from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { type ReferenceElement } from 'reka-ui'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DialogCreateFolder from 'components/DialogCreateFolder.vue'
+import DialogZipnnDelta from 'components/DialogZipnnDelta.vue'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseBreadcrumb from 'components/ResponseBreadcrumb.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
-import ResponseSelect from 'components/ResponseSelect.vue'
 import { Button } from 'components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from 'components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { useConfig } from 'hooks/config'
+import { useDialog } from 'hooks/dialog'
 import { type ModelTreeNode, useModelExplorer } from 'hooks/explorer'
-import { useModelNodeAction, useModels } from 'hooks/model'
+import { genModelFullName, useModelNodeAction, useModels } from 'hooks/model'
+import { applyFolderStars, isFolderStarred } from 'hooks/stars'
 import { useToast } from 'hooks/toast'
-import { useSelection } from 'hooks/zipnn'
+import { queueZipnnBatches, useSelection, zipnnState } from 'hooks/zipnn'
 import { resolveIcon } from 'utils/iconMap'
-import { genModelKey } from 'utils/model'
+import { assetUrl } from 'utils/media'
+import { genModelKey, isZnnFolderName } from 'utils/model'
 
 const { t } = useI18n()
-const { confirm } = useToast()
+const { toast, confirm } = useToast()
 const selection = useSelection()
 const selectionCount = selection.count
 const { addModelNode } = useModelNodeAction()
 const { remove } = useModels()
+const dialog = useDialog()
 
 const isSelected = (model: ModelTreeNode) => Boolean(selection.state.selected[genModelKey(model)])
 
+/** Selection kind for the ZipNN bundle exclusion rule. */
+const kindOf = (node: ModelTreeNode) =>
+  node.isFolder ? (isZnnFolderName(node.basename) ? 'znn-folder' : 'folder') : ('model' as const)
+
 const handleCardClick = (model: ModelTreeNode) => {
-  if (selection.state.enabled) selection.toggle(genModelKey(model))
+  if (selection.state.enabled) selection.toggle(genModelKey(model), kindOf(model))
 }
 
 const toggleSelectMode = () => {
@@ -186,25 +257,169 @@ const toggleSelectMode = () => {
   else selection.enter()
 }
 
-const selectedModels = () => currentDataList.value.filter(m => isSelected(m) && !m.isFolder)
-
-const addSelectedToWorkflow = () => {
-  for (const model of selectedModels()) addModelNode(model)
+/* ---- selected nodes (a selection can span folders AND models) ---------- */
+const findNodeByKey = (list: ModelTreeNode[], key: string): ModelTreeNode | undefined => {
+  for (const node of list) {
+    if (genModelKey(node) === key) return node
+    if (node.children?.length) {
+      const found = findNodeByKey(node.children, key)
+      if (found) return found
+    }
+  }
+  return undefined
 }
 
+const selectedNodes = () =>
+  Object.keys(selection.state.selected)
+    .map(key => findNodeByKey(dataTreeList.value, key))
+    .filter((n): n is ModelTreeNode => Boolean(n))
+
+const collectFolderModels = (node: ModelTreeNode): ModelTreeNode[] => {
+  const models: ModelTreeNode[] = []
+  for (const child of node.children ?? []) {
+    if (child.isFolder) models.push(...collectFolderModels(child))
+    else models.push(child)
+  }
+  return models
+}
+
+const selectedFolderNodes = computed(() =>
+  // type-root folders (the library's top level) are never batch/star targets
+  selectedNodes().filter(n => n.isFolder && !(n.basename === n.type && !n.subFolder)),
+)
+const selectedModelNodes = computed(() => selectedNodes().filter(n => !n.isFolder))
+
+/**
+ * BUG FIX: "Add to workflow" on a folder selection used to add NOTHING - the
+ * old helper filtered folders out and only looked at the current view, so the
+ * models inside a selected folder were never expanded into nodes.
+ */
+const addSelectedToWorkflow = () => {
+  const models: ModelTreeNode[] = []
+  for (const node of selectedNodes()) {
+    if (node.isFolder) models.push(...collectFolderModels(node))
+    else models.push(node)
+  }
+  for (const model of models) addModelNode(model)
+  if (models.length > 1) {
+    toast.add({
+      severity: 'success',
+      summary: t('nodeAdded'),
+      detail: `${models.length}`,
+      life: 2500,
+    })
+  }
+}
+
+/**
+ * BUG FIX: folder deletion never reached the backend (folders were filtered
+ * out of the selection, so "Delete" silently did nothing for them). The
+ * delete route now removes directories recursively.
+ */
 const deleteSelected = () => {
-  const models = selectedModels()
+  const nodes = selectedNodes()
+  const modelCount = nodes.filter(n => !n.isFolder).length
+  const folderCount = nodes.length - modelCount
+  const subject =
+    folderCount > 0
+      ? t('deleteAskSubjectMixed', { models: modelCount, folders: folderCount })
+      : `${t('model').toLowerCase()} (${modelCount})`
   confirm.require({
-    message: t('deleteAsk', [t('model').toLowerCase() + ` (${models.length})`]),
+    message: t('deleteAsk', [subject]),
     header: 'Danger',
     icon: 'pi pi-info-circle',
     rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
     acceptProps: { label: t('delete'), severity: 'danger' },
     accept: async () => {
-      for (const model of models) await remove(model)
+      for (const node of nodes) await remove(node)
       selection.clear()
     },
     reject: () => {},
+  })
+}
+
+/* ---- ZipNN batch (folder selection) ------------------------------------ */
+const zipnnIcon = assetUrl('zipnn-button')
+const zipnnRunning = computed(
+  () =>
+    zipnnState.active &&
+    selectedFolderNodes.value.some(n => genModelKey(n) === zipnnState.targetKey),
+)
+const batchInverted = computed(
+  () =>
+    selectedFolderNodes.value.length > 0 &&
+    selectedFolderNodes.value.every(n => isZnnFolderName(n.basename)),
+)
+const batchLabel = computed(() =>
+  batchInverted.value ? t('zipnnBatchDecompress') : t('zipnnBatchCompress'),
+)
+
+const requestBatch = () => {
+  const folders = selectedFolderNodes.value
+  if (folders.length === 0) return
+  const decompressing = batchInverted.value
+  const names = folders.map(f => f.basename).join(', ')
+  confirm.require({
+    message: decompressing
+      ? t('zipnnBatchConfirmDecompress', { name: names })
+      : t('zipnnBatchConfirmCompress', { name: names }),
+    header: decompressing ? t('zipnnBatchDecompress') : t('zipnnBatchCompress'),
+    icon: 'pi pi-info-circle',
+    rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
+    acceptProps: { label: decompressing ? t('zipnnBatchDecompress') : t('zipnnBatchCompress') },
+    accept: () => {
+      queueZipnnBatches(
+        decompressing ? 'decompress' : 'compress',
+        folders.map(f => ({
+          folder: { type: f.type, pathIndex: f.pathIndex, folder: genModelFullName(f) },
+          key: genModelKey(f),
+        })),
+      )
+    },
+    reject: () => {},
+  })
+}
+
+/* ---- delta compression (exactly two plain models selected) ------------- */
+const deltaPair = computed(() => {
+  const models = selectedModelNodes.value.filter(
+    m => m.extension === '.safetensors' && !m.basename.endsWith('.znn'),
+  )
+  return models.length === 2 ? models : null
+})
+
+const openDeltaDialog = () => {
+  const pair = deltaPair.value
+  if (!pair) return
+  dialog.open({
+    key: 'zipnn-delta',
+    title: t('zipnnDeltaCompress'),
+    content: DialogZipnnDelta,
+    contentProps: { models: pair },
+    defaultSize: { width: 480, height: 280 },
+  })
+}
+
+/* ---- star toggle for the selected folders ------------------------------ */
+const allSelectedFoldersStarred = computed(
+  () =>
+    selectedFolderNodes.value.length > 0 &&
+    selectedFolderNodes.value.every(n => isFolderStarred(genModelKey(n))),
+)
+const starSelectedFolders = () => {
+  applyFolderStars(selectedFolderNodes.value.map(n => genModelKey(n)))
+}
+
+/* ---- create folder ------------------------------------------------------ */
+const openCreateFolder = () => {
+  const info = currentFolderInfo.value
+  if (!info) return
+  dialog.open({
+    key: 'create-folder',
+    title: t('addFolder'),
+    content: DialogCreateFolder,
+    contentProps: { ...info },
+    defaultSize: { width: 440, height: 230 },
   })
 }
 
@@ -215,7 +430,7 @@ const gutter = {
 
 const { dataTreeList, folderPaths, findFolder, openFolder, openModelDetail, getFullPath } =
   useModelExplorer()
-const { cardSize, cardSizeMap, cardSizeFlag, dialog: settings } = useConfig()
+const { cardSize } = useConfig()
 
 // folderPaths を BreadcrumbItem[] に変換
 const breadcrumbItems = computed(() => {
@@ -231,11 +446,6 @@ const breadcrumbItems = computed(() => {
     },
   }))
 })
-
-const showToolbar = ref(false)
-const toggleToolbar = () => {
-  showToolbar.value = !showToolbar.value
-}
 
 const contentContainer = ref<HTMLElement | null>(null)
 const contentSize = useElementSize(contentContainer)
@@ -256,18 +466,6 @@ const searchContent = ref<string>()
 const debouncedSearch = refDebounced(searchContent, 150)
 
 const sortOrder = ref('name')
-const sortOrderOptions = ref(
-  ['name', 'size', 'created', 'modified'].map(key => {
-    return {
-      label: t(`sort.${key}`),
-      value: key,
-      icon: key === 'name' ? 'pi pi-sort-alpha-down' : 'pi pi-sort-amount-down',
-      command: () => {
-        sortOrder.value = key
-      },
-    }
-  }),
-)
 
 const currentDataList = computed(() => {
   let renderedList = dataTreeList.value
@@ -313,10 +511,17 @@ const currentDataList = computed(() => {
       }
     }
 
+    // Starred entries always lead their group; the chosen sort order decides
+    // within equal star state (Array#sort is stable).
+    const starFirst = (a: ModelTreeNode, b: ModelTreeNode) =>
+      Number(isFolderStarred(genModelKey(b))) - Number(isFolderStarred(genModelKey(a)))
+
     folderItems.sort((a, b) => {
-      return a.basename.localeCompare(b.basename)
+      return starFirst(a, b) || a.basename.localeCompare(b.basename)
     })
     modelItems.sort((a, b) => {
+      const byStar = starFirst(a, b)
+      if (byStar) return byStar
       const sortFieldMap = {
         name: 'basename',
         size: 'sizeBytes',
@@ -348,27 +553,24 @@ const renderedList = computed(() => {
   })
 })
 
-const cardSizeOptions = computed(() => {
-  const customSize = 'size.custom'
-
-  const customOptionMap = {
-    ...cardSizeMap.value,
-    [customSize]: 'custom',
+/**
+ * Where "Add folder" creates into: the folder currently open in the
+ * breadcrumb (root level disables the button - a type root is chosen by
+ * navigating into it first).
+ */
+const currentFolderInfo = computed(() => {
+  const paths = folderPaths.value
+  if (paths.length < 2) return null
+  const last = paths[paths.length - 1]
+  return {
+    type: paths[1].name,
+    pathIndex: last.pathIndex,
+    subFolder: paths
+      .slice(2)
+      .map(p => p.name)
+      .filter(Boolean)
+      .join('/'),
   }
-
-  return Object.keys(customOptionMap).map(key => {
-    return {
-      label: t(key),
-      value: key,
-      command: () => {
-        if (key === customSize) {
-          settings.showCardSizeSetting()
-        } else {
-          cardSizeFlag.value = key
-        }
-      },
-    }
-  })
 })
 
 // Context menu state

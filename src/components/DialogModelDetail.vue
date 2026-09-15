@@ -31,7 +31,7 @@
                 {{ zipnnState.progress }}%
               </span>
             </div>
-            <Tooltip v-else-if="isSafetensorsModel" :delay-duration="300">
+            <Tooltip v-else-if="isSafetensorsModel || isDeltaModel" :delay-duration="300">
               <TooltipTrigger as-child>
                 <!--
                   The shipped ZipNN artwork *is* the button (it already draws its
@@ -39,26 +39,41 @@
                   media query embedded in the SVG), so it is rendered bare - no
                   Button chrome, no text label. Meaning is carried by the
                   tooltip + aria-label, and a compressed model inverts it.
+                  Delta files (`.znn` inside a `*_DeltaZNN` folder) restore
+                  through their base model with the same inverted artwork.
                 -->
                 <button
                   type="button"
                   class="mm-zipnn-button mr-auto size-22 shrink-0"
-                  :aria-label="isCompressed ? $t('zipnnDecompress') : $t('zipnnCompress')"
-                  :title="isCompressed ? $t('zipnnDecompress') : $t('zipnnCompress')"
+                  :aria-label="zipnnActionLabel"
+                  :title="zipnnActionLabel"
                   @click="requestZipnn"
                 >
                   <img
                     :src="zipnnIcon"
                     alt=""
                     class="size-full rounded-mm-ctl"
-                    :class="isCompressed && 'hue-rotate-180 invert'"
+                    :class="(isCompressed || isDeltaModel) && 'hue-rotate-180 invert'"
                   />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom" class="max-w-sm">
-                {{ isCompressed ? $t('zipnnDecompressHint') : $t('zipnnCompressHint') }}
+                {{ zipnnHint }}
               </TooltipContent>
             </Tooltip>
+            <Button
+              variant="ghost"
+              size="icon-action"
+              :title="starred ? $t('unstar') : $t('star')"
+              :aria-label="starred ? $t('unstar') : $t('star')"
+              :aria-pressed="starred"
+              @click="toggleStar"
+            >
+              <Star
+                class="size-6"
+                :class="starred ? 'fill-current text-mm-warning' : 'text-mm-fg'"
+              />
+            </Button>
             <Button
               v-show="model.modelPage"
               variant="ghost"
@@ -122,7 +137,7 @@
 </template>
 
 <script setup lang="ts">
-import { Copy, ExternalLink, PenSquare, Plus, Trash2, Workflow } from '@lucide/vue'
+import { Copy, ExternalLink, PenSquare, Plus, Star, Trash2, Workflow } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ModelContent from 'components/ModelContent.vue'
@@ -132,8 +147,9 @@ import { Progress } from 'components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { genModelFullName, genModelUrl, useModelNodeAction, useModels } from 'hooks/model'
 import { useRequest } from 'hooks/request'
+import { isModelStarred, toggleModelStar } from 'hooks/stars'
 import { useToast } from 'hooks/toast'
-import { startZipnn, zipnnRunningFor, zipnnState } from 'hooks/zipnn'
+import { startZipnn, startZipnnDeltaDecompress, zipnnRunningFor, zipnnState } from 'hooks/zipnn'
 import { type BaseModel, type Model, type WithResolved } from 'types/typings'
 import { assetUrl } from 'utils/media'
 import { genModelKey } from 'utils/model'
@@ -192,8 +208,31 @@ const { addModelNode, copyModelNode, loadPreviewWorkflow } = useModelNodeAction(
 const zipnnIcon = assetUrl('zipnn-button')
 const isSafetensorsModel = computed(() => props.model.extension === '.safetensors')
 const isCompressed = computed(() => props.model.basename.endsWith('.znn'))
+/** Delta files (`<ft>_delta_<base>.znn`) restore through their base model. */
+const isDeltaModel = computed(() => props.model.extension === '.znn')
 const modelKey = computed(() => genModelKey(props.model))
 const zipnnRunning = computed(() => zipnnRunningFor(modelKey.value))
+
+const zipnnActionLabel = computed(() =>
+  isDeltaModel.value
+    ? t('zipnnDeltaDecompress')
+    : isCompressed.value
+      ? t('zipnnDecompress')
+      : t('zipnnCompress'),
+)
+const zipnnHint = computed(() =>
+  isDeltaModel.value
+    ? t('zipnnDeltaDecompressHint')
+    : isCompressed.value
+      ? t('zipnnDecompressHint')
+      : t('zipnnCompressHint'),
+)
+
+/* ---- star ------------------------------------------------------------- */
+const starred = computed(() => isModelStarred(modelKey.value))
+const toggleStar = () => {
+  toggleModelStar(modelKey.value)
+}
 
 // NOTE: the post-task grid refresh and the swap of this card to the renamed
 // file live in App.vue (app lifetime), NOT here - a watcher inside this
@@ -201,6 +240,29 @@ const zipnnRunning = computed(() => zipnnRunningFor(modelKey.value))
 // compression usually outlives the dialog.
 
 const requestZipnn = () => {
+  if (isDeltaModel.value) {
+    confirm.require({
+      message: t('zipnnDeltaConfirmDecompress', {
+        name: `${props.model.basename}${props.model.extension}`,
+      }),
+      header: t('zipnnDeltaDecompress'),
+      icon: 'pi pi-info-circle',
+      rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
+      acceptProps: { label: t('zipnnDeltaDecompress') },
+      accept: () => {
+        void startZipnnDeltaDecompress(
+          {
+            type: props.model.type,
+            pathIndex: props.model.pathIndex,
+            fullname: genModelFullName(props.model),
+          },
+          modelKey.value,
+        )
+      },
+      reject: () => {},
+    })
+    return
+  }
   const compressing = !isCompressed.value
   confirm.require({
     // deliberately NOT a Danger confirmation: compression is reversible and

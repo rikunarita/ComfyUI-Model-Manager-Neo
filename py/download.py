@@ -274,6 +274,9 @@ class ModelDownload:
         model_path = utils.get_full_path(model_type, path_index, fullname)
         if os.path.exists(model_path):
             raise RuntimeError(f"File already exists: {model_path}")
+        # ZipNN bundle folders (*_ZNN) must never receive a non-compressed
+        # model file (checked at task creation so the task never even starts).
+        utils.enforce_znn_folder_rule(model_path)
 
         download_path = utils.get_download_path()
 

@@ -782,6 +782,127 @@ def decompress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str
     return {"tensors": len(keys), "decompressedTensors": len(compressed_infos)}
 
 
+# ---------------------------------------------------------------------------
+# Folder batch processing (official `scripts/zipnn_compress_path.py` semantics:
+# every compressible file in the folder tree, in place) and file-level delta
+# compression (official `scripts/zipnn_compress_file_delta.py` /
+# `zipnn_decompress_file_delta.py` semantics).
+# ---------------------------------------------------------------------------
+
+
+def _walk_model_files(folder: str, mode: str) -> list[str]:
+    """Files a batch run will process, in a stable order.
+
+    ``compress``: every plain ``.safetensors`` (already-``.znn.`` files are
+    skipped). ``decompress``: every ``.znn.safetensors``.
+    """
+    found: list[str] = []
+    for root, _dirs, names in os.walk(folder):
+        for name in names:
+            if mode == "compress":
+                if name.endswith(SAFE_SUFFIX) and not name.endswith(ZNN_SUFFIX):
+                    found.append(os.path.join(root, name))
+            elif name.endswith(ZNN_SUFFIX):
+                found.append(os.path.join(root, name))
+    return sorted(found)
+
+
+def _batch_invariants_blockers(folder: str) -> list[str]:
+    """Model files that would break the `*_ZNN` content rule after a batch.
+
+    A bundle folder may only hold `*.znn.*` models (plus sidecars). Plain
+    `.safetensors` become `.znn.safetensors` during the batch, so the blockers
+    are the *other* supported model extensions (`.gguf`, `.ckpt`, delta
+    `.znn`, ...) that the batch cannot convert.
+    """
+    import folder_paths
+
+    blockers: list[str] = []
+    for root, _dirs, names in os.walk(folder):
+        for name in names:
+            extension = os.path.splitext(name)[1]
+            if extension in folder_paths.supported_pt_extensions and ".znn." not in name:
+                if not name.endswith(SAFE_SUFFIX):
+                    blockers.append(os.path.join(root, name))
+    return sorted(blockers)
+
+
+def batch_process_folder(
+    src_folder: str, dst_folder: str, mode: str, progress: ProgressCb
+) -> dict[str, Any]:
+    """Compress/decompress every eligible file in `src_folder`, then rename it.
+
+    The rename (`X` -> `X_ZNN` or back) happens only after ALL files succeeded,
+    so a failed batch leaves the folder exactly as it was (partial outputs are
+    cleaned up per file by the callers of the single-file helpers).
+    """
+    files = _walk_model_files(src_folder, mode)
+    total = max(1, len(files))
+    for index, path in enumerate(files):
+        if mode == "compress":
+            target = path[: -len(SAFE_SUFFIX)] + ZNN_SUFFIX
+            compress_safetensors(path, target, lambda *_args: None)
+        else:
+            target = path[: -len(ZNN_SUFFIX)] + SAFE_SUFFIX
+            decompress_safetensors(path, target, lambda *_args: None)
+        _sidecar_move(path, target)
+        os.remove(path)
+        progress(index + 1, total, "files")
+    os.rename(src_folder, dst_folder)
+    return {"files": len(files)}
+
+
+def delta_compress_files(
+    base_path: str, ft_path: str, out_path: str, progress: ProgressCb
+) -> dict[str, Any]:
+    """Delta-compress `ft_path` against `base_path` (official file-level API).
+
+    `ZipNN(delta_compressed_type="file").compress(ft_bytes, delta_second_data=
+    base)` stores only the difference; both files must have the same byte
+    length (same architecture), which ZipNN itself verifies.
+    """
+    from zipnn import ZipNN
+    from zipnn.util_safetensors import COMPRESSION_METHOD
+
+    zpn = ZipNN(
+        bytearray_dtype="float32",
+        delta_compressed_type="file",
+        method=COMPRESSION_METHOD,
+    )
+    with open(ft_path, "rb") as f:
+        ft_bytes = f.read()
+    progress(1, 3, "delta")
+    compressed = zpn.compress(ft_bytes, delta_second_data=base_path)
+    progress(2, 3, "delta")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    tmp = f"{out_path}.tmp"
+    with open(tmp, "wb") as f:
+        f.write(compressed)
+    os.replace(tmp, out_path)
+    progress(3, 3, "delta")
+    return {"originalBytes": len(ft_bytes), "compressedBytes": len(compressed)}
+
+
+def delta_decompress_file(
+    base_path: str, delta_path: str, out_path: str, progress: ProgressCb
+) -> dict[str, Any]:
+    """Restore the exact fine-tuned bytes from a delta file + its base model."""
+    from zipnn import ZipNN
+
+    zpn = ZipNN(is_streaming=True, delta_compressed_type="file")
+    with open(delta_path, "rb") as f:
+        delta_bytes = f.read()
+    progress(1, 3, "delta")
+    restored = zpn.decompress(delta_bytes, delta_second_data=base_path)
+    progress(2, 3, "delta")
+    tmp = f"{out_path}.tmp"
+    with open(tmp, "wb") as f:
+        f.write(restored)
+    os.replace(tmp, out_path)
+    progress(3, 3, "delta")
+    return {"originalBytes": len(restored), "compressedBytes": len(delta_bytes)}
+
+
 class ZipNNRoutes:
     def add_routes(self, routes):
         @routes.get("/model-manager/zipnn/available")
@@ -797,6 +918,18 @@ class ZipNNRoutes:
         @routes.post("/model-manager/zipnn/decompress")
         async def zipnn_decompress(request):
             return await self._run(request, "decompress")
+
+        @routes.post("/model-manager/zipnn/batch-folder")
+        async def zipnn_batch_folder(request):
+            return await self._run_batch(request)
+
+        @routes.post("/model-manager/zipnn/delta-compress")
+        async def zipnn_delta_compress(request):
+            return await self._run_delta(request, "compress")
+
+        @routes.post("/model-manager/zipnn/delta-decompress")
+        async def zipnn_delta_decompress(request):
+            return await self._run_delta(request, "decompress")
 
     async def _run(self, request, mode: str):
         data = await utils.get_request_body(request)
@@ -910,6 +1043,352 @@ class ZipNNRoutes:
                 {
                     "taskId": task_id,
                     "mode": mode,
+                    "ok": True,
+                    "stats": stats,
+                    "fullname": os.path.basename(dst),
+                },
+            )
+
+        loop.create_task(self._schedule(worker()))
+        return web.json_response({"success": True, "data": {"taskId": task_id}})
+
+    async def _run_batch(self, request):
+        """Batch-compress / batch-decompress a whole folder (selection bar).
+
+        compress: `X` -> every plain .safetensors becomes .znn.safetensors and
+        the folder is renamed `X_ZNN`. decompress: the reverse, `X_ZNN` -> `X`.
+        """
+        data = await utils.get_request_body(request)
+        mode = data.get("mode")
+        model_type = data.get("type")
+        path_index = int(data.get("pathIndex") or 0)
+        rel_folder = (data.get("folder") or "").strip("/")
+        if mode not in ("compress", "decompress") or not model_type or not rel_folder:
+            return web.json_response(
+                {"success": False, "error": "mode, type and folder are required"}
+            )
+        try:
+            folder = utils.get_full_path(model_type, path_index, rel_folder)
+        except Exception as e:
+            return web.json_response({"success": False, "error": str(e)})
+        if not os.path.isdir(folder):
+            return web.json_response({"success": False, "error": "folder not found"})
+        bases = utils.resolve_model_base_paths().get(model_type, [])
+        if path_index < len(bases) and utils.normalize_path(folder) == utils.normalize_path(
+            bases[path_index]
+        ):
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": "the model-type root folder cannot be batch-processed",
+                }
+            )
+
+        folder_name = os.path.basename(folder.rstrip("/"))
+        if mode == "compress":
+            if utils.is_znn_folder_name(folder_name):
+                return web.json_response(
+                    {"success": False, "error": "folder is already ZipNN-compressed"}
+                )
+            if folder_name.endswith(utils.DELTA_FOLDER_SUFFIX):
+                return web.json_response(
+                    {"success": False, "error": "delta folders cannot be batch-compressed"}
+                )
+            blockers = _batch_invariants_blockers(folder)
+            if blockers:
+                names = ", ".join(os.path.basename(b) for b in blockers[:5])
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": (
+                            "folder holds models ZipNN cannot convert "
+                            f"({names}); a *_ZNN folder may only contain "
+                            "*.znn.* models"
+                        ),
+                    }
+                )
+            files = _walk_model_files(folder, "compress")
+            if not files:
+                return web.json_response(
+                    {"success": False, "error": "no .safetensors files to compress"}
+                )
+            dst_folder = f"{folder}{utils.ZNN_FOLDER_SUFFIX}"
+        else:
+            if not utils.is_znn_folder_name(folder_name):
+                return web.json_response(
+                    {"success": False, "error": "folder is not a ZipNN bundle (*_ZNN)"}
+                )
+            files = _walk_model_files(folder, "decompress")
+            if not files:
+                return web.json_response(
+                    {"success": False, "error": "no .znn.safetensors files to decompress"}
+                )
+            dst_folder = folder[: -len(utils.ZNN_FOLDER_SUFFIX)]
+        if os.path.exists(dst_folder):
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": f"target already exists: {os.path.basename(dst_folder)}",
+                }
+            )
+
+        task_id = uuid.uuid4().hex
+        ZIPNN_TASKS[task_id] = {
+            "mode": f"batch-{mode}",
+            "status": "running",
+            "src": folder,
+            "dst": dst_folder,
+        }
+        await utils.send_json(
+            "update_zipnn_progress",
+            {"taskId": task_id, "progress": 0.0, "phase": "prepare", "mode": mode},
+        )
+        loop = asyncio.get_running_loop()
+
+        async def worker():
+            try:
+                await loop.run_in_executor(utils.cpu_executor(), ensure_zipnn, False)
+            except Exception as e:
+                await self._fail(
+                    task_id,
+                    folder,
+                    str(e),
+                    install_failed=isinstance(e, ZipNNInstallError),
+                )
+                return
+
+            def progress(done: int, total: int, phase: str):
+                asyncio.run_coroutine_threadsafe(
+                    utils.send_json(
+                        "update_zipnn_progress",
+                        {
+                            "taskId": task_id,
+                            "progress": (done / total * 100) if total else 0.0,
+                            "phase": phase,
+                            "mode": mode,
+                        },
+                    ),
+                    loop,
+                )
+
+            try:
+                stats = await loop.run_in_executor(
+                    utils.cpu_executor(),
+                    batch_process_folder,
+                    folder,
+                    dst_folder,
+                    mode,
+                    progress,
+                )
+            except Exception as e:
+                await self._fail(task_id, folder, str(e))
+                return
+
+            ZIPNN_TASKS[task_id]["status"] = "complete"
+            await utils.send_json(
+                "update_zipnn_progress",
+                {"taskId": task_id, "progress": 100.0, "phase": "done", "mode": mode},
+            )
+            await utils.send_json(
+                "zipnn_complete",
+                {
+                    "taskId": task_id,
+                    "mode": mode,
+                    "kind": "folder",
+                    "ok": True,
+                    "stats": stats,
+                    "fullname": os.path.basename(dst_folder),
+                },
+            )
+
+        loop.create_task(self._schedule(worker()))
+        return web.json_response({"success": True, "data": {"taskId": task_id}})
+
+    async def _run_delta(self, request, mode: str):
+        """Delta (de)compression of a fine-tuned model against its base.
+
+        compress: base + FT -> `<base>_DeltaZNN/<ft>_delta_<base>.znn`, then the
+        FT original is removed (its bytes are recoverable from base + delta).
+        decompress: base + delta -> the exact FT file back beside the base.
+        """
+        data = await utils.get_request_body(request)
+        model_type = data.get("type")
+        path_index = int(data.get("pathIndex") or 0)
+        if not model_type:
+            return web.json_response({"success": False, "error": "type is required"})
+
+        if mode == "compress":
+            base_full = data.get("baseFullname")
+            ft_full = data.get("fullname")
+            if not base_full or not ft_full:
+                return web.json_response(
+                    {"success": False, "error": "baseFullname and fullname are required"}
+                )
+            try:
+                base_path = utils.get_valid_full_path(model_type, path_index, base_full)
+                ft_path = utils.get_valid_full_path(model_type, path_index, ft_full)
+            except Exception as e:
+                return web.json_response({"success": False, "error": str(e)})
+            if not base_path or not ft_path:
+                return web.json_response(
+                    {"success": False, "error": "base or fine-tuned model not found"}
+                )
+            if base_path == ft_path:
+                return web.json_response(
+                    {"success": False, "error": "base and fine-tuned model must differ"}
+                )
+            for candidate in (base_path, ft_path):
+                if not is_safetensors(candidate) or is_compressed_name(candidate):
+                    return web.json_response(
+                        {
+                            "success": False,
+                            "error": "delta compression needs plain .safetensors inputs",
+                        }
+                    )
+            base_base = os.path.basename(base_path)[: -len(SAFE_SUFFIX)]
+            ft_base = os.path.basename(ft_path)[: -len(SAFE_SUFFIX)]
+            delta_dir = utils.join_path(
+                os.path.dirname(base_path), f"{base_base}{utils.DELTA_FOLDER_SUFFIX}"
+            )
+            out_path = utils.join_path(delta_dir, f"{ft_base}_delta_{base_base}.znn")
+            if os.path.exists(out_path):
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": f"target already exists: {os.path.basename(out_path)}",
+                    }
+                )
+            src, second, dst = base_path, ft_path, out_path
+        else:
+            delta_full = data.get("fullname")
+            if not delta_full:
+                return web.json_response(
+                    {"success": False, "error": "fullname is required"}
+                )
+            try:
+                delta_path = utils.get_valid_full_path(model_type, path_index, delta_full)
+            except Exception as e:
+                return web.json_response({"success": False, "error": str(e)})
+            if not delta_path:
+                return web.json_response(
+                    {"success": False, "error": "delta file not found"}
+                )
+            delta_dir = os.path.dirname(delta_path)
+            delta_folder = os.path.basename(delta_dir)
+            if not delta_folder.endswith(utils.DELTA_FOLDER_SUFFIX):
+                return web.json_response(
+                    {"success": False, "error": "not inside a *_DeltaZNN folder"}
+                )
+            base_base = delta_folder[: -len(utils.DELTA_FOLDER_SUFFIX)]
+            delta_name = os.path.basename(delta_path)
+            suffix = f"_delta_{base_base}.znn"
+            if not delta_name.endswith(suffix):
+                return web.json_response(
+                    {"success": False, "error": "unexpected delta file name"}
+                )
+            ft_base = delta_name[: -len(suffix)]
+            base_path = utils.join_path(
+                os.path.dirname(delta_dir), f"{base_base}{SAFE_SUFFIX}"
+            )
+            if not os.path.isfile(base_path):
+                return web.json_response(
+                    {"success": False, "error": f"base model not found: {base_base}"}
+                )
+            out_path = utils.join_path(
+                os.path.dirname(delta_dir), f"{ft_base}{SAFE_SUFFIX}"
+            )
+            if os.path.exists(out_path):
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": f"target already exists: {os.path.basename(out_path)}",
+                    }
+                )
+            src, second, dst = base_path, delta_path, out_path
+
+        task_id = uuid.uuid4().hex
+        ZIPNN_TASKS[task_id] = {
+            "mode": f"delta-{mode}",
+            "status": "running",
+            "src": second,
+            "dst": dst,
+        }
+        await utils.send_json(
+            "update_zipnn_progress",
+            {"taskId": task_id, "progress": 0.0, "phase": "prepare", "mode": mode},
+        )
+        loop = asyncio.get_running_loop()
+
+        async def worker():
+            try:
+                await loop.run_in_executor(utils.cpu_executor(), ensure_zipnn, False)
+            except Exception as e:
+                await self._fail(
+                    task_id,
+                    second,
+                    str(e),
+                    install_failed=isinstance(e, ZipNNInstallError),
+                )
+                return
+
+            def progress(done: int, total: int, phase: str):
+                asyncio.run_coroutine_threadsafe(
+                    utils.send_json(
+                        "update_zipnn_progress",
+                        {
+                            "taskId": task_id,
+                            "progress": (done / total * 100) if total else 0.0,
+                            "phase": phase,
+                            "mode": mode,
+                        },
+                    ),
+                    loop,
+                )
+
+            fn = delta_compress_files if mode == "compress" else delta_decompress_file
+            try:
+                stats = await loop.run_in_executor(
+                    utils.cpu_executor(), fn, src, second, dst, progress
+                )
+            except Exception as e:
+                for candidate in (dst, f"{dst}.tmp"):
+                    if os.path.exists(candidate):
+                        try:
+                            os.remove(candidate)
+                        except OSError:
+                            pass
+                await self._fail(task_id, second, str(e))
+                return
+
+            try:
+                if mode == "compress":
+                    # previews/notes of the fine-tuned model travel with the
+                    # delta file, then the (now redundant) original goes away.
+                    _sidecar_move(second, dst)
+                    os.remove(second)
+                else:
+                    _sidecar_move(second, dst)
+                    os.remove(second)
+                    try:
+                        if not os.listdir(delta_dir):
+                            os.rmdir(delta_dir)
+                    except OSError:
+                        pass
+            except Exception as e:
+                await self._fail(task_id, second, str(e))
+                return
+
+            ZIPNN_TASKS[task_id]["status"] = "complete"
+            await utils.send_json(
+                "update_zipnn_progress",
+                {"taskId": task_id, "progress": 100.0, "phase": "done", "mode": mode},
+            )
+            await utils.send_json(
+                "zipnn_complete",
+                {
+                    "taskId": task_id,
+                    "mode": mode,
+                    "kind": "delta",
                     "ok": True,
                     "stats": stats,
                     "fullname": os.path.basename(dst),

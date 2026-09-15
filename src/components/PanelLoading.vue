@@ -14,12 +14,16 @@
   -->
   <div
     data-mm-loading
-    class="absolute inset-0 z-30 flex items-center justify-center rounded-mm-dlg bg-mm-bg/35 backdrop-blur-[3px]"
+    class="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 rounded-mm-dlg bg-mm-bg/35 backdrop-blur-[3px]"
   >
     <Loader2 class="size-8 animate-spin opacity-40" />
+    <span class="text-sm text-mm-muted-fg select-none">{{ t('updating') }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Loader2 } from '@lucide/vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 </script>

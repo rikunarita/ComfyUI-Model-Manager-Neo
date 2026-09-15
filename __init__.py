@@ -3,6 +3,11 @@ import folder_paths
 # NOTE: This is an experiment
 # Add .gguf extension to supported_pt_extensions
 folder_paths.supported_pt_extensions.add(".gguf")
+# ZipNN delta files (`<ft>_delta_<base>.znn`) are managed models too: without
+# this they would be invisible in the grids and could never be restored from
+# the UI. (Batch-compressed bundles use `.znn.safetensors`, which already
+# matches via `.safetensors`.)
+folder_paths.supported_pt_extensions.add(".znn")
 
 import os
 from .py import config

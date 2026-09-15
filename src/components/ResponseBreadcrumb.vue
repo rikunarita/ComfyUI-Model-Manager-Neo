@@ -8,11 +8,11 @@
         @click="item.command?.()"
       >
         <!-- the all-fit folder glyph earns its keep at tiny sizes -->
-        <img :src="folderGlyph" class="size-3.5 shrink-0" alt="" draggable="false" />
+        <img :src="folderGlyph" class="size-7 shrink-0" alt="" draggable="false" />
         {{ item.label }}
       </button>
       <span v-else class="flex items-center gap-1 font-medium text-mm-fg">
-        <img :src="folderGlyph" class="size-3.5 shrink-0" alt="" draggable="false" />
+        <img :src="folderGlyph" class="size-7 shrink-0" alt="" draggable="false" />
         {{ item.label }}
       </span>
       <ChevronRight
