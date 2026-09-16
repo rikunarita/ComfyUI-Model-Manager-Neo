@@ -63,9 +63,9 @@ ComfyUI のモデルマネージャを **Vue 3 + Tailwind CSS v4 + reka‑ui** �
 - <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **複数選択** — カードにチェックして、複数モデルのワークフロー投入や一括削除を
   一度に — _Neo の新機能_。フォルダもチェック可能で、「ワークフローに追加」は中身を
   再帰的に展開し、「削除」はフォルダごと削除します。
-- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **スター** — モデルとフォルダにスター（カードのバッジ、モデル詳細のアクション列、
-  選択バーから）。スター付きは黄色いバッジをまとい、常に先頭へ並びます —
-  _Neo の新機能_。
+- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **スター** — すべてのモデル/フォルダカードの右上にスタートグル（モデル詳細の
+  アクション列・選択バーにも）。スター付きは塗りつぶしの黄色いスターで表示され、
+  常に先頭へ並びます — _Neo の新機能_。
 - <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **フォルダ作成** — フォルダビューの「フォルダを追加」ボタンから、開いている
   ディレクトリの中に任意の名前の(サブ)フォルダを作成 — _Neo の新機能_。
 - <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **直接リンクダウンロード** — 生の `.safetensors`/`.ckpt`/`.gguf` URL を貼り付け、
@@ -294,9 +294,10 @@ _解凍_ に反転。同じ確認を経てプレーンな `.safetensors` を復�
 記録されるため、リネーム後も内訳が残ります（このキーを書かない公式 ZipNN CLI で
 圧縮されたファイルは、そのまま通常の _ファイルサイズ_ 行を表示します）。
 
-同じアートワークは**すべてのモデルカードとフォルダカードの右上隅**にもあります:
-1クリックで（圧縮済みなら反転したまま解凍）モデルを開かずに同一の確認・進捗挙動で
-圧縮/解凍できます。
+同じアートワークは**すべてのモデルカードとフォルダカードの右上隅**（スタートグルの
+隣）にもあります: 1クリックで（圧縮済みなら反転したまま解凍）モデルを開かずに
+同一の確認・進捗挙動で圧縮/解凍できます。単発・バッチ・デルタを問わず、タスク実行中
+はボタンが**円形プログレスリング**になります。
 
 ### バッチ圧縮（フォルダ単位）
 

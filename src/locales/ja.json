@@ -220,7 +220,7 @@
   "zipnnInstallFailed": "ZipNN をインストールできませんでした",
   "zipnnRetryInstall": "インストールを再試行",
   "zipnnMoreInConsole": "詳細（他 {n} 行）は ComfyUI のコンソールを確認してください",
-  "updating": "更新中です…",
+  "updating": "更新中...",
   "addFolder": "フォルダを追加",
   "folderNamePlaceholder": "フォルダ名",
   "folderCreateHint": "作成先: {path}",
@@ -240,5 +240,6 @@
   "zipnnDeltaHint": "ファインチューニングモデルは <base>_DeltaZNN/ フォルダ内の極小デルタファイルに置き換わります。後の復元にはベースモデルが必要です。",
   "zipnnDeltaConfirmDecompress": "{name} をデルタファイルから復元します。ベースモデルが必要で、ベースモデルは変更されません。",
   "zipnnDeltaDecompressHint": "このデルタファイルからファインチューニングモデルを復元します(ベースモデルが必要)。",
-  "zipnnBatchInvalidTarget": "バッチ対象が不正です: 選択フォルダを解決できませんでした。フォルダビューを開き直して再試行してください。"
+  "zipnnBatchInvalidTarget": "バッチ対象が不正です: 選択フォルダを解決できませんでした。フォルダビューを開き直して再試行してください。",
+  "loading": "読み込み中..."
 }

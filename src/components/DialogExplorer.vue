@@ -136,7 +136,28 @@
           :disabled="zipnnRunning"
           @click="requestBatch"
         >
-          <Loader2 v-if="zipnnRunning" class="size-5 animate-spin text-mm-accent" />
+          <svg v-if="zipnnRunning" viewBox="0 0 36 36" class="size-full -rotate-90">
+            <circle
+              cx="18"
+              cy="18"
+              r="15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="4"
+              class="text-mm-fg/25"
+            />
+            <circle
+              cx="18"
+              cy="18"
+              r="15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="4"
+              stroke-linecap="round"
+              :stroke-dasharray="`${(batchProgress * 94.25) / 100} 94.25`"
+              class="text-mm-accent"
+            />
+          </svg>
           <img
             v-else
             :src="zipnnIcon"
@@ -204,7 +225,6 @@ import {
   FolderPlus,
   GitCompareArrows,
   ListChecks,
-  Loader2,
   Plus,
   Star,
   Trash2,
@@ -345,6 +365,7 @@ const zipnnRunning = computed(
     zipnnState.active &&
     selectedFolderNodes.value.some(n => genModelKey(n) === zipnnState.targetKey),
 )
+const batchProgress = computed(() => zipnnState.progress)
 const batchInverted = computed(
   () =>
     selectedFolderNodes.value.length > 0 &&
@@ -368,13 +389,19 @@ const requestBatch = () => {
     rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
     acceptProps: { label: decompressing ? t('zipnnBatchDecompress') : t('zipnnBatchCompress') },
     accept: () => {
-      queueZipnnBatches(
-        decompressing ? 'decompress' : 'compress',
-        folders.map(f => ({
+      const items = folders
+        .map(f => ({
           folder: { type: f.type, pathIndex: f.pathIndex, folder: genModelFullName(f) },
           key: genModelKey(f),
-        })),
-      )
+        }))
+        // never queue an unresolved target (defence in depth; the start guard
+        // would reject it with a toast anyway)
+        .filter(it => it.folder.folder && it.folder.type)
+      if (items.length === 0) {
+        toast.add({ severity: 'warn', summary: t('zipnnBatchInvalidTarget'), life: 8000 })
+        return
+      }
+      queueZipnnBatches(decompressing ? 'decompress' : 'compress', items)
     },
     reject: () => {},
   })
@@ -542,6 +569,11 @@ const currentDataList = computed(() => {
       return 0
     })
     renderedList = [...folderItems, ...modelItems]
+  } else {
+    // Root level (the model-type folders): starred folders lead here too.
+    const starFirstRoot = (a: ModelTreeNode, b: ModelTreeNode) =>
+      Number(isFolderStarred(genModelKey(b))) - Number(isFolderStarred(genModelKey(a)))
+    renderedList = [...renderedList].sort(starFirstRoot)
   }
 
   return renderedList

@@ -11,19 +11,28 @@
     the topmost dialog only, `absolute inset-0` against the dialog's own
     stacking context. The host page stays visible and interactive, and the
     scrim can never cover a toast, a tooltip or the global confirm dialog.
+
+    The caption distinguishes the first model-list load ("Loading…") from
+    later refreshes ("Updating…").
   -->
   <div
     data-mm-loading
     class="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 rounded-mm-dlg bg-mm-bg/35 backdrop-blur-[3px]"
   >
     <Loader2 class="size-8 animate-spin opacity-40" />
-    <span class="text-sm text-mm-muted-fg select-none">{{ t('updating') }}</span>
+    <span class="text-sm text-mm-muted-fg select-none">
+      {{ modelsInitialized ? t('updating') : t('loading') }}
+    </span>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Loader2 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import { useModels } from 'hooks/model'
 
 const { t } = useI18n()
+const { initialized } = useModels()
+
+const modelsInitialized = initialized
 </script>

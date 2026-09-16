@@ -108,10 +108,10 @@ folders whose name starts with `.`).
 - **Preview** — image or looping video; models without a preview show the glass
   **NO PREVIEW** artwork.
 - **Chips** (bottom right) — model type and file size, scaled with the card.
-- **Star badge** (top left, only while starred) — a yellow star; clicking it
-  removes the star. Stars are added from the model detail action row or the
-  selection bar, and starred models/folders always sort first.
-- **ZipNN corner button** (top right) — the ZipNN artwork: one click compresses
+- **Star toggle** (top right, on every card) — an outline star when unstarred,
+  a filled yellow star when starred; clicking toggles it, and starred
+  models/folders always sort first.
+- **ZipNN corner button** (top right, next to the star) — the ZipNN artwork: one click compresses
   (or decompresses, shown inverted) with the same confirmation and progress as
   the detail-window button; on folder cards it runs the folder batch.
 - **Folder cards** — a hand‑drawn glass folder that opens after the pointer

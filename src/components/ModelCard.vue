@@ -60,48 +60,72 @@
     </button>
 
     <!--
-      Star badge (top-left, only while starred). Clicking it toggles the star;
-      in selection mode it shifts right so the checkbox keeps its corner.
+      Top-right control row on EVERY card: the star toggle plus the ZipNN
+      corner button. The star is an outline glyph when unstarred and a filled
+      yellow star when starred; clicking toggles it. The ZipNN button is the
+      shipped SVG artwork (same confirmation, same inverted colours for
+      compressed models / bundle folders as the detail call-to-action); while
+      its task runs it shows a circular progress ring (batch & delta included)
+      instead of a plain spinner.
     -->
-    <button
-      v-if="starred"
-      type="button"
-      class="mm-transition absolute top-2 z-20 grid size-6 place-items-center rounded-full border border-mm-warning/50 bg-mm-bg/70 text-mm-warning shadow-mm-glass-1 backdrop-blur-md active:scale-90"
-      :class="selectable ? 'left-12' : 'left-2'"
-      :title="$t('unstar')"
-      :aria-label="$t('unstar')"
-      :aria-pressed="true"
-      @click.stop.prevent="toggleStar"
-      @dblclick.stop.prevent
-    >
-      <Star class="size-4 fill-current" :stroke-width="2" />
-    </button>
-
-    <!--
-      ZipNN corner button (top-right): the shipped SVG artwork, exactly like
-      the model-detail call-to-action (same confirmation, same inverted
-      colours for compressed / bundle folders, same progress state). Folders
-      run the batch job; `*_DeltaZNN` delta files restore through their base.
-    -->
-    <button
-      v-if="zipnnApplicable"
-      type="button"
-      class="mm-transition mm-zipnn-button absolute top-2 right-2 z-20 size-10 rounded-mm-ctl"
-      :title="zipnnLabel"
-      :aria-label="zipnnLabel"
-      :disabled="zipnnRunning"
-      @click.stop.prevent="requestZipnn"
-      @dblclick.stop.prevent
-    >
-      <Loader2 v-if="zipnnRunning" class="size-6 animate-spin text-mm-accent" />
-      <img
-        v-else
-        :src="zipnnIcon"
-        alt=""
-        class="size-full rounded-mm-ctl"
-        :class="zipnnInverted && 'hue-rotate-180 invert'"
-      />
-    </button>
+    <div class="absolute top-2 right-2 z-20 flex items-start gap-1">
+      <button
+        type="button"
+        class="mm-transition grid size-7 shrink-0 place-items-center rounded-full border backdrop-blur-md active:scale-90"
+        :class="
+          starred
+            ? 'border-mm-warning/60 bg-mm-bg/70 text-mm-warning shadow-mm-glass-1'
+            : 'border-mm-fg/25 bg-mm-bg/50 text-mm-fg/70 hover:border-mm-warning/60 hover:text-mm-warning'
+        "
+        :title="starred ? $t('unstar') : $t('star')"
+        :aria-label="starred ? $t('unstar') : $t('star')"
+        :aria-pressed="starred"
+        @click.stop.prevent="toggleStar"
+        @dblclick.stop.prevent
+      >
+        <Star class="size-4" :class="starred && 'fill-current'" :stroke-width="2" />
+      </button>
+      <button
+        v-if="zipnnApplicable"
+        type="button"
+        class="mm-transition mm-zipnn-button size-12 shrink-0 rounded-mm-ctl"
+        :title="zipnnLabel"
+        :aria-label="zipnnLabel"
+        :disabled="zipnnRunning"
+        @click.stop.prevent="requestZipnn"
+        @dblclick.stop.prevent
+      >
+        <svg v-if="zipnnRunning" viewBox="0 0 36 36" class="size-full -rotate-90">
+          <circle
+            cx="18"
+            cy="18"
+            r="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="4"
+            class="text-mm-fg/25"
+          />
+          <circle
+            cx="18"
+            cy="18"
+            r="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="4"
+            stroke-linecap="round"
+            :stroke-dasharray="`${(zipnnProgress * 94.25) / 100} 94.25`"
+            class="text-mm-accent"
+          />
+        </svg>
+        <img
+          v-else
+          :src="zipnnIcon"
+          alt=""
+          class="size-full rounded-mm-ctl"
+          :class="zipnnInverted && 'hue-rotate-180 invert'"
+        />
+      </button>
+    </div>
 
     <!-- Glassmorphism badges (type / size): moved to the preview's bottom-right
          so the ZipNN corner button owns the top-right corner. -->
@@ -131,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { Check, Loader2, Star } from '@lucide/vue'
+import { Check, Star } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import FolderIcon from 'components/FolderIcon.vue'
@@ -144,6 +168,7 @@ import {
   startZipnnBatch,
   startZipnnDeltaDecompress,
   zipnnRunningFor,
+  zipnnState,
 } from 'hooks/zipnn'
 import { type BaseModel } from 'types/typings'
 import { bytesToSize } from 'utils/common'
@@ -171,7 +196,7 @@ const props = withDefaults(defineProps<Props>(), { width: 200, selectable: false
 defineEmits<{ toggle: [] }>()
 
 const { t } = useI18n()
-const { confirm } = useToast()
+const { toast, confirm } = useToast()
 
 const preview = computed(() =>
   Array.isArray(props.model.preview) ? props.model.preview[0] : props.model.preview,
@@ -229,6 +254,8 @@ const zipnnInverted = computed(() => {
   return isCompressedModel.value || isDeltaModel.value
 })
 const zipnnRunning = computed(() => zipnnRunningFor(modelKey.value))
+/** 0-100, drives the circular progress ring on the corner button. */
+const zipnnProgress = computed(() => zipnnState.progress)
 const zipnnLabel = computed(() => {
   if (isFolder.value) {
     return isZnnFolderName(folderName.value) ? t('zipnnBatchDecompress') : t('zipnnBatchCompress')
@@ -242,6 +269,11 @@ const requestZipnn = () => {
   const key = modelKey.value
   if (isFolder.value) {
     const decompressing = isZnnFolderName(folderName.value)
+    const folderRel = genModelFullName(model)
+    if (!model.type || !folderRel) {
+      toast.add({ severity: 'warn', summary: t('zipnnBatchInvalidTarget'), life: 8000 })
+      return
+    }
     confirm.require({
       message: decompressing
         ? t('zipnnBatchConfirmDecompress', { name: folderName.value })
@@ -256,7 +288,7 @@ const requestZipnn = () => {
           {
             type: model.type,
             pathIndex: model.pathIndex,
-            folder: genModelFullName(model),
+            folder: folderRel,
           },
           key,
         )

@@ -64,9 +64,9 @@ the experience from the ground up:
 - <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Multi-select** — tick cards to add several models to the workflow or
   delete them in one go — _new in Neo_. Folders can be ticked too: "Add to
   workflow" expands them recursively, "Delete" removes them wholesale.
-- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **Stars** — star models and folders (card badge, model-detail action row or
-  selection bar); starred entries wear a yellow badge and always sort first —
-  _new in Neo_.
+- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **Stars** — every model and folder card carries a star toggle at its top-right
+  (also in the model-detail action row and the selection bar); starred entries
+  show a filled yellow star and always sort first — _new in Neo_.
 - <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **Create folders** — the folder view offers an "Add Folder" button that
   creates arbitrarily named (sub-)folders inside the open directory —
   _new in Neo_.
@@ -310,8 +310,10 @@ rename (files compressed by the official ZipNN CLI, which does not write that
 key, simply keep the plain _File Size_ row).
 
 The same artwork also sits on the **top-right corner of every model and folder
-card**: one click compresses (or decompresses, inverted) with the identical
-confirmation and progress behaviour, without opening the model at all.
+card** (next to the star toggle): one click compresses (or decompresses,
+inverted) with the identical confirmation and progress behaviour, without
+opening the model at all. While any task runs - single, batch or delta - the
+button shows a **circular progress ring**.
 
 ### Batch compression (whole folders)
 

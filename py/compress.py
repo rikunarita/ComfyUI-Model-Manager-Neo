@@ -918,6 +918,36 @@ def _delta_meta_path(delta_path: str) -> str:
     return f"{delta_path}.neo-delta.json"
 
 
+def _delta_sidecar_move(src_model: str, dst_model: str) -> None:
+    """Move previews/notes between *different* directories.
+
+    `_sidecar_move` renames sidecars inside one directory, but delta files live
+    in the base model's `<base>_DeltaZNN/` folder while the fine-tune's
+    previews/notes live beside the fine-tune - so the delta flow needs a
+    cross-directory move (fine-tune dir -> delta dir on compress, and back on
+    decompress). Without it the sidecars kept their `_delta_` names forever
+    (reported bug: "previews/notes disappear after delta decompress").
+    """
+    src_dir = os.path.dirname(src_model)
+    dst_dir = os.path.dirname(dst_model)
+    src_base = os.path.splitext(os.path.basename(src_model))[0]
+    dst_base = os.path.splitext(os.path.basename(dst_model))[0]
+    names = utils.get_dir_names(src_dir)
+    for preview in utils.previews_in_names(names, src_base):
+        ext = preview[len(src_base):]
+        src = utils.join_path(src_dir, preview)
+        dst = utils.join_path(dst_dir, f"{dst_base}{ext}")
+        if os.path.exists(src) and not os.path.exists(dst):
+            os.makedirs(dst_dir, exist_ok=True)
+            os.rename(src, dst)
+    for desc in utils.get_model_all_descriptions(src_model):
+        src = utils.join_path(src_dir, desc)
+        dst = utils.join_path(dst_dir, f"{dst_base}{os.path.splitext(desc)[1]}")
+        if os.path.exists(src) and not os.path.exists(dst):
+            os.makedirs(dst_dir, exist_ok=True)
+            os.rename(src, dst)
+
+
 def delta_compress_files(
     base_path: str, ft_path: str, out_path: str, progress: ProgressCb
 ) -> dict[str, Any]:
@@ -1473,10 +1503,10 @@ class ZipNNRoutes:
                 if mode == "compress":
                     # previews/notes of the fine-tuned model travel with the
                     # delta file, then the (now redundant) original goes away.
-                    _sidecar_move(second, dst)
+                    _delta_sidecar_move(second, dst)
                     os.remove(second)
                 else:
-                    _sidecar_move(second, dst)
+                    _delta_sidecar_move(second, dst)
                     os.remove(second)
                     sidecar_meta = _delta_meta_path(second)
                     if os.path.exists(sidecar_meta):

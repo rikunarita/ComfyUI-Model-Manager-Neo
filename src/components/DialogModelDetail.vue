@@ -44,7 +44,7 @@
                 -->
                 <button
                   type="button"
-                  class="mm-zipnn-button mr-auto size-12 shrink-0"
+                  class="mm-zipnn-button mr-auto size-13 shrink-0"
                   :aria-label="zipnnActionLabel"
                   :title="zipnnActionLabel"
                   @click="requestZipnn"

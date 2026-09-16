@@ -220,7 +220,7 @@
   "zipnnInstallFailed": "ZipNN 安装失败",
   "zipnnRetryInstall": "重试安装",
   "zipnnMoreInConsole": "ComfyUI 控制台还有 {n} 行详细信息",
-  "updating": "更新中…",
+  "updating": "更新中...",
   "addFolder": "添加文件夹",
   "folderNamePlaceholder": "文件夹名称",
   "folderCreateHint": "创建位置: {path}",
@@ -240,5 +240,6 @@
   "zipnnDeltaHint": "微调模型将被替换为 <base>_DeltaZNN/ 目录内的极小增量文件；日后恢复需要基础模型。",
   "zipnnDeltaConfirmDecompress": "从增量文件恢复 {name}？需要基础模型，基础模型不会被修改。",
   "zipnnDeltaDecompressHint": "从此增量文件恢复微调模型（需要基础模型）。",
-  "zipnnBatchInvalidTarget": "批量目标无效：无法解析所选文件夹。请重新打开文件夹视图后重试。"
+  "zipnnBatchInvalidTarget": "批量目标无效：无法解析所选文件夹。请重新打开文件夹视图后重试。",
+  "loading": "加载中..."
 }

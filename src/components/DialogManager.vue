@@ -86,7 +86,7 @@
                     -->
                     <div
                       v-show="showModelName"
-                      class="pointer-events-none absolute top-12 right-2 opacity-0 duration-300 group-hover/card:pointer-events-auto group-hover/card:opacity-100 group-data-[dragging=true]/card:pointer-events-none! group-data-[dragging=true]/card:opacity-0!"
+                      class="pointer-events-none absolute top-16 right-2 opacity-0 duration-300 group-hover/card:pointer-events-auto group-hover/card:opacity-100 group-data-[dragging=true]/card:pointer-events-none! group-data-[dragging=true]/card:opacity-0!"
                     >
                       <div class="flex flex-col gap-2">
                         <Button

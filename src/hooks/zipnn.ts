@@ -278,13 +278,16 @@ export const startZipnnBatch = async (
   folderKey: string,
 ): Promise<void> => {
   // Client-side guard: never send an incomplete payload (the backend rejects
-  // it with "mode, type and folder are required").
+  // it with "mode, type and folder are required"). The detail string carries
+  // the offending values so any recurrence is diagnosable from the toast.
   if (!folder || !folder.type || !folder.folder) {
+    const got = `type=${folder?.type ?? '-'}, pathIndex=${folder?.pathIndex ?? '-'}, folder=${folder?.folder ?? '-'}`
+    console.warn('[Model Manager Neo] batch target unresolved:', got)
     toast.add({
       severity: 'error',
       summary: t('error'),
-      detail: t('zipnnBatchInvalidTarget'),
-      life: 8000,
+      detail: `${t('zipnnBatchInvalidTarget')} [${got}]`,
+      life: 12000,
     })
     return
   }
