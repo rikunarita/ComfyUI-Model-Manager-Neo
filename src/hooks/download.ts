@@ -177,7 +177,18 @@ export const useDownload = defineStore('download', store => {
         detail: isLocal ? t('uploadTaskCompleted', { name }) : t('downloadTaskCompleted', { name }),
         life: 2000,
       })
-      store.models.refresh()
+      // BUG FIX (auto-update): completion used to re-scan EVERY model type
+      // (`refresh()`), which on big libraries takes so long that the grid the
+      // user is watching often appeared "not updated" - and when the all-types
+      // sweep hit an error the target type silently kept its stale listing.
+      // The task knows its model type: rescan exactly that one folder (fast,
+      // and failures are reported). Tasks this page never saw (a reload
+      // mid-download) fall back to the full sweep.
+      if (task?.type) {
+        store.models.refreshFolder(task.type).catch(() => {})
+      } else {
+        store.models.refresh().catch(() => {})
+      }
     })
   })
 

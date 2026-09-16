@@ -273,7 +273,7 @@ import { useToast } from 'hooks/toast'
 import { queueZipnnBatches, useSelection, zipnnState } from 'hooks/zipnn'
 import { resolveIcon } from 'utils/iconMap'
 import { assetUrl } from 'utils/media'
-import { genModelKey, isDeltaFolderName, isZnnFolderName } from 'utils/model'
+import { genModelKey, isBundleFolderName } from 'utils/model'
 
 const { t } = useI18n()
 const { toast, confirm } = useToast()
@@ -287,7 +287,7 @@ const isSelected = (model: ModelTreeNode) => Boolean(selection.state.selected[ge
 
 /** Selection kind for the ZipNN bundle exclusion rule. */
 const kindOf = (node: ModelTreeNode) =>
-  node.isFolder ? (isZnnFolderName(node.basename) ? 'znn-folder' : 'folder') : ('model' as const)
+  node.isFolder ? (isBundleFolderName(node.basename) ? 'znn-folder' : 'folder') : ('model' as const)
 
 const handleCardClick = (model: ModelTreeNode) => {
   if (selection.state.enabled) {
@@ -336,9 +336,7 @@ const isTypeRootNode = (n: ModelTreeNode) =>
 
 // Every folder except delta bundles is a batch/star target; type roots are
 // batch-processed in place by the backend (no *_ZNN rename).
-const selectedFolderNodes = computed(() =>
-  selectedNodes().filter(n => n.isFolder && !isDeltaFolderName(n.basename)),
-)
+const selectedFolderNodes = computed(() => selectedNodes().filter(n => n.isFolder))
 const selectedModelNodes = computed(() => selectedNodes().filter(n => !n.isFolder))
 
 /**
@@ -401,15 +399,15 @@ const batchProgress = computed(() => zipnnState.progress)
 const batchInverted = computed(
   () =>
     selectedFolderNodes.value.length > 0 &&
-    selectedFolderNodes.value.every(n => isZnnFolderName(n.basename)),
+    selectedFolderNodes.value.every(n => isBundleFolderName(n.basename)),
 )
 const batchModeFor = (n: ModelTreeNode): 'compress' | 'decompress' | 'auto' =>
-  isZnnFolderName(n.basename) ? 'decompress' : isTypeRootNode(n) ? 'auto' : 'compress'
+  isBundleFolderName(n.basename) ? 'decompress' : isTypeRootNode(n) ? 'auto' : 'compress'
 
 const batchLabel = computed(() => {
   const folders = selectedFolderNodes.value
   if (folders.length === 0) return t('zipnnBatchCompress')
-  if (folders.every(n => isZnnFolderName(n.basename))) return t('zipnnBatchDecompress')
+  if (folders.every(n => isBundleFolderName(n.basename))) return t('zipnnBatchDecompress')
   if (folders.some(n => batchModeFor(n) === 'auto')) return t('zipnnBatch')
   return t('zipnnBatchCompress')
 })

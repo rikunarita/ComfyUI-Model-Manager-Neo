@@ -312,7 +312,7 @@ selected a bulk bar appears at the bottom of the window:
   unstarred ones;
 - **Clear selection** — unticks everything. Leaving the mode also clears it.
 
-ZipNN bundle folders (`*_ZNN`) and ordinary folders can never be selected at
+ZipNN bundle folders (`*_DeltaZNN`, legacy `*_ZNN`) and ordinary folders can never be selected at
 the same time: adding one kind while the other is ticked deselects the bundle
 folders and shows a warning toast.
 
@@ -364,15 +364,22 @@ coverage and how to add binaries for other systems.
 Select one or more folders and press the **ZipNN artwork button** in the bulk
 bar (or use the corner button on a folder card). After a confirmation, every
 `.safetensors` model inside the folder tree is compressed — previews and notes
-follow their models — and the folder is renamed **`<name>_ZNN`**. Such a bundle
-folder is sealed: only `*.znn.*` models can live inside it (uploads, downloads
-and moves of plain models into it are refused), and pressing the batch button
-on a `*_ZNN` folder **decompresses** it and renames it back. Model-type root
-folders (`checkpoints`, ...) are processed **in place** (never renamed, since a
-rename would detach them from ComfyUI's folder mapping) and their direction is
+follow their models — and every compressed file is **moved into the bundle
+folder `<name>_DeltaZNN`** (the original folder disappears once it empties).
+Such a bundle folder is sealed: only ZipNN content (`*.znn.*` models, `*.znn`
+delta files) can live inside it (uploads, downloads and moves of plain models
+into it are refused). The bundle's ZipNN button is **inverted**; pressing it
+**batch-decompresses** the bundle, moves everything back to the folder it was
+named after and removes the emptied bundle folder. Delta folders
+(`<base>_DeltaZNN`) are bundles as well — their inverted button restores every
+fine-tune inside them. Model-type root folders (`checkpoints`, ...) get their
+bundle **inside themselves** (`<root>_DeltaZNN`), because a sibling of a type
+root would fall outside ComfyUI's folder mapping; their direction is
 auto-detected: compress while plain models exist, decompress when only bundles
-remain. While a task runs, the button shows a circular ring with the percentage
-inside. Several folders run one after another behind a single confirmation.
+remain. Bundles created by older versions (`<name>_ZNN`) still decompress back
+to their original name. While a task runs, the button shows a circular ring
+with the percentage inside. Several folders run one after another behind a
+single confirmation.
 
 ### ZipNN delta compression (fine-tunes)
 

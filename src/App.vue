@@ -54,7 +54,9 @@ const firstOpenManager = ref(true)
 const handleZipnnSettled = async () => {
   const settle = takeZipnnSettle()
   if (!settle?.ok) return
-  await models.refreshFolder(settle.type)
+  // refreshModels reports its own failure via toast; it must not escape as
+  // an unhandled rejection from this window-lifetime listener.
+  await models.refreshFolder(settle.type).catch(() => {})
   if (!settle.targetKey) return
   const staleOpen = dialog.stack.value.some(item => item.key === settle.targetKey)
   if (!staleOpen) return
@@ -139,6 +141,12 @@ onMounted(() => {
     if (firstOpenManager.value) {
       models.refresh(true)
       firstOpenManager.value = false
+    } else {
+      // Stale-while-revalidate: show the cached grids immediately and
+      // re-scan in the background (rate-limited), so files that appeared or
+      // moved outside the UI show up on their own instead of only after the
+      // manual refresh button.
+      void models.revalidate()
     }
 
     dialog.open({

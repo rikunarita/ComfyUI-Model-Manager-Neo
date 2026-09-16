@@ -192,7 +192,7 @@ import {
 import { type BaseModel } from 'types/typings'
 import { bytesToSize } from 'utils/common'
 import { isVideoUrl, assetUrl } from 'utils/media'
-import { genModelKey, isDeltaFolderName, isZnnFolderName } from 'utils/model'
+import { genModelKey, isBundleFolderName } from 'utils/model'
 
 interface Props {
   model: BaseModel
@@ -268,18 +268,19 @@ const isTypeRootFolder = computed(
   () => isFolder.value && !props.model.subFolder && props.model.basename === props.model.type,
 )
 const zipnnApplicable = computed(() => {
-  // Every folder except delta bundles is a batch target; type roots are
-  // processed in place by the backend (no *_ZNN rename).
-  if (isFolder.value) return !isDeltaFolderName(folderName.value)
+  // Every folder is a batch target: plain folders compress into a
+  // `<name>_DeltaZNN` bundle, bundles (batch AND delta folders) decompress
+  // back, type roots let the backend pick the direction (auto).
+  if (isFolder.value) return true
   return isCompressedModel.value || props.model.extension === '.safetensors'
 })
 /** Direction of the folder batch: bundles decompress, type roots auto. */
 const zipnnFolderMode = computed<'compress' | 'decompress' | 'auto'>(() => {
-  if (isZnnFolderName(folderName.value)) return 'decompress'
+  if (isBundleFolderName(folderName.value)) return 'decompress'
   return isTypeRootFolder.value ? 'auto' : 'compress'
 })
 const zipnnInverted = computed(() => {
-  if (isFolder.value) return isZnnFolderName(folderName.value)
+  if (isFolder.value) return isBundleFolderName(folderName.value)
   return isCompressedModel.value || isDeltaModel.value
 })
 const zipnnRunning = computed(() => zipnnRunningFor(modelKey.value))
@@ -287,7 +288,7 @@ const zipnnRunning = computed(() => zipnnRunningFor(modelKey.value))
 const zipnnProgress = computed(() => zipnnState.progress)
 const zipnnLabel = computed(() => {
   if (isFolder.value) {
-    if (isZnnFolderName(folderName.value)) return t('zipnnBatchDecompress')
+    if (isBundleFolderName(folderName.value)) return t('zipnnBatchDecompress')
     return isTypeRootFolder.value ? t('zipnnBatch') : t('zipnnBatchCompress')
   }
   if (isDeltaModel.value) return t('zipnnDeltaDecompress')

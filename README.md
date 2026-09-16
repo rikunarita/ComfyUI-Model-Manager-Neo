@@ -58,8 +58,9 @@ the experience from the ground up:
   (creates the repo if needed, private option, live progress) — _new in Neo_.
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN lossless compression** — compress / decompress safetensors models in
   place (`.znn.safetensors`) with confirmation, progress and an inverted icon on
-  compressed models; whole folders batch-compress into sealed `<name>_ZNN`
-  bundles, and fine-tunes shrink to tiny **delta files** against their base —
+  compressed models; whole folders batch-compress into sealed
+  `<name>_DeltaZNN` bundles, and fine-tunes shrink to tiny **delta files**
+  against their base —
   _new in Neo_.
 - <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Multi-select** — tick cards to add several models to the workflow or
   delete them in one go — _new in Neo_. Folders can be ticked too: "Add to
@@ -321,19 +322,27 @@ ZipNN's official tooling compresses whole paths; Neo wires that into the
 manager. Select folders ("Select files") and press the **ZipNN artwork button
 in the bottom bar** — or use the corner button on a folder card — and every
 `.safetensors` model inside the folder tree is compressed (previews and notes
-follow their models), after which the folder is renamed **`<name>_ZNN`**. A
-`*_ZNN` folder is a sealed bundle:
+follow their models) and **moved into the bundle folder
+`<name>_DeltaZNN`** — the original folder disappears once it empties. A
+`*_DeltaZNN` bundle is sealed:
 
-- only `*.znn.*` models may ever be placed inside one (uploads, downloads and
-  moves of plain models into it are refused);
-- selecting a `*_ZNN` folder together with a non-`*_ZNN` folder is impossible —
+- only ZipNN content (`*.znn.*` models, `*.znn` delta files) may ever be placed
+  inside one (uploads, downloads and moves of plain models into it are
+  refused);
+- selecting a bundle folder together with a non-bundle folder is impossible —
   the bundle side is deselected automatically with a warning toast;
-- pressing the batch button on `*_ZNN` folders **decompresses** them and
-  renames them back to their original name;
-- model-type **root folders** (`checkpoints`, ...) are processed **in place** —
-  they are never renamed (a rename would detach them from ComfyUI's folder
-  mapping); the direction is auto-detected: compress while plain models exist,
+- the bundle's ZipNN button is **inverted**; pressing it **batch-decompresses**
+  the bundle and moves everything back to the folder it was named after (the
+  emptied bundle folder is removed);
+- delta folders (`<base>_DeltaZNN`, see below) are bundles too: their inverted
+  button restores every fine-tune inside them in one go;
+- model-type **root folders** (`checkpoints`, ...) get their bundle **inside
+  themselves** (`<root>_DeltaZNN`) — a sibling of a type root would fall
+  outside ComfyUI's folder mapping and vanish from both the loader and the
+  manager; the direction is auto-detected: compress while plain models exist,
   decompress when only bundles remain;
+- bundles created by older versions (`<name>_ZNN`) are still recognised and
+  decompress back to their original name;
 - while a task runs the button becomes a circular ring with the **percentage
   inside the circle**.
 

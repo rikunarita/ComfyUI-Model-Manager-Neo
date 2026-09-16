@@ -223,39 +223,55 @@ def get_full_path(model_type: str, path_index: int, filename: str):
 # ---------------------------------------------------------------------------
 # ZipNN folder conventions (mirror py/compress.py).
 #
-# A folder whose name ends with `_ZNN` is a ZipNN-compressed bundle: it may
-# only hold ZipNN-compressed models (`*.znn.*`). `_DeltaZNN` folders hold
-# delta-compressed files. Note `*_DeltaZNN` deliberately does NOT match the
-# `_ZNN` suffix (the character before "ZNN" is a letter, not an underscore),
-# so delta folders are not treated as compressed bundles.
+# A folder whose name ends with `_DeltaZNN` is a ZipNN bundle: batch
+# compression moves every compressed model of `<name>` into
+# `<name>_DeltaZNN`, and delta compression stores `<ft>_delta_<base>.znn`
+# files into `<base>_DeltaZNN`. Either way the folder may only hold
+# ZipNN-compressed content (`*.znn.*` models and `*.znn` delta files).
+# The legacy `_ZNN` suffix (bundles created by older versions) is still
+# recognised as a bundle so those folders keep decompressing in place.
+# Note `*_DeltaZNN` deliberately does NOT match the `_ZNN` suffix (the
+# character before "ZNN" is a letter, not an underscore).
 # ---------------------------------------------------------------------------
 ZNN_FOLDER_SUFFIX = "_ZNN"
 DELTA_FOLDER_SUFFIX = "_DeltaZNN"
 
 
 def is_znn_folder_name(name: str) -> bool:
-    """True for `X_ZNN` bundle folders (NOT for `X_DeltaZNN`)."""
+    """True for legacy `X_ZNN` bundle folders (NOT for `X_DeltaZNN`)."""
     return name.endswith(ZNN_FOLDER_SUFFIX)
 
 
-def enforce_znn_folder_rule(full_path: str) -> None:
-    """Refuse to place a non-ZipNN *model* file inside a `*_ZNN` folder.
+def is_delta_folder_name(name: str) -> bool:
+    """True for `X_DeltaZNN` bundle / delta folders."""
+    return name.endswith(DELTA_FOLDER_SUFFIX)
 
-    Sidecar files (previews, notes) stay allowed - they belong to the
-    compressed model. Called by every code path that can put a new file into a
-    model folder: local upload, download tasks and editor rename/move.
+
+def is_bundle_folder_name(name: str) -> bool:
+    """True for any ZipNN bundle folder (`*_ZNN` legacy or `*_DeltaZNN`)."""
+    return is_znn_folder_name(name) or is_delta_folder_name(name)
+
+
+def enforce_znn_folder_rule(full_path: str) -> None:
+    """Refuse to place a non-ZipNN *model* file inside a bundle folder.
+
+    Bundle folders (`*_DeltaZNN`, legacy `*_ZNN`) may only hold ZipNN
+    content: `*.znn.*` models and `*.znn` delta files. Sidecar files
+    (previews, notes) stay allowed - they belong to the compressed model.
+    Called by every code path that can put a new file into a model folder:
+    local upload, download tasks and editor rename/move.
     """
     filename = os.path.basename(full_path)
-    if ".znn." in filename:
-        return  # a ZipNN-compressed model: exactly what *_ZNN folders hold
+    if ".znn." in filename or filename.endswith(".znn"):
+        return  # ZipNN-compressed model / delta file: exactly what bundles hold
     extension = os.path.splitext(filename)[1]
     if extension not in folder_paths.supported_pt_extensions:
         return  # preview / notes / anything non-model
     parts = normalize_path(full_path).split("/")
-    if any(is_znn_folder_name(part) for part in parts[:-1]):
+    if any(is_bundle_folder_name(part) for part in parts[:-1]):
         raise RuntimeError(
-            f"ZipNN folders (*{ZNN_FOLDER_SUFFIX}) accept ZipNN-compressed "
-            f"models (*.znn.*) only, cannot place: {filename}"
+            f"ZipNN folders (*{DELTA_FOLDER_SUFFIX}) accept ZipNN-compressed "
+            f"models (*.znn.* / *.znn) only, cannot place: {filename}"
         )
 
 def get_valid_full_path(model_type: str, path_index: int, filename: str):

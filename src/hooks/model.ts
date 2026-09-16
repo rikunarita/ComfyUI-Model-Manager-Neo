@@ -90,21 +90,63 @@ export const useModels = defineStore('models', store => {
 
   const models = ref<Record<string, Model[]>>({})
 
-  const refreshModels = async (folder: string) => {
-    loading.show(folder)
-    return request(`/models/${folder}`)
-      .then(resData => {
-        models.value[folder] = resData
-        return resData
-      })
-      .finally(() => {
-        loading.hide(folder)
-      })
+  /**
+   * Per-folder request sequencing.
+   *
+   * BUG FIX ("the view never updates / updates with stale content"): a folder
+   * scan takes seconds on big libraries, so two refreshes of the same folder
+   * routinely overlap (a ZipNN batch settle fires while the previous settle's
+   * scan is still walking the disk; a download completes mid-scan; ...). The
+   * old code assigned whichever response arrived LAST, so a scan that STARTED
+   * before a rename/compress finished could land after the fresh one and put
+   * the pre-operation listing back on screen. Every refresh now stamps a
+   * generation; a response whose generation is no longer the folder's latest
+   * is discarded instead of applied.
+   */
+  const folderGeneration: Record<string, number> = {}
+
+  /**
+   * How long a completed full refresh counts as "fresh" for the background
+   * revalidation (`revalidate`). Opening/closing the manager repeatedly must
+   * not re-walk every model directory each time.
+   */
+  const REVALIDATE_TTL_MS = 30_000
+  const lastFullRefreshAt = ref(0)
+
+  const refreshModels = async (folder: string, options?: { background?: boolean }) => {
+    const generation = (folderGeneration[folder] = (folderGeneration[folder] ?? 0) + 1)
+    if (!options?.background) loading.show(folder)
+    try {
+      const resData = await request(`/models/${folder}`)
+      if (folderGeneration[folder] !== generation) {
+        // A newer scan of this folder started while this one was in flight;
+        // this response is stale by definition - keep the newer result.
+        return models.value[folder] ?? []
+      }
+      // Atomic per-folder swap. BUG FIX: the old code (a) mutated the shared
+      // record mid-flight and (b) was preceded by `models.value = {}` in
+      // refreshAllModels, so every refresh flashed an empty grid and a
+      // FAILED refresh left a permanent empty hole with no error anywhere
+      // ("half-updated"). Now the previous listing survives until the new
+      // one is complete, and a failure keeps it (the caller reports).
+      models.value = { ...models.value, [folder]: resData }
+      return resData
+    } finally {
+      if (!options?.background) loading.hide(folder)
+    }
   }
 
-  const refreshAllModels = async (force = false) => {
-    const forceRefresh = force ? refreshFolders() : Promise.resolve()
-    models.value = {}
+  const refreshAllModels = async (force = false, options?: { background?: boolean }) => {
+    if (force) {
+      try {
+        await refreshFolders()
+      } catch (error) {
+        // Keep the last known folder map and still refresh what we know;
+        // losing every grid because the folder listing failed once is worse
+        // than refreshing against last week's path map.
+        console.error('[Model Manager Neo] folder refresh failed:', error)
+      }
+    }
     const excludeModelTypes = app.ui?.settings.getSettingValue<string>(
       configSetting.excludeModelTypes,
     )
@@ -113,13 +155,41 @@ export const useModels = defineStore('models', store => {
         ?.split(',')
         .map((type: string) => type.trim())
         .filter(Boolean) ?? []
-    await forceRefresh.then(() =>
-      Promise.allSettled(
-        Object.keys(folders.value)
-          .filter(folder => !customBlackList.includes(folder))
-          .map(refreshModels),
-      ),
+    const types = Object.keys(folders.value).filter(folder => !customBlackList.includes(folder))
+    const results = await Promise.allSettled(types.map(type => refreshModels(type, options)))
+    // BUG FIX: rejections used to vanish inside allSettled. Report them in
+    // ONE toast naming every failed type instead of silently showing stale
+    // (or previously: empty) grids.
+    const reasons = results.flatMap((result, index) =>
+      result.status === 'rejected'
+        ? [`${types[index]}: ${result.reason?.message ?? String(result.reason)}`]
+        : [],
     )
+    if (reasons.length > 0) {
+      toast.add({
+        severity: 'error',
+        summary: t('error'),
+        detail: t('failedToRefreshModels', { message: reasons.join(' / ') }),
+        life: 15000,
+      })
+    }
+    lastFullRefreshAt.value = Date.now()
+  }
+
+  /**
+   * Stale-while-revalidate entry point (manager open, layout switch, ...).
+   *
+   * BUG FIX ("nothing auto-updates"): after the first open the manager only
+   * ever showed its session-old cache - files added/renamed outside the UI
+   * (or by a finished background task the events missed) never appeared
+   * until the manual refresh button. Now a cached view is shown immediately
+   * and re-validated in the background (no loading overlay, grids swap
+   * atomically when the scan finishes), rate-limited by REVALIDATE_TTL_MS.
+   */
+  const revalidate = () => {
+    if (!initialized.value) return refreshAllModels(true)
+    if (Date.now() - lastFullRefreshAt.value < REVALIDATE_TTL_MS) return Promise.resolve()
+    return refreshAllModels(true, { background: true })
   }
 
   const updateModel = async (model: BaseModel, data: WithResolved<BaseModel>) => {
@@ -218,10 +288,12 @@ export const useModels = defineStore('models', store => {
       store.dialog.close({ key: oldKey })
     }
 
-    refreshModels(data.type)
+    // The save succeeded; a failing post-save rescan must not look like a
+    // failed save (and must not go unhandled either - refreshModels rejects).
+    refreshModels(data.type).catch(() => {})
     // A move across model types empties the source folder too.
     if (model.type !== data.type) {
-      refreshModels(model.type)
+      refreshModels(model.type).catch(() => {})
     }
   }
 
@@ -254,7 +326,10 @@ export const useModels = defineStore('models', store => {
                 life: 2000,
               })
               store.dialog.close({ key: dialogKey })
-              return refreshModels(model.type)
+              // A failing post-delete rescan is NOT a failed delete: the old
+              // code let the refresh rejection fall into the delete's catch
+              // and reported "delete failed" for a delete that had worked.
+              return refreshModels(model.type).catch(() => {})
             })
             .then(() => {
               resolve(void 0)
@@ -315,6 +390,7 @@ export const useModels = defineStore('models', store => {
     data: models,
     refresh: refreshAllModels,
     refreshFolder: refreshModels,
+    revalidate: revalidate,
     remove: deleteModel,
     update: updateModel,
     openModelDetail: openModelDetail,

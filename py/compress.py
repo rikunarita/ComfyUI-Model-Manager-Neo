@@ -790,14 +790,26 @@ def decompress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str
 # ---------------------------------------------------------------------------
 
 
-def _walk_model_files(folder: str, mode: str) -> list[str]:
+def _is_bundle_dir_name(name: str) -> bool:
+    """True for ZipNN bundle folders (`*_DeltaZNN`, legacy `*_ZNN`)."""
+    return utils.is_bundle_folder_name(name)
+
+
+def _walk_model_files(folder: str, mode: str, skip_bundles: bool = False) -> list[str]:
     """Files a batch run will process, in a stable order.
 
     ``compress``: every plain ``.safetensors`` (already-``.znn.`` files are
     skipped). ``decompress``: every ``.znn.safetensors``.
+
+    ``skip_bundles`` prunes bundle sub-trees (`*_ZNN` / `*_DeltaZNN`) from the
+    walk: their content is already ZipNN-compressed (`.znn` delta files would
+    otherwise trip the "folder holds models ZipNN cannot convert" guard of a
+    type-root compress).
     """
     found: list[str] = []
-    for root, _dirs, names in os.walk(folder):
+    for root, dirs, names in os.walk(folder):
+        if skip_bundles:
+            dirs[:] = [d for d in dirs if not _is_bundle_dir_name(d)]
         for name in names:
             if mode == "compress":
                 if name.endswith(SAFE_SUFFIX) and not name.endswith(ZNN_SUFFIX):
@@ -807,49 +819,243 @@ def _walk_model_files(folder: str, mode: str) -> list[str]:
     return sorted(found)
 
 
-def _batch_invariants_blockers(folder: str) -> list[str]:
-    """Model files that would break the `*_ZNN` content rule after a batch.
+def _walk_decompress_files(folder: str) -> list[str]:
+    """Everything a batch decompress restores, in a stable order.
 
-    A bundle folder may only hold `*.znn.*` models (plus sidecars). Plain
+    * `*.znn.safetensors` anywhere under `folder` (bundle folders AND legacy
+      in-place compressed type roots);
+    * `*_delta_*.znn` delta files inside `*_DeltaZNN` folders (their padding
+      sidecar `*.neo-delta.json` travels implicitly and is removed with the
+      delta file).
+    """
+    found: list[str] = []
+    for root, _dirs, names in os.walk(folder):
+        in_delta_folder = os.path.basename(root).endswith(utils.DELTA_FOLDER_SUFFIX)
+        for name in names:
+            if name.endswith(ZNN_SUFFIX):
+                found.append(os.path.join(root, name))
+            elif in_delta_folder and name.endswith(".znn") and "_delta_" in name:
+                found.append(os.path.join(root, name))
+    return sorted(found)
+
+
+def _batch_invariants_blockers(folder: str) -> list[str]:
+    """Model files that would break the bundle content rule after a batch.
+
+    A bundle folder may only hold ZipNN content (plus sidecars). Plain
     `.safetensors` become `.znn.safetensors` during the batch, so the blockers
     are the *other* supported model extensions (`.gguf`, `.ckpt`, delta
-    `.znn`, ...) that the batch cannot convert.
+    `.znn`, ...) that the batch cannot convert. Bundle sub-trees are skipped:
+    their `.znn` content already satisfies the rule.
     """
     import folder_paths
 
     blockers: list[str] = []
-    for root, _dirs, names in os.walk(folder):
+    for root, dirs, names in os.walk(folder):
+        dirs[:] = [d for d in dirs if not _is_bundle_dir_name(d)]
         for name in names:
             extension = os.path.splitext(name)[1]
             if extension in folder_paths.supported_pt_extensions and ".znn." not in name:
-                if not name.endswith(SAFE_SUFFIX):
+                if not name.endswith(SAFE_SUFFIX) and not name.endswith(".znn"):
                     blockers.append(os.path.join(root, name))
     return sorted(blockers)
 
 
-def batch_process_folder(
-    src_folder: str, dst_folder: str, mode: str, progress: ProgressCb
-) -> dict[str, Any]:
-    """Compress/decompress every eligible file in `src_folder`, then rename it.
+def _bundle_dst_root(folder: str, is_type_root: bool) -> str:
+    """`<parent>/<name>_DeltaZNN` - where a batch compress moves its output.
 
-    The rename (`X` -> `X_ZNN` or back) happens only after ALL files succeeded,
-    so a failed batch leaves the folder exactly as it was (partial outputs are
-    cleaned up per file by the callers of the single-file helpers).
+    Model-type roots get the bundle *inside* themselves
+    (`T/<T-name>_DeltaZNN`): a sibling of a type root would live outside every
+    ComfyUI-mapped path and disappear from both the loader and the manager.
     """
-    files = _walk_model_files(src_folder, mode)
-    total = max(1, len(files))
-    for index, path in enumerate(files):
-        if mode == "compress":
-            target = path[: -len(SAFE_SUFFIX)] + ZNN_SUFFIX
+    folder = folder.rstrip(os.sep) or folder
+    parent = folder if is_type_root else os.path.dirname(folder)
+    name = os.path.basename(folder)
+    return utils.join_path(parent, f"{name}{utils.DELTA_FOLDER_SUFFIX}")
+
+
+def _plain_name(name: str) -> str:
+    """`x.znn.safetensors` -> `x.safetensors`."""
+    return name[: -len(ZNN_SUFFIX)] + SAFE_SUFFIX
+
+
+def _locate_bundle(path: str, walk_root: str) -> tuple[str, list[str]] | None:
+    """Nearest bundle-named ancestor dir of `path` under `walk_root`.
+
+    Returns (bundle_dir, dir parts between the bundle and the file), or None
+    when the file does not live inside a bundle sub-tree.
+    """
+    rel = os.path.relpath(path, walk_root)
+    parts = rel.split(os.sep)
+    dir_parts = parts[:-1]
+    for index in range(len(dir_parts) - 1, -1, -1):
+        if _is_bundle_dir_name(dir_parts[index]):
+            bundle = os.path.join(walk_root, *dir_parts[: index + 1])
+            return bundle, dir_parts[index + 1:]
+    return None
+
+
+def _batch_restore_root(bundle: str) -> str:
+    """The folder a batch bundle empties back into.
+
+    * sibling bundle `P/X_DeltaZNN` (or legacy `P/X_ZNN`): back into `P/X`;
+    * inner bundle `T/T_DeltaZNN` (a model-type root keeps its bundle inside
+      itself): back into `T` - recognised by the parent dir carrying exactly
+      the name the bundle was derived from.
+    """
+    bundle = bundle.rstrip(os.sep)
+    parent = os.path.dirname(bundle)
+    source = os.path.basename(bundle)
+    for suffix in (utils.DELTA_FOLDER_SUFFIX, utils.ZNN_FOLDER_SUFFIX):
+        if source.endswith(suffix):
+            source = source[: -len(suffix)]
+            break
+    if os.path.basename(parent.rstrip(os.sep)) == source:
+        return parent
+    return utils.join_path(parent, source)
+
+
+def _decompress_target(path: str, walk_root: str, out_name: str, is_delta: bool) -> str:
+    """Where a decompressed file lands.
+
+    * batch content (`*.znn.safetensors`) inside a bundle sub-tree `B`: back
+      into the folder `B` was named after (`_batch_restore_root`), keeping the
+      path relative to the bundle;
+    * delta content (`*_delta_*.znn` inside `B=<base>_DeltaZNN`): beside the
+      base model, i.e. `parent(B)` - the fine-tune lived next to its base;
+    * the walked root itself is a bundle: same rules one level up;
+    * anywhere else (legacy in-place compressed type root): in place.
+    """
+    located = _locate_bundle(path, walk_root)
+    rel = os.path.relpath(path, walk_root)
+    dir_parts = rel.split(os.sep)[:-1]
+    if located is not None:
+        bundle, inner = located
+        root = (
+            os.path.dirname(bundle.rstrip(os.sep))
+            if is_delta
+            else _batch_restore_root(bundle)
+        )
+        return os.path.join(root, *inner, out_name)
+    if _is_bundle_dir_name(os.path.basename(walk_root.rstrip(os.sep))):
+        root = (
+            os.path.dirname(walk_root.rstrip(os.sep))
+            if is_delta
+            else _batch_restore_root(walk_root)
+        )
+        return os.path.join(root, *dir_parts, out_name)
+    return os.path.join(os.path.dirname(path), out_name)
+
+
+def _compress_target(path: str, walk_root: str, bundle_root: str) -> str:
+    """Mirror of `_decompress_target`: the file's place inside the bundle."""
+    rel = os.path.relpath(path, walk_root)
+    return os.path.join(bundle_root, rel[: -len(SAFE_SUFFIX)] + ZNN_SUFFIX)
+
+
+def _prune_empty_dirs(folder: str, remove_root: bool) -> None:
+    """Delete directories the batch emptied, bottom-up (best effort)."""
+    for root, dirs, _names in os.walk(folder, topdown=False):
+        for name in dirs:
+            path = os.path.join(root, name)
+            try:
+                if not os.listdir(path):
+                    os.rmdir(path)
+            except OSError:
+                pass
+    if remove_root:
+        try:
+            if not os.listdir(folder):
+                os.rmdir(folder)
+        except OSError:
+            pass
+
+
+def batch_process_folder(
+    folder: str, mode: str, is_type_root: bool, progress: ProgressCb
+) -> dict[str, Any]:
+    """Batch-compress / batch-decompress every eligible file under `folder`.
+
+    compress: every plain `.safetensors` becomes `.znn.safetensors` and MOVES
+    into the bundle folder `<parent>/<name>_DeltaZNN` (previews/notes follow;
+    directories the batch emptied are removed, so `X` is replaced by
+    `X_DeltaZNN`). Model-type roots keep themselves and get the bundle inside
+    (`T/T_DeltaZNN`).
+
+    decompress: the exact mirror - bundle content moves back to the folder the
+    bundle was named after, delta files (`*_delta_*.znn` inside
+    `*_DeltaZNN`) are restored to their fine-tuned models beside the base, and
+    the emptied bundle folder disappears. Legacy in-place compressed files
+    (type roots of older versions) decompress where they are.
+
+    A failed run leaves already-processed files moved (each file is committed
+    atomically via its `.tmp` + rename); unprocessed files are untouched.
+    """
+    folder = folder.rstrip(os.sep) or folder
+    if mode == "compress":
+        bundle = _bundle_dst_root(folder, is_type_root)
+        if os.path.exists(bundle):
+            raise RuntimeError(f"target already exists: {os.path.basename(bundle)}")
+        files = _walk_model_files(folder, "compress", skip_bundles=True)
+        total = max(1, len(files))
+        for index, path in enumerate(files):
+            target = _compress_target(path, folder, bundle)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
             compress_safetensors(path, target, lambda *_args: None)
-        else:
-            target = path[: -len(ZNN_SUFFIX)] + SAFE_SUFFIX
+            _delta_sidecar_move(path, target)
+            os.remove(path)
+            progress(index + 1, total, "files")
+        _prune_empty_dirs(folder, remove_root=not is_type_root)
+        return {"files": len(files), "folder": bundle}
+
+    files = _walk_decompress_files(folder)
+    total = max(1, len(files))
+    restored = 0
+    skipped = 0
+    for index, path in enumerate(files):
+        name = os.path.basename(path)
+        if name.endswith(ZNN_SUFFIX):
+            target = _decompress_target(path, folder, _plain_name(name), False)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
             decompress_safetensors(path, target, lambda *_args: None)
-        _sidecar_move(path, target)
-        os.remove(path)
+            _delta_sidecar_move(path, target)
+            os.remove(path)
+            restored += 1
+        else:
+            # A delta file: restore the fine-tuned model beside its base.
+            delta_dir = os.path.dirname(path)
+            base_base = os.path.basename(delta_dir)[: -len(utils.DELTA_FOLDER_SUFFIX)]
+            suffix = f"_delta_{base_base}.znn"
+            if not name.endswith(suffix):
+                utils.print_warning(f"batch decompress: skipping {name} (not a delta file)")
+                skipped += 1
+                progress(index + 1, total, "files")
+                continue
+            ft_base = name[: -len(suffix)]
+            located = _locate_bundle(path, folder)
+            base_dir = (
+                os.path.dirname(located[0].rstrip(os.sep))
+                if located is not None
+                else os.path.dirname(delta_dir)
+            )
+            base_path = os.path.join(base_dir, f"{base_base}{SAFE_SUFFIX}")
+            if not os.path.isfile(base_path):
+                raise RuntimeError(f"base model not found for {name}: {base_base}")
+            target = _decompress_target(path, folder, f"{ft_base}{SAFE_SUFFIX}", True)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            delta_decompress_file(base_path, path, target, lambda *_args: None)
+            _delta_sidecar_move(path, target)
+            os.remove(path)
+            sidecar = _delta_meta_path(path)
+            if os.path.exists(sidecar):
+                try:
+                    os.remove(sidecar)
+                except OSError:
+                    pass
+            restored += 1
         progress(index + 1, total, "files")
-    os.rename(src_folder, dst_folder)
-    return {"files": len(files)}
+    _prune_empty_dirs(folder, remove_root=_is_bundle_dir_name(os.path.basename(folder)))
+    return {"files": restored, "skipped": skipped, "folder": folder}
 
 
 def _safetensors_split(path: str) -> tuple[int, bytes, bytes]:
@@ -1177,13 +1383,15 @@ class ZipNNRoutes:
     async def _run_batch(self, request):
         """Batch-compress / batch-decompress a whole folder (selection bar).
 
-        compress: `X` -> every plain .safetensors becomes .znn.safetensors and
-        the folder is renamed `X_ZNN`. decompress: the reverse, `X_ZNN` -> `X`.
-        Model-type root folders are processed **in place** (renaming a type
-        root would detach it from ComfyUI's folder mapping and hide the
-        bundle), and `mode="auto"` lets the server pick the direction from the
-        folder content (plain models present -> compress, only compressed
-        ones -> decompress).
+        compress: every plain `.safetensors` under `X` is compressed and moved
+        into the bundle folder `X_DeltaZNN` (a model-type root `T` gets the
+        bundle inside itself: `T/T_DeltaZNN`, because a sibling of a type root
+        would fall outside every ComfyUI-mapped path). decompress: the exact
+        mirror - bundle content moves back to the folder the bundle was named
+        after, `*_delta_*.znn` files are restored to their fine-tuned models,
+        and the emptied bundle folder is removed. `mode="auto"` lets the
+        server pick the direction from the folder content (plain models
+        present -> compress, only compressed ones -> decompress).
         """
         data = await utils.get_request_body(request)
         if not isinstance(data, dict) or not data:
@@ -1231,9 +1439,9 @@ class ZipNNRoutes:
 
         folder_name = os.path.basename(folder.rstrip("/"))
         if mode == "auto":
-            if _walk_model_files(folder, "compress"):
+            if _walk_model_files(folder, "compress", skip_bundles=True):
                 mode = "compress"
-            elif _walk_model_files(folder, "decompress"):
+            elif _walk_decompress_files(folder):
                 mode = "decompress"
             else:
                 return web.json_response(
@@ -1243,13 +1451,15 @@ class ZipNNRoutes:
                     }
                 )
         if mode == "compress":
-            if utils.is_znn_folder_name(folder_name):
+            if _is_bundle_dir_name(folder_name):
                 return web.json_response(
-                    {"success": False, "error": "folder is already ZipNN-compressed"}
-                )
-            if folder_name.endswith(utils.DELTA_FOLDER_SUFFIX):
-                return web.json_response(
-                    {"success": False, "error": "delta folders cannot be batch-compressed"}
+                    {
+                        "success": False,
+                        "error": (
+                            "folder is already a ZipNN bundle "
+                            f"(*{utils.DELTA_FOLDER_SUFFIX}): batch-decompress it instead"
+                        ),
+                    }
                 )
             blockers = _batch_invariants_blockers(folder)
             if blockers:
@@ -1259,31 +1469,31 @@ class ZipNNRoutes:
                         "success": False,
                         "error": (
                             "folder holds models ZipNN cannot convert "
-                            f"({names}); a *_ZNN folder may only contain "
-                            "*.znn.* models"
+                            f"({names}); a *{utils.DELTA_FOLDER_SUFFIX} folder "
+                            "may only contain *.znn.* / *.znn models"
                         ),
                     }
                 )
-            files = _walk_model_files(folder, "compress")
+            files = _walk_model_files(folder, "compress", skip_bundles=True)
             if not files:
                 return web.json_response(
                     {"success": False, "error": "no .safetensors files to compress"}
                 )
-            # type roots stay in place (a rename would hide them from ComfyUI)
-            dst_folder = folder if is_type_root else f"{folder}{utils.ZNN_FOLDER_SUFFIX}"
+            # Every compressed file MOVES into `<name>_DeltaZNN`; model-type
+            # roots get the bundle inside themselves (a sibling of a type root
+            # would fall outside every ComfyUI-mapped path).
+            dst_folder = _bundle_dst_root(folder, is_type_root)
         else:
-            if utils.is_znn_folder_name(folder_name):
-                dst_folder = folder[: -len(utils.ZNN_FOLDER_SUFFIX)]
-            elif is_type_root:
-                dst_folder = folder  # in-place decompress of a type root
-            else:
-                return web.json_response(
-                    {"success": False, "error": "folder is not a ZipNN bundle (*_ZNN)"}
-                )
-            files = _walk_model_files(folder, "decompress")
+            # Bundles empty back into the folder they were named after;
+            # legacy in-place compressed folders decompress where they are.
+            dst_folder = folder
+            files = _walk_decompress_files(folder)
             if not files:
                 return web.json_response(
-                    {"success": False, "error": "no .znn.safetensors files to decompress"}
+                    {
+                        "success": False,
+                        "error": "no .znn.safetensors / delta files to decompress",
+                    }
                 )
         if dst_folder != folder and os.path.exists(dst_folder):
             return web.json_response(
@@ -1337,8 +1547,8 @@ class ZipNNRoutes:
                     utils.cpu_executor(),
                     batch_process_folder,
                     folder,
-                    dst_folder,
                     mode,
+                    is_type_root,
                     progress,
                 )
             except Exception as e:

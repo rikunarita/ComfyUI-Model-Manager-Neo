@@ -275,8 +275,9 @@ export const queueZipnnBatches = (items: ZipnnBatchItem[]) => {
 
 /**
  * Batch-compress / batch-decompress a whole folder (selection bar button and
- * the folder-card corner button). The folder renames `X` <-> `X_ZNN` on the
- * backend once every file succeeded.
+ * the folder-card corner button). On the backend every compressed file moves
+ * into the bundle folder `X_DeltaZNN` (and back out on decompress); delta
+ * folders batch-restore their fine-tuned models.
  */
 export const startZipnnBatch = async (
   mode: ZipnnMode,
@@ -410,8 +411,9 @@ export const startZipnnDeltaDecompress = async (
  * ZipNN batch / star).
  *
  * `kinds` records what each selected key is so the ZipNN bundle rule can be
- * enforced: a `*_ZNN` folder and a non-`*_ZNN` folder can never be selected
- * at the same time (adding one drops the `*_ZNN` side with a warning).
+ * enforced: a bundle folder (`*_DeltaZNN` / legacy `*_ZNN`) and a plain
+ * folder can never be selected at the same time (adding one drops the
+ * bundle side with a warning).
  */
 export type SelectionKind = 'model' | 'folder' | 'znn-folder'
 
