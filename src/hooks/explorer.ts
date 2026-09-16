@@ -53,7 +53,9 @@ export const useModelExplorer = () => {
 
     for (const folder in folders.value) {
       if (Object.hasOwn(folders.value, folder)) {
-        const folderItem = genFolderItem(folder)
+        // pass the type explicitly: type-root folder nodes used to carry
+        // type:'' which broke batch targets, star keys and corner buttons
+        const folderItem = genFolderItem(folder, folder)
 
         const folderModels = cloneDeep(data.value[folder]) ?? []
 

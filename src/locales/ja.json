@@ -231,7 +231,7 @@
   "deleteAskSubjectMixed": "モデル {models} 件とフォルダ {folders} 件",
   "zipnnBatchCompress": "ZipNN バッチ圧縮",
   "zipnnBatchDecompress": "ZipNN バッチ解凍",
-  "zipnnBatchConfirmCompress": "{name} 内のすべての .safetensors モデルを圧縮します。完了後、フォルダは <name>_ZNN にリネームされます。",
+  "zipnnBatchConfirmCompress": "{name} 内のすべての .safetensors モデルを圧縮します。完了後、フォルダは <name>_ZNN にリネームされます（モデル種別のルートフォルダはそのままの場所で処理されます）。",
   "zipnnBatchConfirmDecompress": "{name} 内のすべての .znn.safetensors モデルを解凍します。完了後、フォルダは元の名前に戻ります。",
   "zipnnDeltaCompress": "ZipNN デルタ圧縮",
   "zipnnDeltaDecompress": "ZipNN デルタ解凍",
@@ -241,5 +241,7 @@
   "zipnnDeltaConfirmDecompress": "{name} をデルタファイルから復元します。ベースモデルが必要で、ベースモデルは変更されません。",
   "zipnnDeltaDecompressHint": "このデルタファイルからファインチューニングモデルを復元します(ベースモデルが必要)。",
   "zipnnBatchInvalidTarget": "バッチ対象が不正です: 選択フォルダを解決できませんでした。フォルダビューを開き直して再試行してください。",
-  "loading": "読み込み中..."
+  "loading": "読み込み中...",
+  "zipnnBatch": "ZipNN バッチ",
+  "zipnnBatchConfirmAuto": "フォルダを ZipNN でバッチ処理します（未圧縮モデルがあれば圧縮、圧縮済みのみなら解凍）: {name}"
 }

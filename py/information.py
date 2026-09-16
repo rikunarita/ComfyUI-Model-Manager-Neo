@@ -39,16 +39,22 @@ _SVG_ASSETS = {
     "no-preview": ("assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"),
     "zipnn-button": ("assets", "ZipNN-icon", "ZipNN-Button_Icon.svg"),
 }
-_SVG_CACHE: dict[str, tuple[str, bytes]] = {}
+_SVG_CACHE: dict[str, tuple[int, str, bytes]] = {}
 
 
 def _svg_payload(name: str) -> tuple[str, bytes]:
+    # Keyed by mtime as well: a `git pull` that replaces the artwork must be
+    # served on the next request even without a ComfyUI restart (a stale
+    # in-process cache used to keep serving the old SVG - and its old
+    # transparent-margin viewBox - forever).
+    path = utils.join_path(config.extension_uri, *_SVG_ASSETS[name])
+    mtime = os.stat(path).st_mtime_ns
     hit = _SVG_CACHE.get(name)
-    if hit is not None:
-        return hit
-    body = open(utils.join_path(config.extension_uri, *_SVG_ASSETS[name]), "rb").read()
+    if hit is not None and hit[0] == mtime:
+        return hit[1], hit[2]
+    body = open(path, "rb").read()
     etag = f'"svg-{hashlib.sha256(body).hexdigest()[:16]}"'
-    _SVG_CACHE[name] = (etag, body)
+    _SVG_CACHE[name] = (mtime, etag, body)
     return etag, body
 
 

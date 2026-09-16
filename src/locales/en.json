@@ -231,7 +231,7 @@
   "deleteAskSubjectMixed": "{models} model(s) and {folders} folder(s)",
   "zipnnBatchCompress": "ZipNN batch compress",
   "zipnnBatchDecompress": "ZipNN batch decompress",
-  "zipnnBatchConfirmCompress": "Compress every .safetensors model in: {name}? Each folder is renamed to <name>_ZNN afterwards.",
+  "zipnnBatchConfirmCompress": "Compress every .safetensors model in {name}. When done, the folder is renamed to <name>_ZNN (model-type root folders are processed in place).",
   "zipnnBatchConfirmDecompress": "Decompress every .znn.safetensors model in: {name}? Each folder is renamed back to its original name afterwards.",
   "zipnnDeltaCompress": "ZipNN delta compress",
   "zipnnDeltaDecompress": "ZipNN delta decompress",
@@ -241,5 +241,7 @@
   "zipnnDeltaConfirmDecompress": "Restore {name} from its delta file? The base model is required and stays untouched.",
   "zipnnDeltaDecompressHint": "Restore the fine-tuned model from this delta file (needs the base model).",
   "zipnnBatchInvalidTarget": "Invalid batch target: the selected folder could not be resolved. Re-open the folder view and try again.",
-  "loading": "Loading..."
+  "loading": "Loading...",
+  "zipnnBatch": "ZipNN batch",
+  "zipnnBatchConfirmAuto": "Batch-process the folder with ZipNN (compress plain models, or decompress if it only holds bundles): {name}?"
 }

@@ -897,10 +897,21 @@ export const useModelNodeAction = () => {
     })
   })
 
+  /** Open the model's upstream page (Civitai/HF) in a new tab. */
+  const openModelPage = (model: BaseModel) => {
+    const page = (model as BaseModel & { modelPage?: string }).modelPage
+    if (!page) {
+      toast.add({ severity: 'info', summary: t('noModelPage'), life: 4000 })
+      return
+    }
+    window.open(page, '_blank')
+  }
+
   return {
     addModelNode,
     dragToAddModelNode,
     copyModelNode,
     loadPreviewWorkflow,
+    openModelPage,
   }
 }

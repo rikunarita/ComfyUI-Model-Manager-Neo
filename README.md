@@ -329,7 +329,13 @@ follow their models), after which the folder is renamed **`<name>_ZNN`**. A
 - selecting a `*_ZNN` folder together with a non-`*_ZNN` folder is impossible —
   the bundle side is deselected automatically with a warning toast;
 - pressing the batch button on `*_ZNN` folders **decompresses** them and
-  renames them back to their original name.
+  renames them back to their original name;
+- model-type **root folders** (`checkpoints`, ...) are processed **in place** —
+  they are never renamed (a rename would detach them from ComfyUI's folder
+  mapping); the direction is auto-detected: compress while plain models exist,
+  decompress when only bundles remain;
+- while a task runs the button becomes a circular ring with the **percentage
+  inside the circle**.
 
 Several folders run as a queue: one confirmation, sequential tasks, one
 progress state at a time.

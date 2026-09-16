@@ -65,73 +65,8 @@
                   @click="handleCardClick(model)"
                   @toggle="selection.toggle(genModelKey(model))"
                 >
-                  <template #name>
-                    <div v-show="showModelName" class="absolute top-0 size-full p-2">
-                      <div class="flex h-full flex-col justify-end text-lg">
-                        <div class="text-shadow line-clamp-3 font-bold break-all">
-                          {{ model.basename }}
-                        </div>
-                      </div>
-                    </div>
-                  </template>
-
                   <template #extra>
-                    <!--
-                      BUG FIX: the wrapper is `pointer-events-none` (so the
-                      invisible buttons never swallow card clicks) but the
-                      buttons themselves never re-enabled pointer events, so
-                      every press landed on the drag overlay underneath and
-                      simply opened the card. The inner column now turns
-                      pointer-events back on exactly while the card is hovered.
-                    -->
-                    <div
-                      v-show="showModelName"
-                      class="pointer-events-none absolute top-16 right-2 opacity-0 duration-300 group-hover/card:pointer-events-auto group-hover/card:opacity-100 group-data-[dragging=true]/card:pointer-events-none! group-data-[dragging=true]/card:opacity-0!"
-                    >
-                      <div class="flex flex-col gap-2">
-                        <Button
-                          variant="secondary"
-                          size="icon-sm"
-                          class="rounded-full"
-                          :title="$t('addNode')"
-                          :aria-label="$t('addNode')"
-                          @click.stop="addModelNode(model)"
-                        >
-                          <Plus class="size-4" />
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="icon-sm"
-                          class="rounded-full"
-                          :title="$t('copyNode')"
-                          :aria-label="$t('copyNode')"
-                          @click.stop="copyModelNode(model)"
-                        >
-                          <Copy class="size-4" />
-                        </Button>
-                        <Button
-                          v-show="model.preview"
-                          variant="secondary"
-                          size="icon-sm"
-                          class="rounded-full"
-                          :title="$t('loadWorkflow')"
-                          :aria-label="$t('loadWorkflow')"
-                          @click.stop="loadPreviewWorkflow(model)"
-                        >
-                          <Workflow class="size-4" />
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="icon-sm"
-                          class="rounded-full"
-                          :title="$t('openModelPage')"
-                          :aria-label="$t('openModelPage')"
-                          @click.stop="openModelPage(model)"
-                        >
-                          <ExternalLink class="size-4" />
-                        </Button>
-                      </div>
-                    </div>
+                    <CardHoverActions :model="model" />
                   </template>
                 </ModelCard>
               </TooltipTrigger>
@@ -190,20 +125,12 @@
 </template>
 
 <script setup lang="ts" name="manager-dialog">
-import {
-  Box,
-  Copy,
-  ExternalLink,
-  GitCompareArrows,
-  ListChecks,
-  Plus,
-  Trash2,
-  Workflow,
-} from '@lucide/vue'
+import { Box, GitCompareArrows, ListChecks, Plus, Trash2 } from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import CardHoverActions from 'components/CardHoverActions.vue'
 import DialogZipnnDelta from 'components/DialogZipnnDelta.vue'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseInput from 'components/ResponseInput.vue'
@@ -226,7 +153,7 @@ const { isMobile, gutter, cardSize, cardSizeMap, cardSizeFlag, dialog: settings 
 
 const { data, folders, openModelDetail, getFullPath, remove } = useModels()
 const { t } = useI18n()
-const { toast, confirm } = useToast()
+const { confirm } = useToast()
 
 const toolbarContainer = ref<HTMLElement | null>(null)
 const { $2xl: $toolbar_2xl } = useContainerQueries(toolbarContainer)
@@ -398,11 +325,7 @@ const cardSizeOptions = computed(() => {
   })
 })
 
-const showModelName = computed(() => {
-  return cardSize.value.width > 120 && cardSize.value.height > 160
-})
-
-const { addModelNode, copyModelNode, loadPreviewWorkflow } = useModelNodeAction()
+const { addModelNode } = useModelNodeAction()
 const selection = useSelection()
 const selectionCount = selection.count
 
@@ -463,14 +386,5 @@ const deleteSelected = () => {
     },
     reject: () => {},
   })
-}
-
-const openModelPage = (model: Model) => {
-  const page = (model as Model & { modelPage?: string }).modelPage
-  if (!page) {
-    toast.add({ severity: 'info', summary: t('noModelPage'), life: 4000 })
-    return
-  }
-  window.open(page, '_blank')
 }
 </script>

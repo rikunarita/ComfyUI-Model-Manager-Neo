@@ -1179,6 +1179,11 @@ class ZipNNRoutes:
 
         compress: `X` -> every plain .safetensors becomes .znn.safetensors and
         the folder is renamed `X_ZNN`. decompress: the reverse, `X_ZNN` -> `X`.
+        Model-type root folders are processed **in place** (renaming a type
+        root would detach it from ComfyUI's folder mapping and hide the
+        bundle), and `mode="auto"` lets the server pick the direction from the
+        folder content (plain models present -> compress, only compressed
+        ones -> decompress).
         """
         data = await utils.get_request_body(request)
         if not isinstance(data, dict) or not data:
@@ -1192,7 +1197,11 @@ class ZipNNRoutes:
         model_type = data.get("type")
         path_index = int(data.get("pathIndex") or 0)
         rel_folder = str(data.get("folder") or data.get("fullname") or "").strip("/")
-        if mode not in ("compress", "decompress") or not model_type or not rel_folder:
+        if (
+            mode not in ("compress", "decompress", "auto")
+            or not model_type
+            or not rel_folder
+        ):
             utils.print_warning(
                 f"batch-folder request rejected; received keys: "
                 f"{sorted(data.keys()) if data else '<empty body>'}"
@@ -1210,20 +1219,29 @@ class ZipNNRoutes:
             folder = utils.get_full_path(model_type, path_index, rel_folder)
         except Exception as e:
             return web.json_response({"success": False, "error": str(e)})
+        # '.' is the relative path of a model-type root folder; normpath folds
+        # it into the base path so the type-root detection below works.
+        folder = os.path.normpath(folder)
         if not os.path.isdir(folder):
             return web.json_response({"success": False, "error": "folder not found"})
         bases = utils.resolve_model_base_paths().get(model_type, [])
-        if path_index < len(bases) and utils.normalize_path(folder) == utils.normalize_path(
-            bases[path_index]
-        ):
-            return web.json_response(
-                {
-                    "success": False,
-                    "error": "the model-type root folder cannot be batch-processed",
-                }
-            )
+        is_type_root = path_index < len(bases) and utils.normalize_path(
+            folder
+        ) == utils.normalize_path(bases[path_index])
 
         folder_name = os.path.basename(folder.rstrip("/"))
+        if mode == "auto":
+            if _walk_model_files(folder, "compress"):
+                mode = "compress"
+            elif _walk_model_files(folder, "decompress"):
+                mode = "decompress"
+            else:
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": "folder holds no compressible or compressed models",
+                    }
+                )
         if mode == "compress":
             if utils.is_znn_folder_name(folder_name):
                 return web.json_response(
@@ -1251,9 +1269,14 @@ class ZipNNRoutes:
                 return web.json_response(
                     {"success": False, "error": "no .safetensors files to compress"}
                 )
-            dst_folder = f"{folder}{utils.ZNN_FOLDER_SUFFIX}"
+            # type roots stay in place (a rename would hide them from ComfyUI)
+            dst_folder = folder if is_type_root else f"{folder}{utils.ZNN_FOLDER_SUFFIX}"
         else:
-            if not utils.is_znn_folder_name(folder_name):
+            if utils.is_znn_folder_name(folder_name):
+                dst_folder = folder[: -len(utils.ZNN_FOLDER_SUFFIX)]
+            elif is_type_root:
+                dst_folder = folder  # in-place decompress of a type root
+            else:
                 return web.json_response(
                     {"success": False, "error": "folder is not a ZipNN bundle (*_ZNN)"}
                 )
@@ -1262,8 +1285,7 @@ class ZipNNRoutes:
                 return web.json_response(
                     {"success": False, "error": "no .znn.safetensors files to decompress"}
                 )
-            dst_folder = folder[: -len(utils.ZNN_FOLDER_SUFFIX)]
-        if os.path.exists(dst_folder):
+        if dst_folder != folder and os.path.exists(dst_folder):
             return web.json_response(
                 {
                     "success": False,

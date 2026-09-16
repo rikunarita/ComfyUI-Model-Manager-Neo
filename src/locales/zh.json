@@ -231,7 +231,7 @@
   "deleteAskSubjectMixed": "{models} 个模型和 {folders} 个文件夹",
   "zipnnBatchCompress": "ZipNN 批量压缩",
   "zipnnBatchDecompress": "ZipNN 批量解压",
-  "zipnnBatchConfirmCompress": "压缩 {name} 内的所有 .safetensors 模型？完成后文件夹将重命名为 <name>_ZNN。",
+  "zipnnBatchConfirmCompress": "压缩 {name} 内所有 .safetensors 模型。完成后文件夹将重命名为 <name>_ZNN（模型类型根文件夹就地处理）。",
   "zipnnBatchConfirmDecompress": "解压 {name} 内的所有 .znn.safetensors 模型？完成后文件夹将恢复原名。",
   "zipnnDeltaCompress": "ZipNN 增量压缩",
   "zipnnDeltaDecompress": "ZipNN 增量解压",
@@ -241,5 +241,7 @@
   "zipnnDeltaConfirmDecompress": "从增量文件恢复 {name}？需要基础模型，基础模型不会被修改。",
   "zipnnDeltaDecompressHint": "从此增量文件恢复微调模型（需要基础模型）。",
   "zipnnBatchInvalidTarget": "批量目标无效：无法解析所选文件夹。请重新打开文件夹视图后重试。",
-  "loading": "加载中..."
+  "loading": "加载中...",
+  "zipnnBatch": "ZipNN 批量",
+  "zipnnBatchConfirmAuto": "使用 ZipNN 批量处理该文件夹（有未压缩模型则压缩，仅含压缩包则解压）：{name}"
 }

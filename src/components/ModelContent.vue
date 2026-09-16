@@ -1,10 +1,16 @@
 <template>
   <form ref="container" @submit.prevent="handleSubmit" @reset.prevent="handleReset">
-    <div class="mx-auto w-full max-w-200">
+    <!--
+      LAYOUT FIX: the form used to cap itself at `max-w-200` and centre, so on
+      wide download/detail dialogs the whole right half stayed empty while the
+      controls squeezed into a narrow middle column. The content now fills the
+      dialog and the info column stretches with it.
+    -->
+    <div class="w-full">
       <div :class="['relative flex gap-4 overflow-hidden', $xl('flex-row', 'flex-col')]">
         <ModelPreview v-model:editable="editable" class="shrink-0"></ModelPreview>
 
-        <div class="flex flex-col gap-4 overflow-hidden">
+        <div class="flex flex-1 flex-col gap-4 overflow-hidden">
           <div class="flex min-h-10 items-center justify-end gap-4">
             <slot name="action" :metadata="formInstance.metadata.value"></slot>
           </div>

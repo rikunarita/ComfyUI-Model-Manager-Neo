@@ -17,7 +17,7 @@ export const zipnnState = reactive<{
   active: boolean
   progress: number
   phase: string
-  mode: 'compress' | 'decompress' | null
+  mode: ZipnnMode | null
   targetKey: string | null
   /** The model a finished task belonged to (kept after `targetKey` clears). */
   lastTargetKey: string | null
@@ -71,7 +71,7 @@ const compactError = (raw: string): string => {
 
 /** Remembered so the "retry install" toast action can re-run the same job. */
 let lastRequest: {
-  mode: 'compress' | 'decompress'
+  mode: ZipnnMode
   model: { type: string; pathIndex: number; fullname: string }
   modelKey: string
 } | null = null
@@ -171,7 +171,12 @@ api.addEventListener('zipnn_complete', (event: CustomEvent) => {
           ? {
               label: t('zipnnRetryInstall'),
               onClick: () => {
-                void startZipnn(retry.mode, retry.model, retry.modelKey, { force: true })
+                void startZipnn(
+                  retry.mode === 'auto' ? 'compress' : retry.mode,
+                  retry.model,
+                  retry.modelKey,
+                  { force: true },
+                )
               },
             }
           : undefined,
@@ -250,19 +255,20 @@ export const zipnnRunningFor = (modelKey: string | null) =>
  * The completion handler starts the next entry (and drops the queue on
  * failure).
  */
+/** Direction of a ZipNN task; `auto` is resolved by the backend. */
+export type ZipnnMode = 'compress' | 'decompress' | 'auto'
+
 export interface ZipnnBatchItem {
-  mode: 'compress' | 'decompress'
+  /** `auto` lets the backend pick the direction from the folder content. */
+  mode: ZipnnMode
   folder: { type: string; pathIndex: number; folder: string }
   key: string
 }
 
 const batchQueue: ZipnnBatchItem[] = []
 
-export const queueZipnnBatches = (
-  mode: 'compress' | 'decompress',
-  items: Omit<ZipnnBatchItem, 'mode'>[],
-) => {
-  batchQueue.push(...items.map(item => ({ ...item, mode })))
+export const queueZipnnBatches = (items: ZipnnBatchItem[]) => {
+  batchQueue.push(...items)
   const next = batchQueue.shift()
   if (next) void startZipnnBatch(next.mode, next.folder, next.key)
 }
@@ -273,7 +279,7 @@ export const queueZipnnBatches = (
  * backend once every file succeeded.
  */
 export const startZipnnBatch = async (
-  mode: 'compress' | 'decompress',
+  mode: ZipnnMode,
   folder: { type: string; pathIndex: number; folder: string },
   folderKey: string,
 ): Promise<void> => {

@@ -94,9 +94,12 @@ to go back. Right‑click a model for the context menu (**Open**).
 
 The row next to the search box offers **Add Folder** (folder‑plus icon): type
 any name and the folder is created inside the directory you are browsing
-(names ending in `_ZNN` / `_DeltaZNN` are reserved for ZipNN). The former
-hamburger/"filter" toggle was removed — navigating folders by name makes it
-redundant; the card size stays adjustable in the flat layout.
+(names ending in `_ZNN` / `_DeltaZNN` are reserved for ZipNN). Next to the
+search box you also find the **sort order** and **card size** selects: the
+folder view is designed as "the flat view scoped to one folder, plus the
+folder-only extras (parent navigation, folder creation, folder compression)",
+so model cards look and behave identically in both layouts — including the
+hover column with add-node / copy / workflow / model-page buttons.
 
 Both layouts share the **show/hide hidden files** header button (files and
 folders whose name starts with `.`).
@@ -364,8 +367,12 @@ bar (or use the corner button on a folder card). After a confirmation, every
 follow their models — and the folder is renamed **`<name>_ZNN`**. Such a bundle
 folder is sealed: only `*.znn.*` models can live inside it (uploads, downloads
 and moves of plain models into it are refused), and pressing the batch button
-on a `*_ZNN` folder **decompresses** it and renames it back. Several folders
-run one after another behind a single confirmation.
+on a `*_ZNN` folder **decompresses** it and renames it back. Model-type root
+folders (`checkpoints`, ...) are processed **in place** (never renamed, since a
+rename would detach them from ComfyUI's folder mapping) and their direction is
+auto-detected: compress while plain models exist, decompress when only bundles
+remain. While a task runs, the button shows a circular ring with the percentage
+inside. Several folders run one after another behind a single confirmation.
 
 ### ZipNN delta compression (fine-tunes)
 

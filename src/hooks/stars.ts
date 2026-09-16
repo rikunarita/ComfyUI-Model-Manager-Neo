@@ -17,10 +17,31 @@ export const starState = reactive<{ models: string[]; folders: string[] }>({
   folders: [],
 })
 
+/**
+ * One-shot migration: type-root folder nodes used to carry `type: ''`, so
+ * their persisted star keys began with ':' (e.g. `:0::checkpoints`). They now
+ * carry their real type (`checkpoints:0::checkpoints`); rewrite the legacy
+ * keys on load so existing stars survive the fix.
+ */
+const migrateFolderKey = (key: string): string => {
+  if (!key.startsWith(':')) return key
+  const parts = key.split(':')
+  if (parts.length === 4 && parts[0] === '' && parts[2] === '' && parts[3] !== '') {
+    return `${parts[3]}:${parts[1]}::${parts[3]}`
+  }
+  return key
+}
+
 /** Read the persisted sets once at startup (App.vue onMounted). */
 export const loadStars = () => {
   starState.models = [...(app.ui?.settings.getSettingValue<string[]>(STAR_SETTING_MODELS) ?? [])]
-  starState.folders = [...(app.ui?.settings.getSettingValue<string[]>(STAR_SETTING_FOLDERS) ?? [])]
+  starState.folders = Array.from(
+    new Set(
+      (app.ui?.settings.getSettingValue<string[]>(STAR_SETTING_FOLDERS) ?? []).map(
+        migrateFolderKey,
+      ),
+    ),
+  )
 }
 
 const persist = (kind: 'models' | 'folders') => {

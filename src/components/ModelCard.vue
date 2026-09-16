@@ -20,10 +20,23 @@
       </div>
 
       <slot name="name">
-        <div class="flex justify-center overflow-hidden px-1">
+        <!--
+          Unified card look: folder cards keep the compact bottom strip while
+          model cards render the large overlay caption (hidden on tiny card
+          sizes). Every view uses this same default, so flat and folder views
+          no longer drift apart visually.
+        -->
+        <div v-if="model.isFolder" class="flex justify-center overflow-hidden px-1">
           <span class="truncate">
             {{ model.basename }}
           </span>
+        </div>
+        <div v-else v-show="showModelName" class="pointer-events-none absolute top-0 size-full p-2">
+          <div class="flex h-full flex-col justify-end text-lg">
+            <div class="text-shadow line-clamp-3 font-bold break-all">
+              {{ model.basename }}
+            </div>
+          </div>
         </div>
       </slot>
     </div>
@@ -95,28 +108,33 @@
         @click.stop.prevent="requestZipnn"
         @dblclick.stop.prevent
       >
-        <svg v-if="zipnnRunning" viewBox="0 0 36 36" class="size-full -rotate-90">
-          <circle
-            cx="18"
-            cy="18"
-            r="15"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="4"
-            class="text-mm-fg/25"
-          />
-          <circle
-            cx="18"
-            cy="18"
-            r="15"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="4"
-            stroke-linecap="round"
-            :stroke-dasharray="`${(zipnnProgress * 94.25) / 100} 94.25`"
-            class="text-mm-accent"
-          />
-        </svg>
+        <span v-if="zipnnRunning" class="relative grid size-full place-items-center">
+          <svg viewBox="0 0 36 36" class="size-full -rotate-90">
+            <circle
+              cx="18"
+              cy="18"
+              r="15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="4"
+              class="text-mm-fg/25"
+            />
+            <circle
+              cx="18"
+              cy="18"
+              r="15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="4"
+              stroke-linecap="round"
+              :stroke-dasharray="`${(zipnnProgress * 94.25) / 100} 94.25`"
+              class="text-mm-accent"
+            />
+          </svg>
+          <span class="absolute text-[10px] leading-none font-bold text-mm-accent tabular-nums">
+            {{ Math.round(zipnnProgress) }}%
+          </span>
+        </span>
         <img
           v-else
           :src="zipnnIcon"
@@ -160,6 +178,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import FolderIcon from 'components/FolderIcon.vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
+import { useConfig } from 'hooks/config'
 import { genModelFullName, useModelNodeAction } from 'hooks/model'
 import { isFolderStarred, isModelStarred, toggleFolderStar, toggleModelStar } from 'hooks/stars'
 import { useToast } from 'hooks/toast'
@@ -222,6 +241,9 @@ const onDragEnd = (model: BaseModel, event: DragEvent) => {
 }
 
 const badgeScale = computed(() => props.width / 200)
+/** Caption/hover-column visibility rule, identical in every view. */
+const { cardSize } = useConfig()
+const showModelName = computed(() => cardSize.value.width > 120 && cardSize.value.height > 160)
 
 const { dragToAddModelNode } = useModelNodeAction()
 
@@ -246,8 +268,15 @@ const isTypeRootFolder = computed(
   () => isFolder.value && !props.model.subFolder && props.model.basename === props.model.type,
 )
 const zipnnApplicable = computed(() => {
-  if (isFolder.value) return !isDeltaFolderName(folderName.value) && !isTypeRootFolder.value
+  // Every folder except delta bundles is a batch target; type roots are
+  // processed in place by the backend (no *_ZNN rename).
+  if (isFolder.value) return !isDeltaFolderName(folderName.value)
   return isCompressedModel.value || props.model.extension === '.safetensors'
+})
+/** Direction of the folder batch: bundles decompress, type roots auto. */
+const zipnnFolderMode = computed<'compress' | 'decompress' | 'auto'>(() => {
+  if (isZnnFolderName(folderName.value)) return 'decompress'
+  return isTypeRootFolder.value ? 'auto' : 'compress'
 })
 const zipnnInverted = computed(() => {
   if (isFolder.value) return isZnnFolderName(folderName.value)
@@ -258,7 +287,8 @@ const zipnnRunning = computed(() => zipnnRunningFor(modelKey.value))
 const zipnnProgress = computed(() => zipnnState.progress)
 const zipnnLabel = computed(() => {
   if (isFolder.value) {
-    return isZnnFolderName(folderName.value) ? t('zipnnBatchDecompress') : t('zipnnBatchCompress')
+    if (isZnnFolderName(folderName.value)) return t('zipnnBatchDecompress')
+    return isTypeRootFolder.value ? t('zipnnBatch') : t('zipnnBatchCompress')
   }
   if (isDeltaModel.value) return t('zipnnDeltaDecompress')
   return isCompressedModel.value ? t('zipnnDecompress') : t('zipnnCompress')
@@ -268,23 +298,28 @@ const requestZipnn = () => {
   const model = props.model
   const key = modelKey.value
   if (isFolder.value) {
-    const decompressing = isZnnFolderName(folderName.value)
-    const folderRel = genModelFullName(model)
+    const mode = zipnnFolderMode.value
+    // type-root folders address themselves as '.' (their own base path)
+    const folderRel = isTypeRootFolder.value ? '.' : genModelFullName(model)
     if (!model.type || !folderRel) {
       toast.add({ severity: 'warn', summary: t('zipnnBatchInvalidTarget'), life: 8000 })
       return
     }
-    confirm.require({
-      message: decompressing
+    const message =
+      mode === 'decompress'
         ? t('zipnnBatchConfirmDecompress', { name: folderName.value })
-        : t('zipnnBatchConfirmCompress', { name: folderName.value }),
-      header: decompressing ? t('zipnnBatchDecompress') : t('zipnnBatchCompress'),
+        : mode === 'auto'
+          ? t('zipnnBatchConfirmAuto', { name: folderName.value })
+          : t('zipnnBatchConfirmCompress', { name: folderName.value })
+    confirm.require({
+      message,
+      header: zipnnLabel.value,
       icon: 'pi pi-info-circle',
       rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
-      acceptProps: { label: decompressing ? t('zipnnBatchDecompress') : t('zipnnBatchCompress') },
+      acceptProps: { label: zipnnLabel.value },
       accept: () => {
         void startZipnnBatch(
-          decompressing ? 'decompress' : 'compress',
+          mode,
           {
             type: model.type,
             pathIndex: model.pathIndex,
