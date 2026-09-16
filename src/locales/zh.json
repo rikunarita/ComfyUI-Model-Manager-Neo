@@ -239,5 +239,6 @@
   "zipnnDeltaFt": "微调模型",
   "zipnnDeltaHint": "微调模型将被替换为 <base>_DeltaZNN/ 目录内的极小增量文件；日后恢复需要基础模型。",
   "zipnnDeltaConfirmDecompress": "从增量文件恢复 {name}？需要基础模型，基础模型不会被修改。",
-  "zipnnDeltaDecompressHint": "从此增量文件恢复微调模型（需要基础模型）。"
+  "zipnnDeltaDecompressHint": "从此增量文件恢复微调模型（需要基础模型）。",
+  "zipnnBatchInvalidTarget": "批量目标无效：无法解析所选文件夹。请重新打开文件夹视图后重试。"
 }

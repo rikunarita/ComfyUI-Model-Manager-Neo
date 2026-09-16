@@ -277,6 +277,17 @@ export const startZipnnBatch = async (
   folder: { type: string; pathIndex: number; folder: string },
   folderKey: string,
 ): Promise<void> => {
+  // Client-side guard: never send an incomplete payload (the backend rejects
+  // it with "mode, type and folder are required").
+  if (!folder || !folder.type || !folder.folder) {
+    toast.add({
+      severity: 'error',
+      summary: t('error'),
+      detail: t('zipnnBatchInvalidTarget'),
+      life: 8000,
+    })
+    return
+  }
   lastRequest = {
     mode,
     model: { type: folder.type, pathIndex: folder.pathIndex, fullname: folder.folder },

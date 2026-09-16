@@ -338,7 +338,8 @@ A fine-tuned model shares most of its bytes with its base, and ZipNN can store
 only the **difference**: select exactly two plain `.safetensors` models and
 press **ZipNN delta compress** in the bottom bar. A small dialog lets you pick
 which selection is the **base** and which the **fine-tune** (the official
-file-level API, `ZipNN(delta_compressed_type="file")`, is used under the hood).
+byte-level delta API with header-length alignment is used under the hood, so
+base and fine-tune may carry different metadata).
 The result — typically a few percent of the fine-tune's size — is written to
 **`<base>_DeltaZNN/<ft>_delta_<base>.znn`** and the redundant fine-tune file is
 removed. Decompressing a delta (its card button, inverted) restores the

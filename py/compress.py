@@ -852,33 +852,105 @@ def batch_process_folder(
     return {"files": len(files)}
 
 
+def _safetensors_split(path: str) -> tuple[int, bytes, bytes]:
+    """(header_len, header_bytes, data_bytes) of a safetensors file."""
+    import struct
+
+    with open(path, "rb") as f:
+        (header_len,) = struct.unpack("<Q", f.read(8))
+        header = f.read(header_len)
+        data = f.read()
+    return header_len, header, data
+
+
+def _delta_aligned_bytes(base_path: str, ft_path: str) -> tuple[bytes, bytes, dict]:
+    """Byte-equal-length renderings of both files for ZipNN's file-level delta.
+
+    ZipNN's delta mode XOR-compares raw bytes, so both files must have the
+    *same total length*. Fine-tunes of the same architecture always have an
+    identical data section, but their JSON headers routinely differ (extra /
+    renamed metadata keys), which shifts the total length and made ZipNN die
+    with "Length of delta file has to match the length of the original file."
+    A safetensors header is JSON, and trailing spaces inside the header region
+    are valid JSON whitespace - so the shorter header is space-padded (and the
+    8-byte length prefix adjusted) until both renderings match. The padding is
+    recorded in a sidecar so decompression can restore the *exact* original
+    bytes. If the DATA sections themselves differ, the models are not the same
+    architecture and delta compression is genuinely impossible.
+    """
+    import struct
+
+    base_len, base_header, base_data = _safetensors_split(base_path)
+    ft_len, ft_header, ft_data = _safetensors_split(ft_path)
+    if len(base_data) != len(ft_data):
+        raise RuntimeError(
+            "the two models have different tensor data sizes "
+            f"({len(base_data)} vs {len(ft_data)} bytes): delta compression "
+            "only works between a base and a fine-tune with the exact same "
+            "architecture and tensor layout"
+        )
+    pad_base = max(0, ft_len - base_len)
+    pad_ft = max(0, base_len - ft_len)
+    base_bytes = (
+        struct.pack("<Q", base_len + pad_base)
+        + base_header
+        + b" " * pad_base
+        + base_data
+    )
+    ft_bytes = struct.pack("<Q", ft_len + pad_ft) + ft_header + b" " * pad_ft + ft_data
+    return base_bytes, ft_bytes, {"basePad": pad_base, "ftPad": pad_ft}
+
+
+def _delta_unpad(restored: bytes, pad: int) -> bytes:
+    """Undo `_delta_aligned_bytes` padding (byte-exact original file)."""
+    import struct
+
+    if not pad:
+        return restored
+    (padded_len,) = struct.unpack("<Q", restored[:8])
+    original_len = padded_len - pad
+    header = restored[8 : 8 + original_len]
+    data = restored[8 + padded_len :]
+    return struct.pack("<Q", original_len) + header + data
+
+
+def _delta_meta_path(delta_path: str) -> str:
+    return f"{delta_path}.neo-delta.json"
+
+
 def delta_compress_files(
     base_path: str, ft_path: str, out_path: str, progress: ProgressCb
 ) -> dict[str, Any]:
     """Delta-compress `ft_path` against `base_path` (official file-level API).
 
-    `ZipNN(delta_compressed_type="file").compress(ft_bytes, delta_second_data=
-    base)` stores only the difference; both files must have the same byte
-    length (same architecture), which ZipNN itself verifies.
+    `ZipNN(delta_compressed_type="byte").compress(ft_bytes, delta_second_data=
+    base_bytes)` stores only the difference; both sides are header-padded to
+    equal length first (see `_delta_aligned_bytes`). The padding sidecar travels
+    with the delta file so decompression restores the fine-tune byte-exactly.
     """
+    import json
+
     from zipnn import ZipNN
     from zipnn.util_safetensors import COMPRESSION_METHOD
 
+    base_bytes, ft_bytes, meta = _delta_aligned_bytes(base_path, ft_path)
+    # `delta_compressed_type="byte"` (not "file"): the "file" mode re-reads the
+    # base from disk by path, which would bypass the header padding above.
     zpn = ZipNN(
         bytearray_dtype="float32",
-        delta_compressed_type="file",
+        delta_compressed_type="byte",
         method=COMPRESSION_METHOD,
     )
-    with open(ft_path, "rb") as f:
-        ft_bytes = f.read()
     progress(1, 3, "delta")
-    compressed = zpn.compress(ft_bytes, delta_second_data=base_path)
+    compressed = zpn.compress(ft_bytes, delta_second_data=base_bytes)
     progress(2, 3, "delta")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     tmp = f"{out_path}.tmp"
     with open(tmp, "wb") as f:
         f.write(compressed)
     os.replace(tmp, out_path)
+    with open(_delta_meta_path(out_path), "w", encoding="utf-8") as f:
+        json.dump(meta, f)
     progress(3, 3, "delta")
     return {"originalBytes": len(ft_bytes), "compressedBytes": len(compressed)}
 
@@ -887,14 +959,34 @@ def delta_decompress_file(
     base_path: str, delta_path: str, out_path: str, progress: ProgressCb
 ) -> dict[str, Any]:
     """Restore the exact fine-tuned bytes from a delta file + its base model."""
+    import json
+
     from zipnn import ZipNN
 
-    zpn = ZipNN(is_streaming=True, delta_compressed_type="file")
+    meta: dict[str, int] = {}
+    try:
+        with open(_delta_meta_path(delta_path), "r", encoding="utf-8") as f:
+            meta = json.load(f)
+    except Exception:
+        meta = {}
+    # Rebuild the padded base rendering exactly as compress saw it.
+    import struct
+
+    base_len, base_header, base_data = _safetensors_split(base_path)
+    pad_base = int(meta.get("basePad", 0))
+    base_bytes = (
+        struct.pack("<Q", base_len + pad_base)
+        + base_header
+        + b" " * pad_base
+        + base_data
+    )
+    zpn = ZipNN(is_streaming=True, delta_compressed_type="byte")
     with open(delta_path, "rb") as f:
         delta_bytes = f.read()
     progress(1, 3, "delta")
-    restored = zpn.decompress(delta_bytes, delta_second_data=base_path)
+    restored_padded = zpn.decompress(delta_bytes, delta_second_data=base_bytes)
     progress(2, 3, "delta")
+    restored = _delta_unpad(restored_padded, int(meta.get("ftPad", 0)))
     tmp = f"{out_path}.tmp"
     with open(tmp, "wb") as f:
         f.write(restored)
@@ -1059,13 +1151,30 @@ class ZipNNRoutes:
         the folder is renamed `X_ZNN`. decompress: the reverse, `X_ZNN` -> `X`.
         """
         data = await utils.get_request_body(request)
+        if not isinstance(data, dict) or not data:
+            # Defensive: some proxies/middlewares re-encode JSON bodies; fall
+            # back to form parsing so a legit click can never die here.
+            try:
+                data = dict(await request.post())
+            except Exception:
+                data = {}
         mode = data.get("mode")
         model_type = data.get("type")
         path_index = int(data.get("pathIndex") or 0)
-        rel_folder = (data.get("folder") or "").strip("/")
+        rel_folder = str(data.get("folder") or data.get("fullname") or "").strip("/")
         if mode not in ("compress", "decompress") or not model_type or not rel_folder:
+            utils.print_warning(
+                f"batch-folder request rejected; received keys: "
+                f"{sorted(data.keys()) if data else '<empty body>'}"
+            )
             return web.json_response(
-                {"success": False, "error": "mode, type and folder are required"}
+                {
+                    "success": False,
+                    "error": (
+                        "mode, type and folder are required (received: "
+                        f"{', '.join(sorted(data.keys())) if data else 'empty body'})"
+                    ),
+                }
             )
         try:
             folder = utils.get_full_path(model_type, path_index, rel_folder)
@@ -1369,6 +1478,12 @@ class ZipNNRoutes:
                 else:
                     _sidecar_move(second, dst)
                     os.remove(second)
+                    sidecar_meta = _delta_meta_path(second)
+                    if os.path.exists(sidecar_meta):
+                        try:
+                            os.remove(sidecar_meta)
+                        except OSError:
+                            pass
                     try:
                         if not os.listdir(delta_dir):
                             os.rmdir(delta_dir)

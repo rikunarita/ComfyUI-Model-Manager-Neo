@@ -239,5 +239,6 @@
   "zipnnDeltaFt": "Fine-tuned model",
   "zipnnDeltaHint": "The fine-tuned model is replaced by a tiny delta file inside <base>_DeltaZNN/. Restoring it later needs the base model.",
   "zipnnDeltaConfirmDecompress": "Restore {name} from its delta file? The base model is required and stays untouched.",
-  "zipnnDeltaDecompressHint": "Restore the fine-tuned model from this delta file (needs the base model)."
+  "zipnnDeltaDecompressHint": "Restore the fine-tuned model from this delta file (needs the base model).",
+  "zipnnBatchInvalidTarget": "Invalid batch target: the selected folder could not be resolved. Re-open the folder view and try again."
 }
