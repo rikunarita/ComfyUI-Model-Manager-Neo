@@ -44,6 +44,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   'metadata',
   'modelPage',
   'preview',
+  'website',
 ])
 
 export interface InformationRow {
@@ -143,8 +144,9 @@ const textRow = (
  *
  * Order: author, baseModel, the flattened `hashes` (sub-key names verbatim),
  * the flattened `metadata` (`format` / `fp` localised, `isRequired` / `size`
- * dropped, other sub-keys verbatim), `modelPage`, `preview` (every URL), and
- * finally all unknown top-level keys verbatim, in their original order.
+ * dropped, other sub-keys verbatim), `website` (the model platform),
+ * `modelPage`, `preview` (every URL), and finally all unknown top-level keys
+ * verbatim, in their original order.
  */
 export const buildInformationRows = (description: string | undefined | null): InformationRow[] => {
   const frontmatter = parseFrontmatter(description)
@@ -182,6 +184,10 @@ export const buildInformationRows = (description: string | undefined | null): In
     const row = textRow('metadata', { raw: 'metadata' }, frontmatter.metadata)
     if (row) rows.push(row)
   }
+
+  // website: the model's source platform (Civitai / HuggingFace / ...).
+  const website = textRow('website', { key: 'info.website' }, frontmatter.website)
+  if (website) rows.push(website)
 
   const modelPage = toText(frontmatter.modelPage)
   if (modelPage) {

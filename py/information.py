@@ -38,6 +38,9 @@ _SVG_ASSETS = {
     "folder-closing": ("assets", "Folder-Icons", "folder-closing-animation.svg"),
     "no-preview": ("assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"),
     "zipnn-button": ("assets", "ZipNN-icon", "ZipNN-Button_Icon.svg"),
+    # Model-hub logos, worn as the background of the "open model page" button.
+    "civitai-icon": ("assets", "AIModelHub-Logos", "civitai-icon.svg"),
+    "hf-icon": ("assets", "AIModelHub-Logos", "hf-icon.svg"),
 }
 _SVG_CACHE: dict[str, tuple[int, str, bytes]] = {}
 

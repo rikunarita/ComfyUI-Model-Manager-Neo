@@ -22,35 +22,44 @@ def _preview_field_keys(model_data: dict) -> list[str]:
     return [key for _, key in sorted(keys)]
 
 
-_MODEL_PAGE_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
+_MODEL_PAGE_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.S)
 
 
-def _model_page_of(names: set[str], basename: str, directory: str, sub_folder: str) -> str | None:
-    """The model page URL recorded in the notes front-matter, if any.
+def _model_site_info_of(
+    names: set[str], basename: str, directory: str, sub_folder: str
+) -> tuple[str | None, str | None]:
+    """The model page URL and platform recorded in the notes front-matter.
 
-    Civitai / HuggingFace downloads store `modelPage` in the YAML front-matter
-    of the `.md` sidecar. Reading just that header (a few hundred bytes) at
-    scan time is what lets the grid offer an "open model page" action without
-    loading every description in full.
+    Civitai / HuggingFace downloads store `modelPage` and `website` in the YAML
+    front-matter of the `.md` sidecar. Reading just that header (a few hundred
+    bytes) at scan time is what lets the grid offer an "open model page" action
+    - wearing the platform's logo as its background - without loading every
+    description in full.
     """
     candidate = f"{basename}.md"
     if candidate not in names:
-        return None
+        return None, None
     path = utils.join_path(directory, sub_folder, candidate) if sub_folder else utils.join_path(directory, candidate)
     try:
         with open(path, "r", encoding="utf-8") as f:
             head = f.read(4096)
     except OSError:
-        return None
+        return None, None
     match = _MODEL_PAGE_RE.match(head)
     if not match:
-        return None
+        return None, None
     try:
         meta = yaml.safe_load(match.group(1)) or {}
     except Exception:
-        return None
-    page = meta.get("modelPage") if isinstance(meta, dict) else None
-    return page if isinstance(page, str) and page.startswith("http") else None
+        return None, None
+    if not isinstance(meta, dict):
+        return None, None
+    page = meta.get("modelPage")
+    platform = meta.get("website")
+    return (
+        page if isinstance(page, str) and page.startswith("http") else None,
+        platform if isinstance(platform, str) and platform.strip() else None,
+    )
 
 
 class ModelManager:
@@ -310,6 +319,11 @@ class ModelManager:
                 return None
 
             stat = entry.stat()
+            model_page, model_platform = (
+                _model_site_info_of(names, basename, directory=base_path, sub_folder=sub_folder)
+                if is_file
+                else (None, None)
+            )
             return {
                 "type": folder,
                 "subFolder": sub_folder,
@@ -319,9 +333,10 @@ class ModelManager:
                 "pathIndex": path_index,
                 "sizeBytes": stat.st_size if is_file else 0,
                 "preview": model_preview,
-                "modelPage": _model_page_of(names, basename, directory=base_path, sub_folder=sub_folder)
-                if is_file
-                else None,
+                "modelPage": model_page,
+                # `website` of the notes front-matter: drives the platform logo
+                # on the "open model page" button and the Information table.
+                "modelPlatform": model_platform,
                 "createdAt": round(stat.st_ctime_ns / 1000000),
                 "updatedAt": round(stat.st_mtime_ns / 1000000),
             }

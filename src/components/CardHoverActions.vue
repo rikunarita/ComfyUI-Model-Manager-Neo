@@ -6,6 +6,7 @@ import { Button } from 'components/ui/button'
 import { useConfig } from 'hooks/config'
 import { useModelNodeAction } from 'hooks/model'
 import { type Model } from 'types/typings'
+import { platformBackgroundStyle, platformLogo } from 'utils/media'
 
 const { model } = defineProps<{ model: Model }>()
 
@@ -71,6 +72,8 @@ const showActions = computed(() => cardSize.value.width > 120 && cardSize.value.
         variant="secondary"
         size="icon-sm"
         class="rounded-full"
+        :class="platformLogo(model.modelPlatform) && 'border-transparent text-white'"
+        :style="platformBackgroundStyle(model.modelPlatform)"
         :title="t('openModelPage')"
         :aria-label="t('openModelPage')"
         @click.stop="openModelPage(model)"

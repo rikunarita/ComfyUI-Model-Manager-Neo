@@ -116,7 +116,8 @@
     "fp": "精度",
     "modelPage": "模型页面",
     "preview": "预览图",
-    "fileMetadata": "Safetensors 元数据"
+    "fileMetadata": "Safetensors 元数据",
+    "website": "模型平台"
   },
   "setting": {
     "apiKey": "密钥",

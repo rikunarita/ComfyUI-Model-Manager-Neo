@@ -27,6 +27,36 @@ export const ASSET_BASE = '/model-manager/assets'
 
 export const assetUrl = (name: string) => `${ASSET_BASE}/${name}.svg`
 
+/**
+ * Model-hub logos (`assets/AIModelHub-Logos/`), worn as the background of the
+ * "open model page" button whenever the model's notes record which platform
+ * it came from (the `website` key of the front-matter, surfaced by the scan
+ * as `modelPlatform`).
+ */
+const PLATFORM_LOGO: Record<string, string> = {
+  civitai: assetUrl('civitai-icon'),
+  huggingface: assetUrl('hf-icon'),
+}
+
+/** The logo URL of a model platform, if Neo ships one for it. */
+export const platformLogo = (platform: string | undefined): string | undefined =>
+  platform ? PLATFORM_LOGO[platform.trim().toLowerCase()] : undefined
+
+/**
+ * Background style putting the platform logo behind the "open model page"
+ * button. A translucent dark layer keeps the white link glyph readable on
+ * both logos; without a known platform the button keeps its plain chrome.
+ */
+export const platformBackgroundStyle = (platform: string | undefined) => {
+  const logo = platformLogo(platform)
+  if (!logo) return undefined
+  return {
+    backgroundImage: `linear-gradient(rgb(0 0 0 / 0.35), rgb(0 0 0 / 0.35)), url(${logo})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  }
+}
+
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.m4v', '.ogv']
 
 const VIDEO_HOST_PATTERNS = [

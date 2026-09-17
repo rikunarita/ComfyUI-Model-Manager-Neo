@@ -78,6 +78,8 @@
               v-show="model.modelPage"
               variant="ghost"
               size="icon-action"
+              :class="platformLogo(model.modelPlatform) && 'text-white'"
+              :style="platformBackgroundStyle(model.modelPlatform)"
               :title="$t('openModelPage')"
               :aria-label="$t('openModelPage')"
               @click="openModelPage(model.modelPage)"
@@ -151,7 +153,7 @@ import { isModelStarred, toggleModelStar } from 'hooks/stars'
 import { useToast } from 'hooks/toast'
 import { startZipnn, startZipnnDeltaDecompress, zipnnRunningFor, zipnnState } from 'hooks/zipnn'
 import { type BaseModel, type Model, type WithResolved } from 'types/typings'
-import { assetUrl } from 'utils/media'
+import { assetUrl, platformBackgroundStyle, platformLogo } from 'utils/media'
 import { genModelKey } from 'utils/model'
 
 interface Props {

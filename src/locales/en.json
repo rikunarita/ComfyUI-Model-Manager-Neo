@@ -116,7 +116,8 @@
     "fp": "Precision",
     "modelPage": "Model Page",
     "preview": "Preview Images",
-    "fileMetadata": "Safetensors Metadata"
+    "fileMetadata": "Safetensors Metadata",
+    "website": "Model Platform"
   },
   "setting": {
     "apiKey": "API Key",

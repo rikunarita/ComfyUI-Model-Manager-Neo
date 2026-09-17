@@ -231,13 +231,17 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - Inspect file info and read everything recorded about a model in the
   read‑only **Information** table: the notes' YAML front‑matter parsed into
   author, base model, every hash (`AutoV1` … `SHA256_12`), format & precision,
-  a model‑page link and all preview URLs (unknown keys verbatim at the end),
-  or the safetensors `__metadata__` block, verbatim, for models without one.
+  the model platform, a model‑page link and all preview URLs (unknown keys
+  verbatim at the end), or the safetensors `__metadata__` block, verbatim, for
+  models without one.
 - Rename, move between folders/types, or **permanently delete** a model together
   with its previews and notes.
 - Read, edit and save Markdown notes stored beside the model.
 - Change or remove a model's preview image — the gallery page left open on
   save becomes the card's primary preview.
+- The **Open model page** action wears the logo of the model's source hub
+  (Civitai or Hugging Face) as its button background, so a model's origin is
+  recognisable at a glance.
 - Model information (safetensors metadata, Markdown notes, preview) is loaded on
   demand when a model is opened — there is no separate library‑wide scan step.
 
@@ -417,13 +421,14 @@ PrimeVue dependency itself, and the batch‑scan feature — see
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="22" height="22" align="middle" alt=""> Interface
 
-| Area              | Original                         | **Neo**                                                                         |
-| ----------------- | -------------------------------- | ------------------------------------------------------------------------------- |
-| Component library | PrimeVue 4                       | **reka‑ui** (headless) + shadcn‑vue‑style wrappers                              |
-| Styling           | Tailwind CSS v3 + PrimeVue theme | **Tailwind CSS v4** with scoped `--mm-*` design tokens                          |
-| Icons             | PrimeIcons                       | **Lucide** (`@lucide/vue`) via an icon map                                      |
-| Look & feel       | Standard PrimeVue surfaces       | **Glassmorphism** (blur, elevation, micro‑interactions), auto dark mode         |
-| Dialogs           | PrimeVue `Dialog`/`ContextMenu`  | reka‑ui dialogs, per‑dialog size/position, drag‑to‑move, anchored context menus |
+| Area              | Original                                                | **Neo**                                                                                                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Component library | PrimeVue 4                                              | **reka‑ui** (headless) + shadcn‑vue‑style wrappers                                                                                                                                                                                                    |
+| Styling           | Tailwind CSS v3 + PrimeVue theme                        | **Tailwind CSS v4** with scoped `--mm-*` design tokens                                                                                                                                                                                                |
+| Icons             | PrimeIcons                                              | **Lucide** (`@lucide/vue`) via an icon map                                                                                                                                                                                                            |
+| Look & feel       | Standard PrimeVue surfaces                              | **Glassmorphism** (blur, elevation, micro‑interactions), auto dark mode                                                                                                                                                                               |
+| Dialogs           | PrimeVue `Dialog`/`ContextMenu`                         | reka‑ui dialogs, per‑dialog size/position, drag‑to‑move, anchored context menus                                                                                                                                                                       |
+| Model detail tabs | Description + Metadata (raw safetensors `__metadata__`) | Description + **Information**: a read‑only table parsing the notes' YAML front‑matter (author, base model, hashes, format & precision, model platform, model‑page link, every preview URL, unknown keys verbatim), raw `__metadata__` as the fallback |
 
 ### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="22" height="22" align="middle" alt=""> Packages
 
@@ -464,6 +469,10 @@ The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
   vector art is never rasterised). The preview routes themselves carry **no
   fallback chain any more** — they serve real preview files or answer 404 —
   and the old flat `no-preview.png` raster is gone.
+- **Model‑hub logos** live in `AIModelHub-Logos/` (`civitai-icon.svg`,
+  `hf-icon.svg`): the **Open model page** button wears the logo of the
+  platform recorded in the model's notes (`website`) as its background, in the
+  detail action row and in the card hover column alike.
 
 ### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="22" height="22" align="middle" alt=""> Toolchain
 

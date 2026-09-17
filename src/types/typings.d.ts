@@ -21,6 +21,8 @@ export interface Model extends BaseModel {
   children?: Model[]
   /** Model page URL recorded in the notes front-matter (Civitai / HF downloads). */
   modelPage?: string
+  /** `website` of the notes front-matter: the model's source platform. */
+  modelPlatform?: string
 }
 
 export interface VersionModelFile {

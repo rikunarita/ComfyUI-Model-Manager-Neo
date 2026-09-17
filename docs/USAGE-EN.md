@@ -21,9 +21,11 @@ single bundled Vue 3 app injected into the page.
 6. [Downloading models](#6-downloading-models)
 7. [Uploading to HuggingFace](#7-uploading-to-huggingface)
 8. [Upload from a local file](#8-upload-from-a-local-file)
-9. [Settings](#9-settings)
-10. [Languages](#10-languages)
-11. [Troubleshooting](#11-troubleshooting)
+9. [Feedback, galleries and the lightbox](#9-feedback-galleries-and-the-lightbox)
+10. [Multi-select and ZipNN compression](#10-multi-select-and-zipnn-compression)
+11. [Settings](#11-settings)
+12. [Languages](#12-languages)
+13. [Troubleshooting](#13-troubleshooting)
 
 ---
 
@@ -90,9 +92,9 @@ A file‑manager style tree with a breadcrumb trail (each crumb carries a folder
 glyph). Double‑click a folder to enter it, use the breadcrumb or the ↑ button
 to go back. Right‑click a model for the context menu (**Open**). The trail
 always keeps the folder you are in readable: intermediate crumbs ellipsise
-first when the window gets narrow, and the toolbar stacks vertically below
-narrow widths — the same responsive rule as the flat view — instead of
-clipping its controls away.
+first as the window narrows, and in narrow windows the toolbar stacks
+vertically — the same responsive rule as the flat view — instead of clipping
+its controls away.
 
 ![folder layout](screenshots/view-folders-dialog.png)
 
@@ -124,7 +126,8 @@ folders whose name starts with `.`).
 - **Folder cards** — a hand‑drawn glass folder that opens after the pointer
   rests on it for a second and closes a second after it leaves.
 - **Hover actions** (flat layout, large cards) — **Add node**, **Copy node**,
-  **Load workflow from preview**.
+  **Load workflow from preview**, **Open model page** (the button wears the
+  source platform's logo as its background when the platform is known).
 - **Drag to the graph** — drag any card onto the canvas:
   - onto empty canvas: creates the matching loader node with the model selected
   - onto an existing node: fills the matching combo input
@@ -154,11 +157,14 @@ base‑info table, and two tabs.
 - **Information** tab — a read‑only table of everything recorded about the
   model. The YAML front‑matter of the notes (what Civitai / HuggingFace
   downloads write) is parsed into rows: author, base model, every file hash
-  (`AutoV1` … `SHA256_12`), format and precision, a clickable model‑page link
-  and the URLs of **all** preview images; keys the parser does not know are
-  listed verbatim at the end of the table. Models without front‑matter show
-  the `__metadata__` block read straight from the safetensors header, verbatim
-  (nothing is cached or scanned in the background).
+  (`AutoV1` … `SHA256_12`), format and precision, the model platform, a
+  clickable model‑page link and the URLs of **all** preview images; keys the
+  parser does not know are listed verbatim at the end of the table. Models
+  without front‑matter show the `__metadata__` block read straight from the
+  safetensors header, verbatim (nothing is cached or scanned in the
+  background). The **Open model page** button in the action row — like its
+  twin in the card hover column — wears the logo of the source hub (Civitai
+  or Hugging Face) as its background whenever the notes record the platform.
 
 ### Editing
 
@@ -282,7 +288,7 @@ The upload is registered as a **local task** in the Download List with accurate
 progress and completes into the chosen folder. The destination is validated
 server‑side (no arbitrary writes, no path traversal).
 
-## 8b. Feedback, galleries and the lightbox
+## 9. Feedback, galleries and the lightbox
 
 - **Toasts.** Every action reports its outcome: success (green), warning
   (amber), error (red), info (accent). Each toast carries a severity icon, a
@@ -304,7 +310,7 @@ server‑side (no arbitrary writes, no path traversal).
   (`--max-upload-size`, default 100 MB) is reported with a toast explaining
   exactly how to raise the limit, instead of a bare "HTTP 413".
 
-## 8c. Multi-select and ZipNN compression
+## 10. Multi-select and ZipNN compression
 
 ### Select files
 
@@ -406,7 +412,7 @@ button (inverted artwork) restores the fine-tuned model **byte-exactly** next
 to the base and deletes the delta folder once it empties. Restoring requires
 the base model to still be present.
 
-## 9. Settings
+## 11. Settings
 
 ComfyUI **Settings → Model Manager Neo**:
 
@@ -429,7 +435,7 @@ ComfyUI **Settings → Model Manager Neo**:
   entries; edit them through the Custom Size dialog).
 - **Flat Layout** — default layout on open.
 
-## 10. Languages
+## 12. Languages
 
 The UI follows ComfyUI’s locale (**Settings → ComfyUI → Locale**) and ships
 complete bundles for **English**, **中文** and **日本語**. Region/script
@@ -438,7 +444,7 @@ else falls back to English.
 
 ![Japanese UI](screenshots/ja-model-info.png)
 
-## 11. Troubleshooting
+## 13. Troubleshooting
 
 | Symptom                               | Cause / fix                                                                                                                                       |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
