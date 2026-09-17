@@ -1,7 +1,5 @@
 <div align="center">
 
-![QRコード](QR_663267.svg)
-
 # <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="34" height="34" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
 
 ### 閲覧 · ダウンロード · アップロード · ドラッグ&ドロップ — あなたのモデルを、美しく管理。
@@ -17,6 +15,14 @@ ComfyUI モデルマネージャーを、モダンなガラスモーフィズム
 ![ESLint](https://img.shields.io/badge/ESLint-10-4B32C3.svg?logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
+
+</div>
+
+<div align="center">
+<p align="center">
+  <img src="QR_663267.svg" width="150">
+</p>
+リポジトリのQRコードです。ご自身のデバイスにこのリポジトリを瞬時に読み込むことができます。
 
 </div>
 
