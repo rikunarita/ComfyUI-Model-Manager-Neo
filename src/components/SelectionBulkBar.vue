@@ -4,11 +4,20 @@ import SelectionBarZipnnButton from 'components/SelectionBarZipnnButton.vue'
 import { Button } from 'components/ui/button'
 import { type ModelTreeNode } from 'hooks/explorer'
 import { useFolderSelection } from 'hooks/folderSelection'
+import { cn } from 'utils/cn'
 
 interface Props {
   tree: ModelTreeNode[]
+  /**
+   * Folder-only extras (ZipNN batch button, folder star toggle). The folder
+   * view offers them; the flat view's selection is model-only and its bar
+   * never showed them.
+   */
+  folderActions?: boolean
+  /** Outer horizontal margin; matches each layout's grid padding. */
+  marginClass?: string
 }
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { folderActions: true, marginClass: 'mx-4' })
 
 const {
   selection,
@@ -34,7 +43,12 @@ const {
     `useFolderSelection`; this is the template only.
   -->
   <div
-    class="mm-glass-light mm-scope mx-4 mb-2 flex items-center justify-between gap-4 rounded-mm-ctl border border-mm-border px-4 py-2"
+    :class="
+      cn(
+        'mm-glass-light mm-scope mb-2 flex items-center justify-between gap-4 rounded-mm-ctl border border-mm-border px-4 py-2',
+        props.marginClass,
+      )
+    "
   >
     <span class="text-sm text-mm-muted-fg tabular-nums">
       {{ $t('selectedCount', { count: selectionCount }) }}
@@ -49,7 +63,7 @@ const {
         {{ $t('delete') }}
       </Button>
       <SelectionBarZipnnButton
-        :visible="selectedFolderNodes.length > 0"
+        :visible="folderActions && selectedFolderNodes.length > 0"
         :running="zipnnRunning"
         :inverted="batchInverted"
         :label="batchLabel"
@@ -68,6 +82,7 @@ const {
       </Button>
       <!-- Star toggle for the selected folders (icon only, per spec) -->
       <Button
+        v-if="folderActions"
         variant="ghost"
         size="icon-sm"
         :title="allSelectedFoldersStarred ? $t('unstar') : $t('star')"
