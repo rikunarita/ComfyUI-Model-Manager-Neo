@@ -1,5 +1,7 @@
 <div align="center">
 
+![QRコード](QR_663267.svg)
+
 # <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="34" height="34" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
 
 ### 閲覧 · ダウンロード · アップロード · ドラッグ&ドロップ — あなたのモデルを、美しく管理。
