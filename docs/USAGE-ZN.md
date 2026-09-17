@@ -80,7 +80,8 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 ### 文件夹布局
 
 带面包屑的文件管理器式树（每级带一个小文件夹图标）。双击文件夹进入，用面包屑或 ↑
-按钮返回。右键模型弹出上下文菜单（**打开**）。
+按钮返回。右键模型弹出上下文菜单（**打开**）。面包屑会始终保留当前所在文件夹的可读
+显示：窗口变窄时先省略中间层级，工具栏则折行到第二行，而不会裁掉任何控件。
 
 ![文件夹布局](screenshots/view-folders-dialog.png)
 
@@ -130,8 +131,11 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 ### 查看
 
 - **Description 标签** — 渲染保存在模型旁 `*.md` 文件中的 Markdown，链接在新标签打开。
-- **Metadata 标签** — 直接从 safetensors 头读出的 `__metadata__`
-  （没有任何后台扫描或缓存）。
+- **Information 标签** — 只读表格，汇总模型所记录的全部信息：笔记前端的 YAML
+  front-matter（Civitai / HuggingFace 下载写入的内容）会被解析为作者、基础模型、
+  全部哈希（`AutoV1` … `SHA256_12`）、格式与精度、可点击的模型页链接以及**所有**
+  预览图 URL；解析器不认识的键按原样列在表格末尾。没有 front-matter 的模型则
+  原样显示直接从 safetensors 头读出的 `__metadata__`（没有任何后台扫描或缓存）。
 
 ### 编辑
 
@@ -149,7 +153,8 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
   `…/models/unet/subfolder/`（缺少的文件夹会自动创建）。`\ : * ? " < > |` 以及空、
   `.`、`..` 段会被拒绝，后端还会再次做路径穿越校验。
 - **预览** — `默认`（轮播）/ `网络`（粘贴图片或视频 URL）/ `本地`（拖放或选择文件；
-  图片转 WebP，视频保留原格式）/ `无`（删除全部预览文件）。
+  图片转 WebP，视频保留原格式）/ `无`（删除全部预览文件）。轮播当前停留的那一页
+  就是关键：保存后该图会成为模型的**主预览**（卡片展示的图），其余图片按原顺序跟在后面。
 - **Description** — 点击提示文字旁的**编辑（铅笔）图标**打开 Markdown 文本框，
   文本框失焦即保存：
 
@@ -177,7 +182,8 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
    ![解析结果](screenshots/download-resolved.png)
 
 4. 编辑器中可设置目标类型/目录、文件名（可带文件夹前缀）、预览图与 Markdown 描述
-   （Civitai / HF 的描述会预填，包含触发词与 YAML 元数据）。
+   （Civitai / HF 的描述会预填，包含触发词与 YAML 元数据）。模型页提供的**整组预览图**
+   都会保留，轮播中选中的那张会成为卡片的主预览。
 5. **下载**启动后台任务。预览尽可能在浏览器侧获取，失败则改由服务器侧获取；两者都
    失败时模型仍然下载，只是没有预览。
 
@@ -245,6 +251,7 @@ HTTP `Range` 断点续传。
   ![toasts](screenshots/toast-stack.png)
 - **预览全部保存**。下载与保存会保留模型的全部预览图
   (`<name>.webp` / `<name>.preview.webp` / `<name>.preview2.webp` …)。
+  保存时轮播选中的图片即为主预览（卡片的封面图）。
 - **翻页**。当模型有多张预览时，预览区域会显示 **＜ / ＞ 按钮**和 `i / n`
   计数器（查看模式与编辑模式都有）。
 - **灯箱**。点按预览即全屏打开；＜ / ＞ 或方向键翻页，`Esc`、点击背景或关闭

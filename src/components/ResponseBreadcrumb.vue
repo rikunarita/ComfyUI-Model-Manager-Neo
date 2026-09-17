@@ -1,19 +1,27 @@
 <template>
   <div ref="container" class="flex items-center gap-1 overflow-hidden text-sm">
     <template v-for="(item, index) in items ?? []" :key="index">
+      <!--
+        LAYOUT FIX: in a narrow dialog the trail used to clip its LAST crumb
+        (the folder actually open) away first, because every crumb was an
+        unshrinkable flex item and `overflow-hidden` cut the tail. Now the
+        intermediate crumbs shrink and ellipsise (min-w-0 + truncate) while
+        the current folder keeps `shrink-0`, so the open folder is always
+        readable no matter how tight the toolbar gets.
+      -->
       <button
         v-if="index < (items?.length ?? 0) - 1"
         type="button"
-        class="mm-transition flex items-center gap-1 rounded-mm-ctl border-0 bg-transparent px-1 text-mm-muted-fg hover:bg-mm-fg/8 hover:text-mm-accent"
+        class="mm-transition flex min-w-0 shrink-10 items-center gap-1 rounded-mm-ctl border-0 bg-transparent px-1 text-mm-muted-fg hover:bg-mm-fg/8 hover:text-mm-accent"
         @click="item.command?.()"
       >
         <!-- the all-fit folder glyph earns its keep at tiny sizes -->
         <img :src="folderGlyph" class="size-7 shrink-0" alt="" draggable="false" />
-        {{ item.label }}
+        <span class="truncate">{{ item.label }}</span>
       </button>
-      <span v-else class="flex items-center gap-1 font-medium text-mm-fg">
+      <span v-else class="flex min-w-0 shrink items-center gap-1 font-medium text-mm-fg">
         <img :src="folderGlyph" class="size-7 shrink-0" alt="" draggable="false" />
-        {{ item.label }}
+        <span class="truncate">{{ item.label }}</span>
       </span>
       <ChevronRight
         v-if="index < (items?.length ?? 0) - 1"

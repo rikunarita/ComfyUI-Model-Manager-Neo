@@ -16,6 +16,7 @@ import {
 } from 'types/typings'
 import { bytesToSize, getFilenameFromUrl, isDirectFileUrl } from 'utils/common'
 import { NO_PREVIEW_SENTINEL, NO_PREVIEW_URL } from 'utils/media'
+import { frontmatterPreviews } from 'utils/modelInformation'
 
 export const useDownload = defineStore('download', store => {
   const { toast, confirm, wrapperToastError } = useToast()
@@ -225,6 +226,12 @@ export const useModelSearch = () => {
 
   const genFileSelectionItem = (item: VersionModel): FileSelectionVersionModel => {
     const fileSelectionItem: FileSelectionVersionModel = { ...item }
+    // The notes' front-matter is the authoritative preview list: its
+    // `preview:` key carries EVERY preview URL of the version, so the
+    // editor's gallery - and therefore the previews saved with the model -
+    // can never drop an image the model page offers.
+    const frontPreviews = frontmatterPreviews(item.description)
+    if (frontPreviews.length) fileSelectionItem.preview = frontPreviews
     fileSelectionItem.selectionFiles = fileSelectionItem.files
       ?.sort(file => (file.type === 'Model' ? -1 : 1))
       .map(file => {

@@ -109,7 +109,14 @@
     "znnCompressedSize": "圧縮後のファイルサイズ",
     "znnRatio": "圧縮前サイズ比",
     "createdAt": "作成日時",
-    "updatedAt": "更新日時"
+    "updatedAt": "更新日時",
+    "author": "作者",
+    "baseModel": "ベースモデル",
+    "format": "形式",
+    "fp": "精度",
+    "modelPage": "モデルページ",
+    "preview": "プレビュー画像",
+    "fileMetadata": "Safetensors メタデータ"
   },
   "setting": {
     "apiKey": "API キー",
@@ -244,5 +251,7 @@
   "zipnnBatchInvalidTarget": "バッチ対象が不正です: 選択フォルダを解決できませんでした。フォルダビューを開き直して再試行してください。",
   "loading": "読み込み中...",
   "zipnnBatch": "ZipNN バッチ",
-  "zipnnBatchConfirmAuto": "フォルダを ZipNN でバッチ処理します（未圧縮モデルがあれば圧縮、圧縮済みのみなら解凍）: {name}"
+  "zipnnBatchConfirmAuto": "フォルダを ZipNN でバッチ処理します（未圧縮モデルがあれば圧縮、圧縮済みのみなら解凍）: {name}",
+  "description": "説明",
+  "information": "情報"
 }

@@ -109,7 +109,14 @@
     "znnCompressedSize": "Compressed File Size",
     "znnRatio": "% of Original Size",
     "createdAt": "Created At",
-    "updatedAt": "Updated At"
+    "updatedAt": "Updated At",
+    "author": "Author",
+    "baseModel": "Base Model",
+    "format": "Format",
+    "fp": "Precision",
+    "modelPage": "Model Page",
+    "preview": "Preview Images",
+    "fileMetadata": "Safetensors Metadata"
   },
   "setting": {
     "apiKey": "API Key",
@@ -244,5 +251,7 @@
   "zipnnBatchInvalidTarget": "Invalid batch target: the selected folder could not be resolved. Re-open the folder view and try again.",
   "loading": "Loading...",
   "zipnnBatch": "ZipNN batch",
-  "zipnnBatchConfirmAuto": "Batch-process the folder with ZipNN (compress plain models, or decompress if it only holds bundles): {name}?"
+  "zipnnBatchConfirmAuto": "Batch-process the folder with ZipNN (compress plain models, or decompress if it only holds bundles): {name}?",
+  "description": "Description",
+  "information": "Information"
 }

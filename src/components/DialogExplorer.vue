@@ -3,9 +3,23 @@
     class="flex size-full flex-col overflow-hidden select-none"
     @contextmenu.prevent="nonContextMenu"
   >
-    <div class="flex w-full gap-4 overflow-hidden px-4 pb-4">
-      <div class="flex flex-1 gap-4 overflow-hidden">
-        <div class="flex overflow-hidden">
+    <!--
+      LAYOUT FIX: the toolbar used to be a single non-wrapping flex row with
+      `overflow-hidden`, so whenever the dialog was narrower than the row's
+      content (its minimum width is derived from the card size, not from the
+      toolbar) everything past the breadcrumb was clipped away: the current
+      folder crumb disappeared, the sort / card-size selects and the action
+      buttons became invisible - and an opened sort menu, which is portalled
+      to <body> and anchored on its (clipped, but still laid-out) trigger,
+      floated far outside the dialog at the trigger's off-dialog position.
+      The row now wraps: the breadcrumb keeps the first line (its last crumb
+      is never shrinkable, see ResponseBreadcrumb) and the control group
+      drops to the next line as a whole, wrapping internally on very narrow
+      dialogs. Same controls, same order - no behaviour change.
+    -->
+    <div class="flex w-full flex-wrap items-center gap-4 px-4 pb-4">
+      <div class="flex min-w-0 flex-1 basis-64 items-center gap-4">
+        <div class="flex shrink-0 overflow-hidden">
           <Button
             variant="ghost"
             size="icon-sm"
@@ -16,11 +30,18 @@
           </Button>
         </div>
 
-        <ResponseBreadcrumb class="h-10 flex-1" :items="breadcrumbItems"></ResponseBreadcrumb>
+        <ResponseBreadcrumb
+          class="h-10 min-w-0 flex-1"
+          :items="breadcrumbItems"
+        ></ResponseBreadcrumb>
       </div>
 
-      <div class="flex gap-4">
-        <ResponseInput v-model="searchContent" :placeholder="$t('searchModels')"></ResponseInput>
+      <div class="flex w-fit max-w-full flex-wrap items-center gap-4">
+        <ResponseInput
+          v-model="searchContent"
+          class="min-w-40 flex-1"
+          :placeholder="$t('searchModels')"
+        ></ResponseInput>
 
         <!--
           View parity with the flat view: the same sort and card-size selects
@@ -41,6 +62,7 @@
         <Button
           variant="ghost"
           size="icon"
+          class="shrink-0"
           :disabled="!currentFolderInfo"
           :title="$t('addFolder')"
           :aria-label="$t('addFolder')"
@@ -51,6 +73,7 @@
         <Button
           variant="ghost"
           size="icon"
+          class="shrink-0"
           :class="selection.state.enabled && 'border-mm-accent/50 bg-mm-accent/20 text-mm-accent'"
           :title="$t('selectFiles')"
           :aria-label="$t('selectFiles')"

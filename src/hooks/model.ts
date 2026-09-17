@@ -790,7 +790,21 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
       // Keeping the "default" source means keeping the WHOLE saved gallery -
       // dropping to a single URL here is what used to silently delete every
       // extra preview on save.
-      data.preview = currentType.value === 'default' ? [...defaultContent.value] : preview.value
+      if (currentType.value !== 'default') {
+        data.preview = preview.value
+        return
+      }
+      const gallery = [...defaultContent.value]
+      // FEATURE: the image the user left selected (the page the gallery is
+      // showing) becomes the model card's PRIMARY preview - the first entry
+      // of the gallery, which is what the grid and the detail dialog show.
+      // Paging to another image and saving again re-picks it, in the download
+      // dialog (the image selected at download time) and in edit mode alike.
+      const selected = defaultContentPage.value
+      if (selected > 0 && selected < gallery.length) {
+        gallery.unshift(...gallery.splice(selected, 1))
+      }
+      data.preview = gallery
     })
   })
 
@@ -868,7 +882,12 @@ export const useModelMetadataEditor = (formInstance: ModelFormInstance) => {
     return model.value.metadata
   })
 
-  const result = { metadata }
+  // The Information tab needs to tell a saved model (whose `metadata` is the
+  // safetensors `__metadata__`, worth a raw table of its own) from a download
+  // search result (whose `metadata` is the Civitai file metadata the parsed
+  // Information table already renders). `downloadPlatform` only ever exists
+  // on the latter.
+  const result = { metadata, model }
 
   provide(metadataKey, result)
 

@@ -88,7 +88,10 @@ A single grid of every model of every type, with a toolbar:
 
 A file‑manager style tree with a breadcrumb trail (each crumb carries a folder
 glyph). Double‑click a folder to enter it, use the breadcrumb or the ↑ button
-to go back. Right‑click a model for the context menu (**Open**).
+to go back. Right‑click a model for the context menu (**Open**). The trail
+always keeps the folder you are in readable: intermediate crumbs ellipsise
+first when the window gets narrow, and the toolbar wraps onto a second line
+instead of clipping its controls away.
 
 ![folder layout](screenshots/view-folders-dialog.png)
 
@@ -147,8 +150,14 @@ base‑info table, and two tabs.
 
 - **Description** tab — rendered Markdown stored in a `*.md` file next to the
   model. Links open in a new tab.
-- **Metadata** tab — the `__metadata__` block read straight from the safetensors
-  header (nothing is cached or scanned in the background).
+- **Information** tab — a read‑only table of everything recorded about the
+  model. The YAML front‑matter of the notes (what Civitai / HuggingFace
+  downloads write) is parsed into rows: author, base model, every file hash
+  (`AutoV1` … `SHA256_12`), format and precision, a clickable model‑page link
+  and the URLs of **all** preview images; keys the parser does not know are
+  listed verbatim at the end of the table. Models without front‑matter show
+  the `__metadata__` block read straight from the safetensors header, verbatim
+  (nothing is cached or scanned in the background).
 
 ### Editing
 
@@ -168,7 +177,10 @@ Press the **pencil** to enter edit mode (the window turns into a form):
   segments are rejected, and the backend re‑checks path traversal server‑side.
 - **Preview** — `Default` (carousel) / `Network` (paste an image or video URL) /
   `Local` (drag & drop or pick a file; images are converted to WebP, videos keep
-  their format) / `None` (removes every preview file).
+  their format) / `None` (removes every preview file). The gallery page left
+  open is the one that matters: saving promotes that image to the model's
+  **primary** preview — the picture the cards show — while the rest keep their
+  order behind it.
 - **Description** — press the **Edit (pencil) icon** next to the hint text to
   open the Markdown textarea; it saves when the textarea loses focus:
 
@@ -199,12 +211,13 @@ Open **Download List** from the header, then:
    ![resolved result](screenshots/download-resolved.png)
 
 4. In the editor you can set the destination type/directory, a file name
-   (folder prefixes allowed), a preview image and a Markdown description
-   (Civitai/HF descriptions are pre‑filled, including trigger words and
-   YAML metadata).
-5. **Download** starts a background task. The preview is fetched in the browser
-   when possible and server‑side otherwise; if both fail the model still
-   downloads, just without a preview.
+   (folder prefixes allowed), the preview images — the **whole gallery** the
+   model page offers is kept, and the image left selected in the carousel
+   becomes the card's primary preview — and a Markdown description (Civitai/HF
+   descriptions are pre‑filled, including trigger words and YAML metadata).
+5. **Download** starts a background task. The previews are fetched in the
+   browser when possible and server‑side otherwise; if both fail the model
+   still downloads, just without a preview.
 
 ### Download List
 

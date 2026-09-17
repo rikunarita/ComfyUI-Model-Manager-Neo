@@ -109,7 +109,14 @@
     "znnCompressedSize": "压缩后文件大小",
     "znnRatio": "占原大小比例",
     "createdAt": "创建时间",
-    "updatedAt": "更新时间"
+    "updatedAt": "更新时间",
+    "author": "作者",
+    "baseModel": "基础模型",
+    "format": "格式",
+    "fp": "精度",
+    "modelPage": "模型页面",
+    "preview": "预览图",
+    "fileMetadata": "Safetensors 元数据"
   },
   "setting": {
     "apiKey": "密钥",
@@ -244,5 +251,7 @@
   "zipnnBatchInvalidTarget": "批量目标无效：无法解析所选文件夹。请重新打开文件夹视图后重试。",
   "loading": "加载中...",
   "zipnnBatch": "ZipNN 批量",
-  "zipnnBatchConfirmAuto": "使用 ZipNN 批量处理该文件夹（有未压缩模型则压缩，仅含压缩包则解压）：{name}"
+  "zipnnBatchConfirmAuto": "使用 ZipNN 批量处理该文件夹（有未压缩模型则压缩，仅含压缩包则解压）：{name}",
+  "description": "描述",
+  "information": "信息"
 }

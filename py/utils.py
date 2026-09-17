@@ -557,13 +557,18 @@ def rename_model(model_path: str, new_model_path: str):
     previews = get_model_all_previews(model_path)
     for preview in previews:
         preview_path = join_path(model_dirname, preview)
-        preview_name = os.path.splitext(preview)[0]
         preview_ext = os.path.splitext(preview)[1]
-        new_preview_path = (
-            join_path(new_model_dirname, new_model_name + preview_ext)
-            if preview_name == model_name
-            else join_path(new_model_dirname, new_model_name + ".preview" + preview_ext)
-        )
+        preview_stem = preview[: -len(preview_ext)] if preview_ext else preview
+        # BUG FIX: every non-primary preview used to be re-filed as
+        # `<new>.preview<ext>`, so a gallery of three or more images collapsed
+        # onto a single file during a rename / compress (the second move
+        # overwrote the first, and the `.preview2…` slots were lost entirely).
+        # The scheme suffix of each preview ("" / ".preview" / ".preview<N>")
+        # is carried over verbatim, keeping the gallery order intact.
+        suffix = preview_stem[len(model_name):] if preview_stem.startswith(model_name) else ""
+        if suffix not in _PREVIEW_SUFFIXES:
+            suffix = ".preview"
+        new_preview_path = join_path(new_model_dirname, f"{new_model_name}{suffix}{preview_ext}")
         shutil.move(preview_path, new_preview_path)
 
     # move description

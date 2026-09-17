@@ -21,15 +21,17 @@
 
       <Tabs default-value="0" class="mt-4">
         <TabsList class="grid w-full grid-cols-2">
-          <TabsTrigger value="0">Description</TabsTrigger>
-          <TabsTrigger value="1">Metadata</TabsTrigger>
+          <TabsTrigger value="0">{{ $t('description') }}</TabsTrigger>
+          <TabsTrigger value="1">{{ $t('information') }}</TabsTrigger>
         </TabsList>
         <div class="py-4">
           <TabsContent value="0">
             <ModelDescription v-model:editable="editable"></ModelDescription>
           </TabsContent>
           <TabsContent value="1">
-            <ModelMetadata></ModelMetadata>
+            <!-- Read-only by design: the parsed notes front-matter (and the
+                 raw safetensors metadata) are a report, not an editor. -->
+            <ModelInformation></ModelInformation>
           </TabsContent>
         </div>
       </Tabs>
@@ -42,7 +44,7 @@ import { cloneDeep } from 'es-toolkit'
 import { ref, toRaw, watch } from 'vue'
 import ModelBaseInfo from 'components/ModelBaseInfo.vue'
 import ModelDescription from 'components/ModelDescription.vue'
-import ModelMetadata from 'components/ModelMetadata.vue'
+import ModelInformation from 'components/ModelInformation.vue'
 import ModelPreview from 'components/ModelPreview.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
 import { useContainerQueries } from 'hooks/container'

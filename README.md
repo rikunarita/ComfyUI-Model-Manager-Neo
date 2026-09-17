@@ -115,10 +115,10 @@ carries the tiny folder glyph) and the animated glass folder cards.
 
 ### Model detail, editing, and the HuggingFace upload
 
-|                                                                                                   |                                                                                                  |
-| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| ![Model info](docs/screenshots/model-info.png)                                                    | ![Edit mode](docs/screenshots/model-edit.png)                                                    |
-| _Model info: preview, base‑info table (note the trailing `/` on **Directory**), Description tab._ | _Edit mode: type dropdown, folder picker button, file name that accepts a `folder/name` prefix._ |
+|                                                                                                                    |                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| ![Model info](docs/screenshots/model-info.png)                                                                     | ![Edit mode](docs/screenshots/model-edit.png)                                                    |
+| _Model info: preview, base‑info table (note the trailing `/` on **Directory**), Description and Information tabs._ | _Edit mode: type dropdown, folder picker button, file name that accepts a `folder/name` prefix._ |
 
 |                                                                                |                                                                                          |
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
@@ -206,7 +206,9 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - Resolve multiple files/versions per page and pick the one you want.
 - Direct links require an explicit target type, with an optional custom
   sub‑folder.
-- Optional preview image and editable Markdown description per download.
+- Optional preview images — the **whole gallery** a model page offers is kept,
+  and the image selected at download time becomes the card's primary preview —
+  and editable Markdown description per download.
 - Pause / resume / delete tasks; progress, speed and size update live.
 - Hugging Face downloads use `huggingface_hub` (+ `hf_xet` when available).
 
@@ -226,11 +228,16 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 <details>
 <summary><b>Model info &amp; maintenance</b></summary>
 
-- Inspect file info and safetensors metadata.
+- Inspect file info and read everything recorded about a model in the
+  read‑only **Information** table: the notes' YAML front‑matter parsed into
+  author, base model, every hash (`AutoV1` … `SHA256_12`), format & precision,
+  a model‑page link and all preview URLs (unknown keys verbatim at the end),
+  or the safetensors `__metadata__` block, verbatim, for models without one.
 - Rename, move between folders/types, or **permanently delete** a model together
   with its previews and notes.
 - Read, edit and save Markdown notes stored beside the model.
-- Change or remove a model's preview image.
+- Change or remove a model's preview image — the gallery page left open on
+  save becomes the card's primary preview.
 - Model information (safetensors metadata, Markdown notes, preview) is loaded on
   demand when a model is opened — there is no separate library‑wide scan step.
 
