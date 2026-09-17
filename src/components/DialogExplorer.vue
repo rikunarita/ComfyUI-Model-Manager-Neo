@@ -4,44 +4,43 @@
     @contextmenu.prevent="nonContextMenu"
   >
     <!--
-      LAYOUT FIX: the toolbar used to be a single non-wrapping flex row with
-      `overflow-hidden`, so whenever the dialog was narrower than the row's
-      content (its minimum width is derived from the card size, not from the
-      toolbar) everything past the breadcrumb was clipped away: the current
-      folder crumb disappeared, the sort / card-size selects and the action
-      buttons became invisible - and an opened sort menu, which is portalled
-      to <body> and anchored on its (clipped, but still laid-out) trigger,
-      floated far outside the dialog at the trigger's off-dialog position.
-      The row now wraps: the breadcrumb keeps the first line (its last crumb
-      is never shrinkable, see ResponseBreadcrumb) and the control group
-      drops to the next line as a whole, wrapping internally on very narrow
-      dialogs. Same controls, same order - no behaviour change.
+      LAYOUT FIX (second pass): the folder toolbar now reuses the EXACT same
+      responsive pattern as the flat view's toolbar (DialogManager): one
+      `flex gap-4` row that a container query flips to `flex-col` below 42 rem,
+      the search input inside a `flex-1` wrapper, and the selects as `flex-1`
+      siblings of the icon buttons inside a content-sized group. The previous
+      attempt wrapped the row and passed `w-36` to the drop selects, but the
+      drop-mode button carries `w-full`, which won the cascade - the selects
+      stretched to the whole dialog and stacked, so the folder toolbar looked
+      nothing like the flat one. Same controls, same order, same look.
     -->
-    <div class="flex w-full flex-wrap items-center gap-4 px-4 pb-4">
-      <div class="flex min-w-0 flex-1 basis-64 items-center gap-4">
-        <div class="flex shrink-0 overflow-hidden">
+    <div ref="toolbarContainer" class="w-full px-4 pb-4">
+      <div :class="['flex gap-4', $toolbar_2xl('flex-row', 'flex-col')]">
+        <div class="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
           <Button
             variant="ghost"
             size="icon-sm"
+            class="shrink-0"
             :disabled="folderPaths.length < 2"
             @click="handleGoBackParentFolder"
           >
             <ChevronUp class="size-4" />
           </Button>
+
+          <ResponseBreadcrumb
+            class="h-10 min-w-0 flex-1"
+            :items="breadcrumbItems"
+          ></ResponseBreadcrumb>
         </div>
 
-        <ResponseBreadcrumb
-          class="h-10 min-w-0 flex-1"
-          :items="breadcrumbItems"
-        ></ResponseBreadcrumb>
-      </div>
-
-      <div class="flex w-fit max-w-full flex-wrap items-center gap-4">
-        <ResponseInput
-          v-model="searchContent"
-          class="min-w-40 flex-1"
-          :placeholder="$t('searchModels')"
-        ></ResponseInput>
+        <div class="flex-1">
+          <ResponseInput
+            v-model="searchContent"
+            :placeholder="$t('searchModels')"
+            :allow-clear="true"
+            suffix-icon="pi pi-search"
+          ></ResponseInput>
+        </div>
 
         <!--
           View parity with the flat view: the same sort and card-size selects
@@ -49,39 +48,39 @@
           the folder-only extras). "Add folder" creates a sub-folder inside
           the currently open folder.
         -->
-        <ResponseSelect
-          v-model="sortOrder"
-          class="w-36 shrink-0"
-          :items="sortOrderOptions"
-        ></ResponseSelect>
-        <ResponseSelect
-          v-model="cardSizeFlag"
-          class="w-36 shrink-0"
-          :items="cardSizeOptions"
-        ></ResponseSelect>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :disabled="!currentFolderInfo"
-          :title="$t('addFolder')"
-          :aria-label="$t('addFolder')"
-          @click="openCreateFolder"
-        >
-          <FolderPlus class="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :class="selection.state.enabled && 'border-mm-accent/50 bg-mm-accent/20 text-mm-accent'"
-          :title="$t('selectFiles')"
-          :aria-label="$t('selectFiles')"
-          :aria-pressed="selection.state.enabled"
-          @click="toggleSelectMode"
-        >
-          <ListChecks class="size-4" />
-        </Button>
+        <div class="flex items-center justify-between gap-4 overflow-hidden">
+          <ResponseSelect
+            v-model="sortOrder"
+            class="flex-1"
+            :items="sortOrderOptions"
+          ></ResponseSelect>
+          <ResponseSelect
+            v-model="cardSizeFlag"
+            class="flex-1"
+            :items="cardSizeOptions"
+          ></ResponseSelect>
+          <Button
+            variant="secondary"
+            size="icon"
+            :disabled="!currentFolderInfo"
+            :title="$t('addFolder')"
+            :aria-label="$t('addFolder')"
+            @click="openCreateFolder"
+          >
+            <FolderPlus class="size-4" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="icon"
+            :class="selection.state.enabled && 'border-mm-accent/50 bg-mm-accent/20 text-mm-accent'"
+            :title="$t('selectFiles')"
+            :aria-label="$t('selectFiles')"
+            :aria-pressed="selection.state.enabled"
+            @click="toggleSelectMode"
+          >
+            <ListChecks class="size-4" />
+          </Button>
+        </div>
       </div>
     </div>
 
@@ -288,6 +287,7 @@ import { Button } from 'components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from 'components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { useConfig } from 'hooks/config'
+import { useContainerQueries } from 'hooks/container'
 import { useDialog } from 'hooks/dialog'
 import { type ModelTreeNode, useModelExplorer } from 'hooks/explorer'
 import { genModelFullName, useModelNodeAction, useModels } from 'hooks/model'
@@ -546,6 +546,11 @@ const breadcrumbItems = computed(() => {
 
 const contentContainer = ref<HTMLElement | null>(null)
 const contentSize = useElementSize(contentContainer)
+
+// Same responsive rule as the flat view's toolbar (DialogManager): below a
+// 42 rem container the toolbar stacks instead of squeezing its controls.
+const toolbarContainer = ref<HTMLElement | null>(null)
+const { $2xl: $toolbar_2xl } = useContainerQueries(toolbarContainer)
 
 const itemSize = computed(() => {
   return cardSize.value.height + gutter.y

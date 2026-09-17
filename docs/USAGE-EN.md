@@ -90,8 +90,9 @@ A file‑manager style tree with a breadcrumb trail (each crumb carries a folder
 glyph). Double‑click a folder to enter it, use the breadcrumb or the ↑ button
 to go back. Right‑click a model for the context menu (**Open**). The trail
 always keeps the folder you are in readable: intermediate crumbs ellipsise
-first when the window gets narrow, and the toolbar wraps onto a second line
-instead of clipping its controls away.
+first when the window gets narrow, and the toolbar stacks vertically below
+narrow widths — the same responsive rule as the flat view — instead of
+clipping its controls away.
 
 ![folder layout](screenshots/view-folders-dialog.png)
 
