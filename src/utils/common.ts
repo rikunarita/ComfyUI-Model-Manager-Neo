@@ -42,7 +42,7 @@ export const previewUrlToFile = async (url: string) => {
 }
 
 // Model file extensions that are supported for direct download
-export const MODEL_FILE_EXTENSIONS = [
+const MODEL_FILE_EXTENSIONS = [
   '.safetensors',
   '.ckpt',
   '.pt',

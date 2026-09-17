@@ -3,5 +3,17 @@ allowBuilds:
   vue-demi: true
   unrs-resolver: true
 
+minimumReleaseAgeExclude:
+  - "@fallow-cli/darwin-arm64@3.27.0"
+  - "@fallow-cli/darwin-x64@3.27.0"
+  - "@fallow-cli/linux-arm64-gnu@3.27.0"
+  - "@fallow-cli/linux-arm64-musl@3.27.0"
+  - "@fallow-cli/linux-x64-gnu@3.27.0"
+  - "@fallow-cli/linux-x64-musl@3.27.0"
+  - "@fallow-cli/win32-arm64-msvc@3.27.0"
+  - "@fallow-cli/win32-x64-msvc@3.27.0"
+  - fallow-type-aware@3.27.0
+  - fallow@3.27.0
+
 overrides:
   "@comfyorg/comfyui-desktop-bridge-types": "0.2.0"

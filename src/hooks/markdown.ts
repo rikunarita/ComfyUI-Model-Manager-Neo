@@ -2,7 +2,7 @@ import MarkdownIt from 'markdown-it'
 import metadata_block from 'markdown-it-metadata-block'
 import yaml from 'yaml'
 
-interface MarkdownOptions {
+export interface MarkdownOptions {
   metadata?: Record<string, any>
 }
 
@@ -32,5 +32,3 @@ export const useMarkdown = (opts?: MarkdownOptions) => {
 
   return { render: md.render.bind(md) }
 }
-
-export type MarkdownTool = ReturnType<typeof useMarkdown>

@@ -88,72 +88,41 @@
       </template>
     </ResponseScroll>
 
-    <!-- Bulk actions for the selection mode -->
-    <div
-      v-if="selection.state.enabled && selectionCount > 0"
-      class="mm-glass-light mm-scope mx-8 mb-2 flex items-center justify-between gap-4 rounded-mm-ctl border border-mm-border px-4 py-2"
-    >
-      <span class="text-sm text-mm-muted-fg tabular-nums">
-        {{ $t('selectedCount', { count: selectionCount }) }}
-      </span>
-      <div class="flex items-center gap-2">
-        <Button variant="secondary" size="sm" @click="addSelectedToWorkflow">
-          <Plus class="size-4" />
-          {{ $t('addToWorkflow') }}
-        </Button>
-        <Button variant="destructive" size="sm" @click="deleteSelected">
-          <Trash2 class="size-4" />
-          {{ $t('delete') }}
-        </Button>
-        <!-- Delta compression: exactly two plain .safetensors models selected -->
-        <Button
-          v-if="deltaPair"
-          variant="secondary"
-          size="sm"
-          :title="$t('zipnnDeltaCompress')"
-          @click="openDeltaDialog"
-        >
-          <GitCompareArrows class="size-4" />
-          {{ $t('zipnnDeltaCompress') }}
-        </Button>
-        <Button variant="ghost" size="sm" @click="selection.clear()">
-          {{ $t('clearSelection') }}
-        </Button>
-      </div>
-    </div>
+    <!-- Bulk actions for the selection mode (shared with the folder view) -->
+    <SelectionBulkBar v-if="selection.state.enabled && selectionCount > 0" :tree="flatModels" />
   </div>
 </template>
 
 <script setup lang="ts" name="manager-dialog">
-import { Box, GitCompareArrows, ListChecks, Plus, Trash2 } from '@lucide/vue'
+import { Box, ListChecks } from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardHoverActions from 'components/CardHoverActions.vue'
-import DialogZipnnDelta from 'components/DialogZipnnDelta.vue'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
+import SelectionBulkBar from 'components/SelectionBulkBar.vue'
 import { Button } from 'components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
-import { configSetting, useConfig } from 'hooks/config'
+import { useConfig } from 'hooks/config'
 import { useContainerQueries } from 'hooks/container'
-import { useDialog } from 'hooks/dialog'
-import { useModelNodeAction, useModels } from 'hooks/model'
+import { type ModelTreeNode } from 'hooks/explorer'
+import { useGridSelectOptions } from 'hooks/gridOptions'
+import { useModels } from 'hooks/model'
+import { useModelDetail } from 'hooks/modelDetail'
 import { isModelStarred } from 'hooks/stars'
-import { useToast } from 'hooks/toast'
 import { useSelection } from 'hooks/zipnn'
-import { app } from 'scripts/comfyAPI'
 import { type Model } from 'types/typings'
 import { genModelKey } from 'utils/model'
 
-const { isMobile, gutter, cardSize, cardSizeMap, cardSizeFlag, dialog: settings } = useConfig()
+const { isMobile, gutter, cardSize } = useConfig()
 
-const { data, folders, openModelDetail, getFullPath, remove } = useModels()
+const { data, visibleTypes, getFullPath } = useModels()
+const { openModelDetail } = useModelDetail()
 const { t } = useI18n()
-const { confirm } = useToast()
 
 const toolbarContainer = ref<HTMLElement | null>(null)
 const { $2xl: $toolbar_2xl } = useContainerQueries(toolbarContainer)
@@ -170,18 +139,7 @@ const debouncedSearch = refDebounced(searchContent, 150)
 const allType = '__all__'
 const currentType = ref(allType)
 const typeOptions = computed(() => {
-  const excludeModelTypes = app.ui?.settings.getSettingValue<string>(
-    configSetting.excludeModelTypes,
-  )
-  const customBlackList =
-    excludeModelTypes
-      ?.split(',')
-      .map((type: string) => type.trim())
-      .filter(Boolean) ?? []
-  return [
-    allType,
-    ...Object.keys(folders.value).filter(folder => !customBlackList.includes(folder)),
-  ].map(type => {
+  return [allType, ...visibleTypes()].map(type => {
     return {
       label: type === allType ? t('allTypes') : type,
       value: type,
@@ -192,19 +150,7 @@ const typeOptions = computed(() => {
   })
 })
 
-const sortOrder = ref('name')
-const sortOrderOptions = ref(
-  ['name', 'size', 'created', 'modified'].map(key => {
-    return {
-      label: t(`sort.${key}`),
-      value: key,
-      icon: key === 'name' ? 'pi pi-sort-alpha-down' : 'pi pi-sort-amount-down',
-      command: () => {
-        sortOrder.value = key
-      },
-    }
-  }),
-)
+const { sortOrder, sortOrderOptions, cardSizeOptions, cardSizeFlag } = useGridSelectOptions()
 
 const itemSize = computed(() => {
   let itemHeight = cardSize.value.height
@@ -302,30 +248,6 @@ const contentStyle = computed(() => ({
   paddingRight: `1rem`,
 }))
 
-const cardSizeOptions = computed(() => {
-  const customSize = 'size.custom'
-
-  const customOptionMap = {
-    ...cardSizeMap.value,
-    [customSize]: 'custom',
-  }
-
-  return Object.keys(customOptionMap).map(key => {
-    return {
-      label: t(key),
-      value: key,
-      command: () => {
-        if (key === customSize) {
-          settings.showCardSizeSetting()
-        } else {
-          cardSizeFlag.value = key
-        }
-      },
-    }
-  })
-})
-
-const { addModelNode } = useModelNodeAction()
 const selection = useSelection()
 const selectionCount = selection.count
 
@@ -344,47 +266,8 @@ const toggleSelectMode = () => {
   else selection.enter()
 }
 
-const selectedModels = () =>
-  list.value.flatMap(row => (row as any).row).filter((m: Model) => isSelected(m))
-
 /* ---- delta compression (exactly two plain .safetensors models selected) -- */
-const dialog = useDialog()
-const deltaPair = computed(() => {
-  const models = selectedModels().filter(
-    m => m.extension === '.safetensors' && !m.basename.endsWith('.znn'),
-  )
-  return models.length === 2 ? models : null
-})
 
-const openDeltaDialog = () => {
-  const pair = deltaPair.value
-  if (!pair) return
-  dialog.open({
-    key: 'zipnn-delta',
-    title: t('zipnnDeltaCompress'),
-    content: DialogZipnnDelta,
-    contentProps: { models: pair },
-    defaultSize: { width: 480, height: 280 },
-  })
-}
-
-const addSelectedToWorkflow = () => {
-  for (const model of selectedModels()) addModelNode(model)
-}
-
-const deleteSelected = () => {
-  const models = selectedModels()
-  confirm.require({
-    message: t('deleteAsk', [t('model').toLowerCase() + ` (${models.length})`]),
-    header: 'Danger',
-    icon: 'pi pi-info-circle',
-    rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
-    acceptProps: { label: t('delete'), severity: 'danger' },
-    accept: async () => {
-      for (const model of models) await remove(model)
-      selection.clear()
-    },
-    reject: () => {},
-  })
-}
+/** Selection-key resolution tree for the shared bulk bar (flat model list). */
+const flatModels = computed<ModelTreeNode[]>(() => Object.values(data.value).flat())
 </script>

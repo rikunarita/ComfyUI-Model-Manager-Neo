@@ -72,127 +72,24 @@
       <Check class="size-4" :stroke-width="3" />
     </button>
 
-    <!--
-      Top-right control row on EVERY card: the star toggle plus the ZipNN
-      corner button. The star is an outline glyph when unstarred and a filled
-      yellow star when starred; clicking toggles it. The ZipNN button is the
-      shipped SVG artwork (same confirmation, same inverted colours for
-      compressed models / bundle folders as the detail call-to-action); while
-      its task runs it shows a circular progress ring (batch & delta included)
-      instead of a plain spinner.
-    -->
-    <div class="absolute top-2 right-2 z-20 flex items-start gap-1">
-      <button
-        type="button"
-        class="mm-transition grid size-7 shrink-0 place-items-center rounded-full border backdrop-blur-md active:scale-90"
-        :class="
-          starred
-            ? 'border-mm-warning/60 bg-mm-bg/70 text-mm-warning shadow-mm-glass-1'
-            : 'border-mm-fg/25 bg-mm-bg/50 text-mm-fg/70 hover:border-mm-warning/60 hover:text-mm-warning'
-        "
-        :title="starred ? $t('unstar') : $t('star')"
-        :aria-label="starred ? $t('unstar') : $t('star')"
-        :aria-pressed="starred"
-        @click.stop.prevent="toggleStar"
-        @dblclick.stop.prevent
-      >
-        <Star class="size-4" :class="starred && 'fill-current'" :stroke-width="2" />
-      </button>
-      <button
-        v-if="zipnnApplicable"
-        type="button"
-        class="mm-transition mm-zipnn-button size-12 shrink-0 rounded-mm-ctl"
-        :title="zipnnLabel"
-        :aria-label="zipnnLabel"
-        :disabled="zipnnRunning"
-        @click.stop.prevent="requestZipnn"
-        @dblclick.stop.prevent
-      >
-        <span v-if="zipnnRunning" class="relative grid size-full place-items-center">
-          <svg viewBox="0 0 36 36" class="size-full -rotate-90">
-            <circle
-              cx="18"
-              cy="18"
-              r="15"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="4"
-              class="text-mm-fg/25"
-            />
-            <circle
-              cx="18"
-              cy="18"
-              r="15"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="4"
-              stroke-linecap="round"
-              :stroke-dasharray="`${(zipnnProgress * 94.25) / 100} 94.25`"
-              class="text-mm-accent"
-            />
-          </svg>
-          <span class="absolute text-[10px] leading-none font-bold text-mm-accent tabular-nums">
-            {{ Math.round(zipnnProgress) }}%
-          </span>
-        </span>
-        <img
-          v-else
-          :src="zipnnIcon"
-          alt=""
-          class="size-full rounded-mm-ctl"
-          :class="zipnnInverted && 'hue-rotate-180 invert'"
-        />
-      </button>
-    </div>
-
-    <!-- Glassmorphism badges (type / size): moved to the preview's bottom-right
-         so the ZipNN corner button owns the top-right corner. -->
-    <div
-      v-if="!model.isFolder"
-      class="pointer-events-none absolute right-2 bottom-8 flex flex-col items-end gap-1"
-      :style="{
-        transform: `scale(${badgeScale})`,
-        transformOrigin: 'right bottom',
-      }"
-    >
-      <div
-        class="rounded-full border border-white/20 bg-mm-accent/30 px-2.5 py-0.5 text-xs text-white backdrop-blur-md"
-      >
-        {{ model.type }}
-      </div>
-      <div
-        v-if="model.sizeBytes"
-        class="rounded-full border border-white/10 bg-black/40 px-2.5 py-0.5 text-xs text-white backdrop-blur-md"
-      >
-        {{ bytesToSize(model.sizeBytes) }}
-      </div>
-    </div>
+    <CardCornerControls :model="model" />
+    <CardBadges v-if="!model.isFolder" :model="model" :scale="badgeScale" />
 
     <slot name="extra"></slot>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Check, Star } from '@lucide/vue'
+import { Check } from '@lucide/vue'
 import { computed, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
+import CardBadges from 'components/CardBadges.vue'
+import CardCornerControls from 'components/CardCornerControls.vue'
 import FolderIcon from 'components/FolderIcon.vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
 import { useConfig } from 'hooks/config'
-import { genModelFullName, useModelNodeAction } from 'hooks/model'
-import { isFolderStarred, isModelStarred, toggleFolderStar, toggleModelStar } from 'hooks/stars'
-import { useToast } from 'hooks/toast'
-import {
-  startZipnn,
-  startZipnnBatch,
-  startZipnnDeltaDecompress,
-  zipnnRunningFor,
-  zipnnState,
-} from 'hooks/zipnn'
+import { useModelNodeAction } from 'hooks/model'
 import { type BaseModel } from 'types/typings'
-import { bytesToSize } from 'utils/common'
-import { isVideoUrl, assetUrl } from 'utils/media'
-import { genModelKey, isBundleFolderName } from 'utils/model'
+import { isVideoUrl } from 'utils/media'
 
 interface Props {
   model: BaseModel
@@ -213,9 +110,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), { width: 200, selectable: false, selected: false })
 
 defineEmits<{ toggle: [] }>()
-
-const { t } = useI18n()
-const { toast, confirm } = useToast()
 
 const preview = computed(() =>
   Array.isArray(props.model.preview) ? props.model.preview[0] : props.model.preview,
@@ -246,133 +140,4 @@ const { cardSize } = useConfig()
 const showModelName = computed(() => cardSize.value.width > 120 && cardSize.value.height > 160)
 
 const { dragToAddModelNode } = useModelNodeAction()
-
-/* ---- star badge ------------------------------------------------------ */
-const modelKey = computed(() => genModelKey(props.model))
-const starred = computed(() =>
-  props.model.isFolder ? isFolderStarred(modelKey.value) : isModelStarred(modelKey.value),
-)
-const toggleStar = () => {
-  if (props.model.isFolder) toggleFolderStar(modelKey.value)
-  else toggleModelStar(modelKey.value)
-}
-
-/* ---- ZipNN corner button --------------------------------------------- */
-const zipnnIcon = assetUrl('zipnn-button')
-const isFolder = computed(() => Boolean(props.model.isFolder))
-const folderName = computed(() => props.model.basename)
-const isDeltaModel = computed(() => props.model.extension === '.znn')
-const isCompressedModel = computed(() => props.model.basename.endsWith('.znn'))
-/** Type-root folder cards (the library's top level) never batch-process. */
-const isTypeRootFolder = computed(
-  () => isFolder.value && !props.model.subFolder && props.model.basename === props.model.type,
-)
-const zipnnApplicable = computed(() => {
-  // Every folder is a batch target: plain folders compress into a
-  // `<name>_DeltaZNN` bundle, bundles (batch AND delta folders) decompress
-  // back, type roots let the backend pick the direction (auto).
-  if (isFolder.value) return true
-  return isCompressedModel.value || props.model.extension === '.safetensors'
-})
-/** Direction of the folder batch: bundles decompress, type roots auto. */
-const zipnnFolderMode = computed<'compress' | 'decompress' | 'auto'>(() => {
-  if (isBundleFolderName(folderName.value)) return 'decompress'
-  return isTypeRootFolder.value ? 'auto' : 'compress'
-})
-const zipnnInverted = computed(() => {
-  if (isFolder.value) return isBundleFolderName(folderName.value)
-  return isCompressedModel.value || isDeltaModel.value
-})
-const zipnnRunning = computed(() => zipnnRunningFor(modelKey.value))
-/** 0-100, drives the circular progress ring on the corner button. */
-const zipnnProgress = computed(() => zipnnState.progress)
-const zipnnLabel = computed(() => {
-  if (isFolder.value) {
-    if (isBundleFolderName(folderName.value)) return t('zipnnBatchDecompress')
-    return isTypeRootFolder.value ? t('zipnnBatch') : t('zipnnBatchCompress')
-  }
-  if (isDeltaModel.value) return t('zipnnDeltaDecompress')
-  return isCompressedModel.value ? t('zipnnDecompress') : t('zipnnCompress')
-})
-
-const requestZipnn = () => {
-  const model = props.model
-  const key = modelKey.value
-  if (isFolder.value) {
-    const mode = zipnnFolderMode.value
-    // type-root folders address themselves as '.' (their own base path)
-    const folderRel = isTypeRootFolder.value ? '.' : genModelFullName(model)
-    if (!model.type || !folderRel) {
-      toast.add({ severity: 'warn', summary: t('zipnnBatchInvalidTarget'), life: 8000 })
-      return
-    }
-    const message =
-      mode === 'decompress'
-        ? t('zipnnBatchConfirmDecompress', { name: folderName.value })
-        : mode === 'auto'
-          ? t('zipnnBatchConfirmAuto', { name: folderName.value })
-          : t('zipnnBatchConfirmCompress', { name: folderName.value })
-    confirm.require({
-      message,
-      header: zipnnLabel.value,
-      icon: 'pi pi-info-circle',
-      rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
-      acceptProps: { label: zipnnLabel.value },
-      accept: () => {
-        void startZipnnBatch(
-          mode,
-          {
-            type: model.type,
-            pathIndex: model.pathIndex,
-            folder: folderRel,
-          },
-          key,
-        )
-      },
-      reject: () => {},
-    })
-    return
-  }
-  if (isDeltaModel.value) {
-    confirm.require({
-      message: t('zipnnDeltaConfirmDecompress', { name: `${model.basename}${model.extension}` }),
-      header: t('zipnnDeltaDecompress'),
-      icon: 'pi pi-info-circle',
-      rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
-      acceptProps: { label: t('zipnnDeltaDecompress') },
-      accept: () => {
-        void startZipnnDeltaDecompress(
-          {
-            type: model.type,
-            pathIndex: model.pathIndex,
-            fullname: genModelFullName(model),
-          },
-          key,
-        )
-      },
-      reject: () => {},
-    })
-    return
-  }
-  const compressing = !isCompressedModel.value
-  confirm.require({
-    message: compressing ? t('zipnnConfirmCompress') : t('zipnnConfirmDecompress'),
-    header: compressing ? t('zipnnCompress') : t('zipnnDecompress'),
-    icon: 'pi pi-info-circle',
-    rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
-    acceptProps: { label: compressing ? t('zipnnCompress') : t('zipnnDecompress') },
-    accept: () => {
-      void startZipnn(
-        compressing ? 'compress' : 'decompress',
-        {
-          type: model.type,
-          pathIndex: model.pathIndex,
-          fullname: genModelFullName(model),
-        },
-        key,
-      )
-    },
-    reject: () => {},
-  })
-}
 </script>

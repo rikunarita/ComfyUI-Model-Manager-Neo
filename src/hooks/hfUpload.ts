@@ -12,7 +12,7 @@ import { api } from 'scripts/comfyAPI'
  * from looking frozen: the hashing pass alone can take minutes, and before
  * this the UI had nothing to show for it.
  */
-export type HfUploadPhase = 'prepare' | 'hash' | 'upload'
+type HfUploadPhase = 'prepare' | 'hash' | 'upload'
 
 interface HfProgressDetail {
   taskId?: string
@@ -103,48 +103,34 @@ api.addEventListener('update_hf_upload_progress', (event: CustomEvent) => {
   hfUploadState.phase = detail?.phase ?? 'upload'
 })
 
-api.addEventListener('hf_upload_complete', (event: CustomEvent) => {
-  const detail = event.detail as HfCompleteDetail | undefined
-  if (!matches(detail)) return
-  rememberFinished(detail?.taskId)
-  hfUploadState.active = false
-  hfUploadState.progress = 100
-  hfUploadState.phase = 'upload'
-  hfUploadState.taskId = null
+const reportHfSkipped = (repoId: string, url: string) => {
+  // huggingface_hub skips empty commits: the identical file already sits at
+  // the destination. Reporting that as a plain success is what made a
+  // re-upload look like a silently broken upload.
+  toast.add({
+    severity: 'warn',
+    summary: t('hfUpload.skipped'),
+    detail: t('hfUpload.skippedDetail', { repo: repoId }) + url + t('hfUpload.skippedHint'),
+    life: 15000,
+  })
+}
 
-  const repoId = detail?.repoId ?? hfUploadState.repoId
-  const pathInRepo = detail?.pathInRepo ?? hfUploadState.pathInRepo
-  const url = detail?.url ? `: ${detail.url}` : ''
+const reportHfDeduplicated = (repoId: string, pathInRepo: string, url: string) => {
+  // The commit really happened, but HuggingFace's object store already held
+  // the identical bytes ("Upload 0 LFS files"), so not one byte travelled.
+  // A bare "Success" next to a bar that never moved reads as a broken
+  // upload; say what actually happened and link the committed file.
+  toast.add({
+    severity: 'info',
+    summary: t('hfUpload.deduplicated'),
+    detail: t('hfUpload.deduplicatedDetail', { path: pathInRepo, repo: repoId }) + url,
+    life: 15000,
+  })
+}
 
-  if (detail?.skipped) {
-    // huggingface_hub skips empty commits: the identical file already sits at
-    // the destination. Reporting that as a plain success is what made a
-    // re-upload look like a silently broken upload.
-    toast.add({
-      severity: 'warn',
-      summary: t('hfUpload.skipped'),
-      detail: t('hfUpload.skippedDetail', { repo: repoId }) + url + t('hfUpload.skippedHint'),
-      life: 15000,
-    })
-    return
-  }
-
-  if (detail?.deduplicated) {
-    // The commit really happened, but HuggingFace's object store already held
-    // the identical bytes ("Upload 0 LFS files"), so not one byte travelled.
-    // A bare "Success" next to a bar that never moved reads as a broken
-    // upload; say what actually happened and link the committed file.
-    toast.add({
-      severity: 'info',
-      summary: t('hfUpload.deduplicated'),
-      detail: t('hfUpload.deduplicatedDetail', { path: pathInRepo, repo: repoId }) + url,
-      life: 15000,
-    })
-    return
-  }
-
-  const createdNote = detail?.created
-    ? t(detail?.private ? 'hfUpload.createdPrivate' : 'hfUpload.createdPublic', { repo: repoId })
+const reportHfSuccess = (repoId: string, pathInRepo: string, created: boolean, priv: boolean) => {
+  const createdNote = created
+    ? t(priv ? 'hfUpload.createdPrivate' : 'hfUpload.createdPublic', { repo: repoId })
     : ''
   toast.add({
     severity: 'success',
@@ -152,6 +138,24 @@ api.addEventListener('hf_upload_complete', (event: CustomEvent) => {
     detail: `${pathInRepo} -> ${repoId}${createdNote ? ` (${createdNote})` : ''}`,
     life: 5000,
   })
+}
+
+api.addEventListener('hf_upload_complete', (event: CustomEvent) => {
+  const detail = (event.detail ?? {}) as HfCompleteDetail
+  if (!matches(detail)) return
+  rememberFinished(detail.taskId)
+  hfUploadState.active = false
+  hfUploadState.progress = 100
+  hfUploadState.phase = 'upload'
+  hfUploadState.taskId = null
+
+  const repoId = detail.repoId || hfUploadState.repoId
+  const pathInRepo = detail.pathInRepo || hfUploadState.pathInRepo
+  const url = detail.url ? `: ${detail.url}` : ''
+
+  if (detail.skipped) reportHfSkipped(repoId, url)
+  else if (detail.deduplicated) reportHfDeduplicated(repoId, pathInRepo, url)
+  else reportHfSuccess(repoId, pathInRepo, Boolean(detail.created), Boolean(detail.private))
 })
 
 api.addEventListener('hf_upload_error', (event: CustomEvent) => {

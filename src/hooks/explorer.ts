@@ -1,9 +1,9 @@
 import { cloneDeep } from 'es-toolkit'
 import { computed, ref, watch } from 'vue'
 import { genModelFullName, useModels } from 'hooks/model'
-import { type BaseModel, type Model, type SelectOptions } from 'types/typings'
+import { type BaseModel, type SelectOptions } from 'types/typings'
 
-export interface FolderPathItem {
+interface FolderPathItem {
   name: string
   pathIndex: number
   icon?: string
@@ -11,19 +11,12 @@ export interface FolderPathItem {
   children: SelectOptions[]
 }
 
-export type ModelFolder = BaseModel & {
+type ModelFolder = BaseModel & {
   children: ModelTreeNode[]
 }
 
-export type ModelItem = Model
-
 export type ModelTreeNode = BaseModel & {
   children?: ModelTreeNode[]
-}
-
-export type TreeItemNode = ModelTreeNode & {
-  onDbClick: () => void
-  onContextMenu: () => void
 }
 
 export const useModelExplorer = () => {

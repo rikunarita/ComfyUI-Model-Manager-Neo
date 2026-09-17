@@ -5,7 +5,7 @@ import { toast as sonnerToast } from 'vue-sonner'
 import { useI18nGlobal } from 'hooks/i18n'
 
 // Confirm dialog state (reactive store)
-export interface ConfirmOptions {
+interface ConfirmOptions {
   message: string
   header?: string
   icon?: string
@@ -23,9 +23,9 @@ export const confirmState = reactive<{
   options: null,
 })
 
-export type ToastSeverity = 'success' | 'info' | 'warn' | 'error'
+type ToastSeverity = 'success' | 'info' | 'warn' | 'error'
 
-export interface ToastAddOptions {
+interface ToastAddOptions {
   severity?: ToastSeverity
   summary?: string
   detail?: string
@@ -42,6 +42,14 @@ export interface ToastAddOptions {
  * in `Sonner.vue` (vue-sonner runs `unstyled`, therefore the icon component is
  * handed to it explicitly and only the colour/size come from CSS).
  */
+/** sonner entry point per severity; absent keys fall back to the plain toast. */
+const SEVERITY_TOAST: Record<ToastSeverity, (message: string, opts: any) => unknown> = {
+  success: sonnerToast.success,
+  error: sonnerToast.error,
+  warn: sonnerToast.warning,
+  info: sonnerToast,
+}
+
 const SEVERITY_ICON: Record<ToastSeverity, Component> = {
   success: CircleCheck,
   error: CircleX,
@@ -62,19 +70,9 @@ export const useToast = () => {
         action: action ? { label: action.label, onClick: action.onClick } : undefined,
       }
 
-      switch (severity) {
-        case 'success':
-          sonnerToast.success(message, shared)
-          break
-        case 'error':
-          sonnerToast.error(message, shared)
-          break
-        case 'warn':
-          sonnerToast.warning(message, shared)
-          break
-        default:
-          sonnerToast(message, shared)
-      }
+      // Branch-free dispatch: severity -> sonner variant.
+      const variant = SEVERITY_TOAST[severity] ?? sonnerToast
+      variant(message, shared)
     },
   }
 

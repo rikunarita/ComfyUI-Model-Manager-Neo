@@ -151,7 +151,12 @@ import { genModelFullName, genModelUrl, useModelNodeAction, useModels } from 'ho
 import { useRequest } from 'hooks/request'
 import { isModelStarred, toggleModelStar } from 'hooks/stars'
 import { useToast } from 'hooks/toast'
-import { startZipnn, startZipnnDeltaDecompress, zipnnRunningFor, zipnnState } from 'hooks/zipnn'
+import {
+  confirmSingleZipnn,
+  startZipnnDeltaDecompress,
+  zipnnRunningFor,
+  zipnnState,
+} from 'hooks/zipnn'
 import { type BaseModel, type Model, type WithResolved } from 'types/typings'
 import { assetUrl, platformBackgroundStyle, platformLogo } from 'utils/media'
 import { genModelKey } from 'utils/model'
@@ -265,27 +270,6 @@ const requestZipnn = () => {
     })
     return
   }
-  const compressing = !isCompressed.value
-  confirm.require({
-    // deliberately NOT a Danger confirmation: compression is reversible and
-    // never deletes user data without writing the counterpart first.
-    message: compressing ? t('zipnnConfirmCompress') : t('zipnnConfirmDecompress'),
-    header: compressing ? t('zipnnCompress') : t('zipnnDecompress'),
-    icon: 'pi pi-info-circle',
-    rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
-    acceptProps: { label: compressing ? t('zipnnCompress') : t('zipnnDecompress') },
-    accept: () => {
-      void startZipnn(
-        compressing ? 'compress' : 'decompress',
-        {
-          type: props.model.type,
-          pathIndex: props.model.pathIndex,
-          fullname: genModelFullName(props.model),
-        },
-        modelKey.value,
-      )
-    },
-    reject: () => {},
-  })
+  confirmSingleZipnn(props.model, modelKey.value)
 }
 </script>

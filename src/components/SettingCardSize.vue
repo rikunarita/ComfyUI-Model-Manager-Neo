@@ -74,17 +74,28 @@
 
 <script setup lang="ts">
 import { RefreshCw } from '@lucide/vue'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from 'components/ui/button'
 import { Slider } from 'components/ui/slider'
-import { useConfig } from 'hooks/config'
 import { useDialog } from 'hooks/dialog'
 import { useToast } from 'hooks/toast'
 
+/**
+ * The store slices are injected by the opener (`showCardSizeSetting`) so this
+ * component never imports `hooks/config` — which loads the component — and
+ * the two can never form an import cycle.
+ */
+interface Props {
+  cardSizeMap: Ref<Record<string, string>>
+  defaultCardSizeMap: Record<string, string>
+  /** Writes the edited map back into the config store (owned by the opener). */
+  onSave: (map: Record<string, string>) => void
+}
+const props = defineProps<Props>()
+
 const { t } = useI18n()
 const { toast } = useToast()
-const { cardSizeMap, defaultCardSizeMap } = useConfig()
 const dialog = useDialog()
 
 const sizeList = ref<Array<{ id: string; name: string; width: number; height: number }>>([])
@@ -110,21 +121,21 @@ const resolveSizeList = (sizeList: { name: string; width: number; height: number
 }
 
 onMounted(() => {
-  sizeList.value = resolveSizeMap(cardSizeMap.value)
+  sizeList.value = resolveSizeMap(props.cardSizeMap.value)
 })
 
 const handleReset = () => {
-  sizeList.value = resolveSizeMap(defaultCardSizeMap)
+  sizeList.value = resolveSizeMap(props.defaultCardSizeMap)
   toast.add({ severity: 'info', summary: t('cardSizeReset'), life: 2500 })
 }
 
 const handleCancelEditor = () => {
-  sizeList.value = resolveSizeMap(cardSizeMap.value)
+  sizeList.value = resolveSizeMap(props.cardSizeMap.value)
   dialog.close()
 }
 
 const handleSaveSizeMap = () => {
-  cardSizeMap.value = resolveSizeList(sizeList.value)
+  props.onSave(resolveSizeList(sizeList.value))
   dialog.close()
   toast.add({ severity: 'success', summary: t('cardSizeSaved'), life: 2500 })
 }

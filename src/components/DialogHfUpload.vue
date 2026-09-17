@@ -11,15 +11,7 @@
 
       <!-- Step 1: Select model type -->
       <TabsContent value="1" class="flex-1 overflow-hidden">
-        <div class="flex h-full flex-col overflow-hidden">
-          <ResponseScroll>
-            <div class="flex flex-wrap gap-4">
-              <Button v-for="item in typeOptions" :key="item.value" @click="item.command">
-                {{ item.label }}
-              </Button>
-            </div>
-          </ResponseScroll>
-        </div>
+        <ModelTypeButtonGrid :items="typeOptions" />
       </TabsContent>
 
       <!-- Step 2: Select model -->
@@ -147,19 +139,18 @@
 import { Box, ChevronLeft, Upload } from '@lucide/vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ModelTypeButtonGrid from 'components/ModelTypeButtonGrid.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
 import { Checkbox } from 'components/ui/checkbox'
 import { Input } from 'components/ui/input'
 import { Progress } from 'components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
-import { configSetting } from 'hooks/config'
 import { hfUploadState, isFinishedTask, resetHfUploadState } from 'hooks/hfUpload'
 import { useLoading } from 'hooks/loading'
 import { genModelFullName, useModels } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
-import { app } from 'scripts/comfyAPI'
 import { type Model } from 'types/typings'
 import { bytesToSize } from 'utils/common'
 import { NO_PREVIEW_URL } from 'utils/media'
@@ -172,33 +163,23 @@ const loading = useLoading()
 // so re-opening this dialog (or switching back to a type) no longer
 // re-requests the whole listing - it reads the cache and only fetches what
 // is missing.
-const { folders, data: modelsCache, refreshFolder } = useModels()
+const { data: modelsCache, refreshFolder, visibleTypes } = useModels()
 
 const stepValue = ref('1')
 const currentType = ref<string>()
 
 const typeOptions = computed(() => {
-  const excludeModelTypes = app.ui?.settings.getSettingValue<string>(
-    configSetting.excludeModelTypes,
-  )
-  const customBlackList =
-    excludeModelTypes
-      ?.split(',')
-      .map((type: string) => type.trim())
-      .filter(Boolean) ?? []
-  return Object.keys(folders.value)
-    .filter(folder => !customBlackList.includes(folder))
-    .map(type => {
-      return {
-        label: type,
-        value: type,
-        command: () => {
-          currentType.value = type
-          stepValue.value = '2'
-          fetchModels(type)
-        },
-      }
-    })
+  return visibleTypes().map(type => {
+    return {
+      label: type,
+      value: type,
+      command: () => {
+        currentType.value = type
+        stepValue.value = '2'
+        fetchModels(type)
+      },
+    }
+  })
 })
 
 const modelList = ref<Model[]>([])

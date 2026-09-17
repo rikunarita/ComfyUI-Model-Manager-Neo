@@ -1,0 +1,31 @@
+{
+  // Fallow — codebase intelligence (see `pnpm fallow:*` scripts).
+  // The ComfyUI extension entry is the module-graph root; the Vite/i18next/
+  // eslint/prettier/tailwind plugins add their own entries on top of it.
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": ["src/main.ts"],
+  // `web/` is the committed production bundle (loaded by ComfyUI at runtime,
+  // never imported from source); third_party/ is vendored Python; docs/ and
+  // assets/ carry no module graph.
+  "ignorePatterns": ["web/**", "third_party/**", "docs/**", "downloads/**", "assets/**"],
+  // `less` is consumed by vite through `<style lang="less">` SFC blocks, which
+  // no import graph can see.
+  "ignoreDependencies": ["less"],
+  "rules": {
+    "unused-files": "error",
+    "unused-exports": "error",
+    "unused-types": "warn",
+    "unresolved-imports": "error",
+    // Opt-in API hygiene: exported signatures must not leak same-file types.
+    "private-type-leaks": "warn"
+  },
+  "duplicates": {
+    "mode": "mild",
+    "minTokens": 50,
+    "minLines": 5
+  },
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15
+  }
+}

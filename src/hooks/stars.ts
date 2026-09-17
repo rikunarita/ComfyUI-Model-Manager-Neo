@@ -9,10 +9,10 @@ import { app } from 'scripts/comfyAPI'
  * level reactive state keeps every view (grids, cards, detail dialog, bulk
  * bar) in sync without prop drilling.
  */
-export const STAR_SETTING_MODELS = 'ModelManager.Stars.Models'
-export const STAR_SETTING_FOLDERS = 'ModelManager.Stars.Folders'
+const STAR_SETTING_MODELS = 'ModelManager.Stars.Models'
+const STAR_SETTING_FOLDERS = 'ModelManager.Stars.Folders'
 
-export const starState = reactive<{ models: string[]; folders: string[] }>({
+const starState = reactive<{ models: string[]; folders: string[] }>({
   models: [],
   folders: [],
 })

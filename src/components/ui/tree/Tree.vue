@@ -1,8 +1,8 @@
 <script setup lang="ts" generic="T extends Record<string, any>">
-import { TreeItem, TreeRoot, TreeVirtualizer } from 'reka-ui'
+import { TreeRoot, TreeVirtualizer } from 'reka-ui'
 import { type FlattenedItem } from 'reka-ui'
 import { cn } from 'utils/cn'
-import TreeRow from './TreeRow.vue'
+import TreeBranch from './TreeBranch.vue'
 
 interface Props {
   items: T[]
@@ -42,46 +42,24 @@ interface TreeSlotProps {
       :estimate-size="estimateSize"
       :text-content="(opt: any) => getKey(opt)"
     >
-      <TreeItem
-        v-slot="{ isExpanded, isSelected }"
-        v-bind="item.bind"
-        :value="item.value"
-        :level="item.level"
-      >
-        <TreeRow
-          :is-expanded="isExpanded"
-          :is-selected="isSelected as any"
-          :has-children="!!item.hasChildren"
-          :level="item.level"
-        >
-          <slot name="item" :item="item">
-            <span class="overflow-hidden text-ellipsis">{{ (item as any).value?.label }}</span>
-          </slot>
-        </TreeRow>
-      </TreeItem>
+      <TreeBranch :item="item">
+        <template v-if="$slots.item" #item="row">
+          <slot name="item" :item="row.item" />
+        </template>
+      </TreeBranch>
     </TreeVirtualizer>
 
     <!-- Non-virtual mode -->
     <template v-if="!virtual" #default="slotProps">
-      <TreeItem
+      <TreeBranch
         v-for="item in (slotProps as TreeSlotProps).flattenItems"
         :key="item._id"
-        v-bind="item.bind"
-        v-slot="{ isExpanded, isSelected }"
-        :value="item.value"
-        :level="item.level"
+        :item="item"
       >
-        <TreeRow
-          :is-expanded="isExpanded"
-          :is-selected="isSelected as any"
-          :has-children="!!item.hasChildren"
-          :level="item.level"
-        >
-          <slot name="item" :item="item">
-            <span class="overflow-hidden text-ellipsis">{{ (item as any).value?.label }}</span>
-          </slot>
-        </TreeRow>
-      </TreeItem>
+        <template v-if="$slots.item" #item="row">
+          <slot name="item" :item="row.item" />
+        </template>
+      </TreeBranch>
     </template>
   </TreeRoot>
 </template>

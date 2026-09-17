@@ -32,7 +32,7 @@ export const zipnnState = reactive<{
 })
 
 const { t } = useI18nGlobal()
-const { toast } = useToast()
+const { toast, confirm } = useToast()
 
 api.addEventListener('update_zipnn_progress', (event: CustomEvent) => {
   const detail = event.detail as
@@ -104,29 +104,32 @@ export const takeZipnnSettle = (): ZipnnSettle | null => {
   return settle
 }
 
-api.addEventListener('zipnn_complete', (event: CustomEvent) => {
-  const detail = event.detail as
-    | {
-        taskId?: string
-        ok?: boolean
-        error?: string
-        mode?: string
-        fullname?: string
-        kind?: string
-        installFailed?: boolean
-        stats?: { originalBytes?: number; compressedBytes?: number }
-      }
-    | undefined
-  if (!detail || (zipnnState.taskId && detail.taskId !== zipnnState.taskId)) return
+interface ZipnnCompleteDetail {
+  taskId?: string
+  ok?: boolean
+  error?: string
+  mode?: string
+  fullname?: string
+  kind?: string
+  installFailed?: boolean
+  stats?: { originalBytes?: number; compressedBytes?: number }
+}
+
+/** Flip the progress state to "just finished" (kept for the next open). */
+const settleZipnnState = () => {
   zipnnState.active = false
   zipnnState.progress = 100
   zipnnState.taskId = null
   zipnnState.lastTargetKey = zipnnState.targetKey
   zipnnState.targetKey = null
+}
 
-  // Record the outcome BEFORE any awaits elsewhere can consume it: the
-  // `zipnnState.active` watcher in App.vue reads this right after this
-  // handler flips `active` to false.
+/**
+ * Record the outcome BEFORE any awaits elsewhere can consume it: the
+ * app-lifetime settle watcher reads this right after the handler flips
+ * `active` to false.
+ */
+const recordZipnnSettle = (detail: ZipnnCompleteDetail) => {
   const req = lastRequest
   const reqFullname = req?.model.fullname ?? ''
   const slash = reqFullname.lastIndexOf('/')
@@ -141,56 +144,52 @@ api.addEventListener('zipnn_complete', (event: CustomEvent) => {
         kind: detail.kind === 'folder' || detail.kind === 'delta' ? detail.kind : 'model',
       }
     : null
+}
 
-  // Sequential folder-batch queue: start the next folder once this one
-  // succeeded; a failure aborts the rest of the queue.
-  if (detail.ok) {
-    const next = batchQueue.shift()
-    if (next) void startZipnnBatch(next.mode, next.folder, next.key)
-  } else {
+/**
+ * Sequential folder-batch queue: start the next folder once this one
+ * succeeded; a failure aborts the rest of the queue.
+ */
+const advanceZipnnQueue = (ok: boolean) => {
+  if (!ok) {
     batchQueue.length = 0
-  }
-
-  // App-level listener refreshes the grids / swaps an open card for every
-  // settled task. (A watcher on `active` would miss queued batches, which
-  // keep it true across tasks.)
-  window.dispatchEvent(new CustomEvent('mm-zipnn-settled'))
-
-  if (!detail.ok) {
-    const raw = detail.error ?? t('zipnnFailed')
-    if (detail.installFailed) {
-      // The backend caches a failed install for a few minutes, so the retry has
-      // to ask for it explicitly (`force`).
-      const retry = lastRequest
-      toast.add({
-        severity: 'error',
-        summary: t('zipnnInstallFailed'),
-        detail: compactError(raw),
-        life: 20000,
-        action: retry
-          ? {
-              label: t('zipnnRetryInstall'),
-              onClick: () => {
-                void startZipnn(
-                  retry.mode === 'auto' ? 'compress' : retry.mode,
-                  retry.model,
-                  retry.modelKey,
-                  { force: true },
-                )
-              },
-            }
-          : undefined,
-      })
-      return
-    }
-    toast.add({
-      severity: 'error',
-      summary: t('error'),
-      detail: raw,
-      life: 12000,
-    })
     return
   }
+  const next = batchQueue.shift()
+  if (next) void startZipnnBatch(next.mode, next.folder, next.key)
+}
+
+const reportZipnnFailure = (detail: ZipnnCompleteDetail) => {
+  const raw = detail.error ?? t('zipnnFailed')
+  if (!detail.installFailed) {
+    toast.add({ severity: 'error', summary: t('error'), detail: raw, life: 12000 })
+    return
+  }
+  // The backend caches a failed install for a few minutes, so the retry has
+  // to ask for it explicitly (`force`).
+  const retry = lastRequest
+  toast.add({
+    severity: 'error',
+    summary: t('zipnnInstallFailed'),
+    detail: compactError(raw),
+    life: 20000,
+    action: retry
+      ? {
+          label: t('zipnnRetryInstall'),
+          onClick: () => {
+            void startZipnn(
+              retry.mode === 'auto' ? 'compress' : retry.mode,
+              retry.model,
+              retry.modelKey,
+              { force: true },
+            )
+          },
+        }
+      : undefined,
+  })
+}
+
+const reportZipnnSuccess = (detail: ZipnnCompleteDetail) => {
   const stats = detail.stats ?? {}
   const ratio =
     stats.originalBytes && stats.compressedBytes
@@ -201,22 +200,33 @@ api.addEventListener('zipnn_complete', (event: CustomEvent) => {
     summary: (detail.mode === 'compress' ? t('zipnnCompressed') : t('zipnnDecompressed')) + ratio,
     life: 6000,
   })
-})
-
-export const zipnnAvailable = async (): Promise<boolean> => {
-  try {
-    const res = (await request('/zipnn/available')) as { available: boolean }
-    return Boolean(res?.available)
-  } catch {
-    return false
-  }
 }
 
-export const startZipnn = async (
-  mode: 'compress' | 'decompress',
+api.addEventListener('zipnn_complete', (event: CustomEvent) => {
+  const detail = event.detail as ZipnnCompleteDetail | undefined
+  if (!detail || (zipnnState.taskId && detail.taskId !== zipnnState.taskId)) return
+  settleZipnnState()
+  recordZipnnSettle(detail)
+  advanceZipnnQueue(Boolean(detail.ok))
+  // App-level listener refreshes the grids / swaps an open card for every
+  // settled task. (A watcher on `active` would miss queued batches, which
+  // keep it true across tasks.)
+  window.dispatchEvent(new CustomEvent('mm-zipnn-settled'))
+  if (detail.ok) reportZipnnSuccess(detail)
+  else reportZipnnFailure(detail)
+})
+
+/**
+ * Shared task bootstrap for the four starters below: remember the request
+ * (retry-install toast), reset the module-level progress state onto the new
+ * target, POST to the endpoint and report a failed start as a toast.
+ */
+const beginTask = async (
+  mode: ZipnnMode,
   model: { type: string; pathIndex: number; fullname: string },
   modelKey: string,
-  options?: { force?: boolean },
+  endpoint: string,
+  payload: unknown,
 ): Promise<void> => {
   lastRequest = { mode, model, modelKey }
   zipnnState.taskId = null
@@ -226,10 +236,10 @@ export const startZipnn = async (
   zipnnState.mode = mode
   zipnnState.targetKey = modelKey
   try {
-    const res = (await request(`/zipnn/${mode}`, {
+    const res = (await request(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(options?.force ? { ...model, force: true } : model),
+      body: JSON.stringify(payload),
     })) as { taskId: string }
     zipnnState.taskId = res?.taskId ?? null
   } catch (error) {
@@ -243,6 +253,60 @@ export const startZipnn = async (
       life: 12000,
     })
   }
+}
+
+/**
+ * The single-model compress/decompress confirmation, shared by the card
+ * corner button and the model-detail action row (they rendered byte
+ * identical confirm blocks before).
+ */
+export const confirmSingleZipnn = (
+  model: {
+    type: string
+    pathIndex: number
+    subFolder: string
+    basename: string
+    extension: string
+  },
+  modelKey: string,
+): void => {
+  const compressing = !model.basename.endsWith('.znn')
+  confirm.require({
+    message: compressing ? t('zipnnConfirmCompress') : t('zipnnConfirmDecompress'),
+    header: compressing ? t('zipnnCompress') : t('zipnnDecompress'),
+    icon: 'pi pi-info-circle',
+    rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
+    acceptProps: { label: compressing ? t('zipnnCompress') : t('zipnnDecompress') },
+    accept: () => {
+      void startZipnn(
+        compressing ? 'compress' : 'decompress',
+        {
+          type: model.type,
+          pathIndex: model.pathIndex,
+          fullname: [model.subFolder, `${model.basename}${model.extension}`]
+            .filter(Boolean)
+            .join('/'),
+        },
+        modelKey,
+      )
+    },
+    reject: () => {},
+  })
+}
+
+const startZipnn = async (
+  mode: 'compress' | 'decompress',
+  model: { type: string; pathIndex: number; fullname: string },
+  modelKey: string,
+  options?: { force?: boolean },
+): Promise<void> => {
+  await beginTask(
+    mode,
+    model,
+    modelKey,
+    `/zipnn/${mode}`,
+    options?.force ? { ...model, force: true } : model,
+  )
 }
 
 /** True while a ZipNN task for this exact model is running. */
@@ -298,35 +362,13 @@ export const startZipnnBatch = async (
     })
     return
   }
-  lastRequest = {
+  await beginTask(
     mode,
-    model: { type: folder.type, pathIndex: folder.pathIndex, fullname: folder.folder },
-    modelKey: folderKey,
-  }
-  zipnnState.taskId = null
-  zipnnState.active = true
-  zipnnState.progress = 0
-  zipnnState.phase = 'prepare'
-  zipnnState.mode = mode
-  zipnnState.targetKey = folderKey
-  try {
-    const res = (await request(`/zipnn/batch-folder`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode, ...folder }),
-    })) as { taskId: string }
-    zipnnState.taskId = res?.taskId ?? null
-  } catch (error) {
-    zipnnState.active = false
-    zipnnState.taskId = null
-    zipnnState.targetKey = null
-    toast.add({
-      severity: 'error',
-      summary: t('error'),
-      detail: error instanceof Error ? error.message : String(error),
-      life: 12000,
-    })
-  }
+    { type: folder.type, pathIndex: folder.pathIndex, fullname: folder.folder },
+    folderKey,
+    `/zipnn/batch-folder`,
+    { mode, ...folder },
+  )
 }
 
 /** Delta-compress a fine-tuned model against its base (selection bar). */
@@ -335,40 +377,12 @@ export const startZipnnDelta = async (
   ft: { type: string; pathIndex: number; fullname: string },
   ftKey: string,
 ): Promise<void> => {
-  lastRequest = {
-    mode: 'compress',
-    model: { type: ft.type, pathIndex: ft.pathIndex, fullname: ft.fullname },
-    modelKey: ftKey,
-  }
-  zipnnState.taskId = null
-  zipnnState.active = true
-  zipnnState.progress = 0
-  zipnnState.phase = 'prepare'
-  zipnnState.mode = 'compress'
-  zipnnState.targetKey = ftKey
-  try {
-    const res = (await request(`/zipnn/delta-compress`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: ft.type,
-        pathIndex: ft.pathIndex,
-        fullname: ft.fullname,
-        baseFullname: base.fullname,
-      }),
-    })) as { taskId: string }
-    zipnnState.taskId = res?.taskId ?? null
-  } catch (error) {
-    zipnnState.active = false
-    zipnnState.taskId = null
-    zipnnState.targetKey = null
-    toast.add({
-      severity: 'error',
-      summary: t('error'),
-      detail: error instanceof Error ? error.message : String(error),
-      life: 12000,
-    })
-  }
+  await beginTask('compress', ft, ftKey, `/zipnn/delta-compress`, {
+    type: ft.type,
+    pathIndex: ft.pathIndex,
+    fullname: ft.fullname,
+    baseFullname: base.fullname,
+  })
 }
 
 /** Restore a fine-tuned model from its delta file (needs the base model). */
@@ -376,31 +390,7 @@ export const startZipnnDeltaDecompress = async (
   model: { type: string; pathIndex: number; fullname: string },
   modelKey: string,
 ): Promise<void> => {
-  lastRequest = { mode: 'decompress', model, modelKey }
-  zipnnState.taskId = null
-  zipnnState.active = true
-  zipnnState.progress = 0
-  zipnnState.phase = 'prepare'
-  zipnnState.mode = 'decompress'
-  zipnnState.targetKey = modelKey
-  try {
-    const res = (await request(`/zipnn/delta-decompress`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(model),
-    })) as { taskId: string }
-    zipnnState.taskId = res?.taskId ?? null
-  } catch (error) {
-    zipnnState.active = false
-    zipnnState.taskId = null
-    zipnnState.targetKey = null
-    toast.add({
-      severity: 'error',
-      summary: t('error'),
-      detail: error instanceof Error ? error.message : String(error),
-      life: 12000,
-    })
-  }
+  await beginTask('decompress', model, modelKey, `/zipnn/delta-decompress`, model)
 }
 
 /**
@@ -415,9 +405,9 @@ export const startZipnnDeltaDecompress = async (
  * folder can never be selected at the same time (adding one drops the
  * bundle side with a warning).
  */
-export type SelectionKind = 'model' | 'folder' | 'znn-folder'
+type SelectionKind = 'model' | 'folder' | 'znn-folder'
 
-export const selectionState = reactive<{
+const selectionState = reactive<{
   enabled: boolean
   selected: Record<string, boolean>
   kinds: Record<string, SelectionKind>

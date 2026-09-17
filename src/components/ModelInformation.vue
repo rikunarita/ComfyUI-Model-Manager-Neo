@@ -15,26 +15,7 @@
             {{ labelOf(row) }}
           </td>
           <td class="px-4 break-all text-mm-fg">
-            <div v-if="row.kind === 'links'" class="flex flex-col gap-1 py-1">
-              <a
-                v-for="(url, index) in row.values"
-                :key="`${url}-${index}`"
-                :href="url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="text-mm-accent hover:underline"
-                >{{ url }}</a
-              >
-            </div>
-            <a
-              v-else-if="row.kind === 'link'"
-              :href="row.value"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-mm-accent hover:underline"
-              >{{ row.value }}</a
-            >
-            <span v-else>{{ row.value }}</span>
+            <InformationValue :row="row" />
           </td>
         </tr>
       </tbody>
@@ -75,6 +56,7 @@
 import { Info } from '@lucide/vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import InformationValue from 'components/InformationValue.vue'
 import { useModelDescription, useModelMetadata } from 'hooks/model'
 import { type InformationRow, buildInformationRows } from 'utils/modelInformation'
 

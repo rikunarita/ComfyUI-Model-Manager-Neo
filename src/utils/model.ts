@@ -33,10 +33,10 @@ export const genModelKey = (model: BaseModel) => {
  * Mirrors `py/utils.py`: `X_DeltaZNN` does NOT match (the char before "ZNN"
  * is a letter), so the two suffixes stay distinguishable.
  */
-export const isZnnFolderName = (name: string) => name.endsWith('_ZNN')
+const isZnnFolderName = (name: string) => name.endsWith('_ZNN')
 
 /** True for ZipNN bundle / delta folders (`X_DeltaZNN`). */
-export const isDeltaFolderName = (name: string) => name.endsWith('_DeltaZNN')
+const isDeltaFolderName = (name: string) => name.endsWith('_DeltaZNN')
 
 /**
  * True for ANY ZipNN bundle folder: batch bundles (`X_DeltaZNN`, legacy

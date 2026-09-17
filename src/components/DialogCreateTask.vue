@@ -207,6 +207,43 @@ watch(selectedModelType, async () => {
   }
 })
 
+/**
+ * Append the preview gallery as previewFile / previewFile2 / ... multipart
+ * fields, converting each URL to a File in the browser when possible.
+ */
+const appendPreviewFields = async (formData: FormData, value: unknown) => {
+  const gallery = Array.isArray(value) ? value : value ? [value] : []
+  if (gallery.length === 0) {
+    // No preview: send an empty string (the backend's "nothing to do"
+    // sentinel) instead of stringifying `undefined`.
+    formData.append('previewFile', (value as string) ?? '')
+    return
+  }
+  let fieldIndex = 0
+  for (const item of gallery) {
+    fieldIndex += 1
+    const field = fieldIndex === 1 ? 'previewFile' : `previewFile${fieldIndex}`
+    const previewFile = await previewUrlToFile(item).catch(() => null)
+    if (previewFile) {
+      formData.append(field, previewFile)
+      continue
+    }
+    // BUG FIX: the browser-side preview fetch can fail (CORS, hotlink
+    // protection, offline CDN, ...). Aborting the whole submission made the
+    // Download click look completely dead - no dialog change, no task. Hand
+    // the raw URL to the backend instead: save_model_preview() downloads it
+    // server-side, where CORS does not exist, and degrades to "no preview"
+    // if that fails too.
+    toast.add({
+      severity: 'warn',
+      summary: t('warning'),
+      detail: t('previewFetchFallback'),
+      life: 5000,
+    })
+    formData.append(field, item)
+  }
+}
+
 const createDownTask = async (data: WithResolved<VersionModel>) => {
   // type が未選択の場合は送信を拒否
   if (!data.type) {
@@ -238,36 +275,7 @@ const createDownTask = async (data: WithResolved<VersionModel>) => {
 
       // set preview file(s): the editor hands over the whole gallery now
       if (key === 'preview') {
-        const gallery = Array.isArray(value) ? value : value ? [value] : []
-        if (gallery.length === 0) {
-          // No preview: send an empty string (the backend's "nothing to do"
-          // sentinel) instead of stringifying `undefined`.
-          formData.append('previewFile', value ?? '')
-          continue
-        }
-        let fieldIndex = 0
-        for (const item of gallery) {
-          fieldIndex += 1
-          const field = fieldIndex === 1 ? 'previewFile' : `previewFile${fieldIndex}`
-          const previewFile = await previewUrlToFile(item).catch(() => null)
-          if (previewFile) {
-            formData.append(field, previewFile)
-          } else {
-            // BUG FIX: the browser-side preview fetch can fail (CORS, hotlink
-            // protection, offline CDN, ...). Aborting the whole submission
-            // made the Download click look completely dead - no dialog
-            // change, no task. Hand the raw URL to the backend instead:
-            // save_model_preview() downloads it server-side, where CORS does
-            // not exist, and degrades to "no preview" if that fails too.
-            toast.add({
-              severity: 'warn',
-              summary: t('warning'),
-              detail: t('previewFetchFallback'),
-              life: 5000,
-            })
-            formData.append(field, item)
-          }
-        }
+        await appendPreviewFields(formData, value)
         continue
       }
 

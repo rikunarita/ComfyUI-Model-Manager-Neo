@@ -10,7 +10,6 @@ import {
 } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SettingApiKey from 'components/SettingApiKey.vue'
-import SettingCardSize from 'components/SettingCardSize.vue'
 import { request } from 'hooks/request'
 import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
@@ -67,11 +66,22 @@ export const useConfig = defineStore('config', store => {
     cardWidth: 240,
     aspect: 7 / 9,
     dialog: {
-      showCardSizeSetting: () => {
+      // BUG-FREE BY DESIGN: the component is loaded lazily so this module
+      // (which the component itself imports for its store) never forms a
+      // static import cycle with it.
+      showCardSizeSetting: async () => {
+        const { default: SettingCardSize } = await import('components/SettingCardSize.vue')
         store.dialog.open({
           key: 'setting.cardSize',
           title: t('setting.cardSize'),
           content: SettingCardSize,
+          contentProps: {
+            cardSizeMap,
+            defaultCardSizeMap,
+            onSave: (map: Record<string, string>) => {
+              cardSizeMap.value = map
+            },
+          },
           defaultSize: {
             width: 500,
             height: 390,

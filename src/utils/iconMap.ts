@@ -25,7 +25,7 @@ import {
 } from '@lucide/vue'
 import { type Component } from 'vue'
 
-export const iconMap: Record<string, Component> = {
+const iconMap: Record<string, Component> = {
   'pi pi-spinner pi-spin': Loader2,
   'pi pi-info-circle': Info,
   'pi pi-search': Search,

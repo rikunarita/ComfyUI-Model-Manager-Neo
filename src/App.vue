@@ -20,6 +20,7 @@ import GlobalConfirm from 'components/GlobalConfirm.vue'
 import GlobalDialogStack from 'components/GlobalDialogStack.vue'
 import { Sonner } from 'components/ui/sonner'
 import { TooltipProvider } from 'components/ui/tooltip'
+import { useModelDetail } from 'hooks/modelDetail'
 import { loadStars } from 'hooks/stars'
 import { useStoreProvider } from 'hooks/store'
 import { useToast } from 'hooks/toast'
@@ -29,6 +30,7 @@ import { $el, app, ComfyButton } from 'scripts/comfyAPI'
 const { t } = useI18n()
 
 const { dialog, models, config, download } = useStoreProvider()
+const { openModelDetail } = useModelDetail()
 
 const { toast } = useToast()
 
@@ -68,7 +70,7 @@ const handleZipnnSettled = async () => {
       `${m.basename}${m.extension}` === settle.newFullname,
   )
   dialog.close({ key: settle.targetKey })
-  if (renamed) models.openModelDetail(renamed)
+  if (renamed) openModelDetail(renamed)
 }
 
 onMounted(() => {

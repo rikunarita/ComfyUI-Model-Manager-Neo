@@ -141,102 +141,7 @@
     </div>
 
     <!-- Bulk actions for the selection mode -->
-    <div
-      v-if="selection.state.enabled && selectionCount > 0"
-      class="mm-glass-light mm-scope mx-4 mb-2 flex items-center justify-between gap-4 rounded-mm-ctl border border-mm-border px-4 py-2"
-    >
-      <span class="text-sm text-mm-muted-fg tabular-nums">
-        {{ $t('selectedCount', { count: selectionCount }) }}
-      </span>
-      <div class="flex items-center gap-2">
-        <Button variant="secondary" size="sm" @click="addSelectedToWorkflow">
-          <Plus class="size-4" />
-          {{ $t('addToWorkflow') }}
-        </Button>
-        <Button variant="destructive" size="sm" @click="deleteSelected">
-          <Trash2 class="size-4" />
-          {{ $t('delete') }}
-        </Button>
-        <!--
-          ZipNN batch (folder selection): the shipped SVG artwork *is* the
-          button, exactly like the model-card call-to-action - same
-          confirmation, same inverted colours for `*_ZNN` bundles, same
-          progress state (spinner while the batch task runs).
-        -->
-        <button
-          v-if="selectedFolderNodes.length > 0"
-          type="button"
-          class="mm-zipnn-button size-8 shrink-0 rounded-mm-ctl"
-          :title="batchLabel"
-          :aria-label="batchLabel"
-          :disabled="zipnnRunning"
-          @click="requestBatch"
-        >
-          <span v-if="zipnnRunning" class="relative grid size-full place-items-center">
-            <svg viewBox="0 0 36 36" class="size-full -rotate-90">
-              <circle
-                cx="18"
-                cy="18"
-                r="15"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="4"
-                class="text-mm-fg/25"
-              />
-              <circle
-                cx="18"
-                cy="18"
-                r="15"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="4"
-                stroke-linecap="round"
-                :stroke-dasharray="`${(batchProgress * 94.25) / 100} 94.25`"
-                class="text-mm-accent"
-              />
-            </svg>
-            <span class="absolute text-[9px] leading-none font-bold text-mm-accent tabular-nums">
-              {{ Math.round(batchProgress) }}%
-            </span>
-          </span>
-          <img
-            v-else
-            :src="zipnnIcon"
-            alt=""
-            class="size-full rounded-mm-ctl"
-            :class="batchInverted && 'hue-rotate-180 invert'"
-          />
-        </button>
-        <!-- Delta compression: exactly two plain .safetensors models selected -->
-        <Button
-          v-if="deltaPair"
-          variant="secondary"
-          size="sm"
-          :title="$t('zipnnDeltaCompress')"
-          @click="openDeltaDialog"
-        >
-          <GitCompareArrows class="size-4" />
-          {{ $t('zipnnDeltaCompress') }}
-        </Button>
-        <!-- Star toggle for the selected folders (icon only, per spec) -->
-        <Button
-          v-if="selectedFolderNodes.length > 0"
-          variant="ghost"
-          size="icon-sm"
-          :title="allSelectedFoldersStarred ? $t('unstar') : $t('star')"
-          :aria-label="allSelectedFoldersStarred ? $t('unstar') : $t('star')"
-          @click="starSelectedFolders"
-        >
-          <Star
-            class="size-4"
-            :class="allSelectedFoldersStarred ? 'fill-current text-mm-warning' : ''"
-          />
-        </Button>
-        <Button variant="ghost" size="sm" @click="selection.clear()">
-          {{ $t('clearSelection') }}
-        </Button>
-      </div>
-    </div>
+    <SelectionBulkBar v-if="selection.state.enabled && selectionCount > 0" :tree="dataTreeList" />
 
     <!-- Context Menu (reka-ui DropdownMenu, anchored at the right-click point) -->
     <DropdownMenu v-model:open="contextMenuVisible">
@@ -261,15 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ChevronUp,
-  FolderPlus,
-  GitCompareArrows,
-  ListChecks,
-  Plus,
-  Star,
-  Trash2,
-} from '@lucide/vue'
+import { ChevronUp, FolderPlus, ListChecks } from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { type ReferenceElement } from 'reka-ui'
@@ -277,12 +174,12 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardHoverActions from 'components/CardHoverActions.vue'
 import DialogCreateFolder from 'components/DialogCreateFolder.vue'
-import DialogZipnnDelta from 'components/DialogZipnnDelta.vue'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseBreadcrumb from 'components/ResponseBreadcrumb.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
+import SelectionBulkBar from 'components/SelectionBulkBar.vue'
 import { Button } from 'components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from 'components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
@@ -290,20 +187,16 @@ import { useConfig } from 'hooks/config'
 import { useContainerQueries } from 'hooks/container'
 import { useDialog } from 'hooks/dialog'
 import { type ModelTreeNode, useModelExplorer } from 'hooks/explorer'
-import { genModelFullName, useModelNodeAction, useModels } from 'hooks/model'
-import { applyFolderStars, isFolderStarred } from 'hooks/stars'
-import { useToast } from 'hooks/toast'
-import { queueZipnnBatches, useSelection, zipnnState } from 'hooks/zipnn'
+import { useGridSelectOptions } from 'hooks/gridOptions'
+import { useModelDetail } from 'hooks/modelDetail'
+import { isFolderStarred } from 'hooks/stars'
+import { useSelection } from 'hooks/zipnn'
 import { resolveIcon } from 'utils/iconMap'
-import { assetUrl } from 'utils/media'
 import { genModelKey, isBundleFolderName } from 'utils/model'
 
 const { t } = useI18n()
-const { toast, confirm } = useToast()
 const selection = useSelection()
 const selectionCount = selection.count
-const { addModelNode } = useModelNodeAction()
-const { remove } = useModels()
 const dialog = useDialog()
 
 const isSelected = (model: ModelTreeNode) => Boolean(selection.state.selected[genModelKey(model)])
@@ -327,186 +220,6 @@ const toggleSelectMode = () => {
   else selection.enter()
 }
 
-/* ---- selected nodes (a selection can span folders AND models) ---------- */
-const findNodeByKey = (list: ModelTreeNode[], key: string): ModelTreeNode | undefined => {
-  for (const node of list) {
-    if (genModelKey(node) === key) return node
-    if (node.children?.length) {
-      const found = findNodeByKey(node.children, key)
-      if (found) return found
-    }
-  }
-  return undefined
-}
-
-const selectedNodes = () =>
-  Object.keys(selection.state.selected)
-    .map(key => findNodeByKey(dataTreeList.value, key))
-    .filter((n): n is ModelTreeNode => Boolean(n))
-
-const collectFolderModels = (node: ModelTreeNode): ModelTreeNode[] => {
-  const models: ModelTreeNode[] = []
-  for (const child of node.children ?? []) {
-    if (child.isFolder) models.push(...collectFolderModels(child))
-    else models.push(child)
-  }
-  return models
-}
-
-/** Type-root nodes are the library's top level (`checkpoints`, `loras`, ...). */
-const isTypeRootNode = (n: ModelTreeNode) =>
-  Boolean(n.type) && n.basename === n.type && !n.subFolder
-
-// Every folder except delta bundles is a batch/star target; type roots are
-// batch-processed in place by the backend (no *_ZNN rename).
-const selectedFolderNodes = computed(() => selectedNodes().filter(n => n.isFolder))
-const selectedModelNodes = computed(() => selectedNodes().filter(n => !n.isFolder))
-
-/**
- * BUG FIX: "Add to workflow" on a folder selection used to add NOTHING - the
- * old helper filtered folders out and only looked at the current view, so the
- * models inside a selected folder were never expanded into nodes.
- */
-const addSelectedToWorkflow = () => {
-  const models: ModelTreeNode[] = []
-  for (const node of selectedNodes()) {
-    if (node.isFolder) models.push(...collectFolderModels(node))
-    else models.push(node)
-  }
-  for (const model of models) addModelNode(model)
-  if (models.length > 1) {
-    toast.add({
-      severity: 'success',
-      summary: t('nodeAdded'),
-      detail: `${models.length}`,
-      life: 2500,
-    })
-  }
-}
-
-/**
- * BUG FIX: folder deletion never reached the backend (folders were filtered
- * out of the selection, so "Delete" silently did nothing for them). The
- * delete route now removes directories recursively.
- */
-const deleteSelected = () => {
-  const nodes = selectedNodes()
-  const modelCount = nodes.filter(n => !n.isFolder).length
-  const folderCount = nodes.length - modelCount
-  const subject =
-    folderCount > 0
-      ? t('deleteAskSubjectMixed', { models: modelCount, folders: folderCount })
-      : `${t('model').toLowerCase()} (${modelCount})`
-  confirm.require({
-    message: t('deleteAsk', [subject]),
-    header: 'Danger',
-    icon: 'pi pi-info-circle',
-    rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
-    acceptProps: { label: t('delete'), severity: 'danger' },
-    accept: async () => {
-      for (const node of nodes) await remove(node)
-      selection.clear()
-    },
-    reject: () => {},
-  })
-}
-
-/* ---- ZipNN batch (folder selection) ------------------------------------ */
-const zipnnIcon = assetUrl('zipnn-button')
-const zipnnRunning = computed(
-  () =>
-    zipnnState.active &&
-    selectedFolderNodes.value.some(n => genModelKey(n) === zipnnState.targetKey),
-)
-const batchProgress = computed(() => zipnnState.progress)
-const batchInverted = computed(
-  () =>
-    selectedFolderNodes.value.length > 0 &&
-    selectedFolderNodes.value.every(n => isBundleFolderName(n.basename)),
-)
-const batchModeFor = (n: ModelTreeNode): 'compress' | 'decompress' | 'auto' =>
-  isBundleFolderName(n.basename) ? 'decompress' : isTypeRootNode(n) ? 'auto' : 'compress'
-
-const batchLabel = computed(() => {
-  const folders = selectedFolderNodes.value
-  if (folders.length === 0) return t('zipnnBatchCompress')
-  if (folders.every(n => isBundleFolderName(n.basename))) return t('zipnnBatchDecompress')
-  if (folders.some(n => batchModeFor(n) === 'auto')) return t('zipnnBatch')
-  return t('zipnnBatchCompress')
-})
-
-const requestBatch = () => {
-  const folders = selectedFolderNodes.value
-  if (folders.length === 0) return
-  const modes = folders.map(batchModeFor)
-  const names = folders.map(f => f.basename).join(', ')
-  const decompressing = modes.every(m => m === 'decompress')
-  const hasAuto = modes.some(m => m === 'auto')
-  const message = decompressing
-    ? t('zipnnBatchConfirmDecompress', { name: names })
-    : hasAuto
-      ? t('zipnnBatchConfirmAuto', { name: names })
-      : t('zipnnBatchConfirmCompress', { name: names })
-  confirm.require({
-    message,
-    header: batchLabel.value,
-    icon: 'pi pi-info-circle',
-    rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
-    acceptProps: { label: batchLabel.value },
-    accept: () => {
-      const items = folders
-        .map(f => ({
-          mode: batchModeFor(f),
-          folder: {
-            type: f.type,
-            pathIndex: f.pathIndex,
-            folder: isTypeRootNode(f) ? '.' : genModelFullName(f),
-          },
-          key: genModelKey(f),
-        }))
-        // never queue an unresolved target (defence in depth; the start guard
-        // would reject it with a toast anyway)
-        .filter(it => it.folder.folder && it.folder.type)
-      if (items.length === 0) {
-        toast.add({ severity: 'warn', summary: t('zipnnBatchInvalidTarget'), life: 8000 })
-        return
-      }
-      queueZipnnBatches(items)
-    },
-    reject: () => {},
-  })
-}
-
-/* ---- delta compression (exactly two plain models selected) ------------- */
-const deltaPair = computed(() => {
-  const models = selectedModelNodes.value.filter(
-    m => m.extension === '.safetensors' && !m.basename.endsWith('.znn'),
-  )
-  return models.length === 2 ? models : null
-})
-
-const openDeltaDialog = () => {
-  const pair = deltaPair.value
-  if (!pair) return
-  dialog.open({
-    key: 'zipnn-delta',
-    title: t('zipnnDeltaCompress'),
-    content: DialogZipnnDelta,
-    contentProps: { models: pair },
-    defaultSize: { width: 480, height: 280 },
-  })
-}
-
-/* ---- star toggle for the selected folders ------------------------------ */
-const allSelectedFoldersStarred = computed(
-  () =>
-    selectedFolderNodes.value.length > 0 &&
-    selectedFolderNodes.value.every(n => isFolderStarred(genModelKey(n))),
-)
-const starSelectedFolders = () => {
-  applyFolderStars(selectedFolderNodes.value.map(n => genModelKey(n)))
-}
-
 /* ---- create folder ------------------------------------------------------ */
 const openCreateFolder = () => {
   const info = currentFolderInfo.value
@@ -525,9 +238,9 @@ const gutter = {
   y: 32,
 }
 
-const { dataTreeList, folderPaths, findFolder, openFolder, openModelDetail, getFullPath } =
-  useModelExplorer()
-const { cardSize, cardSizeFlag, cardSizeMap, dialog: settings } = useConfig()
+const { dataTreeList, folderPaths, findFolder, openFolder, getFullPath } = useModelExplorer()
+const { openModelDetail } = useModelDetail()
+const { cardSize } = useConfig()
 
 // folderPaths を BreadcrumbItem[] に変換
 const breadcrumbItems = computed(() => {
@@ -567,40 +280,68 @@ const searchContent = ref<string>()
 // Optimization B-3: collapse keystroke bursts into one tree filter pass.
 const debouncedSearch = refDebounced(searchContent, 150)
 
-const sortOrder = ref('name')
-const sortOrderOptions = ref(
-  ['name', 'size', 'created', 'modified'].map(key => {
-    return {
-      label: t(`sort.${key}`),
-      value: key,
-      icon: key === 'name' ? 'pi pi-sort-alpha-down' : 'pi pi-sort-amount-down',
-      command: () => {
-        sortOrder.value = key
-      },
-    }
-  }),
-)
+const { sortOrder, sortOrderOptions, cardSizeOptions, cardSizeFlag } = useGridSelectOptions()
 
-const cardSizeOptions = computed(() => {
-  const customSize = 'size.custom'
-  const customOptionMap = {
-    ...cardSizeMap.value,
-    [customSize]: 'custom',
-  }
-  return Object.keys(customOptionMap).map(key => {
-    return {
-      label: t(key),
-      value: key,
-      command: () => {
-        if (key === customSize) {
-          settings.showCardSizeSetting()
-        } else {
-          cardSizeFlag.value = key
-        }
-      },
+/** Depth-first collect of every node matching the search filter. */
+const applySearchFilter = (list: ModelTreeNode[], filter: string): ModelTreeNode[] => {
+  const filterItems: ModelTreeNode[] = []
+  const searchList = [...list]
+
+  while (searchList.length) {
+    const item = searchList.pop()!
+    const children = (item as any).children ?? []
+    searchList.push(...children)
+
+    const matchSubFolder = `${item.subFolder}/`.toLowerCase().includes(filter)
+    const matchName = item.basename.toLowerCase().includes(filter)
+
+    if (matchSubFolder || matchName) {
+      filterItems.push(item)
     }
+  }
+  return filterItems
+}
+
+/** Folders first (by name), then models (by the chosen sort key); stars lead. */
+const sortFolderContents = (list: ModelTreeNode[]): ModelTreeNode[] => {
+  const folderItems: ModelTreeNode[] = []
+  const modelItems: ModelTreeNode[] = []
+
+  for (const item of list) {
+    if (item.isFolder) folderItems.push(item)
+    else modelItems.push(item)
+  }
+
+  // Starred entries always lead their group; the chosen sort order decides
+  // within equal star state (Array#sort is stable).
+  const starFirst = (a: ModelTreeNode, b: ModelTreeNode) =>
+    Number(isFolderStarred(genModelKey(b))) - Number(isFolderStarred(genModelKey(a)))
+
+  folderItems.sort((a, b) => starFirst(a, b) || a.basename.localeCompare(b.basename))
+  modelItems.sort((a, b) => {
+    const byStar = starFirst(a, b)
+    if (byStar) return byStar
+    const sortFieldMap = {
+      name: 'basename',
+      size: 'sizeBytes',
+      created: 'createdAt',
+      modified: 'updatedAt',
+    }
+    const sortField = (sortFieldMap as Record<string, keyof ModelTreeNode>)[sortOrder.value]
+
+    const aValue = a[sortField]
+    const bValue = b[sortField]
+
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return aValue.localeCompare(bValue)
+    }
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return aValue - bValue
+    }
+    return 0
   })
-})
+  return [...folderItems, ...modelItems]
+}
 
 const currentDataList = computed(() => {
   let renderedList = dataTreeList.value
@@ -614,77 +355,16 @@ const currentDataList = computed(() => {
 
   const filter = debouncedSearch.value?.toLowerCase().trim() ?? ''
   if (filter) {
-    const filterItems: ModelTreeNode[] = []
-
-    const searchList = [...renderedList]
-
-    while (searchList.length) {
-      const item = searchList.pop()!
-      const children = (item as any).children ?? []
-      searchList.push(...children)
-
-      const matchSubFolder = `${item.subFolder}/`.toLowerCase().includes(filter)
-      const matchName = item.basename.toLowerCase().includes(filter)
-
-      if (matchSubFolder || matchName) {
-        filterItems.push(item)
-      }
-    }
-
-    renderedList = filterItems
+    renderedList = applySearchFilter(renderedList, filter)
   }
 
   if (folderPaths.value.length > 1) {
-    const folderItems: ModelTreeNode[] = []
-    const modelItems: ModelTreeNode[] = []
-
-    for (const item of renderedList) {
-      if (item.isFolder) {
-        folderItems.push(item)
-      } else {
-        modelItems.push(item)
-      }
-    }
-
-    // Starred entries always lead their group; the chosen sort order decides
-    // within equal star state (Array#sort is stable).
-    const starFirst = (a: ModelTreeNode, b: ModelTreeNode) =>
-      Number(isFolderStarred(genModelKey(b))) - Number(isFolderStarred(genModelKey(a)))
-
-    folderItems.sort((a, b) => {
-      return starFirst(a, b) || a.basename.localeCompare(b.basename)
-    })
-    modelItems.sort((a, b) => {
-      const byStar = starFirst(a, b)
-      if (byStar) return byStar
-      const sortFieldMap = {
-        name: 'basename',
-        size: 'sizeBytes',
-        created: 'createdAt',
-        modified: 'updatedAt',
-      }
-      const sortField = (sortFieldMap as Record<string, keyof ModelTreeNode>)[sortOrder.value]
-
-      const aValue = a[sortField]
-      const bValue = b[sortField]
-
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return aValue.localeCompare(bValue)
-      }
-      if (typeof aValue === 'number' && typeof bValue === 'number') {
-        return aValue - bValue
-      }
-      return 0
-    })
-    renderedList = [...folderItems, ...modelItems]
-  } else {
-    // Root level (the model-type folders): starred folders lead here too.
-    const starFirstRoot = (a: ModelTreeNode, b: ModelTreeNode) =>
-      Number(isFolderStarred(genModelKey(b))) - Number(isFolderStarred(genModelKey(a)))
-    renderedList = [...renderedList].sort(starFirstRoot)
+    return sortFolderContents(renderedList)
   }
-
-  return renderedList
+  // Root level (the model-type folders): starred folders lead here too.
+  return [...renderedList].sort(
+    (a, b) => Number(isFolderStarred(genModelKey(b))) - Number(isFolderStarred(genModelKey(a))),
+  )
 })
 
 const renderedList = computed(() => {

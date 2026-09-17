@@ -6,7 +6,7 @@
  */
 import { app } from 'scripts/comfyAPI'
 
-export const MODEL_NODE_TYPE: Record<string, string | undefined> = {
+const MODEL_NODE_TYPE: Record<string, string | undefined> = {
   checkpoints: 'CheckpointLoaderSimple',
   clip: 'CLIPLoader',
   clip_vision: 'CLIPVisionLoader',
@@ -24,21 +24,17 @@ export const MODEL_NODE_TYPE: Record<string, string | undefined> = {
   vae_approx: undefined,
 }
 
-export function modelWidgetIndex(nodeType: string | undefined): number {
+function modelWidgetIndex(nodeType: string | undefined): number {
   return nodeType === undefined ? -1 : 0
 }
 
-export function splitExtension(name: string): [string, string] {
+function splitExtension(name: string): [string, string] {
   const idx = name.lastIndexOf('.')
   if (idx <= 0) return [name, '']
   return [name.slice(0, idx), name.slice(idx)]
 }
 
-export function insertEmbeddingIntoText(
-  text: string,
-  file: string,
-  removeExtension: boolean,
-): string {
+function insertEmbeddingIntoText(text: string, file: string, removeExtension: boolean): string {
   let name = file
   if (removeExtension) {
     name = splitExtension(name)[0]
@@ -67,6 +63,29 @@ function getWidgetComboIndices(node: LGraphNode | null, value: string): number[]
   return indices
 }
 
+/**
+ * Which combo widget a dropped model should land in: the single matching
+ * combo, or - the drag started on a widget and `strictlyOnWidget` asks for
+ * it - the combo actually under the pointer when several match.
+ */
+function resolveDropWidgetIndex(
+  node: LGraphNode | null,
+  path: string,
+  strictlyOnWidget: boolean,
+  pos: [number, number],
+  event: DragEvent,
+): number {
+  const widgetIndices = getWidgetComboIndices(node, path)
+  if (widgetIndices.length === 0) return -1
+  if (widgetIndices.length === 1) {
+    if (!strictlyOnWidget) return widgetIndices[0]
+    const draggedWidget = (app.canvas as any).processNodeWidgets(node, pos, event)
+    return draggedWidget === node!.widgets[widgetIndices[0]] ? widgetIndices[0] : -1
+  }
+  const draggedWidget = (app.canvas as any).processNodeWidgets(node, pos, event)
+  return widgetIndices.findIndex(index => draggedWidget === node!.widgets[index])
+}
+
 export function dragAddModel(
   event: DragEvent,
   modelType: string,
@@ -80,20 +99,7 @@ export function dragAddModel(
     const pos = (app.canvas as any).convertEventToCanvasOffset(event) as [number, number]
     const node = app.graph.getNodeOnPos(pos[0], pos[1], (app.canvas as any).visible_nodes)
 
-    let widgetIndex = -1
-    const widgetIndices = getWidgetComboIndices(node, path)
-    if (widgetIndices.length === 1) {
-      widgetIndex = widgetIndices[0]
-      if (strictlyOnWidget) {
-        const draggedWidget = (app.canvas as any).processNodeWidgets(node, pos, event)
-        if (draggedWidget !== node!.widgets[widgetIndex]) {
-          widgetIndex = -1
-        }
-      }
-    } else if (widgetIndices.length > 1) {
-      const draggedWidget = (app.canvas as any).processNodeWidgets(node, pos, event)
-      widgetIndex = widgetIndices.findIndex(index => draggedWidget === node!.widgets[index])
-    }
+    const widgetIndex = resolveDropWidgetIndex(node, path, strictlyOnWidget, pos, event)
 
     if (widgetIndex !== -1 && node) {
       node.widgets[widgetIndex].value = path

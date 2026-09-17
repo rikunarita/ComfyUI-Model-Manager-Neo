@@ -11,15 +11,7 @@
         }}</TabsTrigger>
       </TabsList>
       <TabsContent :value="1" class="flex-1 overflow-hidden">
-        <div class="flex h-full flex-col overflow-hidden">
-          <ResponseScroll>
-            <div class="flex flex-wrap gap-4">
-              <Button v-for="item in typeOptions" :key="item.value" @click="item.command">
-                {{ item.label }}
-              </Button>
-            </div>
-          </ResponseScroll>
-        </div>
+        <ModelTypeButtonGrid :items="typeOptions" />
       </TabsContent>
       <TabsContent :value="2" class="flex-1 overflow-hidden">
         <div class="flex h-full flex-col overflow-hidden">
@@ -86,16 +78,15 @@
 import { ChevronLeft, ChevronRight } from '@lucide/vue'
 import { computed, onMounted, ref, toValue } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ModelTypeButtonGrid from 'components/ModelTypeButtonGrid.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
 import { Tree } from 'components/ui/tree'
-import { configSetting } from 'hooks/config'
 import { useDialog } from 'hooks/dialog'
 import { useModelFolder, useModels } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
-import { app } from 'scripts/comfyAPI'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -103,30 +94,20 @@ const dialog = useDialog()
 
 const stepValue = ref(1)
 
-const { folders } = useModels()
+const { visibleTypes } = useModels()
 
 const currentType = ref<string>()
 const typeOptions = computed(() => {
-  const excludeModelTypes = app.ui?.settings.getSettingValue<string>(
-    configSetting.excludeModelTypes,
-  )
-  const customBlackList =
-    excludeModelTypes
-      ?.split(',')
-      .map((type: string) => type.trim())
-      .filter(Boolean) ?? []
-  return Object.keys(folders.value)
-    .filter(folder => !customBlackList.includes(folder))
-    .map(type => {
-      return {
-        label: type,
-        value: type,
-        command: () => {
-          currentType.value = type
-          stepValue.value++
-        },
-      }
-    })
+  return visibleTypes().map(type => {
+    return {
+      label: type,
+      value: type,
+      command: () => {
+        currentType.value = type
+        stepValue.value++
+      },
+    }
+  })
 })
 
 const { pathOptions } = useModelFolder({ type: currentType })

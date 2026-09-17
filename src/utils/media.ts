@@ -23,7 +23,7 @@ export const NO_PREVIEW_SENTINEL = 'no-preview.png'
  * be inlined as data: URIs, so every folder card carried its own copy and the
  * browser could never cache any of it (optimization B-2).
  */
-export const ASSET_BASE = '/model-manager/assets'
+const ASSET_BASE = '/model-manager/assets'
 
 export const assetUrl = (name: string) => `${ASSET_BASE}/${name}.svg`
 

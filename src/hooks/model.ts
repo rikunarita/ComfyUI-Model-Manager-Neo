@@ -14,7 +14,6 @@ import {
   unref,
 } from 'vue'
 import { useI18n } from 'vue-i18n'
-import DialogModelDetail from 'components/DialogModelDetail.vue'
 import { useLoading } from 'hooks/loading'
 import { useMarkdown } from 'hooks/markdown'
 import { request } from 'hooks/request'
@@ -49,7 +48,7 @@ const systemStat = ref()
 const ZNN_ORIGINAL_SIZE_KEY = 'znn_neo_original_bytes'
 
 /** Preview field -> ordered URL list (the no-preview artwork counts as none). */
-export const normalizePreviews = (preview: string | string[] | undefined): string[] => {
+const normalizePreviews = (preview: string | string[] | undefined): string[] => {
   if (!preview) return []
   const list = Array.isArray(preview) ? preview : [preview]
   return list.filter(item => Boolean(item) && item !== NO_PREVIEW_SENTINEL)
@@ -136,6 +135,23 @@ export const useModels = defineStore('models', store => {
     }
   }
 
+  /**
+   * Model types not hidden by the `excludeModelTypes` setting. Shared by the
+   * refresh sweep and every type picker (flat view, download, uploads), which
+   * used to each re-implement the blacklist parsing.
+   */
+  const visibleTypes = (): string[] => {
+    const excludeModelTypes = app.ui?.settings.getSettingValue<string>(
+      configSetting.excludeModelTypes,
+    )
+    const customBlackList =
+      excludeModelTypes
+        ?.split(',')
+        .map((type: string) => type.trim())
+        .filter(Boolean) ?? []
+    return Object.keys(folders.value).filter(folder => !customBlackList.includes(folder))
+  }
+
   const refreshAllModels = async (force = false, options?: { background?: boolean }) => {
     if (force) {
       try {
@@ -147,15 +163,7 @@ export const useModels = defineStore('models', store => {
         console.error('[Model Manager Neo] folder refresh failed:', error)
       }
     }
-    const excludeModelTypes = app.ui?.settings.getSettingValue<string>(
-      configSetting.excludeModelTypes,
-    )
-    const customBlackList =
-      excludeModelTypes
-        ?.split(',')
-        .map((type: string) => type.trim())
-        .filter(Boolean) ?? []
-    const types = Object.keys(folders.value).filter(folder => !customBlackList.includes(folder))
+    const types = visibleTypes()
     const results = await Promise.allSettled(types.map(type => refreshModels(type, options)))
     // BUG FIX: rejections used to vanish inside allSettled. Report them in
     // ONE toast naming every failed type instead of silently showing stale
@@ -192,7 +200,14 @@ export const useModels = defineStore('models', store => {
     return refreshAllModels(true, { background: true })
   }
 
-  const updateModel = async (model: BaseModel, data: WithResolved<BaseModel>) => {
+  /**
+   * Diff the editor payload against the stored model and build the multipart
+   * body of the update PUT. Returns null when nothing changed (no request).
+   */
+  const buildUpdatePayload = async (
+    model: BaseModel,
+    data: WithResolved<BaseModel>,
+  ): Promise<{ formData: FormData; oldKey: string | null } | null> => {
     const updateData = new FormData()
     let oldKey: string | null = null
     let needUpdate = false
@@ -214,13 +229,10 @@ export const useModels = defineStore('models', store => {
         for (const item of dataPreviews) {
           index += 1
           const field = index === 1 ? 'previewFile' : `previewFile${index}`
-          try {
-            updateData.set(field, await previewUrlToFile(item))
-          } catch (e) {
-            // Hand the raw URL over: the backend downloads it server-side.
-            console.warn('Failed to convert preview URL to file:', e)
-            updateData.set(field, item)
-          }
+          const file = await previewUrlToFile(item).catch(() => null)
+          // Hand the raw URL over when the browser-side fetch fails: the
+          // backend downloads it server-side.
+          updateData.set(field, file ?? item)
         }
       }
       needUpdate = true
@@ -235,10 +247,8 @@ export const useModels = defineStore('models', store => {
     // BUG FIX: this only compared `subFolder` and `pathIndex`, so
     //  - renaming a model (only `basename` changed) and
     //  - moving it to another model *type* at the same pathIndex/subFolder
-    // were both silently dropped: `needUpdate` stayed false, no PUT was sent
-    // and the editor just closed as if the change had been saved. The README
-    // advertises "Rename, move between folders/types", and the backend already
-    // handles the rename (`rename_model` is a no-op when the path is equal).
+    //    were both silently dropped: `needUpdate` stayed false, no PUT was
+    //    sent and the editor just closed as if the change had been saved.
     if (
       model.type !== data.type ||
       model.subFolder !== data.subFolder ||
@@ -253,15 +263,18 @@ export const useModels = defineStore('models', store => {
       needUpdate = true
     }
 
-    if (!needUpdate) {
-      return
-    }
+    return needUpdate ? { formData: updateData, oldKey } : null
+  }
+
+  const updateModel = async (model: BaseModel, data: WithResolved<BaseModel>) => {
+    const payload = await buildUpdatePayload(model, data)
+    if (!payload) return
 
     loading.show()
 
     await request(genModelUrl(model), {
       method: 'PUT',
-      body: updateData,
+      body: payload.formData,
     })
       .catch(err => {
         const error_message = err.message ?? err.error
@@ -284,8 +297,8 @@ export const useModels = defineStore('models', store => {
       life: 3000,
     })
 
-    if (oldKey) {
-      store.dialog.close({ key: oldKey })
+    if (payload.oldKey) {
+      store.dialog.close({ key: payload.oldKey })
     }
 
     // The save succeeded; a failing post-save rescan must not look like a
@@ -357,21 +370,6 @@ export const useModels = defineStore('models', store => {
     })
   }
 
-  function openModelDetail(model: BaseModel) {
-    // `basename` already excludes the extension, so the previous
-    // `basename.replace(extension, '')` only ever did damage: String.replace
-    // swaps the FIRST occurrence, so a file named
-    // "foo.safetensors.safetensors" opened a dialog titled "foo".
-    const filename = model.basename
-
-    store.dialog.open({
-      key: genModelKey(model),
-      title: filename,
-      content: DialogModelDetail,
-      contentProps: { model: model },
-    })
-  }
-
   function getFullPath(model: BaseModel) {
     const fullname = genModelFullName(model)
     const prefixPath = folders.value[model.type]?.[model.pathIndex]
@@ -390,10 +388,10 @@ export const useModels = defineStore('models', store => {
     data: models,
     refresh: refreshAllModels,
     refreshFolder: refreshModels,
+    visibleTypes: visibleTypes,
     revalidate: revalidate,
     remove: deleteModel,
     update: updateModel,
-    openModelDetail: openModelDetail,
     getFullPath: getFullPath,
   }
 })
@@ -451,7 +449,7 @@ export const useModelFormData = (getFormData: () => BaseModel) => {
   }
 }
 
-type ModelFormInstance = ReturnType<typeof useModelFormData>
+export type ModelFormInstance = ReturnType<typeof useModelFormData>
 
 /**
  * Model base info
@@ -637,6 +635,55 @@ export const useModelBaseInfo = () => {
   return inject(baseInfoKey)!
 }
 
+/**
+ * One base-path node of the folder-picker tree: its sub-folders linked into
+ * a parent/child hierarchy by path prefix.
+ */
+const buildPathIndexNode = (folder: string, index: number, pureFolders: BaseModel[]): TreeNode => {
+  const pathIndexItem: TreeNode = {
+    key: folder,
+    label: folder,
+    children: [],
+  }
+
+  const items = pureFolders
+    .filter(item => item.pathIndex === index)
+    .map(item => {
+      const node: TreeNode = {
+        key: `${folder}/${genModelFullName(item)}`,
+        label: item.basename,
+        data: item,
+      }
+      return node
+    })
+  const itemMap = Object.fromEntries(items.map(item => [item.key, item]))
+
+  for (const item of items) {
+    const key = item.key
+    if (!key) continue
+    const parentKey = key.split('/').slice(0, -1).join('/')
+
+    if (parentKey === folder) {
+      pathIndexItem.children!.push(item)
+      continue
+    }
+
+    const parentItem = itemMap[parentKey]
+    if (parentItem) {
+      parentItem.children ??= []
+      parentItem.children.push(item)
+    }
+  }
+
+  // Drop empty children arrays so leaf folders don't render a misleading
+  // expansion chevron (reka-ui treats `[]` as "has children").
+  if (pathIndexItem.children && pathIndexItem.children.length === 0) {
+    delete pathIndexItem.children
+  }
+
+  return pathIndexItem
+}
+
 export const useModelFolder = (option: { type?: MaybeRefOrGetter<string | undefined> } = {}) => {
   const { data: models, folders: modelFolders } = useModels()
 
@@ -656,48 +703,7 @@ export const useModelFolder = (option: { type?: MaybeRefOrGetter<string | undefi
     const root: TreeNode[] = []
 
     for (const [index, folder] of folders.entries()) {
-      const pathIndexItem: TreeNode = {
-        key: folder,
-        label: folder,
-        children: [],
-      }
-
-      const items = pureFolders
-        .filter(item => item.pathIndex === index)
-        .map(item => {
-          const node: TreeNode = {
-            key: `${folder}/${genModelFullName(item)}`,
-            label: item.basename,
-            data: item,
-          }
-          return node
-        })
-      const itemMap = Object.fromEntries(items.map(item => [item.key, item]))
-
-      for (const item of items) {
-        const key = item.key
-        if (!key) continue
-        const parentKey = key.split('/').slice(0, -1).join('/')
-
-        if (parentKey === folder) {
-          pathIndexItem.children!.push(item)
-          continue
-        }
-
-        const parentItem = itemMap[parentKey]
-        if (parentItem) {
-          parentItem.children ??= []
-          parentItem.children.push(item)
-        }
-      }
-
-      // Drop empty children arrays so leaf folders don't render a misleading
-      // expansion chevron (reka-ui treats `[]` as "has children").
-      if (pathIndexItem.children && pathIndexItem.children.length === 0) {
-        delete pathIndexItem.children
-      }
-
-      root.push(pathIndexItem)
+      root.push(buildPathIndexNode(folder, index, pureFolders))
     }
 
     return root

@@ -24,7 +24,7 @@ class GlobalLoading {
   }
 }
 
-export const globalLoading = new GlobalLoading()
+const globalLoading = new GlobalLoading()
 
 export const useGlobalLoading = defineStore('loading', () => {
   const loading = ref(false)

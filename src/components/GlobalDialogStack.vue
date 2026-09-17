@@ -26,52 +26,15 @@
         @interact-outside="preventDismiss"
         @mousedown="rise(item)"
       >
-        <DialogHeader
-          class="flex flex-row items-center justify-between space-y-0 border-b border-mm-border px-4 py-3 select-none"
-          :class="allowResize && !states[item.key].isMaximized ? 'cursor-move' : 'cursor-default'"
-          @mousedown.left="startDrag(item, $event)"
-        >
-          <DialogTitle class="text-base font-medium select-none">
-            {{ item.title }}
-          </DialogTitle>
-          <div class="flex items-center gap-1">
-            <Button
-              v-for="action in item.headerButtons"
-              :key="action.key"
-              variant="ghost"
-              size="icon-header"
-              :title="action.tooltip"
-              :aria-label="action.tooltip"
-              @click.stop="action.command"
-            >
-              <component
-                :is="resolveIcon(action.icon) || Info"
-                class="size-[1.2rem]"
-                :class="{ 'animate-spin': action.icon === 'pi pi-spinner pi-spin' }"
-              />
-            </Button>
-            <Button
-              v-if="allowResize"
-              variant="ghost"
-              size="icon-header"
-              :title="states[item.key].isMaximized ? t('restore') : t('maximize')"
-              :aria-label="states[item.key].isMaximized ? t('restore') : t('maximize')"
-              @click="toggleMaximize(item)"
-            >
-              <Maximize2 v-if="!states[item.key].isMaximized" class="size-[1.2rem]" />
-              <Minimize2 v-else class="size-[1.2rem]" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-header"
-              :title="t('close')"
-              :aria-label="t('close')"
-              @click="close(item)"
-            >
-              <X class="size-[1.2rem]" />
-            </Button>
-          </div>
-        </DialogHeader>
+        <DialogHeaderBar
+          :item="item"
+          :maximized="states[item.key].isMaximized"
+          :resizable="allowResize"
+          :movable="allowResize && !states[item.key].isMaximized"
+          @drag="startDrag(item, $event)"
+          @maximize="toggleMaximize(item)"
+          @close="close(item)"
+        />
         <div class="min-h-0 flex-1 overflow-auto">
           <component :is="item.content" v-bind="item.contentProps" />
         </div>
@@ -83,75 +46,28 @@
         -->
         <PanelLoading v-if="loading && index === topmostVisibleIndex" />
 
-        <!-- Resize handles -->
-        <div v-if="allowResize && !states[item.key].isMaximized" data-dialog-resizer>
-          <div
-            v-if="resizeAllowed(item).x"
-            data-resize-pos="left"
-            class="absolute top-0 -left-1 h-full w-2 cursor-ew-resize"
-            @mousedown="startResize(item, $event)"
-          ></div>
-          <div
-            v-if="resizeAllowed(item).x"
-            data-resize-pos="right"
-            class="absolute top-0 -right-1 h-full w-2 cursor-ew-resize"
-            @mousedown="startResize(item, $event)"
-          ></div>
-          <div
-            v-if="resizeAllowed(item).y"
-            data-resize-pos="top"
-            class="absolute -top-1 left-0 h-2 w-full cursor-ns-resize"
-            @mousedown="startResize(item, $event)"
-          ></div>
-          <div
-            v-if="resizeAllowed(item).y"
-            data-resize-pos="bottom"
-            class="absolute -bottom-1 left-0 h-2 w-full cursor-ns-resize"
-            @mousedown="startResize(item, $event)"
-          ></div>
-          <div
-            v-if="resizeAllowed(item).x && resizeAllowed(item).y"
-            data-resize-pos="top-left"
-            class="absolute -top-1 -left-1 size-2 cursor-se-resize"
-            @mousedown="startResize(item, $event)"
-          ></div>
-          <div
-            v-if="resizeAllowed(item).x && resizeAllowed(item).y"
-            data-resize-pos="top-right"
-            class="absolute -top-1 -right-1 size-2 cursor-sw-resize"
-            @mousedown="startResize(item, $event)"
-          ></div>
-          <div
-            v-if="resizeAllowed(item).x && resizeAllowed(item).y"
-            data-resize-pos="bottom-left"
-            class="absolute -bottom-1 -left-1 size-2 cursor-sw-resize"
-            @mousedown="startResize(item, $event)"
-          ></div>
-          <div
-            v-if="resizeAllowed(item).x && resizeAllowed(item).y"
-            data-resize-pos="bottom-right"
-            class="absolute -right-1 -bottom-1 size-2 cursor-se-resize"
-            @mousedown="startResize(item, $event)"
-          ></div>
-        </div>
+        <DialogResizeHandles
+          v-if="allowResize && !states[item.key].isMaximized"
+          :allow-x="resizeAllowed(item).x"
+          :allow-y="resizeAllowed(item).y"
+          @resize="startResize(item, $event)"
+        />
       </DialogContent>
     </Dialog>
   </template>
 </template>
 
 <script setup lang="ts">
-import { Info, Maximize2, Minimize2, X } from '@lucide/vue'
 import { clamp } from 'es-toolkit'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
+import DialogHeaderBar from 'components/DialogHeaderBar.vue'
+import DialogResizeHandles from 'components/DialogResizeHandles.vue'
 import PanelLoading from 'components/PanelLoading.vue'
-import { Button } from 'components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
+import { Dialog, DialogContent } from 'components/ui/dialog'
 import { useConfig } from 'hooks/config'
 import { type DialogItem, useDialog } from 'hooks/dialog'
 import { useGlobalLoading } from 'hooks/loading'
 import { cn } from 'utils/cn'
-import { resolveIcon } from 'utils/iconMap'
 
 /**
  * Per-dialog window geometry.
@@ -176,7 +92,6 @@ interface DialogGeometry {
 
 const { stack, rise, close } = useDialog()
 const { isMobile } = useConfig()
-const { t } = useI18n()
 const { loading } = useGlobalLoading()
 
 /**
@@ -368,6 +283,38 @@ const updateGlobalStyle = (direction?: string) => {
   document.body.style.userSelect = select
 }
 
+type Geometry = DialogGeometry
+type Limits = { minWidth: number; maxWidth: number; minHeight: number; maxHeight: number }
+
+/**
+ * One handler per resize direction, clamped to the window limits. A lookup
+ * table keeps the dispatch branch-free.
+ */
+const RESIZE_HANDLERS: Record<string, (event: MouseEvent, st: Geometry, c: Limits) => void> = {
+  left: (event, st, c) => {
+    if (event.clientX > 0) {
+      st.width = clamp(st.left + st.width - event.clientX, c.minWidth, c.maxWidth)
+    }
+    if (st.width > c.minWidth && st.width < c.maxWidth) {
+      st.left = clamp(event.clientX, 0, window.innerWidth - st.width)
+    }
+  },
+  right: (event, st, c) => {
+    st.width = clamp(event.clientX - st.left, c.minWidth, c.maxWidth)
+  },
+  top: (event, st, c) => {
+    if (event.clientY > 0) {
+      st.height = clamp(st.top + st.height - event.clientY, c.minHeight, c.maxHeight)
+    }
+    if (st.height > c.minHeight && st.height < c.maxHeight) {
+      st.top = clamp(event.clientY, 0, window.innerHeight - st.height)
+    }
+  },
+  bottom: (event, st, c) => {
+    st.height = clamp(event.clientY - st.top, c.minHeight, c.maxHeight)
+  },
+}
+
 const resize = (event: MouseEvent) => {
   const rs = resizeState.value
   if (!rs) return
@@ -378,31 +325,7 @@ const resize = (event: MouseEvent) => {
   const c = constraintsFor(item ?? {})
 
   for (const direction of rs.directions) {
-    if (direction === 'left') {
-      if (event.clientX > 0) {
-        st.width = clamp(st.left + st.width - event.clientX, c.minWidth, c.maxWidth)
-      }
-      if (st.width > c.minWidth && st.width < c.maxWidth) {
-        st.left = clamp(event.clientX, 0, window.innerWidth - st.width)
-      }
-    }
-
-    if (direction === 'right') {
-      st.width = clamp(event.clientX - st.left, c.minWidth, c.maxWidth)
-    }
-
-    if (direction === 'top') {
-      if (event.clientY > 0) {
-        st.height = clamp(st.top + st.height - event.clientY, c.minHeight, c.maxHeight)
-      }
-      if (st.height > c.minHeight && st.height < c.maxHeight) {
-        st.top = clamp(event.clientY, 0, window.innerHeight - st.height)
-      }
-    }
-
-    if (direction === 'bottom') {
-      st.height = clamp(event.clientY - st.top, c.minHeight, c.maxHeight)
-    }
+    RESIZE_HANDLERS[direction]?.(event, st, c)
   }
 }
 

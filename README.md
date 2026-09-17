@@ -602,6 +602,12 @@ pnpm install
 | `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                    |
 | `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                     |
 | `python -m mypy --config-file mypy.ini` | Backend static types, clean                                             |
+| `pnpm fallow`                           | Fallow full pipeline: dead code + duplication + health                  |
+| `pnpm fallow:dead` (`:type-aware`)      | unused files/exports/types/deps, cycles — optional TS semantic pass     |
+| `pnpm fallow:dupes`                     | AST clone detection (`mild` mode, see `.fallowrc.json`)                 |
+| `pnpm fallow:health`                    | complexity hotspots, refactor targets, 0–100 health score               |
+| `pnpm fallow:fix:dry` / `fallow:fix`    | preview / apply automatic cleanup (always dry-run first)                |
+| `pnpm fallow:audit`                     | PR-style gate: only findings introduced by the current change           |
 
 > [!WARNING]
 > `pnpm dev` **deletes the whole `web/` directory** before writing
@@ -613,6 +619,20 @@ pnpm install
 
 A **husky** `pre-commit` hook runs **lint-staged** (ESLint `--fix` + Prettier) on
 staged files.
+
+### Fallow (codebase intelligence)
+
+[Fallow](https://fallow.tools) (Rust, no AI inside the analyzer) complements the
+linters: it reads the repository as one dependency graph and reports unused
+files/exports/types/dependencies, circular imports, clone groups and
+complexity hotspots. `.fallowrc.json` pins the entry point (`src/main.ts`),
+keeps the committed `web/` bundle, vendored `third_party/`, docs and assets out
+of the graph, and turns the private-type-leak and unresolved-import checks on.
+The tree is kept at **zero unused exports, zero duplication**; the single
+remaining finding is the deliberate `pnpm-workspace.yaml` override pinning
+`@comfyorg/comfyui-desktop-bridge-types` (a transitive type package of
+`@comfyorg/comfyui-frontend-types`). `pnpm fallow:fix:dry` previews every
+automatic removal before `pnpm fallow:fix` applies it.
 
 ### Lint & format stack
 

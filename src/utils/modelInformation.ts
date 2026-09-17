@@ -66,9 +66,7 @@ const FRONTMATTER_RE = /^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/
  * the description carries no (or an unreadable / non-object) block, so the
  * caller can fall back gracefully.
  */
-export const parseFrontmatter = (
-  description: string | undefined | null,
-): Record<string, any> | null => {
+const parseFrontmatter = (description: string | undefined | null): Record<string, any> | null => {
   if (!description) return null
   const match = FRONTMATTER_RE.exec(description)
   if (!match) return null
@@ -148,6 +146,45 @@ const textRow = (
  * `modelPage`, `preview` (every URL), and finally all unknown top-level keys
  * verbatim, in their original order.
  */
+/** `hashes` flattened: every entry verbatim (AutoV1 … SHA256_12 and friends). */
+const hashRows = (value: unknown): InformationRow[] => {
+  if (!isPlainObject(value)) {
+    const row = textRow('hashes', { raw: 'hashes' }, value)
+    return row ? [row] : []
+  }
+  return Object.entries(value)
+    .map(([key, entry]) => textRow(`hashes.${key}`, { raw: key }, entry))
+    .filter((row): row is InformationRow => row !== null)
+}
+
+/**
+ * `metadata` flattened: `format` / `fp` localised, `isRequired` / `size`
+ * never shown, every other sub-key verbatim.
+ */
+const metadataRows = (value: unknown): InformationRow[] => {
+  if (!isPlainObject(value)) {
+    const row = textRow('metadata', { raw: 'metadata' }, value)
+    return row ? [row] : []
+  }
+  return Object.entries(value)
+    .filter(([key]) => !HIDDEN_METADATA_KEYS.has(key))
+    .map(([key, entry]) =>
+      textRow(
+        `metadata.${key}`,
+        METADATA_LABEL_KEYS.has(key) ? { key: `info.${key}` } : { raw: key },
+        entry,
+      ),
+    )
+    .filter((row): row is InformationRow => row !== null)
+}
+
+/** Unknown top-level keys, verbatim, in their original order. */
+const unknownRows = (frontmatter: Record<string, any>): InformationRow[] =>
+  Object.entries(frontmatter)
+    .filter(([key]) => !KNOWN_TOP_LEVEL_KEYS.has(key))
+    .map(([key, value]) => textRow(`unknown.${key}`, { raw: key }, value))
+    .filter((row): row is InformationRow => row !== null)
+
 export const buildInformationRows = (description: string | undefined | null): InformationRow[] => {
   const frontmatter = parseFrontmatter(description)
   if (!frontmatter) return []
@@ -160,30 +197,8 @@ export const buildInformationRows = (description: string | undefined | null): In
   const baseModel = textRow('baseModel', { key: 'info.baseModel' }, frontmatter.baseModel)
   if (baseModel) rows.push(baseModel)
 
-  // hashes: every entry verbatim (AutoV1 … SHA256_12 and anything else).
-  if (isPlainObject(frontmatter.hashes)) {
-    for (const [key, value] of Object.entries(frontmatter.hashes)) {
-      const row = textRow(`hashes.${key}`, { raw: key }, value)
-      if (row) rows.push(row)
-    }
-  } else {
-    const row = textRow('hashes', { raw: 'hashes' }, frontmatter.hashes)
-    if (row) rows.push(row)
-  }
-
-  // metadata: format / fp localised; isRequired / size never shown; the rest
-  // verbatim.
-  if (isPlainObject(frontmatter.metadata)) {
-    for (const [key, value] of Object.entries(frontmatter.metadata)) {
-      if (HIDDEN_METADATA_KEYS.has(key)) continue
-      const label = METADATA_LABEL_KEYS.has(key) ? { key: `info.${key}` } : { raw: key }
-      const row = textRow(`metadata.${key}`, label, value)
-      if (row) rows.push(row)
-    }
-  } else {
-    const row = textRow('metadata', { raw: 'metadata' }, frontmatter.metadata)
-    if (row) rows.push(row)
-  }
+  rows.push(...hashRows(frontmatter.hashes))
+  rows.push(...metadataRows(frontmatter.metadata))
 
   // website: the model's source platform (Civitai / HuggingFace / ...).
   const website = textRow('website', { key: 'info.website' }, frontmatter.website)
@@ -204,12 +219,7 @@ export const buildInformationRows = (description: string | undefined | null): In
     rows.push({ id: 'preview', labelKey: 'info.preview', kind: 'links', values: previews })
   }
 
-  // Unknown top-level keys, verbatim, at the end of the table.
-  for (const [key, value] of Object.entries(frontmatter)) {
-    if (KNOWN_TOP_LEVEL_KEYS.has(key)) continue
-    const row = textRow(`unknown.${key}`, { raw: key }, value)
-    if (row) rows.push(row)
-  }
+  rows.push(...unknownRows(frontmatter))
 
   return rows
 }

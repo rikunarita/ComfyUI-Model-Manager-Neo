@@ -2,7 +2,7 @@ import { type Component, markRaw, ref } from 'vue'
 import { defineStore } from 'hooks/store'
 import { type ContainerSize } from 'types/typings'
 
-interface HeaderButton {
+export interface HeaderButton {
   key: string
   icon: string
   command: () => void
