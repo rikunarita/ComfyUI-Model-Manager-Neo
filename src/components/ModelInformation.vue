@@ -1,12 +1,26 @@
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="flex flex-col gap-4">
     <!--
       Information table: the parsed YAML front-matter of the model notes
-      (author, baseModel, hashes, format/precision, model page, every preview
-      URL, unknown keys verbatim at the end). Read-only by design - the notes
-      themselves remain editable through the Description tab.
+      (author, base model, hashes, format/precision, platform, model page,
+      every preview URL, unknown keys verbatim at the end). Read-only by
+      default; the edit mode (warning-gated) rewrites the front-matter block
+      of the notes when the form is saved.
     -->
-    <table v-if="rows.length" class="w-full border-collapse border border-mm-border">
+    <div v-if="!editing" class="flex justify-end">
+      <Button
+        v-if="editable"
+        variant="ghost"
+        size="icon-sm"
+        :title="$t('informationEdit')"
+        :aria-label="$t('informationEdit')"
+        @click="requestEdit"
+      >
+        <Pencil class="size-4" />
+      </Button>
+    </div>
+
+    <table v-if="rows.length && !editing" class="w-full border-collapse border border-mm-border">
       <tbody>
         <tr v-for="row in rows" :key="row.id" class="h-8 border-b border-mm-border">
           <td
@@ -21,12 +35,89 @@
       </tbody>
     </table>
 
+    <!-- Edit mode: scalar fields become inputs; the preview list a textarea. -->
+    <div v-if="editing && draft" class="flex flex-col gap-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 text-mm-muted-fg">
+          <Info class="size-4 shrink-0" />
+          <span class="text-sm">{{ $t('informationEditHint') }}</span>
+        </div>
+        <div class="flex gap-2">
+          <Button variant="secondary" size="sm" @click="editing = false">
+            {{ $t('cancel') }}
+          </Button>
+          <Button size="sm" @click="applyDraft">
+            {{ $t('save') }}
+          </Button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-[10rem_1fr] gap-2">
+        <template v-for="key in scalarKeys" :key="key">
+          <label class="flex items-center text-sm text-mm-muted-fg">{{ labelFor(key) }}</label>
+          <Input
+            :model-value="String(draft[key] ?? '')"
+            class="h-8"
+            @update:model-value="draft[key] = $event"
+          />
+        </template>
+
+        <template v-if="isObj(draft.hashes)">
+          <template v-for="(value, key) in draft.hashes" :key="`h-${key}`">
+            <label class="flex items-center pl-4 text-sm text-mm-muted-fg">{{ key }}</label>
+            <Input
+              :model-value="String(draft.hashes[key] ?? '')"
+              class="h-8"
+              @update:model-value="draft.hashes[key] = $event"
+            />
+          </template>
+        </template>
+
+        <template v-if="isObj(draft.metadata)">
+          <template v-for="(value, key) in draft.metadata" :key="`m-${key}`">
+            <template v-if="!HIDDEN_METADATA_KEYS.includes(String(key))">
+              <label class="flex items-center pl-4 text-sm text-mm-muted-fg">
+                {{ labelForMeta(String(key)) }}
+              </label>
+              <Input
+                :model-value="String(draft.metadata[key] ?? '')"
+                class="h-8"
+                @update:model-value="draft.metadata[key] = $event"
+              />
+            </template>
+          </template>
+        </template>
+
+        <template v-for="key in previewKeyList" :key="key">
+          <label class="text-sm text-mm-muted-fg">{{ labelFor(key) }}</label>
+          <textarea
+            :value="previewText"
+            class="min-h-24 w-full rounded-mm-ctl border border-mm-border bg-mm-fg/4 px-3 py-2 text-sm text-mm-fg outline-none focus:border-mm-accent"
+            rows="4"
+            @input="setPreviewText(($event.target as HTMLTextAreaElement).value)"
+          ></textarea>
+        </template>
+
+        <template v-for="key in unknownKeys" :key="key">
+          <label class="flex items-center text-sm text-mm-muted-fg">{{ key }}</label>
+          <Input
+            v-if="isScalar(draft[key])"
+            :model-value="String(draft[key] ?? '')"
+            class="h-8"
+            @update:model-value="draft[key] = $event"
+          />
+          <code v-else class="text-xs break-all text-mm-muted-fg">
+            {{ JSON.stringify(draft[key]) }}
+          </code>
+        </template>
+      </div>
+    </div>
+
     <!--
       The raw file metadata (safetensors `__metadata__`) keeps its own table
-      below the parsed information, exactly as the former "Metadata" tab
-      rendered it - keys verbatim. It is skipped for download search results,
-      whose `metadata` is the Civitai file metadata already surfaced (parsed)
-      in the table above.
+      below the parsed information, keys verbatim. It is skipped for download
+      search results, whose `metadata` is the Civitai file metadata the parsed
+      table already renders.
     -->
     <div v-if="rawRows.length" class="flex flex-col gap-2">
       <div class="text-sm font-medium text-mm-muted-fg">{{ $t('info.fileMetadata') }}</div>
@@ -44,7 +135,10 @@
       </table>
     </div>
 
-    <div v-if="!rows.length && !rawRows.length" class="flex flex-col items-center gap-2 py-5">
+    <div
+      v-if="!rows.length && !rawRows.length && !editing"
+      class="flex flex-col items-center gap-2 py-5"
+    >
       <!-- BUG FIX: `pi pi-info-circle` rendered empty (PrimeIcons removed). -->
       <Info class="size-5 text-mm-muted-fg" />
       <div class="text-sm text-mm-muted-fg">{{ $t('noMetadata') }}</div>
@@ -53,15 +147,29 @@
 </template>
 
 <script setup lang="ts">
-import { Info } from '@lucide/vue'
-import { computed } from 'vue'
+import { Info, Pencil } from '@lucide/vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import InformationValue from 'components/InformationValue.vue'
+import { Button } from 'components/ui/button'
+import { Input } from 'components/ui/input'
 import { useModelDescription, useModelMetadata } from 'hooks/model'
-import { type InformationRow, buildInformationRows } from 'utils/modelInformation'
+import { useToast } from 'hooks/toast'
+import {
+  type InformationRow,
+  buildInformationRows,
+  parseFrontmatter,
+  writeFrontmatter,
+} from 'utils/modelInformation'
+
+interface Props {
+  /** The detail window's edit mode gates the (warning-gated) metadata edit. */
+  editable?: boolean
+}
+defineProps<Props>()
 
 const { t, te } = useI18n()
-
+const { confirm } = useToast()
 const { metadata, model } = useModelMetadata()
 const { description } = useModelDescription()
 
@@ -97,4 +205,93 @@ const rawRows = computed(() => {
   if (!entries.length) return []
   return entries.map(([key, value]) => ({ key, value: stringify(value) }))
 })
+
+/* ---- edit mode --------------------------------------------------------- */
+
+const HIDDEN_METADATA_KEYS = ['isRequired', 'size']
+const KNOWN_KEYS = ['author', 'baseModel', 'hashes', 'metadata', 'modelPage', 'preview', 'website']
+const LABELLED: Record<string, string> = {
+  author: 'info.author',
+  baseModel: 'info.baseModel',
+  website: 'info.website',
+  modelPage: 'info.modelPage',
+  preview: 'info.preview',
+}
+
+const editing = ref(false)
+const draft = ref<Record<string, any> | null>(null)
+
+const isObj = (value: unknown) =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const labelForMeta = (key: string) => (key === 'format' || key === 'fp' ? t(`info.${key}`) : key)
+
+const isScalar = (value: unknown) =>
+  value == null ||
+  typeof value === 'string' ||
+  typeof value === 'number' ||
+  typeof value === 'boolean'
+
+const labelFor = (key: string) => (LABELLED[key] && te(LABELLED[key]) ? t(LABELLED[key]) : key)
+
+/** Top-level scalar fields (known first, then unknown) offered as inputs. */
+const scalarKeys = computed(() => {
+  const d = draft.value
+  if (!d) return []
+  return KNOWN_KEYS.filter(key => key !== 'preview' && isScalar(d[key]))
+})
+const unknownKeys = computed(() => {
+  const d = draft.value
+  if (!d) return []
+  return Object.keys(d).filter(key => !KNOWN_KEYS.includes(key))
+})
+const previewKeyList = computed(() => {
+  const d = draft.value
+  if (!d || !('preview' in d)) return []
+  return ['preview']
+})
+
+const previewText = computed(() => {
+  const list = draft.value?.preview
+  if (Array.isArray(list)) return list.join('\n')
+  return typeof list === 'string' ? list : ''
+})
+const setPreviewText = (value: string) => {
+  if (!draft.value) return
+  draft.value.preview = value
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+}
+
+/** Inputs bind strings; nulls in the front-matter would break v-model. */
+const sanitize = (obj: Record<string, any>): Record<string, any> => {
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === null) obj[key] = ''
+    else if (value && typeof value === 'object' && !Array.isArray(value)) sanitize(value)
+  }
+  return obj
+}
+
+const requestEdit = () => {
+  confirm.require({
+    message: t('informationEditWarning'),
+    header: t('informationEdit'),
+    icon: 'pi pi-info-circle',
+    rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
+    acceptProps: { label: t('informationEdit') },
+    accept: () => {
+      draft.value = sanitize(structuredClone(parseFrontmatter(description.value) ?? {}))
+      editing.value = true
+    },
+    reject: () => {},
+  })
+}
+
+const applyDraft = () => {
+  if (!draft.value) return
+  description.value = writeFrontmatter(description.value ?? '', draft.value)
+  editing.value = false
+  draft.value = null
+}
 </script>

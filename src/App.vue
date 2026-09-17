@@ -20,7 +20,9 @@ import GlobalConfirm from 'components/GlobalConfirm.vue'
 import GlobalDialogStack from 'components/GlobalDialogStack.vue'
 import { Sonner } from 'components/ui/sonner'
 import { TooltipProvider } from 'components/ui/tooltip'
+import { autoCompressUnused } from 'hooks/autoCompress'
 import { useModelDetail } from 'hooks/modelDetail'
+import { loadRecent } from 'hooks/recent'
 import { loadStars } from 'hooks/stars'
 import { useStoreProvider } from 'hooks/store'
 import { useToast } from 'hooks/toast'
@@ -75,11 +77,13 @@ const handleZipnnSettled = async () => {
 
 onMounted(() => {
   loadStars()
+  loadRecent()
   window.addEventListener('mm-zipnn-settled', () => {
     void handleZipnnSettled()
   })
   const refreshModelsAndConfig = async () => {
     await Promise.all([models.refresh(true)])
+    autoCompressUnused(models.data.value)
     toast.add({
       severity: 'success',
       summary: t('refreshedModels'),

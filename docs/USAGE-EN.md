@@ -80,7 +80,8 @@ A single grid of every model of every type, with a toolbar:
   (`*anime*` matches anything containing `anime`). Tokens match the file name
   _or_ the sub‑folder.
 - **Type filter** — `All` or one model type.
-- **Sort** — Name / Largest / Latest created / Latest modified.
+- **Sort** — Name / Largest / Latest created / Latest modified / Recently
+  used (opening a model or adding it to the graph records the use).
 - **Card size** — Extra Large / Large / Medium / Small, or **Custom Size**
   (a dialog with width/height sliders, persisted in ComfyUI settings).
 
@@ -124,7 +125,10 @@ folders whose name starts with `.`).
   (or decompresses, shown inverted) with the same confirmation and progress as
   the detail-window button; on folder cards it runs the folder batch.
 - **Folder cards** — a hand‑drawn glass folder that opens after the pointer
-  rests on it for a second and closes a second after it leaves.
+  rests on it for a second and closes a second after it leaves. Type‑root
+  cards also carry the **aggregate size of their model type**.
+- **Duplicate warning** — a model whose recorded SHA256 matches another file in
+  the library shows a red alert with the duplicate's path in the detail window.
 - **Hover actions** (flat layout, large cards) — **Add node**, **Copy node**,
   **Load workflow from preview**, **Open model page** (the button wears the
   source platform's logo as its background when the platform is known).
@@ -154,7 +158,9 @@ base‑info table, and two tabs.
 
 - **Description** tab — rendered Markdown stored in a `*.md` file next to the
   model. Links open in a new tab.
-- **Information** tab — a read‑only table of everything recorded about the
+- **Information** tab — a table of everything recorded about the (read‑only by
+  default; in edit mode the pencil opens it **behind a warning**, and saving
+  the form rewrites the notes' front‑matter)
   model. The YAML front‑matter of the notes (what Civitai / HuggingFace
   downloads write) is parsed into rows: author, base model, every file hash
   (`AutoV1` … `SHA256_12`), format and precision, the model platform, a
@@ -184,10 +190,10 @@ Press the **pencil** to enter edit mode (the window turns into a form):
   segments are rejected, and the backend re‑checks path traversal server‑side.
 - **Preview** — `Default` (carousel) / `Network` (paste an image or video URL) /
   `Local` (drag & drop or pick a file; images are converted to WebP, videos keep
-  their format) / `None` (removes every preview file). The gallery page left
-  open is the one that matters: saving promotes that image to the model's
-  **primary** preview — the picture the cards show — while the rest keep their
-  order behind it.
+  their format) / `None` (removes every preview file). In edit mode a
+  thumbnail strip manages the gallery: pick the primary, move entries left /
+  right, or remove single images. The page left open on save becomes the
+  card's **primary** preview.
 - **Description** — press the **Edit (pencil) icon** next to the hint text to
   open the Markdown textarea; it saves when the textarea loses focus:
 
@@ -224,7 +230,9 @@ Open **Download List** from the header, then:
    descriptions are pre‑filled, including trigger words and YAML metadata).
 5. **Download** starts a background task. The previews are fetched in the
    browser when possible and server‑side otherwise; if both fail the model
-   still downloads, just without a preview.
+   still downloads, just without a preview. The dialog shows the **free space**
+   of the target volume and warns (and the backend refuses) when the file
+   cannot fit.
 
 ### Download List
 
@@ -327,6 +335,9 @@ selected a bulk bar appears at the bottom of the window:
   compress / decompress the selected folders (see below);
 - **ZipNN delta compress** (exactly two plain models selected) — opens the
   base/fine-tune picker (see below);
+- **Upload to HuggingFace** (folders selected) — batch‑uploads every model
+  inside the selected folders (sub‑folders preserved) through the same upload
+  dialog;
 - **Star** (folders selected, icon only) — yellow when every selected folder
   is starred (pressing unstars them all); otherwise it stars exactly the
   unstarred ones;
@@ -365,7 +376,7 @@ partial output.
 
 **No installation step.** ZipNN is _vendored_ inside the extension
 ([`third_party/`](../third_party/)), together with **prebuilt `zipnn_core`
-binaries** for Linux x86_64 (CPython 3.10–3.13). On those platforms the first
+binaries** for Linux x86_64 (CPython 3.10–3.14). On those platforms the first
 compression simply puts the bundled package and the matching binary on the
 import path — **no `pip install`, no C compiler, no network, no waiting**. Only
 where no prebuilt binary matches the platform/Python (macOS, Windows, an
@@ -434,6 +445,10 @@ ComfyUI **Settings → Model Manager Neo**:
 - **Card Size** / **Card Size Map** — persistence for the size picker (hidden
   entries; edit them through the Custom Size dialog).
 - **Flat Layout** — default layout on open.
+- **ZipNN → Auto‑compress unused days** — compress models untouched for N days
+  (0 = off); **Auto‑compress on download** — compress right after a download
+  completes; **Download → Pause during prompt** — hold transfers while ComfyUI
+  executes a prompt and resume them afterwards.
 
 ## 12. Languages
 

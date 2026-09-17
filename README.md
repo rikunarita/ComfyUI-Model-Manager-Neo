@@ -180,11 +180,16 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - Two layouts: **Flat** grid (the default view) and **Folder** explorer,
   switchable at any time.
 - Real‑time search (supports `*` wildcards and multi‑token “AND” matching).
-- Sort by name, size, date created or date modified.
+- Sort by name, size, date created, date modified or **recently used**
+  (opening a model or adding it to the graph records the use).
 - Adjustable card size (presets + fully custom dimensions).
 - Toggle visibility of hidden (`.`‑prefixed) files without restarting.
 - Image **and video** previews, plus glass folder artwork with hover
   open/close animations and a glass no‑preview fallback.
+- Type‑root folder cards carry the **aggregate size of their type** (a
+  lightweight capacity dashboard), and models whose recorded SHA256 matches
+  another file in the library raise a red **duplicate warning** in the detail
+  window.
 
 </details>
 
@@ -207,8 +212,11 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - Direct links require an explicit target type, with an optional custom
   sub‑folder.
 - Optional preview images — the **whole gallery** a model page offers is kept,
-  and the image selected at download time becomes the card's primary preview —
-  and editable Markdown description per download.
+  and the image selected at download time becomes the card's primary preview;
+  edit mode reorders / removes single gallery entries — and editable Markdown
+  description per download.
+- **Free‑space guard**: the download dialog shows the target volume's free
+  space and the backend refuses tasks whose announced size cannot fit.
 - Pause / resume / delete tasks; progress, speed and size update live.
 - Hugging Face downloads use `huggingface_hub` (+ `hf_xet` when available).
 
@@ -221,7 +229,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   progress in the Download List).
 - **To Hugging Face** _(new in Neo)_: authenticated via your HF token, creates
   the repository if it doesn't exist (public/private), choose the destination
-  path, and watch progress.
+  path, and watch progress. Selected **folders** upload as a batch (every model
+  inside, sub‑folders preserved) from the folder view's selection bar.
 
 </details>
 
@@ -236,7 +245,9 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   models without one.
 - Rename, move between folders/types, or **permanently delete** a model together
   with its previews and notes.
-- Read, edit and save Markdown notes stored beside the model.
+- Read, edit and save Markdown notes stored beside the model; the Information
+  table itself is editable behind an explicit warning (it rewrites the notes'
+  front‑matter on save).
 - Change or remove a model's preview image — the gallery page left open on
   save becomes the card's primary preview.
 - The **Open model page** action wears the logo of the model's source hub
@@ -254,6 +265,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   (with `CIVITAI_API_KEY` / `HF_TOKEN` environment fallbacks). Keys migrate out
   of ComfyUI user settings on first run.
 - Exclude model types from the model list; include/exclude hidden files.
+- ZipNN automation: auto‑compress models unused for N days, auto‑compress
+  after a download completes, and pause downloads while a prompt executes.
 - UI language follows ComfyUI's locale — **English**, **中文** and **日本語**
   bundled in full; region/script subtags (`ja-JP`, `zh-Hant-TW`, …) fold onto
   their base language.
@@ -390,7 +403,7 @@ directory: 'x86_64-pc-linux-gnu-gcc'`).
 
 Neo therefore **vendors the whole library** under [`third_party/`](third_party/)
 and ships **prebuilt `zipnn_core` binaries** for Linux x86_64 (CPython 3.10 –
-3.13). On those platforms the first compression simply puts the bundled package
+3.14). On those platforms the first compression simply puts the bundled package
 and the matching binary on `sys.path` — **no compiler, no pip, no network, no
 waiting**. Only where no prebuilt binary matches (macOS, Windows, an uncommon
 architecture, or a brand-new CPython) does Neo fall back to a **single** clean

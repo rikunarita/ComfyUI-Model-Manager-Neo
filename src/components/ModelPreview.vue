@@ -58,6 +58,58 @@
     </div>
 
     <div v-if="editable" class="flex flex-col gap-4 whitespace-nowrap">
+      <!--
+        Gallery management (edit mode): pick the primary preview, reorder
+        entries and drop single images. The page left open on save becomes
+        the card's primary preview.
+      -->
+      <div
+        v-if="currentType === 'default' && defaultContent.length"
+        class="flex gap-2 overflow-x-auto pb-1"
+      >
+        <div
+          v-for="(url, index) in defaultContent"
+          :key="`${url}-${index}`"
+          class="relative shrink-0"
+          :class="index === defaultContentPage && 'ring-2 ring-mm-accent'"
+        >
+          <img
+            :src="url"
+            class="size-14 cursor-pointer rounded-mm-ctl object-cover"
+            alt=""
+            @click="defaultContentPage = index"
+          />
+          <div class="absolute -top-1.5 -right-1.5 flex gap-0.5">
+            <button
+              type="button"
+              class="grid size-4 place-items-center rounded-full border border-mm-fg/25 bg-mm-bg/80 text-mm-fg backdrop-blur-md hover:text-mm-accent"
+              :title="$t('previewMoveLeft')"
+              :aria-label="$t('previewMoveLeft')"
+              @click.stop="movePreview(index, -1)"
+            >
+              <ChevronLeft class="size-3" />
+            </button>
+            <button
+              type="button"
+              class="grid size-4 place-items-center rounded-full border border-mm-fg/25 bg-mm-bg/80 text-mm-fg backdrop-blur-md hover:text-mm-accent"
+              :title="$t('previewMoveRight')"
+              :aria-label="$t('previewMoveRight')"
+              @click.stop="movePreview(index, 1)"
+            >
+              <ChevronRight class="size-3" />
+            </button>
+            <button
+              type="button"
+              class="grid size-4 place-items-center rounded-full border border-mm-danger/40 bg-mm-bg/80 text-mm-danger backdrop-blur-md hover:bg-mm-danger/20"
+              :title="$t('previewRemove')"
+              :aria-label="$t('previewRemove')"
+              @click.stop="removePreview(index)"
+            >
+              <X class="size-3" />
+            </button>
+          </div>
+        </div>
+      </div>
       <div class="h-10"></div>
       <div
         :class="[
@@ -102,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight } from '@lucide/vue'
+import { ChevronLeft, ChevronRight, X } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import PreviewLightbox from 'components/PreviewLightbox.vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
@@ -124,6 +176,8 @@ const {
   currentType,
   defaultContent,
   defaultContentPage,
+  movePreview,
+  removePreview,
   networkContent,
   updateLocalContent,
   noPreviewContent,

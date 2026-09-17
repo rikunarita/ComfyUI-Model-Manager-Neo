@@ -118,11 +118,23 @@
         </tr>
       </tbody>
     </table>
+
+    <!--
+      Duplicate-model warning: another file in the library carries the same
+      SHA256 recorded in the notes front-matter (no hashing pass needed).
+    -->
+    <div
+      v-if="duplicates.length"
+      class="flex items-center gap-2 rounded-mm-ctl border border-mm-danger/40 bg-mm-danger/15 px-3 py-2 text-sm text-mm-danger"
+    >
+      <CircleAlert class="size-4 shrink-0" />
+      <span class="break-all">{{ $t('duplicateModels', { paths: duplicates.join(', ') }) }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { FolderOpen } from '@lucide/vue'
+import { CircleAlert, FolderOpen } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ResponseInput from 'components/ResponseInput.vue'
@@ -132,16 +144,34 @@ import { Button } from 'components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { Tree } from 'components/ui/tree'
-import { useModelBaseInfo, useModelFolder } from 'hooks/model'
+import { useModelBaseInfo, useModelFolder, useModels } from 'hooks/model'
 import { useToast } from 'hooks/toast'
+import { type Model } from 'types/typings'
+import { genModelKey } from 'utils/model'
 
 const editable = defineModel<boolean>('editable')
 
 const { t } = useI18n()
 const { toast } = useToast()
 
-const { baseInfo, pathIndex, subFolder, basename, extension, type, modelFolders } =
+const { baseInfo, pathIndex, subFolder, basename, extension, type, modelFolders, model } =
   useModelBaseInfo()
+const { data: allModels, getFullPath } = useModels()
+
+/** Other files sharing this model's recorded SHA256 (exact duplicates). */
+const duplicates = computed(() => {
+  const sha = (model.value as Model).modelSha256
+  if (!sha) return []
+  const paths: string[] = []
+  for (const list of Object.values(allModels.value)) {
+    for (const m of list) {
+      if (!m.isFolder && m.modelSha256 === sha && genModelKey(m) !== genModelKey(model.value)) {
+        paths.push(getFullPath(m))
+      }
+    }
+  }
+  return paths
+})
 
 /**
  * Absolute directory of the model, WITHOUT the trailing separator the Directory

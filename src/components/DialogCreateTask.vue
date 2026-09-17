@@ -57,6 +57,15 @@
           <span>{{ $t('version') }}</span>
         </template>
       </ResponseSelect>
+      <!-- Pre-download free-space guard read-out (backend enforces too). -->
+      <div
+        v-if="freeSpace !== null && currentModel"
+        class="mt-1 text-xs"
+        :class="(currentModel.sizeBytes || 0) > freeSpace ? 'text-mm-danger' : 'text-mm-muted-fg'"
+      >
+        {{ $t('freeSpace', { size: bytesToSize(freeSpace) }) }}
+        <span v-if="(currentModel.sizeBytes || 0) > freeSpace">— {{ $t('notEnoughSpace') }}</span>
+      </div>
     </div>
 
     <ResponseScroll class="-mx-5 h-full">
@@ -133,7 +142,7 @@ import { useModels } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
 import { type VersionModel, type WithResolved } from 'types/typings'
-import { isDirectFileUrl, previewUrlToFile } from 'utils/common'
+import { bytesToSize, isDirectFileUrl, previewUrlToFile } from 'utils/common'
 
 const { isMobile } = useConfig()
 const { t, te } = useI18n()
@@ -243,6 +252,25 @@ const appendPreviewFields = async (formData: FormData, value: unknown) => {
     formData.append(field, item)
   }
 }
+
+const freeSpace = ref<number | null>(null)
+
+watch(
+  currentModel,
+  async model => {
+    if (!model?.type) {
+      freeSpace.value = null
+      return
+    }
+    try {
+      const result = await request(`/disk-free/${model.type}/${model.pathIndex ?? 0}`)
+      freeSpace.value = result?.free ?? null
+    } catch {
+      freeSpace.value = null
+    }
+  },
+  { immediate: true },
+)
 
 const createDownTask = async (data: WithResolved<VersionModel>) => {
   // type が未選択の場合は送信を拒否

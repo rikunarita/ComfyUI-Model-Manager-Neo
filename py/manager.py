@@ -27,7 +27,7 @@ _MODEL_PAGE_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.S)
 
 def _model_site_info_of(
     names: set[str], basename: str, directory: str, sub_folder: str
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, str | None]:
     """The model page URL and platform recorded in the notes front-matter.
 
     Civitai / HuggingFace downloads store `modelPage` and `website` in the YAML
@@ -38,27 +38,30 @@ def _model_site_info_of(
     """
     candidate = f"{basename}.md"
     if candidate not in names:
-        return None, None
+        return None, None, None
     path = utils.join_path(directory, sub_folder, candidate) if sub_folder else utils.join_path(directory, candidate)
     try:
         with open(path, "r", encoding="utf-8") as f:
             head = f.read(4096)
     except OSError:
-        return None, None
+        return None, None, None
     match = _MODEL_PAGE_RE.match(head)
     if not match:
-        return None, None
+        return None, None, None
     try:
         meta = yaml.safe_load(match.group(1)) or {}
     except Exception:
-        return None, None
+        return None, None, None
     if not isinstance(meta, dict):
-        return None, None
+        return None, None, None
     page = meta.get("modelPage")
     platform = meta.get("website")
+    hashes = meta.get("hashes")
+    sha = hashes.get("SHA256") if isinstance(hashes, dict) else None
     return (
         page if isinstance(page, str) and page.startswith("http") else None,
         platform if isinstance(platform, str) and platform.strip() else None,
+        sha.upper() if isinstance(sha, str) and sha.strip() else None,
     )
 
 
@@ -133,6 +136,22 @@ class ModelManager:
                 error_msg = f"Read model info failed: {str(e)}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
+
+        @routes.get("/model-manager/disk-free/{type}/{index}")
+        async def get_disk_free(request):
+            """Free bytes of the volume holding a model folder (download guard)."""
+            import shutil
+
+            model_type = request.match_info.get("type", None)
+            path_index = int(request.match_info.get("index", 0))
+            try:
+                folders = utils.resolve_model_base_paths().get(model_type, [])
+                if path_index >= len(folders):
+                    raise RuntimeError("PathIndex out of range")
+                usage = shutil.disk_usage(folders[path_index])
+                return web.json_response({"success": True, "data": {"free": usage.free}})
+            except Exception as e:
+                return web.json_response({"success": False, "error": str(e)})
 
         @routes.put("/model-manager/model/{type}/{index}/{filename:.*}")
         async def update_model(request):
@@ -319,10 +338,10 @@ class ModelManager:
                 return None
 
             stat = entry.stat()
-            model_page, model_platform = (
+            model_page, model_platform, model_sha = (
                 _model_site_info_of(names, basename, directory=base_path, sub_folder=sub_folder)
                 if is_file
-                else (None, None)
+                else (None, None, None)
             )
             return {
                 "type": folder,
@@ -337,6 +356,9 @@ class ModelManager:
                 # `website` of the notes front-matter: drives the platform logo
                 # on the "open model page" button and the Information table.
                 "modelPlatform": model_platform,
+                # SHA256 recorded in the notes front-matter (Civitai downloads):
+                # powers the duplicate-model warning without any hashing pass.
+                "modelSha256": model_sha,
                 "createdAt": round(stat.st_ctime_ns / 1000000),
                 "updatedAt": round(stat.st_mtime_ns / 1000000),
             }

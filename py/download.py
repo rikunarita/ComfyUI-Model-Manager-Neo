@@ -274,6 +274,20 @@ class ModelDownload:
         model_path = utils.get_full_path(model_type, path_index, fullname)
         if os.path.exists(model_path):
             raise RuntimeError(f"File already exists: {model_path}")
+        # Pre-download free-space guard: refuse a task whose announced size
+        # cannot possibly fit on the target volume (the frontend also warns,
+        # but the backend is the ground truth).
+        import shutil
+
+        needed = float(task_data.get("sizeBytes", 0) or 0)
+        if needed > 0:
+            free = shutil.disk_usage(os.path.dirname(model_path)).free
+            if needed > free:
+                raise RuntimeError(
+                    f"Not enough free disk space: the file needs "
+                    f"{needed / 2 ** 30:.2f} GiB but only {free / 2 ** 30:.2f} GiB "
+                    f"are free on the target volume"
+                )
         # ZipNN bundle folders (*_ZNN) must never receive a non-compressed
         # model file (checked at task creation so the task never even starts).
         utils.enforce_znn_folder_rule(model_path)

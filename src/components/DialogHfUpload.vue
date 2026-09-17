@@ -1,7 +1,14 @@
 <template>
   <div class="h-full px-4">
     <Tabs v-model="stepValue" class="flex h-full flex-col" default-value="1">
-      <TabsList class="grid w-full grid-cols-3">
+      <!-- Folder batch mode jumps straight to the upload form. -->
+      <div
+        v-if="folderMode"
+        class="rounded-mm-ctl border border-mm-border bg-mm-fg/6 px-3 py-2 text-sm"
+      >
+        {{ $t('hfUpload.folderBatch', { n: files?.length ?? 0 }) }}
+      </div>
+      <TabsList v-else class="grid w-full grid-cols-3">
         <TabsTrigger value="1">{{ $t('selectModelType') }}</TabsTrigger>
         <TabsTrigger value="2" :disabled="stepValue === '1'">{{ $t('selectModel') }}</TabsTrigger>
         <TabsTrigger value="3" :disabled="stepValue === '1' || stepValue === '2'">{{
@@ -56,7 +63,20 @@
         <div class="flex h-full flex-col gap-4 overflow-hidden">
           <ResponseScroll class="min-h-0 flex-1">
             <div class="flex flex-col gap-4 py-2">
-              <div class="rounded-lg border border-mm-border p-3">
+              <div v-if="folderMode" class="rounded-lg border border-mm-border p-3">
+                <div class="font-bold">
+                  {{ $t('hfUpload.folderBatch', { n: files?.length ?? 0 }) }}
+                </div>
+                <div class="text-sm opacity-60">
+                  {{ formatSize(folderTotalSize) }}
+                </div>
+                <div class="mt-2 flex max-h-28 flex-col gap-0.5 overflow-y-auto text-xs opacity-70">
+                  <div v-for="file in files" :key="file.fullname" class="truncate">
+                    {{ file.fullname }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="rounded-lg border border-mm-border p-3">
                 <div class="truncate font-bold">
                   {{ selectedModel?.basename }}{{ selectedModel?.extension }}
                 </div>
@@ -120,10 +140,11 @@
             </div>
           </div>
           <div class="flex justify-between pt-6">
-            <Button variant="secondary" @click="handleBackModelSelect">
+            <Button v-if="!folderMode" variant="secondary" @click="handleBackModelSelect">
               <ChevronLeft class="size-4" />
               {{ $t('back') }}
             </Button>
+            <span v-else></span>
             <Button :disabled="!repoId || !pathInRepo || hfUpload.active" @click="handleUpload">
               <Upload class="size-4" />
               {{ $t('upload') }}
@@ -156,6 +177,17 @@ import { bytesToSize } from 'utils/common'
 import { NO_PREVIEW_URL } from 'utils/media'
 import { genModelKey } from 'utils/model'
 
+interface Props {
+  /** Folder batch mode: upload these files instead of a single selection. */
+  files?: { type: string; pathIndex: number; fullname: string; sizeBytes?: number }[]
+}
+const props = defineProps<Props>()
+
+const folderMode = computed(() => (props.files?.length ?? 0) > 0)
+const folderTotalSize = computed(() =>
+  (props.files ?? []).reduce((acc, f) => acc + (f.sizeBytes ?? 0), 0),
+)
+
 const { t } = useI18n()
 const { toast } = useToast()
 const loading = useLoading()
@@ -165,7 +197,7 @@ const loading = useLoading()
 // is missing.
 const { data: modelsCache, refreshFolder, visibleTypes } = useModels()
 
-const stepValue = ref('1')
+const stepValue = ref(folderMode.value ? '3' : '1')
 const currentType = ref<string>()
 
 const typeOptions = computed(() => {
@@ -270,18 +302,25 @@ const barMode = computed<'determinate' | 'indeterminate'>(() =>
 )
 
 const handleUpload = async () => {
-  if (!selectedModel.value) return
+  if (!selectedModel.value && !folderMode.value) return
   resetHfUploadState()
   hfUpload.repoId = repoId.value ?? ''
   hfUpload.pathInRepo = pathInRepo.value ?? ''
-  const payload = {
-    type: selectedModel.value.type,
-    pathIndex: selectedModel.value.pathIndex,
-    fullname: genModelFullName(selectedModel.value),
-    repoId: repoId.value,
-    pathInRepo: pathInRepo.value,
-    private: privateRepo.value,
-  }
+  const payload = folderMode.value
+    ? {
+        files: props.files,
+        repoId: repoId.value,
+        pathInRepo: pathInRepo.value,
+        private: privateRepo.value,
+      }
+    : {
+        type: selectedModel.value!.type,
+        pathIndex: selectedModel.value!.pathIndex,
+        fullname: genModelFullName(selectedModel.value!),
+        repoId: repoId.value,
+        pathInRepo: pathInRepo.value,
+        private: privateRepo.value,
+      }
   try {
     const result = await request('/hf/upload', {
       method: 'POST',

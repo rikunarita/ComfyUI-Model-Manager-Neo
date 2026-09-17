@@ -205,11 +205,6 @@ class HfUploader:
                 "HuggingFace token not set. Please set it in Settings > API Key."
             )
 
-        model_type = data.get("type", None)
-        path_index = int(data.get("pathIndex", 0))
-        fullname = data.get("fullname", None)
-        if model_type is None or fullname is None:
-            raise RuntimeError("type and fullname are required")
         repo_id = (data.get("repoId") or "").strip()
         path_in_repo = (data.get("pathInRepo") or "").strip()
         private = bool(data.get("private", False))
@@ -219,16 +214,50 @@ class HfUploader:
         if not path_in_repo:
             raise RuntimeError("Destination path in repository is required")
 
-        local_path = utils.get_valid_full_path(model_type, path_index, fullname)
-        if local_path is None:
-            raise RuntimeError(f"Model file not found: {fullname}")
+        # One file (the classic model-detail / single-model dialog flow) or a
+        # whole list (folder batch upload from the selection bar). Each entry
+        # keeps its folder-relative name so a batch preserves sub-folders
+        # inside the repository.
+        files: list[dict] = []
+        raw_files = data.get("files")
+        if raw_files:
+            import json as _json
 
-        total_size = os.path.getsize(local_path)
+            try:
+                parsed = _json.loads(raw_files) if isinstance(raw_files, str) else raw_files
+            except Exception as e:
+                raise RuntimeError(f"Invalid files payload: {e}")
+            if not isinstance(parsed, list) or not parsed:
+                raise RuntimeError("files must be a non-empty list")
+            base = path_in_repo.rstrip("/")
+            for entry in parsed:
+                ftype = entry.get("type")
+                findex = int(entry.get("pathIndex", 0))
+                fname = entry.get("fullname")
+                if not ftype or not fname:
+                    raise RuntimeError("every file needs type and fullname")
+                local = utils.get_valid_full_path(ftype, findex, fname)
+                if local is None:
+                    raise RuntimeError(f"Model file not found: {fname}")
+                files.append({"local_path": local, "path_in_repo": f"{base}/{fname}"})
+        else:
+            model_type = data.get("type", None)
+            path_index = int(data.get("pathIndex", 0))
+            fullname = data.get("fullname", None)
+            if model_type is None or fullname is None:
+                raise RuntimeError("type and fullname are required")
+            local_path = utils.get_valid_full_path(model_type, path_index, fullname)
+            if local_path is None:
+                raise RuntimeError(f"Model file not found: {fullname}")
+            files.append({"local_path": local_path, "path_in_repo": path_in_repo})
+
+        total_size = sum(os.path.getsize(f["local_path"]) for f in files)
         task_id = uuid.uuid4().hex
         HF_UPLOAD_TASKS[task_id] = {
             "repoId": repo_id,
             "pathInRepo": path_in_repo,
             "status": "running",
+            "fileCount": len(files),
         }
 
         # Initial progress (0%) so the UI can show its bar right away.
@@ -250,7 +279,7 @@ class HfUploader:
             self.run_upload(
                 task_id=task_id,
                 token=token,
-                local_path=local_path,
+                files=files,
                 repo_id=repo_id,
                 path_in_repo=path_in_repo,
                 private=private,
@@ -264,12 +293,19 @@ class HfUploader:
         self,
         task_id: str,
         token: str,
-        local_path: str,
+        files: list[dict],
         repo_id: str,
         path_in_repo: str,
         private: bool,
         total_size: int,
     ) -> None:
+        """Upload one or more files sequentially with cumulative progress.
+
+        A single-entry `files` list reproduces the classic one-file flow
+        byte-for-byte (same preflight, same skip/dedup answers, same events);
+        a batch (folder upload) runs the same per-file pipeline in order and
+        reports one aggregated completion.
+        """
         try:
             from huggingface_hub import HfApi
         except ImportError:
@@ -280,24 +316,28 @@ class HfUploader:
         loop = asyncio.get_running_loop()
 
         progress_state: dict[str, Any] = {"last": 0.0, "phase": None}
+        completed_bytes = 0
 
-        def report_progress(sent_bytes: int, total_bytes: int, phase: str = PHASE_UPLOAD) -> None:
-            """Marshal an accurate progress push back onto the main loop."""
+        def report_progress(
+            sent_bytes: int, file_total: int, phase: str = PHASE_UPLOAD
+        ) -> None:
+            """Marshal accurate cumulative progress back onto the main loop."""
             now = time.time()
             phase_changed = phase != progress_state["phase"]
-            boundary = sent_bytes in (0, total_bytes)
+            boundary = sent_bytes in (0, file_total)
             if not phase_changed and not boundary and now - progress_state["last"] < 0.4:
                 return
             progress_state["last"] = now
             progress_state["phase"] = phase
-            progress = (sent_bytes / total_bytes * 100) if total_bytes > 0 else 0.0
+            cumulative = completed_bytes + sent_bytes
+            progress = (cumulative / total_size * 100) if total_size > 0 else 0.0
             asyncio.run_coroutine_threadsafe(
                 utils.send_json(
                     "update_hf_upload_progress",
                     {
                         "taskId": task_id,
-                        "uploadedSize": float(sent_bytes),
-                        "totalSize": float(total_bytes),
+                        "uploadedSize": float(cumulative),
+                        "totalSize": float(total_size),
                         "progress": progress,
                         "phase": phase,
                     },
@@ -305,221 +345,179 @@ class HfUploader:
                 loop,
             )
 
-        def blob_url() -> str:
-            from urllib.parse import quote
+        repo_state: dict[str, Any] = {"ensured": False, "created": False}
 
-            return f"https://huggingface.co/{repo_id}/blob/main/{quote(path_in_repo)}"
-
-        def hash_local_file() -> str:
-            """sha256 of the local file, with the hashing pass reported.
-
-            BUG FIX: this pass used to run in complete silence. Hashing a
-            multi-gigabyte checkpoint takes minutes, during which the UI showed
-            a motionless 0% bar - the single most common reason an upload looks
-            like it "never started".
-            """
-            digest = hashlib.sha256()
-            read_bytes = 0
-            with open(local_path, "rb") as handle:
-                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                    digest.update(chunk)
-                    read_bytes += len(chunk)
-                    report_progress(read_bytes, total_size, PHASE_HASH)
-            return digest.hexdigest()
-
-        def fetch_remote_entry():
-            """The tree entry at the destination, if the repo answers at all."""
+        def ensure_repo():
             api = HfApi(token=token, library_name=LIBRARY_NAME)
-            info = api.model_info(
-                repo_id=repo_id, revision="main", files_metadata=True
-            )
-            for sibling in getattr(info, "siblings", None) or []:
-                if getattr(sibling, "rfilename", None) == path_in_repo:
-                    return sibling
-            return None
+            if not repo_state["ensured"]:
+                # Create the repository when it does not exist; the private
+                # flag only applies on creation.
+                if not api.repo_exists(repo_id=repo_id):
+                    api.create_repo(repo_id=repo_id, private=private, exist_ok=True)
+                    repo_state["created"] = True
+                repo_state["ensured"] = True
+            return api
 
-        async def preflight():
-            """Detect an identical file at the destination BEFORE paying for
-            a transfer attempt.
+        transferred_total = 0
+        skipped_count = 0
+        dup_count = 0
+        first_url: str | None = None
 
-            The Hub rejects re-uploads of unchanged content with an empty-commit
-            skip ("Upload 0 LFS files" + "No files have been modified since last
-            commit"), which from the outside is indistinguishable from a broken
-            upload. Comparing the local sha256 with the sha256 of the remote
-            tree entry turns that silent no-op into an explicit, linkable
-            answer. Any failure here degrades to "go" so a real upload is
-            never blocked by the check itself.
+        for item in files:
+            local_path = item["local_path"]
+            in_repo = item["path_in_repo"]
+            file_size = os.path.getsize(local_path)
 
-            The comparison is ordered cheap-first: the remote size is already in
-            the tree listing, and a size mismatch can never be the same content,
-            so the (expensive) local hash pass only runs when the sizes agree -
-            and that pass runs on the cpu pool while the Hub round-trip runs on
-            the io pool (optimizations A-4 / A-8).
-            """
-            try:
-                target = await loop.run_in_executor(utils.io_executor(), fetch_remote_entry)
-                if target is None:
-                    return {"status": "go"}
+            def blob_url() -> str:
+                from urllib.parse import quote
 
-                lfs = getattr(target, "lfs", None)
-                remote_sha = getattr(lfs, "sha256", None) if lfs else None
-                remote_size = (
-                    getattr(lfs, "size", None) if lfs else getattr(target, "size", None)
-                )
-                if not remote_sha:
-                    return {"status": "go"}
-                if remote_size is not None and int(remote_size) != int(total_size):
-                    return {"status": "go"}
+                return f"https://huggingface.co/{repo_id}/blob/main/{quote(in_repo)}"
 
-                local_sha = await loop.run_in_executor(utils.cpu_executor(), hash_local_file)
-                if remote_sha == local_sha:
-                    return {"status": "duplicate", "url": blob_url()}
-                return {"status": "go"}
-            except Exception:
-                return {"status": "go"}
+            def hash_local_file() -> str:
+                """sha256 of the local file, with the hashing pass reported."""
+                digest = hashlib.sha256()
+                read_bytes = 0
+                with open(local_path, "rb") as handle:
+                    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                        read_bytes += len(chunk)
+                        report_progress(read_bytes, file_size, PHASE_HASH)
+                return digest.hexdigest()
 
-        def do_upload():
-            api = HfApi(token=token, library_name=LIBRARY_NAME)
+            def fetch_remote_entry():
+                """The tree entry at the destination, if the repo answers."""
+                api = HfApi(token=token, library_name=LIBRARY_NAME)
+                info = api.model_info(repo_id=repo_id, revision="main", files_metadata=True)
+                for sibling in getattr(info, "siblings", None) or []:
+                    if getattr(sibling, "rfilename", None) == in_repo:
+                        return sibling
+                return None
 
-            # Create the repository when it does not exist.
-            # The private flag only applies on creation.
-            created = False
-            if not api.repo_exists(repo_id=repo_id):
-                api.create_repo(repo_id=repo_id, private=private, exist_ok=True)
-                created = True
-            head_sha = None
-            try:
-                head_sha = api.repo_info(repo_id=repo_id, repo_type="model").sha
-            except Exception:
-                head_sha = None
-
-            # BUG FIX: accurate upload progress.
-            #
-            # huggingface_hub exposes no per-chunk upload callback, so the UI
-            # could only ever show 0% -> 100% (an indeterminate sweep in
-            # between): "the exact progress is never displayed".
-            #
-            # The transfer is therefore fed through `_ProgressFile`, a thin
-            # file-like wrapper whose read() reports the bytes actually
-            # handed to the uploader (sequential for regular/basic uploads,
-            # range-wise for LFS multipart - `tell()` stays monotonic in both).
-            #
-            # Trade-off, taken deliberately on user request: passing a
-            # file-like object makes huggingface_hub use the classic
-            # basic/multipart transfer instead of the path-only hf_xet
-            # protocol, which is the price of per-chunk accuracy here.
-            with _ProgressFile(local_path, report_progress) as payload:
+            async def preflight():
+                """Detect an identical file at the destination BEFORE paying
+                for a transfer attempt (see the single-file design notes: the
+                Hub's empty-commit skip is indistinguishable from a broken
+                upload from the outside). Cheap-first: remote size, then the
+                local hash on the cpu pool while the Hub round-trip runs on
+                the io pool.
+                """
                 try:
-                    # `_ProgressFile` is a BufferedIOBase: huggingface_hub's
-                    # stubs only advertise BinaryIO, but the runtime validation
-                    # accepts exactly this class, so the `type: ignore` below
-                    # silences the overload mismatch without hiding a real bug.
-                    result = api.upload_file(  # type: ignore[call-overload]
-                        path_or_fileobj=payload,
-                        path_in_repo=path_in_repo,
-                        repo_id=repo_id,
-                        repo_type="model",
-                        token=token,
-                    )
-                except AttributeError as exc:
-                    # huggingface_hub's LFS batch validation reads
-                    # `response.get("actions", {}).get("upload")`, which raises
-                    # `'NoneType' object has no attribute 'get'` when the Hub
-                    # answers the git-lfs batch request with an explicit
-                    # `"actions": null` - the protocol's way of saying "this
-                    # object is already in storage". Nothing was transferred at
-                    # that point, so retry once from the plain file path: that
-                    # takes the hf_xet code path (no LFS batch round-trip) and
-                    # completes the upload. Per-chunk progress is not available
-                    # on that route, which the UI shows as an indeterminate bar.
-                    if "NoneType" not in str(exc) or "has no attribute" not in str(exc):
-                        raise
-                    utils.print_warning(
-                        "LFS batch answered with a null action set; retrying through the file path."
-                    )
-                    result = api.upload_file(
-                        path_or_fileobj=local_path,
-                        path_in_repo=path_in_repo,
-                        repo_id=repo_id,
-                        repo_type="model",
-                        token=token,
-                    )
-                    # `None` = "not measurable", which must never be read as
-                    # "zero bytes moved": the xet route really did transfer the
-                    # file, it just exposes no per-chunk callback.
-                    return result, created, head_sha, None
-                return result, created, head_sha, payload.transferred_bytes
+                    target = await loop.run_in_executor(utils.io_executor(), fetch_remote_entry)
+                    if target is None:
+                        return {"status": "go"}
 
-        # Short-circuit re-uploads of identical content: no transfer attempt,
-        # no confusing "0 LFS files" round-trips - just the explicit answer
-        # with a link to the file that already lives in the repository.
-        preflight_result = await preflight()
-        if preflight_result.get("status") == "duplicate":
-            _set_task_field(task_id, status="skipped")
-            await utils.send_json(
-                "update_hf_upload_progress",
-                {
-                    "taskId": task_id,
-                    "uploadedSize": float(total_size),
-                    "totalSize": float(total_size),
-                    "progress": 100.0,
-                    "phase": PHASE_UPLOAD,
-                },
-            )
-            await utils.send_json(
-                "hf_upload_complete",
-                {
-                    "taskId": task_id,
-                    "repoId": repo_id,
-                    "pathInRepo": path_in_repo,
-                    "skipped": True,
-                    "deduplicated": True,
-                    "transferredBytes": 0.0,
-                    "created": False,
-                    "private": private,
-                    "url": preflight_result.get("url") or blob_url(),
-                },
-            )
-            _forget_task(task_id)
-            return
+                    lfs = getattr(target, "lfs", None)
+                    remote_sha = getattr(lfs, "sha256", None) if lfs else None
+                    remote_size = (
+                        getattr(lfs, "size", None) if lfs else getattr(target, "size", None)
+                    )
+                    if not remote_sha:
+                        return {"status": "go"}
+                    if remote_size is not None and int(remote_size) != int(file_size):
+                        return {"status": "go"}
 
-        try:
-            result, created, head_sha, transferred = await loop.run_in_executor(
-                utils.io_executor(), do_upload
-            )
-        except Exception as e:
-            _set_task_field(task_id, status="error")
-            await utils.send_json(
-                "hf_upload_error",
-                {"taskId": task_id, "error": str(e)},
-            )
-            _forget_task(task_id)
-            raise
+                    local_sha = await loop.run_in_executor(utils.cpu_executor(), hash_local_file)
+                    if remote_sha == local_sha:
+                        return {"status": "duplicate", "url": blob_url()}
+                    return {"status": "go"}
+                except Exception:
+                    return {"status": "go"}
 
-        # An unchanged file (same content at the same path) makes
-        # huggingface_hub skip the empty commit and return the EXISTING head
-        # sha - surface that as an explicit "skipped" completion instead of a
-        # silent success.
-        result_oid = getattr(result, "oid", None)
-        skipped = (
-            head_sha is not None
-            and result_oid is not None
-            and str(result_oid) == str(head_sha)
+            def do_upload():
+                api = ensure_repo()
+                head_sha = None
+                try:
+                    head_sha = api.repo_info(repo_id=repo_id, repo_type="model").sha
+                except Exception:
+                    head_sha = None
+
+                # Accurate progress through `_ProgressFile` (per-chunk reads);
+                # the deliberate trade-off vs the path-only hf_xet route is
+                # documented on the class.
+                with _ProgressFile(local_path, report_progress) as payload:
+                    try:
+                        result = api.upload_file(
+                            path_or_fileobj=payload,
+                            path_in_repo=in_repo,
+                            repo_id=repo_id,
+                            repo_type="model",
+                            token=token,
+                        )
+                    except AttributeError as exc:
+                        # LFS batch answered with `"actions": null` ("object
+                        # already in storage"): retry through the plain path
+                        # (hf_xet route, no per-chunk progress).
+                        if "NoneType" not in str(exc) or "has no attribute" not in str(exc):
+                            raise
+                        utils.print_warning(
+                            "LFS batch answered with a null action set; retrying through the file path."
+                        )
+                        result = api.upload_file(
+                            path_or_fileobj=local_path,
+                            path_in_repo=in_repo,
+                            repo_id=repo_id,
+                            repo_type="model",
+                            token=token,
+                        )
+                        return result, head_sha, None
+                return result, head_sha, payload.transferred_bytes
+
+            preflight_result = await preflight()
+            if preflight_result.get("status") == "duplicate":
+                dup_count += 1
+                first_url = first_url or preflight_result.get("url") or blob_url()
+                completed_bytes += file_size
+                await utils.send_json(
+                    "update_hf_upload_progress",
+                    {
+                        "taskId": task_id,
+                        "uploadedSize": float(completed_bytes),
+                        "totalSize": float(total_size),
+                        "progress": (completed_bytes / total_size * 100) if total_size else 100.0,
+                        "phase": PHASE_UPLOAD,
+                    },
+                )
+                continue
+
+            try:
+                result, head_sha, transferred = await loop.run_in_executor(
+                    utils.io_executor(), do_upload
+                )
+            except Exception as e:
+                _set_task_field(task_id, status="error")
+                await utils.send_json(
+                    "hf_upload_error",
+                    {"taskId": task_id, "error": str(e)},
+                )
+                _forget_task(task_id)
+                raise
+
+            # An unchanged file makes huggingface_hub skip the empty commit
+            # and return the EXISTING head sha - explicit "skipped" per file.
+            result_oid = getattr(result, "oid", None)
+            if head_sha is not None and result_oid is not None and str(result_oid) == str(head_sha):
+                skipped_count += 1
+            else:
+                # `None` = "not measurable" (xet retry): count the whole file
+                # so cumulative progress still reaches 100%.
+                transferred_total += file_size if transferred is None else int(transferred)
+            first_url = first_url or blob_url()
+            completed_bytes += file_size
+
+        from urllib.parse import quote as _quote
+
+        all_skipped = skipped_count == len(files)
+        all_dup = dup_count == len(files)
+        deduplicated = (not all_skipped) and (transferred_total == 0) and (
+            all_dup or (dup_count + skipped_count == len(files))
         )
-        # A commit that moved no bytes means the Hub already held the blob and
-        # deduplicated it ("Upload 0 LFS files"). The file is in the repository,
-        # but reporting a plain "Success" next to a bar that never moved is what
-        # made this look like a failed upload.
-        deduplicated = not skipped and transferred is not None and int(transferred) == 0
-        status = "skipped" if skipped else "complete"
+        status = "skipped" if all_skipped else "complete"
         _set_task_field(
             task_id,
             status=status,
-            transferredBytes=None if transferred is None else float(transferred),
-            created=created,
+            transferredBytes=float(transferred_total),
+            created=repo_state["created"],
         )
-        # Final progress (100%) + completion; the UI settles on these events
-        # instead of the HTTP round-trip.
         await utils.send_json(
             "update_hf_upload_progress",
             {
@@ -536,12 +534,16 @@ class HfUploader:
                 "taskId": task_id,
                 "repoId": repo_id,
                 "pathInRepo": path_in_repo,
-                "skipped": skipped,
+                "skipped": all_skipped,
                 "deduplicated": deduplicated,
-                "transferredBytes": None if transferred is None else float(transferred),
-                "created": created,
+                "transferredBytes": float(transferred_total),
+                "created": repo_state["created"],
                 "private": private,
-                "url": blob_url() if (skipped or deduplicated) else None,
+                "url": first_url
+                or f"https://huggingface.co/{repo_id}/tree/main/{_quote(path_in_repo)}",
+                "fileCount": len(files),
+                "skippedCount": skipped_count,
+                "dupCount": dup_count,
             },
         )
         _forget_task(task_id)

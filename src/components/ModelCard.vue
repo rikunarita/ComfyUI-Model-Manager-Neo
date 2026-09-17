@@ -73,7 +73,7 @@
     </button>
 
     <CardCornerControls :model="model" />
-    <CardBadges v-if="!model.isFolder" :model="model" :scale="badgeScale" />
+    <CardBadges :model="model" :scale="badgeScale" />
 
     <slot name="extra"></slot>
   </div>

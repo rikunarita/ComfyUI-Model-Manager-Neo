@@ -1,5 +1,6 @@
 import DialogModelDetail from 'components/DialogModelDetail.vue'
 import { useDialog } from 'hooks/dialog'
+import { recordRecent } from 'hooks/recent'
 import { type BaseModel } from 'types/typings'
 import { genModelKey } from 'utils/model'
 
@@ -20,6 +21,7 @@ export const useModelDetail = () => {
     // swaps the FIRST occurrence, so a file named
     // "foo.safetensors.safetensors" opened a dialog titled "foo".
     const filename = model.basename
+    recordRecent(genModelKey(model))
 
     dialog.open({
       key: genModelKey(model),

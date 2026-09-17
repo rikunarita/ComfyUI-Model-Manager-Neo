@@ -90,7 +90,8 @@
     "name": "名称",
     "size": "最大",
     "created": "最新创建",
-    "modified": "最新修改"
+    "modified": "最新修改",
+    "recent": "最近使用"
   },
   "size": {
     "extraLarge": "超大图标",
@@ -132,7 +133,12 @@
     "api_key": {
       "huggingface": "HuggingFace API 密钥",
       "civitai": "Civitai API 密钥"
-    }
+    },
+    "zipnn": "ZipNN",
+    "download": "下载",
+    "autoCompressUnusedDays": "自动压缩超过此天数未使用的模型(0=关闭)",
+    "autoCompressOnDownload": "下载完成后自动压缩",
+    "pauseDuringPrompt": "提示执行时暂停下载"
   },
   "modelTypeLabel": {
     "checkpoints": "Checkpoint",
@@ -174,7 +180,10 @@
     "deduplicated": "HuggingFace 已存储该内容",
     "deduplicatedDetail": "HuggingFace 已保存完全相同的字节，因此没有传输任何数据。'{path}' 已提交到 '{repo}'",
     "createdPrivate": "仓库已创建为私有",
-    "createdPublic": "仓库已创建为公开"
+    "createdPublic": "仓库已创建为公开",
+    "folderBatch": "来自所选文件夹的 {n} 个文件",
+    "successMany": "已上传 {n} 个文件",
+    "noFilesInFolders": "所选文件夹中没有模型文件"
   },
   "switchToFolderView": "切换到文件夹视图",
   "switchToFlatView": "切换到平铺视图",
@@ -254,5 +263,14 @@
   "zipnnBatch": "ZipNN 批量",
   "zipnnBatchConfirmAuto": "使用 ZipNN 批量处理该文件夹（有未压缩模型则压缩，仅含压缩包则解压）：{name}",
   "description": "描述",
-  "information": "信息"
+  "information": "信息",
+  "duplicateModels": "重复模型: {paths}",
+  "freeSpace": "目标卷可用空间: {size}",
+  "notEnoughSpace": "可用空间不足以完成此下载",
+  "previewMoveLeft": "左移",
+  "previewMoveRight": "右移",
+  "previewRemove": "删除此预览",
+  "informationEdit": "编辑元数据",
+  "informationEditWarning": "信息表由笔记的 YAML front-matter 生成。编辑会重写笔记中的该区块, 可能与来源网站不一致。是否继续?",
+  "informationEditHint": "修改将在保存表单时写入笔记。"
 }

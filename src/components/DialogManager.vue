@@ -150,7 +150,8 @@ const typeOptions = computed(() => {
   })
 })
 
-const { sortOrder, sortOrderOptions, cardSizeOptions, cardSizeFlag } = useGridSelectOptions()
+const { sortOrder, sortOrderOptions, cardSizeOptions, cardSizeFlag, compareRecent } =
+  useGridSelectOptions()
 
 const itemSize = computed(() => {
   let itemHeight = cardSize.value.height
@@ -217,6 +218,9 @@ const list = computed(() => {
       break
     case 'modified':
       sortStrategy = (a, b) => b.updatedAt - a.updatedAt
+      break
+    case 'recent':
+      sortStrategy = (a, b) => compareRecent(genModelKey(a), genModelKey(b))
       break
     default:
       break

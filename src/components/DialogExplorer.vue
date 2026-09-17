@@ -280,7 +280,8 @@ const searchContent = ref<string>()
 // Optimization B-3: collapse keystroke bursts into one tree filter pass.
 const debouncedSearch = refDebounced(searchContent, 150)
 
-const { sortOrder, sortOrderOptions, cardSizeOptions, cardSizeFlag } = useGridSelectOptions()
+const { sortOrder, sortOrderOptions, cardSizeOptions, cardSizeFlag, compareRecent } =
+  useGridSelectOptions()
 
 /** Depth-first collect of every node matching the search filter. */
 const applySearchFilter = (list: ModelTreeNode[], filter: string): ModelTreeNode[] => {
@@ -321,6 +322,9 @@ const sortFolderContents = (list: ModelTreeNode[]): ModelTreeNode[] => {
   modelItems.sort((a, b) => {
     const byStar = starFirst(a, b)
     if (byStar) return byStar
+    if (sortOrder.value === 'recent') {
+      return compareRecent(genModelKey(a), genModelKey(b))
+    }
     const sortFieldMap = {
       name: 'basename',
       size: 'sizeBytes',

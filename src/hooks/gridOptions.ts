@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useConfig } from 'hooks/config'
+import { recentRank } from 'hooks/recent'
 
 /**
  * The sort-order and card-size selects of the two grid layouts (flat and
@@ -14,7 +15,7 @@ export const useGridSelectOptions = () => {
 
   const sortOrder = ref('name')
   const sortOrderOptions = ref(
-    ['name', 'size', 'created', 'modified'].map(key => {
+    ['name', 'size', 'created', 'modified', 'recent'].map(key => {
       return {
         label: t(`sort.${key}`),
         value: key,
@@ -47,5 +48,8 @@ export const useGridSelectOptions = () => {
     })
   })
 
-  return { sortOrder, sortOrderOptions, cardSizeOptions, cardSizeFlag }
+  /** Comparator for the "recently used" order (never-used models last). */
+  const compareRecent = (aKey: string, bKey: string) => recentRank(bKey) - recentRank(aKey)
+
+  return { sortOrder, sortOrderOptions, cardSizeOptions, cardSizeFlag, compareRecent }
 }

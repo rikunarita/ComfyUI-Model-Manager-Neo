@@ -32,6 +32,8 @@ interface HfCompleteDetail {
   created?: boolean
   private?: boolean
   url?: string | null
+  fileCount?: number
+  skippedCount?: number
 }
 
 /**
@@ -128,13 +130,19 @@ const reportHfDeduplicated = (repoId: string, pathInRepo: string, url: string) =
   })
 }
 
-const reportHfSuccess = (repoId: string, pathInRepo: string, created: boolean, priv: boolean) => {
+const reportHfSuccess = (
+  repoId: string,
+  pathInRepo: string,
+  created: boolean,
+  priv: boolean,
+  fileCount = 1,
+) => {
   const createdNote = created
     ? t(priv ? 'hfUpload.createdPrivate' : 'hfUpload.createdPublic', { repo: repoId })
     : ''
   toast.add({
     severity: 'success',
-    summary: t('hfUpload.success'),
+    summary: fileCount > 1 ? t('hfUpload.successMany', { n: fileCount }) : t('hfUpload.success'),
     detail: `${pathInRepo} -> ${repoId}${createdNote ? ` (${createdNote})` : ''}`,
     life: 5000,
   })
@@ -155,7 +163,14 @@ api.addEventListener('hf_upload_complete', (event: CustomEvent) => {
 
   if (detail.skipped) reportHfSkipped(repoId, url)
   else if (detail.deduplicated) reportHfDeduplicated(repoId, pathInRepo, url)
-  else reportHfSuccess(repoId, pathInRepo, Boolean(detail.created), Boolean(detail.private))
+  else
+    reportHfSuccess(
+      repoId,
+      pathInRepo,
+      Boolean(detail.created),
+      Boolean(detail.private),
+      detail.fileCount ?? 1,
+    )
 })
 
 api.addEventListener('hf_upload_error', (event: CustomEvent) => {

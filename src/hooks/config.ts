@@ -316,6 +316,30 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
     })
 
     app.ui?.settings.addSetting({
+      id: 'ModelManager.Zipnn.AutoCompressUnusedDays',
+      category: [t('modelManager'), t('setting.zipnn'), 'AutoCompressUnusedDays'],
+      name: t('setting.autoCompressUnusedDays'),
+      type: 'number',
+      defaultValue: 0,
+    })
+
+    app.ui?.settings.addSetting({
+      id: 'ModelManager.Zipnn.AutoCompressOnDownload',
+      category: [t('modelManager'), t('setting.zipnn'), 'AutoCompressOnDownload'],
+      name: t('setting.autoCompressOnDownload'),
+      type: 'boolean',
+      defaultValue: false,
+    })
+
+    app.ui?.settings.addSetting({
+      id: 'ModelManager.Download.PauseDuringPrompt',
+      category: [t('modelManager'), t('setting.download'), 'PauseDuringPrompt'],
+      name: t('setting.pauseDuringPrompt'),
+      type: 'boolean',
+      defaultValue: false,
+    })
+
+    app.ui?.settings.addSetting({
       id: 'ModelManager.UI.Flat',
       category: [t('modelManager'), t('setting.ui'), 'Flat'],
       name: t('setting.useFlatUI'),

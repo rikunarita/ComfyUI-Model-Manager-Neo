@@ -2,11 +2,12 @@ import { upperFirst } from 'es-toolkit/compat'
 import { onBeforeMount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import yaml from 'yaml'
+import { autoCompressDownloaded } from 'hooks/autoCompress'
 import { useLoading } from 'hooks/loading'
 import { request } from 'hooks/request'
 import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
-import { api } from 'scripts/comfyAPI'
+import { api, app } from 'scripts/comfyAPI'
 import {
   type DownloadTask,
   type DownloadTaskOptions,
@@ -186,11 +187,48 @@ export const useDownload = defineStore('download', store => {
       // and failures are reported). Tasks this page never saw (a reload
       // mid-download) fall back to the full sweep.
       if (task?.type) {
-        store.models.refreshFolder(task.type).catch(() => {})
+        const taskType = task.type
+        const taskFullname = task.fullname
+        store.models
+          .refreshFolder(taskType)
+          .then(list => {
+            autoCompressDownloaded(taskType, taskFullname, list)
+          })
+          .catch(() => {})
       } else {
         store.models.refresh().catch(() => {})
       }
     })
+  })
+
+  /**
+   * Optional: pause every running download while ComfyUI executes a prompt
+   * (and resume afterwards) so a generation never competes with a transfer
+   * for bandwidth/disk. Only tasks paused by this listener are resumed by it.
+   */
+  const pausedByPrompt = new Set<string>()
+  api.addEventListener('executing', (event: CustomEvent) => {
+    const enabled =
+      app.ui?.settings.getSettingValue<boolean>('ModelManager.Download.PauseDuringPrompt') ?? false
+    if (!enabled) return
+    if (event.detail != null) {
+      for (const task of taskList.value) {
+        if (task.status !== 'doing' || pausedByPrompt.has(task.taskId)) continue
+        pausedByPrompt.add(task.taskId)
+        request(`/download/${task.taskId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'pause' }),
+        }).catch(() => {})
+      }
+      return
+    }
+    for (const taskId of [...pausedByPrompt]) {
+      pausedByPrompt.delete(taskId)
+      request(`/download/${taskId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'resume' }),
+      }).catch(() => {})
+    }
   })
 
   onMounted(() => {

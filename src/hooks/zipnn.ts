@@ -153,10 +153,22 @@ const recordZipnnSettle = (detail: ZipnnCompleteDetail) => {
 const advanceZipnnQueue = (ok: boolean) => {
   if (!ok) {
     batchQueue.length = 0
+    singleQueue.length = 0
     return
   }
   const next = batchQueue.shift()
-  if (next) void startZipnnBatch(next.mode, next.folder, next.key)
+  if (next) {
+    void startZipnnBatch(next.mode, next.folder, next.key)
+    return
+  }
+  const nextSingle = singleQueue.shift()
+  if (nextSingle) {
+    void startZipnn(
+      'compress',
+      { type: nextSingle.type, pathIndex: nextSingle.pathIndex, fullname: nextSingle.fullname },
+      nextSingle.key,
+    )
+  }
 }
 
 const reportZipnnFailure = (detail: ZipnnCompleteDetail) => {
@@ -330,6 +342,33 @@ export interface ZipnnBatchItem {
 }
 
 const batchQueue: ZipnnBatchItem[] = []
+
+/** Sequential queue of auto-compression targets (unused / post-download). */
+export interface SingleCompressItem {
+  type: string
+  pathIndex: number
+  fullname: string
+  key: string
+}
+const singleQueue: SingleCompressItem[] = []
+
+/**
+ * Queue automatic single-model compressions; the first one starts right away
+ * when nothing else is running, the rest follow one by one as tasks settle.
+ */
+export const queueSingleCompress = (items: SingleCompressItem[]) => {
+  for (const item of items) {
+    if (!zipnnState.active && batchQueue.length === 0 && singleQueue.length === 0) {
+      void startZipnn(
+        'compress',
+        { type: item.type, pathIndex: item.pathIndex, fullname: item.fullname },
+        item.key,
+      )
+    } else {
+      singleQueue.push(item)
+    }
+  }
+}
 
 export const queueZipnnBatches = (items: ZipnnBatchItem[]) => {
   batchQueue.push(...items)

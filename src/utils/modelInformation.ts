@@ -66,7 +66,9 @@ const FRONTMATTER_RE = /^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/
  * the description carries no (or an unreadable / non-object) block, so the
  * caller can fall back gracefully.
  */
-const parseFrontmatter = (description: string | undefined | null): Record<string, any> | null => {
+export const parseFrontmatter = (
+  description: string | undefined | null,
+): Record<string, any> | null => {
   if (!description) return null
   const match = FRONTMATTER_RE.exec(description)
   if (!match) return null
@@ -222,4 +224,20 @@ export const buildInformationRows = (description: string | undefined | null): In
   rows.push(...unknownRows(frontmatter))
 
   return rows
+}
+
+/**
+ * Replace (or prepend) the YAML front-matter block of a description with the
+ * given object - the write half of the Information tab's edit mode. Key order
+ * of the object is preserved; the markdown body stays untouched.
+ */
+export const writeFrontmatter = (
+  description: string,
+  frontmatter: Record<string, unknown>,
+): string => {
+  const body = yaml.stringify(frontmatter, { lineWidth: 0 }).trimEnd()
+  const block = `---\n${body}\n---\n`
+  const match = FRONTMATTER_RE.exec(description)
+  if (match) return block + description.slice(match[0].length)
+  return description ? `${block}\n${description}` : block
 }

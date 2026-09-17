@@ -23,6 +23,8 @@ export interface Model extends BaseModel {
   modelPage?: string
   /** `website` of the notes front-matter: the model's source platform. */
   modelPlatform?: string
+  /** SHA256 recorded in the notes front-matter (duplicate detection). */
+  modelSha256?: string
 }
 
 export interface VersionModelFile {

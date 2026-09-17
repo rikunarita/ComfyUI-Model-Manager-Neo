@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { GitCompareArrows, Plus, Star, Trash2 } from '@lucide/vue'
+import { GitCompareArrows, Plus, Star, Trash2, Upload } from '@lucide/vue'
+import { useI18n } from 'vue-i18n'
+import DialogHfUpload from 'components/DialogHfUpload.vue'
 import SelectionBarZipnnButton from 'components/SelectionBarZipnnButton.vue'
 import { Button } from 'components/ui/button'
+import { useDialog } from 'hooks/dialog'
 import { type ModelTreeNode } from 'hooks/explorer'
 import { useFolderSelection } from 'hooks/folderSelection'
+import { genModelFullName } from 'hooks/model'
+import { useToast } from 'hooks/toast'
 import { cn } from 'utils/cn'
 
 interface Props {
@@ -19,11 +24,16 @@ interface Props {
 }
 const props = withDefaults(defineProps<Props>(), { folderActions: true, marginClass: 'mx-4' })
 
+const { t } = useI18n()
+const { toast } = useToast()
+const dialog = useDialog()
+
 const {
   selection,
   selectionCount,
   addSelectedToWorkflow,
   deleteSelected,
+  collectFolderModels,
   selectedFolderNodes,
   zipnnRunning,
   batchInverted,
@@ -34,6 +44,28 @@ const {
   allSelectedFoldersStarred,
   starSelectedFolders,
 } = useFolderSelection(() => props.tree)
+
+/** Folder batch upload: every model inside the selected folders, in one task. */
+const uploadFoldersToHf = () => {
+  const files = selectedFolderNodes.value
+    .flatMap(folder => collectFolderModels(folder))
+    .map(m => ({
+      type: m.type,
+      pathIndex: m.pathIndex,
+      fullname: genModelFullName(m),
+      sizeBytes: m.sizeBytes,
+    }))
+  if (files.length === 0) {
+    toast.add({ severity: 'warn', summary: t('hfUpload.noFilesInFolders'), life: 6000 })
+    return
+  }
+  dialog.open({
+    key: 'model-manager-hf-upload',
+    title: t('uploadToHuggingFace'),
+    content: DialogHfUpload,
+    contentProps: { files },
+  })
+}
 </script>
 
 <template>
@@ -61,6 +93,15 @@ const {
       <Button variant="destructive" size="sm" @click="deleteSelected">
         <Trash2 class="size-4" />
         {{ $t('delete') }}
+      </Button>
+      <Button
+        v-if="folderActions && selectedFolderNodes.length > 0"
+        variant="secondary"
+        size="sm"
+        @click="uploadFoldersToHf"
+      >
+        <Upload class="size-4" />
+        {{ $t('uploadToHuggingFace') }}
       </Button>
       <SelectionBarZipnnButton
         :visible="folderActions && selectedFolderNodes.length > 0"

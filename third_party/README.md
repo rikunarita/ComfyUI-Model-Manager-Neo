@@ -22,7 +22,8 @@ third_party/
 │     ├─ zipnn_core.cpython-310-x86_64-linux-gnu.so
 │     ├─ zipnn_core.cpython-311-x86_64-linux-gnu.so
 │     ├─ zipnn_core.cpython-312-x86_64-linux-gnu.so
-│     └─ zipnn_core.cpython-313-x86_64-linux-gnu.so
+│     ├─ zipnn_core.cpython-313-x86_64-linux-gnu.so
+│     └─ zipnn_core.cpython-314-x86_64-linux-gnu.so
 ├─ zipnn-core/                # C sources, used ONLY to build on platforms with
 │  ├─ csrc/                   #   no prebuilt binary (macOS / Windows / other arch)
 │  ├─ include/FiniteStateEntropy/lib/

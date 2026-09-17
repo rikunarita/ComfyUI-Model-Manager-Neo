@@ -90,7 +90,8 @@
     "name": "名前順",
     "size": "サイズが大きい順",
     "created": "作成日が新しい順",
-    "modified": "更新日が新しい順"
+    "modified": "更新日が新しい順",
+    "recent": "最近使用"
   },
   "size": {
     "extraLarge": "特大アイコン",
@@ -132,7 +133,12 @@
     "api_key": {
       "huggingface": "HuggingFace API キー",
       "civitai": "Civitai API キー"
-    }
+    },
+    "zipnn": "ZipNN",
+    "download": "ダウンロード",
+    "autoCompressUnusedDays": "この日数以上未使用のモデルを自動圧縮(0=無効)",
+    "autoCompressOnDownload": "ダウンロード完了後に自動圧縮する",
+    "pauseDuringPrompt": "prompt 実行中はダウンロードを一時停止する"
   },
   "modelTypeLabel": {
     "checkpoints": "チェックポイント",
@@ -174,7 +180,10 @@
     "deduplicated": "HuggingFace 側に既存のデータです",
     "deduplicatedDetail": "同一バイト列が HuggingFace に既に保存されているため、転送は発生しませんでした。'{path}' を '{repo}' へコミットしました",
     "createdPrivate": "リポジトリをプライベートで作成しました",
-    "createdPublic": "リポジトリをパブリックで作成しました"
+    "createdPublic": "リポジトリをパブリックで作成しました",
+    "folderBatch": "選択フォルダから {n} ファイル",
+    "successMany": "{n} ファイルをアップロードしました",
+    "noFilesInFolders": "選択フォルダにモデルファイルがありません"
   },
   "switchToFolderView": "フォルダ表示に切り替え",
   "switchToFlatView": "フラット表示に切り替え",
@@ -254,5 +263,14 @@
   "zipnnBatch": "ZipNN バッチ",
   "zipnnBatchConfirmAuto": "フォルダを ZipNN でバッチ処理します（未圧縮モデルがあれば圧縮、圧縮済みのみなら解凍）: {name}",
   "description": "説明",
-  "information": "情報"
+  "information": "情報",
+  "duplicateModels": "重複しているモデル: {paths}",
+  "freeSpace": "保存先ボリュームの空き容量: {size}",
+  "notEnoughSpace": "このダウンロードには空き容量が不足しています",
+  "previewMoveLeft": "左へ移動",
+  "previewMoveRight": "右へ移動",
+  "previewRemove": "このプレビューを削除",
+  "informationEdit": "メタデータを編集",
+  "informationEditWarning": "情報表はノートの YAML フロントマターから生成されています。編集するとノート内の当該ブロックを書き換え、提供元サイトの内容と乖離する可能性があります。続行しますか?",
+  "informationEditHint": "変更はフォームの保存時にノートへ書き込まれます。"
 }

@@ -186,6 +186,7 @@ export const useFolderSelection = (getTree: () => ModelTreeNode[]) => {
   return {
     selection,
     selectionCount,
+    collectFolderModels,
     selectedFolderNodes,
     addSelectedToWorkflow,
     deleteSelected,

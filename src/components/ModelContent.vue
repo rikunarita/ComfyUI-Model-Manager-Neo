@@ -31,7 +31,7 @@
           <TabsContent value="1">
             <!-- Read-only by design: the parsed notes front-matter (and the
                  raw safetensors metadata) are a report, not an editor. -->
-            <ModelInformation></ModelInformation>
+            <ModelInformation :editable="editable ?? false"></ModelInformation>
           </TabsContent>
         </div>
       </Tabs>

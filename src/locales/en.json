@@ -90,7 +90,8 @@
     "name": "Name",
     "size": "Largest",
     "created": "Latest created",
-    "modified": "Latest modified"
+    "modified": "Latest modified",
+    "recent": "Recently used"
   },
   "size": {
     "extraLarge": "Extra Large Icons",
@@ -132,7 +133,12 @@
     "api_key": {
       "huggingface": "HuggingFace API Key",
       "civitai": "Civitai API Key"
-    }
+    },
+    "zipnn": "ZipNN",
+    "download": "Download",
+    "autoCompressUnusedDays": "Auto-compress models unused for this many days (0 = off)",
+    "autoCompressOnDownload": "Auto-compress a model after its download completes",
+    "pauseDuringPrompt": "Pause downloads while a prompt is executing"
   },
   "modelTypeLabel": {
     "checkpoints": "Checkpoints",
@@ -174,7 +180,10 @@
     "deduplicated": "Already stored on HuggingFace",
     "deduplicatedDetail": "HuggingFace already holds these exact bytes, so nothing was transferred. '{path}' was committed to '{repo}'",
     "createdPrivate": "repository created as private",
-    "createdPublic": "repository created as public"
+    "createdPublic": "repository created as public",
+    "folderBatch": "{n} files from the selected folders",
+    "successMany": "Uploaded {n} files",
+    "noFilesInFolders": "The selected folders contain no model files"
   },
   "switchToFolderView": "Switch to Folder View",
   "switchToFlatView": "Switch to Flat View",
@@ -254,5 +263,14 @@
   "zipnnBatch": "ZipNN batch",
   "zipnnBatchConfirmAuto": "Batch-process the folder with ZipNN (compress plain models, or decompress if it only holds bundles): {name}?",
   "description": "Description",
-  "information": "Information"
+  "information": "Information",
+  "duplicateModels": "Duplicate model: {paths}",
+  "freeSpace": "Free space on the target volume: {size}",
+  "notEnoughSpace": "not enough free space for this download",
+  "previewMoveLeft": "Move left",
+  "previewMoveRight": "Move right",
+  "previewRemove": "Remove this preview",
+  "informationEdit": "Edit metadata",
+  "informationEditWarning": "The Information table is generated from the YAML front-matter of the notes. Editing rewrites that block inside the notes and may diverge from the source site. Continue?",
+  "informationEditHint": "Changes are written to the notes when the form is saved."
 }

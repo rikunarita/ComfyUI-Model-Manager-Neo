@@ -16,6 +16,7 @@ import {
 import { useI18n } from 'vue-i18n'
 import { useLoading } from 'hooks/loading'
 import { useMarkdown } from 'hooks/markdown'
+import { recordRecent } from 'hooks/recent'
 import { request } from 'hooks/request'
 import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
@@ -624,6 +625,7 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
     subFolder,
     pathIndex,
     modelFolders,
+    model,
   }
 
   provide(baseInfoKey, result)
@@ -633,6 +635,22 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
 
 export const useModelBaseInfo = () => {
   return inject(baseInfoKey)!
+}
+
+/**
+ * Per-model-type library size (sum of every model file), used by the folder
+ * cards' size chip as a lightweight capacity dashboard.
+ */
+export const useTypeSizes = () => {
+  const { data } = useModels()
+  const typeSizes = computed(() => {
+    const sizes: Record<string, number> = {}
+    for (const [type, list] of Object.entries(data.value)) {
+      sizes[type] = list.reduce((acc, m) => acc + (m.isFolder ? 0 : m.sizeBytes || 0), 0)
+    }
+    return sizes
+  })
+  return { typeSizes }
 }
 
 /**
@@ -732,12 +750,30 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
   const currentType = ref('default')
 
   /**
-   * Default images
+   * Default images (the saved gallery). A ref (not a computed) so the editor
+   * can reorder / remove single previews; reset() restores it from the model.
    */
-  const defaultContent = computed(() => {
-    return model.value.preview ? castArray(model.value.preview) : []
-  })
+  const defaultContent = ref<string[]>(model.value.preview ? castArray(model.value.preview) : [])
   const defaultContentPage = ref(0)
+
+  /** Move one gallery entry left/right (clamped, no wrap). */
+  const movePreview = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= defaultContent.value.length) return
+    const list = [...defaultContent.value]
+    const [entry] = list.splice(index, 1)
+    list.splice(target, 0, entry)
+    defaultContent.value = list
+    defaultContentPage.value = target
+  }
+
+  /** Remove one gallery entry; the page index follows the neighbourhood. */
+  const removePreview = (index: number) => {
+    const list = [...defaultContent.value]
+    list.splice(index, 1)
+    defaultContent.value = list
+    defaultContentPage.value = Math.min(defaultContentPage.value, Math.max(0, list.length - 1))
+  }
 
   /**
    * Network picture url
@@ -786,6 +822,7 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
   onMounted(() => {
     registerReset(() => {
       currentType.value = 'default'
+      defaultContent.value = model.value.preview ? castArray(model.value.preview) : []
       defaultContentPage.value = 0
       networkContent.value = undefined
       localContent.value = undefined
@@ -821,6 +858,9 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
     // default value
     defaultContent,
     defaultContentPage,
+    // gallery management
+    movePreview,
+    removePreview,
     // network picture
     networkContent,
     // local file
@@ -865,7 +905,11 @@ export const useModelDescriptionEditor = (formInstance: ModelFormInstance) => {
     return description.value ? md.render(description.value) : undefined
   })
 
-  const result = { renderedDescription, description }
+  const result = {
+    renderedDescription,
+    description,
+    registerSubmit: formInstance.registerSubmit,
+  }
 
   provide(descriptionKey, result)
 
@@ -949,6 +993,7 @@ export const useModelNodeAction = () => {
   })
 
   const addModelNode = wrapperToastError((model: BaseModel) => {
+    recordRecent(genModelKey(model))
     const selectedNodes = app.canvas.selected_nodes
     const firstSelectedNode = Object.values(selectedNodes)[0]
     const offset = 25
