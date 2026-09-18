@@ -272,5 +272,14 @@
   "previewRemove": "Remove this preview",
   "informationEdit": "Edit metadata",
   "informationEditWarning": "The Information table is generated from the YAML front-matter of the notes. Editing rewrites that block inside the notes and may diverge from the source site. Continue?",
-  "informationEditHint": "Changes are written to the notes when the form is saved."
+  "informationEditHint": "Changes are written to the notes when the form is saved.",
+  "hygiene": "Hygiene scan",
+  "hygieneHint": "Local-only scan for orphaned previews / notes and empty folders (no network, no hashing).",
+  "hygieneOrphans": "Orphaned files",
+  "hygieneMissingPreview": "Missing preview",
+  "hygieneEmptyFolders": "Empty folders",
+  "hygieneClean": "Nothing to clean.",
+  "collections": "Collections",
+  "collectionsSave": "Save current search",
+  "collectionsNamePlaceholder": "Collection name"
 }

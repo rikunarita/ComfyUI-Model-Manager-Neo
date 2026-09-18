@@ -14,20 +14,20 @@
 
           <div class="flex items-center justify-between gap-4 overflow-hidden">
             <ResponseSelect
+              v-model="collectionState.activeId"
+              class="flex-1"
+              :items="collectionOptions"
+            ></ResponseSelect>
+            <ResponseSelect
               v-model="currentType"
               class="flex-1"
               :items="typeOptions"
             ></ResponseSelect>
-            <ResponseSelect
-              v-model="sortOrder"
-              class="flex-1"
-              :items="sortOrderOptions"
-            ></ResponseSelect>
-            <ResponseSelect
-              v-model="cardSizeFlag"
-              class="flex-1"
-              :items="cardSizeOptions"
-            ></ResponseSelect>
+            <GridCommonControls
+              v-model:sort-order="sortOrder"
+              :sort-order-options="sortOrderOptions"
+              @hygiene="openHygiene"
+            />
             <Button
               variant="secondary"
               size="icon"
@@ -44,6 +44,33 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Active smart collection chip -->
+    <div v-if="activeCol" class="flex items-center gap-2 px-8">
+      <span
+        class="flex items-center gap-1 rounded-full border border-mm-accent/40 bg-mm-accent/15 px-2 py-0.5 text-xs text-mm-accent"
+      >
+        {{ activeCol.name }}
+        <button
+          type="button"
+          class="grid size-3.5 place-items-center rounded-full hover:bg-mm-accent/25"
+          :title="$t('clearSelection')"
+          :aria-label="$t('clearSelection')"
+          @click="collectionState.activeId = null"
+        >
+          <X class="size-3" />
+        </button>
+        <button
+          type="button"
+          class="grid size-3.5 place-items-center rounded-full hover:bg-mm-danger/25"
+          :title="$t('delete')"
+          :aria-label="$t('delete')"
+          @click="removeCollection(activeCol.id)"
+        >
+          <Trash2 class="size-3" />
+        </button>
+      </span>
     </div>
 
     <ResponseScroll :items="list" :item-size="itemSize" class="h-full flex-1">
@@ -94,12 +121,15 @@
 </template>
 
 <script setup lang="ts" name="manager-dialog">
-import { Box, ListChecks } from '@lucide/vue'
+import { Box, ListChecks, Trash2, X } from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardHoverActions from 'components/CardHoverActions.vue'
+import DialogHygiene from 'components/DialogHygiene.vue'
+import DialogSaveCollection from 'components/DialogSaveCollection.vue'
+import GridCommonControls from 'components/GridCommonControls.vue'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
@@ -107,8 +137,15 @@ import ResponseSelect from 'components/ResponseSelect.vue'
 import SelectionBulkBar from 'components/SelectionBulkBar.vue'
 import { Button } from 'components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
+import {
+  activeCollection,
+  collectionState,
+  matchesCollection,
+  removeCollection,
+} from 'hooks/collections'
 import { useConfig } from 'hooks/config'
 import { useContainerQueries } from 'hooks/container'
+import { useDialog } from 'hooks/dialog'
 import { type ModelTreeNode } from 'hooks/explorer'
 import { useGridSelectOptions } from 'hooks/gridOptions'
 import { useModels } from 'hooks/model'
@@ -150,8 +187,50 @@ const typeOptions = computed(() => {
   })
 })
 
-const { sortOrder, sortOrderOptions, cardSizeOptions, cardSizeFlag, compareRecent } =
-  useGridSelectOptions()
+const { sortOrder, sortOrderOptions, compareRecent } = useGridSelectOptions()
+const dialog = useDialog()
+
+/* ---- smart collections ------------------------------------------------- */
+const activeCol = computed(() => activeCollection())
+
+const currentQuery = () => ({
+  tokens: (searchContent.value ?? '').split(/\s+/).filter(Boolean),
+  types: currentType.value !== allType ? [currentType.value] : [],
+})
+
+const openSaveCollection = () => {
+  dialog.open({
+    key: 'save-collection',
+    title: t('collectionsSave'),
+    content: DialogSaveCollection,
+    contentProps: { query: currentQuery() },
+    defaultSize: { width: 420, height: 190 },
+  })
+}
+
+const collectionOptions = computed(() => [
+  ...collectionState.collections.map(c => ({
+    label: c.name,
+    value: c.id,
+    command: () => {
+      collectionState.activeId = c.id
+    },
+  })),
+  {
+    label: t('collectionsSave'),
+    value: '__save__',
+    command: () => openSaveCollection(),
+  },
+])
+
+const openHygiene = () => {
+  dialog.open({
+    key: 'hygiene',
+    title: t('hygiene'),
+    content: DialogHygiene,
+    defaultSize: { width: 680, height: 520 },
+  })
+}
 
 const itemSize = computed(() => {
   let itemHeight = cardSize.value.height
@@ -194,6 +273,7 @@ const list = computed(() => {
   const filterList = pureModels.filter(model => {
     const showAllModel = currentType.value === allType
     const matchType = showAllModel || model.type === currentType.value
+    const matchCollection = !activeCol.value || matchesCollection(model, activeCol.value.query)
 
     const rawFilter = debouncedSearch.value ?? ''
     const tokens = rawFilter.split(/\s+/).filter(Boolean)
@@ -202,7 +282,7 @@ const list = computed(() => {
     // Require every token to match either the folder or the name
     const matchesAll = regexes.every(re => re.test(model.subFolder) || re.test(model.basename))
 
-    return matchType && matchesAll
+    return matchType && matchesAll && matchCollection
   })
 
   let sortStrategy: (a: Model, b: Model) => number = () => 0

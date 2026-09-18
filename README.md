@@ -190,6 +190,11 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   lightweight capacity dashboard), and models whose recorded SHA256 matches
   another file in the library raise a red **duplicate warning** in the detail
   window.
+- **Smart collections** — save the flat view's current search + type filter as
+  a named, per‑user collection and re‑apply it with one click.
+- **Hygiene scan** — a local‑only sweep (no network, no hashing) for orphaned
+  previews / notes, models without previews and empty folders, with bulk
+  cleanup behind the usual confirmation.
 
 </details>
 

@@ -137,6 +137,19 @@ class ModelManager:
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
+        @routes.get("/model-manager/hygiene")
+        async def hygiene_scan(request):
+            """Local hygiene report: orphaned sidecars and empty folders.
+
+            Name-set based only (no hashing, no network): a sidecar (preview
+            image/video or `.md`/`.txt` notes) is an orphan when no model in
+            the same directory claims it, and a folder is empty when it holds
+            neither model files nor sub-folders.
+            """
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(utils.io_executor(), self.scan_hygiene)
+            return web.json_response({"success": True, "data": result})
+
         @routes.get("/model-manager/disk-free/{type}/{index}")
         async def get_disk_free(request):
             """Free bytes of the volume holding a model folder (download guard)."""
@@ -408,6 +421,60 @@ class ModelManager:
                             result.append(file_info)
 
         return result
+
+    def scan_hygiene(self):
+        orphans: list[dict] = []
+        empty: list[dict] = []
+        for model_type, bases in utils.resolve_model_base_paths().items():
+            for index, base in enumerate(bases):
+                if not os.path.isdir(base):
+                    continue
+                for dirpath, dirnames, filenames in os.walk(base):
+                    rel = os.path.relpath(dirpath, base)
+                    rel = "" if rel == "." else utils.normalize_path(rel)
+                    model_files: set[str] = set()
+                    model_bases: set[str] = set()
+                    for name in filenames:
+                        ext = os.path.splitext(name)[1]
+                        if ext in folder_paths.supported_pt_extensions:
+                            model_files.add(name)
+                            model_bases.add(os.path.splitext(name)[0])
+                    candidates: set[str] = set()
+                    for mb in model_bases:
+                        candidates.update(utils.preview_candidates(mb))
+                        candidates.add(f"{mb}.md")
+                        candidates.add(f"{mb}.txt")
+                    for name in filenames:
+                        if name.startswith("."):
+                            continue
+                        ext = os.path.splitext(name)[1]
+                        sidecar = ext in utils.PREVIEW_EXTENSIONS or name.endswith(
+                            (".md", ".txt")
+                        )
+                        if sidecar and name not in candidates and name not in model_files:
+                            fullname = f"{rel}/{name}" if rel else name
+                            try:
+                                size = os.stat(utils.join_path(dirpath, name)).st_size
+                            except OSError:
+                                size = 0
+                            orphans.append(
+                                {
+                                    "type": model_type,
+                                    "pathIndex": index,
+                                    "fullname": fullname,
+                                    "sizeBytes": size,
+                                }
+                            )
+                    if rel and not model_files and not dirnames:
+                        empty.append(
+                            {
+                                "type": model_type,
+                                "pathIndex": index,
+                                "fullname": rel,
+                                "sizeBytes": 0,
+                            }
+                        )
+        return {"orphans": orphans, "empty": empty}
 
     def get_model_info(self, model_path: str):
         directory = os.path.dirname(model_path)

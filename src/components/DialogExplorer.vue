@@ -49,16 +49,11 @@
           the currently open folder.
         -->
         <div class="flex items-center justify-between gap-4 overflow-hidden">
-          <ResponseSelect
-            v-model="sortOrder"
-            class="flex-1"
-            :items="sortOrderOptions"
-          ></ResponseSelect>
-          <ResponseSelect
-            v-model="cardSizeFlag"
-            class="flex-1"
-            :items="cardSizeOptions"
-          ></ResponseSelect>
+          <GridCommonControls
+            v-model:sort-order="sortOrder"
+            :sort-order-options="sortOrderOptions"
+            @hygiene="openHygiene"
+          />
           <Button
             variant="secondary"
             size="icon"
@@ -174,11 +169,12 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardHoverActions from 'components/CardHoverActions.vue'
 import DialogCreateFolder from 'components/DialogCreateFolder.vue'
+import DialogHygiene from 'components/DialogHygiene.vue'
+import GridCommonControls from 'components/GridCommonControls.vue'
 import ModelCard from 'components/ModelCard.vue'
 import ResponseBreadcrumb from 'components/ResponseBreadcrumb.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
-import ResponseSelect from 'components/ResponseSelect.vue'
 import SelectionBulkBar from 'components/SelectionBulkBar.vue'
 import { Button } from 'components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from 'components/ui/dropdown-menu'
@@ -221,6 +217,15 @@ const toggleSelectMode = () => {
 }
 
 /* ---- create folder ------------------------------------------------------ */
+const openHygiene = () => {
+  dialog.open({
+    key: 'hygiene',
+    title: t('hygiene'),
+    content: DialogHygiene,
+    defaultSize: { width: 680, height: 520 },
+  })
+}
+
 const openCreateFolder = () => {
   const info = currentFolderInfo.value
   if (!info) return
@@ -280,8 +285,7 @@ const searchContent = ref<string>()
 // Optimization B-3: collapse keystroke bursts into one tree filter pass.
 const debouncedSearch = refDebounced(searchContent, 150)
 
-const { sortOrder, sortOrderOptions, cardSizeOptions, cardSizeFlag, compareRecent } =
-  useGridSelectOptions()
+const { sortOrder, sortOrderOptions, compareRecent } = useGridSelectOptions()
 
 /** Depth-first collect of every node matching the search filter. */
 const applySearchFilter = (list: ModelTreeNode[], filter: string): ModelTreeNode[] => {

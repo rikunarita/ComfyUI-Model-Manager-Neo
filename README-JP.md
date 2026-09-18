@@ -48,11 +48,11 @@ ComfyUI モデルマネージャーを、モダンなガラスモーフィズム
 
 - <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ガラスモーフィズム UI** — 半透明・ブラー・エレベーション(奥行き表現)を備え、ComfyUI 本体のライト/ダークパレットへ自動で追従するインターフェース。
 - <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **PrimeVue 決別** — PrimeVue 依存を丸ごと撤去し、軽量なヘッドレスプリミティブ **[reka-ui]** + **Tailwind CSS v4** + **[Lucide]** アイコンへ置き換え(コンポーネントは shadcn-vue スタイル。中身を読んで自在に調整できます)。
-- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Hugging Face へのアップロード** — ローカルの任意のモデルを HF リポジトリへ直接公開(リポジトリがなければ作成、プライベート指定可、進捗はリアルタイム表示)。*Neo の新機能*。
-- <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN 無劣化圧縮** — safetensors モデルをインプレースで圧縮/解凍(`.znn.safetensors`)。確認ダイアログと進捗表示を備え、圧縮済みモデルではアイコンが反転します。フォルダー全体を封印済み `<name>_DeltaZNN` バンドルへバッチ圧縮でき、ファインチューンはベースに対する小さな**デルタファイル**まで縮小できます。*Neo の新機能*。
-- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **マルチセレクト** — カードにチェックを入れ、複数のモデルをワークフローへ一度に追加したり、まとめて削除したりできます。*Neo の新機能*。フォルダーにもチェック可能で、「Add to workflow」は中身を再帰的に展開して追加、「Delete」はフォルダーごと丸ごと削除します。
-- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **スター** — すべてのモデルカードとフォルダーカードの右上にスタートグルを搭載(モデル詳細のアクション行とセレクションバーにも配置)。スター付きのアイテムは黄色く塗りつぶされた星で表示され、常に最上位へソートされます。*Neo の新機能*。
-- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **フォルダー作成** — フォルダービューの「Add Folder」ボタンから、開いているディレクトリ内に任意の名前の(サブ)フォルダーを作成できます。*Neo の新機能*。
+- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Hugging Face へのアップロード** — ローカルの任意のモデルを HF リポジトリへ直接公開(リポジトリがなければ作成、プライベート指定可、進捗はリアルタイム表示)。_Neo の新機能_。
+- <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN 無劣化圧縮** — safetensors モデルをインプレースで圧縮/解凍(`.znn.safetensors`)。確認ダイアログと進捗表示を備え、圧縮済みモデルではアイコンが反転します。フォルダー全体を封印済み `<name>_DeltaZNN` バンドルへバッチ圧縮でき、ファインチューンはベースに対する小さな**デルタファイル**まで縮小できます。_Neo の新機能_。
+- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **マルチセレクト** — カードにチェックを入れ、複数のモデルをワークフローへ一度に追加したり、まとめて削除したりできます。_Neo の新機能_。フォルダーにもチェック可能で、「Add to workflow」は中身を再帰的に展開して追加、「Delete」はフォルダーごと丸ごと削除します。
+- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **スター** — すべてのモデルカードとフォルダーカードの右上にスタートグルを搭載(モデル詳細のアクション行とセレクションバーにも配置)。スター付きのアイテムは黄色く塗りつぶされた星で表示され、常に最上位へソートされます。_Neo の新機能_。
+- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **フォルダー作成** — フォルダービューの「Add Folder」ボタンから、開いているディレクトリ内に任意の名前の(サブ)フォルダーを作成できます。_Neo の新機能_。
 - <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ダイレクトリンクダウンロード** — 生の `.safetensors` / `.ckpt` / `.gguf` URL を貼り付け、対象フォルダーを選択。任意でカスタムサブフォルダーも指定できます。
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` アクセラレーション** — Hugging Face の転送には、利用可能な環境でチャンクベース・重複排除の Xet プロトコルを使用します。
 - <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ファーストクラスのノードグラフ統合** — モデルをキャンバスへドラッグしてノードを生成・充填し、embedding をテキストエリアへドラッグし、プレビュー画像に埋め込まれたワークフローを読み込めます。
@@ -184,7 +184,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 <summary><b>アップロード</b></summary>
 
 - **ローカルファイルから**任意のモデルフォルダーへアップロード(Download List に進捗付きのライブタスクとして登録されます)。
-- **Hugging Face へ** *(Neo の新機能)*: HF トークンで認証し、リポジトリが存在しなければ作成(公開/非公開を選択)、アップロード先パスを指定して、進捗を見守れます。
+- **Hugging Face へ** _(Neo の新機能)_: HF トークンで認証し、リポジトリが存在しなければ作成(公開/非公開を選択)、アップロード先パスを指定して、進捗を見守れます。
 
 </details>
 
@@ -257,11 +257,11 @@ ZipNN が狙うのはまさにこの性質です。各テンソルに対して:
 
 **圧縮済み**のモデルを開くと、同じアートワークの色が**反転**して表示され、
 アクションは同じ確認ダイアログを挟んで*解凍*に切り替わり、プレーンな
-`.safetensors` を復元します。情報テーブルも変わり、単一の *File Size* 行が
+`.safetensors` を復元します。情報テーブルも変わり、単一の _File Size_ 行が
 **Original File Size**、**Compressed File Size**、**% of Original Size** の
 3行に置き換わります — 圧縮前のサイズは圧縮時にファイルのメタデータへ記録されるため、
 リネーム後も内訳は生き残ります(このキーを書き込まない公式 ZipNN CLI で圧縮された
-ファイルは、プレーンな *File Size* 行のままです)。
+ファイルは、プレーンな _File Size_ 行のままです)。
 
 同じアートワークは、**すべてのモデルカードとフォルダーカードの右上**
 (スタートグルの隣)にも配置されています。ワンクリックで、モデルを一切開かずに、
@@ -351,14 +351,14 @@ Linux x86_64(CPython 3.10〜3.13)向けの**ビルド済み `zipnn_core` バイ�
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="22" height="22" align="middle" alt=""> インターフェース
 
-| 領域 | オリジナル | **Neo** |
-| --- | --- | --- |
-| コンポーネントライブラリ | PrimeVue 4 | **reka-ui**(ヘッドレス)+ shadcn-vue スタイルのラッパー |
-| スタイリング | Tailwind CSS v3 + PrimeVue テーマ | スコープ付き `--mm-*` デザイントークンを備えた **Tailwind CSS v4** |
-| アイコン | PrimeIcons | アイコンマップ経由の **Lucide**(`@lucide/vue`) |
-| ルック&フィール | 標準の PrimeVue サーフェス | **ガラスモーフィズム**(ブラー、エレベーション、マイクロインタラクション)、自動ダークモード |
-| ダイアログ | PrimeVue の `Dialog` / `ContextMenu` | reka-ui ダイアログ、ダイアログごとのサイズ/位置、ドラッグ移動、アンカー付きコンテキストメニュー |
-| モデル詳細タブ | Description + Metadata(生の safetensors `__metadata__`) | Description + **Information**: ノートの YAML フロントマターをパースする読み取り専用テーブル(作者、ベースモデル、各種ハッシュ、フォーマットとプレシジョン、モデルプラットフォーム、モデルページリンク、全プレビュー URL、未知のキーはそのまま表示)。フォールバックとして生の `__metadata__` |
+| 領域                     | オリジナル                                              | **Neo**                                                                                                                                                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| コンポーネントライブラリ | PrimeVue 4                                              | **reka-ui**(ヘッドレス)+ shadcn-vue スタイルのラッパー                                                                                                                                                                                                                                     |
+| スタイリング             | Tailwind CSS v3 + PrimeVue テーマ                       | スコープ付き `--mm-*` デザイントークンを備えた **Tailwind CSS v4**                                                                                                                                                                                                                         |
+| アイコン                 | PrimeIcons                                              | アイコンマップ経由の **Lucide**(`@lucide/vue`)                                                                                                                                                                                                                                             |
+| ルック&フィール          | 標準の PrimeVue サーフェス                              | **ガラスモーフィズム**(ブラー、エレベーション、マイクロインタラクション)、自動ダークモード                                                                                                                                                                                                 |
+| ダイアログ               | PrimeVue の `Dialog` / `ContextMenu`                    | reka-ui ダイアログ、ダイアログごとのサイズ/位置、ドラッグ移動、アンカー付きコンテキストメニュー                                                                                                                                                                                            |
+| モデル詳細タブ           | Description + Metadata(生の safetensors `__metadata__`) | Description + **Information**: ノートの YAML フロントマターをパースする読み取り専用テーブル(作者、ベースモデル、各種ハッシュ、フォーマットとプレシジョン、モデルプラットフォーム、モデルページリンク、全プレビュー URL、未知のキーはそのまま表示)。フォールバックとして生の `__metadata__` |
 
 ### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="22" height="22" align="middle" alt=""> パッケージ
 
@@ -484,7 +484,7 @@ Biome は試用ののち**撤去**し、オーソドックスかつフル構成�
 > **失われたもの:** ファイルハッシュを介して Civitai からプレビューと説明を
 > *一括バックフィル*する、唯一の手段です。情報を一度も取得していないモデルは、
 > プレビュー/ノートを手動で設定する(モデルエディター → **Preview** →
-> *Network* / *Local*)か、プレビュー付きで再ダウンロードする
+> _Network_ / _Local_)か、プレビュー付きで再ダウンロードする
 > (_Create Download Task_ 経由)まで、プレースホルダーのプレビューのままになります。
 > モデル情報の*読み取り*には影響ありません — それは常にディスクから、
 > オンデマンドで取得されていたためです。
@@ -516,22 +516,22 @@ corepack enable          # ピン留めされた pnpm バージョンを使用
 pnpm install
 ```
 
-| スクリプト | 用途 |
-| --- | --- |
-| `pnpm dev` | Vite 開発サーバー(ComfyUI 内でのホットリロード用に `web/manager-dev.js` を書き出す) |
-| `pnpm build` | `web/` への本番ビルド |
-| `pnpm build:clean` | `web/` を削除してから再ビルド |
-| `pnpm rebuild` | `node_modules/` **と** `web/` を削除し、再インストールしてから再ビルド |
-| `pnpm typecheck` | `vue-tsc --noEmit` による型チェック |
-| `pnpm lint` / `pnpm lint:fix` | ESLint(フラットコンフィグ) |
-| `pnpm format` / `pnpm format:check` | Prettier(Tailwind プラグイン付き) |
-| `python -m mypy --config-file mypy.ini` | バックエンドの静的型チェック(クリーン) |
-| `pnpm fallow` | Fallow フルパイプライン: デッドコード + 重複 + ヘルス |
-| `pnpm fallow:dead`(`:type-aware`) | 未使用のファイル/エクスポート/型/依存、循環 — 任意で TS セマンティックパス |
-| `pnpm fallow:dupes` | AST クローン検出(`mild` モード、`.fallowrc.json` を参照) |
-| `pnpm fallow:health` | 複雑度のホットスポット、リファクタリング対象、0〜100 のヘルススコア |
-| `pnpm fallow:fix:dry` / `fallow:fix` | 自動クリーンアップのプレビュー / 適用(常にまずドライラン) |
-| `pnpm fallow:audit` | PR スタイルのゲート: 今回の変更で新たに生じた検出のみを報告 |
+| スクリプト                              | 用途                                                                                |
+| --------------------------------------- | ----------------------------------------------------------------------------------- |
+| `pnpm dev`                              | Vite 開発サーバー(ComfyUI 内でのホットリロード用に `web/manager-dev.js` を書き出す) |
+| `pnpm build`                            | `web/` への本番ビルド                                                               |
+| `pnpm build:clean`                      | `web/` を削除してから再ビルド                                                       |
+| `pnpm rebuild`                          | `node_modules/` **と** `web/` を削除し、再インストールしてから再ビルド              |
+| `pnpm typecheck`                        | `vue-tsc --noEmit` による型チェック                                                 |
+| `pnpm lint` / `pnpm lint:fix`           | ESLint(フラットコンフィグ)                                                          |
+| `pnpm format` / `pnpm format:check`     | Prettier(Tailwind プラグイン付き)                                                   |
+| `python -m mypy --config-file mypy.ini` | バックエンドの静的型チェック(クリーン)                                              |
+| `pnpm fallow`                           | Fallow フルパイプライン: デッドコード + 重複 + ヘルス                               |
+| `pnpm fallow:dead`(`:type-aware`)       | 未使用のファイル/エクスポート/型/依存、循環 — 任意で TS セマンティックパス          |
+| `pnpm fallow:dupes`                     | AST クローン検出(`mild` モード、`.fallowrc.json` を参照)                            |
+| `pnpm fallow:health`                    | 複雑度のホットスポット、リファクタリング対象、0〜100 のヘルススコア                 |
+| `pnpm fallow:fix:dry` / `fallow:fix`    | 自動クリーンアップのプレビュー / 適用(常にまずドライラン)                           |
+| `pnpm fallow:audit`                     | PR スタイルのゲート: 今回の変更で新たに生じた検出のみを報告                         |
 
 > [!WARNING]
 > `pnpm dev` は `manager-dev.js` を書き出す前に **`web/` ディレクトリを丸ごと削除**します

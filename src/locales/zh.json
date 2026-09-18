@@ -272,5 +272,14 @@
   "previewRemove": "删除此预览",
   "informationEdit": "编辑元数据",
   "informationEditWarning": "信息表由笔记的 YAML front-matter 生成。编辑会重写笔记中的该区块, 可能与来源网站不一致。是否继续?",
-  "informationEditHint": "修改将在保存表单时写入笔记。"
+  "informationEditHint": "修改将在保存表单时写入笔记。",
+  "hygiene": "卫生扫描",
+  "hygieneHint": "仅本地扫描孤立预览/笔记与空文件夹（不使用网络、不计算哈希）。",
+  "hygieneOrphans": "孤立文件",
+  "hygieneMissingPreview": "缺少预览",
+  "hygieneEmptyFolders": "空文件夹",
+  "hygieneClean": "无需清理。",
+  "collections": "集合",
+  "collectionsSave": "保存当前搜索",
+  "collectionsNamePlaceholder": "集合名称"
 }

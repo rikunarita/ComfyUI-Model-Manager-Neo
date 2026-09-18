@@ -21,6 +21,7 @@ import GlobalDialogStack from 'components/GlobalDialogStack.vue'
 import { Sonner } from 'components/ui/sonner'
 import { TooltipProvider } from 'components/ui/tooltip'
 import { autoCompressUnused } from 'hooks/autoCompress'
+import { loadCollections } from 'hooks/collections'
 import { useModelDetail } from 'hooks/modelDetail'
 import { loadRecent } from 'hooks/recent'
 import { loadStars } from 'hooks/stars'
@@ -78,6 +79,7 @@ const handleZipnnSettled = async () => {
 onMounted(() => {
   loadStars()
   loadRecent()
+  loadCollections()
   window.addEventListener('mm-zipnn-settled', () => {
     void handleZipnnSettled()
   })
