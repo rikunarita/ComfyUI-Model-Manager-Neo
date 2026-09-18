@@ -24,6 +24,13 @@ def _preview_field_keys(model_data: dict) -> list[str]:
 
 _MODEL_PAGE_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.S)
 
+# Notes front-matter is re-read on every library scan; on network storage the
+# 4 KB head read per model file dominates the scan time (the "it takes ~20 s
+# until a download shows up" complaint). Cache the parsed triple against the
+# sidecar's (mtime_ns, size) so steady-state scans only pay a stat().
+_SITE_CACHE: dict[str, tuple[int, int, str | None, str | None, str | None]] = {}
+_SITE_CACHE_LIMIT = 4096
+
 
 def _model_site_info_of(
     names: set[str], basename: str, directory: str, sub_folder: str
@@ -40,6 +47,13 @@ def _model_site_info_of(
     if candidate not in names:
         return None, None, None
     path = utils.join_path(directory, sub_folder, candidate) if sub_folder else utils.join_path(directory, candidate)
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None, None, None
+    hit = _SITE_CACHE.get(path)
+    if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2], hit[3], hit[4]
     try:
         with open(path, "r", encoding="utf-8") as f:
             head = f.read(4096)
@@ -58,11 +72,15 @@ def _model_site_info_of(
     platform = meta.get("website")
     hashes = meta.get("hashes")
     sha = hashes.get("SHA256") if isinstance(hashes, dict) else None
-    return (
+    parsed = (
         page if isinstance(page, str) and page.startswith("http") else None,
         platform if isinstance(platform, str) and platform.strip() else None,
         sha.upper() if isinstance(sha, str) and sha.strip() else None,
     )
+    _SITE_CACHE[path] = (st.st_mtime_ns, st.st_size, *parsed)
+    while len(_SITE_CACHE) > _SITE_CACHE_LIMIT:
+        _SITE_CACHE.pop(next(iter(_SITE_CACHE)))
+    return parsed
 
 
 class ModelManager:

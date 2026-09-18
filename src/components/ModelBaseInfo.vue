@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col gap-4">
     <div v-if="editable" class="flex flex-col gap-4">
-      <ResponseSelect v-model="type" :items="typeOptions">
+      <ResponseSelect v-model="type" class="w-full" :items="typeOptions">
         <template #prefix>
           <span>{{ $t('modelType') }}</span>
         </template>

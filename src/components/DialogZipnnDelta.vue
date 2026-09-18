@@ -2,7 +2,7 @@
   <div class="flex h-full flex-col gap-4 p-4">
     <p class="text-sm text-mm-muted-fg">{{ $t('zipnnDeltaHint') }}</p>
 
-    <ResponseSelect v-model="baseIndex" :items="baseOptions">
+    <ResponseSelect v-model="baseIndex" class="w-full" :items="baseOptions">
       <template #prefix>
         <span>{{ $t('zipnnDeltaBase') }}</span>
       </template>

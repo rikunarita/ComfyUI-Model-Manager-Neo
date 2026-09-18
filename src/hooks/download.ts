@@ -21,6 +21,7 @@ import { frontmatterPreviews } from 'utils/modelInformation'
 
 export const useDownload = defineStore('download', store => {
   const { toast, confirm, wrapperToastError } = useToast()
+  const loading = useLoading()
 
   const { t } = useI18n()
 
@@ -186,18 +187,17 @@ export const useDownload = defineStore('download', store => {
       // The task knows its model type: rescan exactly that one folder (fast,
       // and failures are reported). Tasks this page never saw (a reload
       // mid-download) fall back to the full sweep.
-      if (task?.type) {
-        const taskType = task.type
-        const taskFullname = task.fullname
-        store.models
-          .refreshFolder(taskType)
-          .then(list => {
-            autoCompressDownloaded(taskType, taskFullname, list)
+      // Keep the panel's "Updating…" overlay up from the completion event
+      // until the rescanned listing actually lands: large libraries take
+      // many seconds to rescan, and a stale grid with the task already gone
+      // reads as a failed download otherwise.
+      loading.show()
+      const settle = task?.type
+        ? store.models.refreshFolder(task.type).then(list => {
+            autoCompressDownloaded(task.type!, task.fullname, list)
           })
-          .catch(() => {})
-      } else {
-        store.models.refresh().catch(() => {})
-      }
+        : store.models.refresh()
+      settle.catch(() => {}).finally(() => loading.hide())
     })
   })
 

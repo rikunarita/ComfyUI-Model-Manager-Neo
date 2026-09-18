@@ -52,7 +52,12 @@
     </div>
 
     <div v-show="data.length > 0">
-      <ResponseSelect v-model="current" :items="data" :type="isMobile ? 'drop' : 'button'">
+      <ResponseSelect
+        v-model="current"
+        class="w-full"
+        :items="data"
+        :type="isMobile ? 'drop' : 'button'"
+      >
         <template #prefix>
           <span>{{ $t('version') }}</span>
         </template>
