@@ -124,6 +124,7 @@
     "tensorDtype": "数据类型",
     "tensorShape": "形状",
     "tensorsSummary": "{count} 个张量 · {params} 参数",
+    "tensorsCount": "{count} 个张量 · {params} 参数",
     "tensorsShowAll": "显示全部 {count} 个张量",
     "tensorsShowLess": "收起"
   },

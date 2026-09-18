@@ -124,6 +124,7 @@
     "tensorDtype": "Dtype",
     "tensorShape": "Shape",
     "tensorsSummary": "{count} tensors · {params} parameters",
+    "tensorsCount": "{count} tensors · {params} params",
     "tensorsShowAll": "Show all {count} tensors",
     "tensorsShowLess": "Collapse"
   },

@@ -49,18 +49,17 @@ export const buttonVariants = cva(
         'icon-sm': 'size-8',
         'icon-lg': 'size-10',
         /*
-         * Semantic sizes for the two icon-button rows the fork was asked to
-         * enlarge. Both keep the 1:2 icon-to-button ratio of `icon-sm`
-         * (size-8 = 2rem box, size-4 = 1rem glyph):
-         *   - `icon-header` = 1.2× → the dialog top-bar buttons (layout /
-         *     hidden-files / refresh / download / upload, maximize, close);
-         *   - `icon-action` = 1.5× → the model-detail action buttons (open
-         *     model page, add / copy node, load workflow, edit, delete).
-         * The glyphs themselves carry an explicit `size-[…]` class so the base
-         * `[&_svg:not([class*='size-'])]:size-4` rule never fights them.
+         * UNIFIED CONTROL SIZE: every chrome icon button - dialog top bar
+         * (layout / hidden-files / refresh / download / upload, maximize,
+         * close), model-detail action row (open model page, add / copy node,
+         * load workflow, edit, delete), toolbars, bulk bar - is the same
+         * 36 px (size-9) square as `icon`. The rows used to ship three
+         * different heights (32 / 38.4 / 48 px) side by side with the 36 px
+         * inputs, which read as a broken, mismatched UI; the aliases stay so
+         * call sites keep their semantic names.
          */
-        'icon-header': 'size-[2.4rem]',
-        'icon-action': 'size-12',
+        'icon-header': 'size-9',
+        'icon-action': 'size-9',
       },
     },
     defaultVariants: {

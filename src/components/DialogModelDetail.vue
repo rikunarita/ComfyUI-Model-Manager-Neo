@@ -21,7 +21,7 @@
               across the whole gap pushed the row past the column's width and
               its left end was clipped by the preview's `overflow-hidden`.
             -->
-            <div v-if="zipnnRunning" class="mr-auto flex h-10 w-40 items-center gap-2">
+            <div v-if="zipnnRunning" class="mr-auto flex h-9 w-40 items-center gap-2">
               <Progress
                 class="min-w-0 flex-1"
                 :model-value="zipnnState.progress"
@@ -44,7 +44,7 @@
                 -->
                 <button
                   type="button"
-                  class="mm-zipnn-button mr-auto size-12 shrink-0"
+                  class="mm-zipnn-button mr-auto size-9 shrink-0"
                   :aria-label="zipnnActionLabel"
                   :title="zipnnActionLabel"
                   @click="requestZipnn"
@@ -70,7 +70,7 @@
               @click="toggleStar"
             >
               <Star
-                class="size-6"
+                class="size-4"
                 :class="starred ? 'fill-current text-mm-warning' : 'text-mm-fg'"
               />
             </Button>
@@ -84,7 +84,7 @@
               :aria-label="$t('openModelPage')"
               @click="openModelPage(model.modelPage)"
             >
-              <ExternalLink class="size-6" />
+              <ExternalLink class="size-4" />
             </Button>
             <Button
               variant="ghost"
@@ -93,7 +93,7 @@
               :aria-label="$t('addNode')"
               @click.stop="addModelNode(model)"
             >
-              <Plus class="size-6" />
+              <Plus class="size-4" />
             </Button>
             <Button
               variant="ghost"
@@ -102,7 +102,7 @@
               :aria-label="$t('copyNode')"
               @click.stop="copyModelNode(model)"
             >
-              <Copy class="size-6" />
+              <Copy class="size-4" />
             </Button>
             <Button
               variant="ghost"
@@ -111,7 +111,7 @@
               :aria-label="$t('loadWorkflow')"
               @click.stop="loadPreviewWorkflow(model)"
             >
-              <Workflow class="size-6" />
+              <Workflow class="size-4" />
             </Button>
             <Button
               variant="ghost"
@@ -120,7 +120,7 @@
               :aria-label="$t('editModel')"
               @click="editable = true"
             >
-              <PenSquare class="size-6" />
+              <PenSquare class="size-4" />
             </Button>
             <Button
               variant="destructive"
@@ -129,7 +129,7 @@
               :aria-label="$t('deleteModel')"
               @click="handleDelete"
             >
-              <Trash2 class="size-6" />
+              <Trash2 class="size-4" />
             </Button>
           </template>
         </template>

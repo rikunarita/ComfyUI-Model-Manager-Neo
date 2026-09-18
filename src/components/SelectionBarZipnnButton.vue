@@ -28,7 +28,7 @@ const progress = computed(() => zipnnState.progress)
   <button
     v-if="visible"
     type="button"
-    class="mm-zipnn-button size-8 shrink-0 rounded-mm-ctl"
+    class="mm-zipnn-button size-9 shrink-0 rounded-mm-ctl"
     :title="label"
     :aria-label="label"
     :disabled="props.running"

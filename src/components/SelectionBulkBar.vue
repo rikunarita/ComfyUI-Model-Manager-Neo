@@ -125,7 +125,7 @@ const uploadFoldersToHf = () => {
       <Button
         v-if="folderActions"
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         :title="allSelectedFoldersStarred ? $t('unstar') : $t('star')"
         :aria-label="allSelectedFoldersStarred ? $t('unstar') : $t('star')"
         @click="starSelectedFolders"

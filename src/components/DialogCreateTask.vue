@@ -1,5 +1,13 @@
 <template>
-  <div class="flex h-full flex-col gap-4 px-5">
+  <!--
+    LAYOUT FIX: the window body (`min-h-0 flex-1 overflow-auto`) is the only
+    scroller now. The old extra `h-full` + inner virtual `ResponseScroll`
+    made the content column taller than the body (100% height *plus* the
+    URL / version rows) so the editor fought the outer scrollbar and could
+    end up clipped, displaced or invisible. Plain flow content in a single
+    scrolling column cannot break that way.
+  -->
+  <div class="flex flex-col gap-4 px-5 pb-5">
     <ResponseInput
       v-model="modelUrl"
       :allow-clear="true"
@@ -73,26 +81,25 @@
       </div>
     </div>
 
-    <ResponseScroll class="-mx-5 h-full">
-      <div class="px-5">
-        <KeepAlive>
-          <ModelContent
-            v-if="currentModel"
-            :key="`${currentModel.id}-${currentModel.currentFileId}`"
-            :model="currentModel"
-            :editable="true"
-            @submit="(data: any) => createDownTask(data)"
-          >
-            <template #action>
-              <div v-if="currentModel.files" class="flex-1">
-                <ResponseSelect
-                  :model-value="currentModel.currentFileId"
-                  :items="currentModel.selectionFiles"
-                  :type="isMobile ? 'drop' : 'button'"
-                >
-                </ResponseSelect>
-              </div>
-              <!--
+    <KeepAlive>
+      <ModelContent
+        v-if="currentModel"
+        :key="`${currentModel.id}-${currentModel.currentFileId}`"
+        :model="currentModel"
+        :editable="true"
+        layout="stacked"
+        @submit="(data: any) => createDownTask(data)"
+      >
+        <template #action>
+          <div v-if="currentModel.files" class="flex-1">
+            <ResponseSelect
+              :model-value="currentModel.currentFileId"
+              :items="currentModel.selectionFiles"
+              :type="isMobile ? 'drop' : 'button'"
+            >
+            </ResponseSelect>
+          </div>
+          <!--
                 BUG FIX: this button carried BOTH `type="submit"` and an
                 `@click="createDownTask(currentModel)"` handler. It lives inside
                 ModelContent's `<form @submit.prevent="handleSubmit">`, so one
@@ -110,23 +117,21 @@
                 `:disabled` still blocks the submit for a direct link with no
                 model type chosen (a disabled button never submits).
               -->
-              <Button type="submit" :disabled="isDirectFile && !selectedModelType">
-                <Download class="size-4" />
-                {{ $t('download') }}
-              </Button>
-            </template>
-          </ModelContent>
-        </KeepAlive>
+          <Button type="submit" :disabled="isDirectFile && !selectedModelType">
+            <Download class="size-4" />
+            {{ $t('download') }}
+          </Button>
+        </template>
+      </ModelContent>
+    </KeepAlive>
 
-        <div v-show="data.length === 0">
-          <div class="flex flex-col items-center gap-4 py-8">
-            <!-- BUG FIX: `pi pi-box` rendered empty (PrimeIcons removed). -->
-            <Box class="size-8 opacity-60" />
-            <div>{{ $t('noModelsFound') }}</div>
-          </div>
-        </div>
+    <div v-show="data.length === 0">
+      <div class="flex flex-col items-center gap-4 py-8">
+        <!-- BUG FIX: `pi pi-box` rendered empty (PrimeIcons removed). -->
+        <Box class="size-8 opacity-60" />
+        <div>{{ $t('noModelsFound') }}</div>
       </div>
-    </ResponseScroll>
+    </div>
   </div>
 </template>
 
@@ -136,7 +141,6 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseInput from 'components/ResponseInput.vue'
-import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
 import { Button } from 'components/ui/button'
 import { useConfig } from 'hooks/config'

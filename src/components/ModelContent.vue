@@ -7,10 +7,36 @@
       dialog and the info column stretches with it.
     -->
     <div class="w-full">
-      <div :class="['relative flex gap-4 overflow-hidden', $xl('flex-row', 'flex-col')]">
-        <ModelPreview v-model:editable="editable" class="shrink-0"></ModelPreview>
+      <!--
+        LAYOUT FIX (download dialog was "completely broken"): the editor row
+        used to be a container-query flex box (`relative flex overflow-hidden`
+        + `$xl(flex-row/flex-col)`) with the preview as a fixed-width flex
+        child. Inside the create-task dialog - nested scrollers, a zero-width
+        first measurement and a partially mounted sibling - that box could
+        place the gallery anywhere while the metadata column collapsed. The
+        `stacked` variant below is a plain single-column CSS grid: one column,
+        no direction to flip, no shrink arithmetic, every block full-width and
+        in source order. The detail window keeps the side-by-side `auto` row.
+      -->
+      <div
+        :class="
+          layout === 'stacked'
+            ? 'grid grid-cols-1 gap-4'
+            : ['relative flex gap-4 overflow-hidden', $xl('flex-row', 'flex-col')]
+        "
+      >
+        <ModelPreview
+          v-model:editable="editable"
+          :class="layout === 'stacked' ? 'justify-self-center' : 'shrink-0'"
+        ></ModelPreview>
 
-        <div class="flex flex-1 flex-col gap-4 overflow-hidden">
+        <div
+          :class="
+            layout === 'stacked'
+              ? 'flex min-w-0 flex-col gap-4'
+              : 'flex flex-1 flex-col gap-4 overflow-hidden'
+          "
+        >
           <div class="min-h-10 overflow-x-auto">
             <!--
               Inner row: `w-max min-w-full` + justify-end keeps the buttons
@@ -68,6 +94,12 @@ import { type BaseModel, type WithResolved } from 'types/typings'
 
 interface Props {
   model: BaseModel
+  /**
+   * `auto`  – side-by-side gallery + metadata row (model detail window).
+   * `stacked` – single-column grid, gallery on top (download task window):
+   *            deterministic at any width, no container query involved.
+   */
+  layout?: 'auto' | 'stacked'
 }
 
 const props = defineProps<Props>()

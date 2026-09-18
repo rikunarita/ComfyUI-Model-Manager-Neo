@@ -111,7 +111,8 @@ type and size chips, the search bar, and the type / sort / card‑size selectors
 ![Folder explorer view](docs/screenshots/view-folders.png)
 
 The **Folder** layout one level deep, with the breadcrumb trail (each crumb
-carries the tiny folder glyph) and the animated glass folder cards.
+carries the tiny folder glyph; the trail takes no space at the root and opens
+up only as the path gets deeper) and the animated glass folder cards.
 
 ### Model detail, editing, and the HuggingFace upload
 
@@ -191,7 +192,10 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   another file in the library raise a red **duplicate warning** in the detail
   window.
 - **Smart collections** — save the flat view's current search + type filter as
-  a named, per‑user collection and re‑apply it with one click.
+  a named, per‑user collection and re‑apply it with one click. The _save
+  search_ button lives in the slack before the collection select (dimmed
+  until hovered), and every toolbar / header / action control shares one
+  36 px size so the chrome never mixes heights.
 - **Hygiene scan** — a local‑only sweep (no network, no hashing) for orphaned
   previews / notes, models without previews and empty folders, with bulk
   cleanup behind the usual confirmation.
@@ -262,9 +266,11 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   (Civitai or Hugging Face) as its button background, so a model's origin is
   recognisable at a glance.
 - Model information (safetensors metadata, the full safetensors **tensor
-  layout** (name / dtype / shape, Hugging Face‑viewer style), Markdown notes,
-  preview) is loaded on demand when a model is opened — there is no separate
-  library‑wide scan step.
+  layout** as a collapsible **folder tree** (dotted tensor names grouped per
+  segment, folder icon per level, collapsed by default; name / dtype / shape
+  per tensor, Hugging Face‑viewer style), Markdown notes, preview) is loaded
+  on demand when a model is opened — there is no separate library‑wide scan
+  step.
 
 </details>
 

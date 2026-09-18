@@ -110,13 +110,15 @@
           </div>
         </div>
       </div>
-      <div class="h-10"></div>
-      <div
-        :class="[
-          'absolute flex h-10 items-center gap-4',
-          $xl('left-0 translate-x-0', 'left-1/2 -translate-x-1/2'),
-        ]"
-      >
+      <!--
+        LAYOUT FIX: the source-type switcher / network input / local upload
+        used to be `position: absolute` overlays parked over empty spacer divs
+        (`h-10` / `h-24`), anchored to whichever positioned ancestor happened
+        to exist. Inside the download dialog that anchor was the content row,
+        so the controls could land anywhere (or nowhere). Everything is plain
+        flow content now - the block always sits directly under the gallery.
+      -->
+      <div class="flex min-h-9 flex-wrap items-center gap-4">
         <Button
           v-for="type in typeOptions"
           :key="type"
@@ -127,22 +129,19 @@
         </Button>
       </div>
 
-      <div v-show="currentType === 'network'">
-        <div class="absolute left-0 w-full">
-          <ResponseInput
-            v-model="networkContent"
-            prefix-icon="pi pi-globe"
-            :allow-clear="true"
-          ></ResponseInput>
-        </div>
-        <div class="h-10"></div>
-      </div>
+      <ResponseInput
+        v-show="currentType === 'network'"
+        v-model="networkContent"
+        prefix-icon="pi pi-globe"
+        :allow-clear="true"
+      ></ResponseInput>
 
-      <div v-show="currentType === 'local'">
-        <ResponseFileUpload class="absolute left-0 h-24 w-full" @select="updateLocalContent">
-        </ResponseFileUpload>
-        <div class="h-24"></div>
-      </div>
+      <ResponseFileUpload
+        v-show="currentType === 'local'"
+        class="h-24 w-full"
+        @select="updateLocalContent"
+      >
+      </ResponseFileUpload>
     </div>
 
     <PreviewLightbox
@@ -184,7 +183,7 @@ const {
   localContentType,
 } = useModelPreview()
 
-const { $sm, $xl } = useContainerQueries()
+const { $sm } = useContainerQueries()
 
 /** The gallery the `<` / `>` buttons page through (default source only). */
 const canPage = computed(() => currentType.value === 'default' && defaultContent.value.length > 1)

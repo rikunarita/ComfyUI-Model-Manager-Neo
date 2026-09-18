@@ -59,7 +59,8 @@
 
 <script setup lang="ts">
 import { clamp } from 'es-toolkit'
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onErrorCaptured, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import DialogHeaderBar from 'components/DialogHeaderBar.vue'
 import DialogResizeHandles from 'components/DialogResizeHandles.vue'
 import PanelLoading from 'components/PanelLoading.vue'
@@ -67,6 +68,7 @@ import { Dialog, DialogContent } from 'components/ui/dialog'
 import { useConfig } from 'hooks/config'
 import { type DialogItem, useDialog } from 'hooks/dialog'
 import { useGlobalLoading } from 'hooks/loading'
+import { useToast } from 'hooks/toast'
 import { cn } from 'utils/cn'
 
 /**
@@ -93,6 +95,27 @@ interface DialogGeometry {
 const { stack, rise, close } = useDialog()
 const { isMobile } = useConfig()
 const { loading } = useGlobalLoading()
+const { toast } = useToast()
+const { t } = useI18n()
+
+/**
+ * SAFETY NET: when a window's content throws while mounting, Vue keeps the
+ * already-inserted partial subtree and the window silently shows half a UI
+ * (exactly how the "completely broken" download dialog read - no message,
+ * no clue). Surface any render error of any window as a toast + console
+ * report instead, so a regression can never hide behind an empty panel again.
+ */
+onErrorCaptured((err, _instance, info) => {
+  console.error('[Model Manager Neo] window render error:', err, info)
+  toast.add({
+    severity: 'error',
+    summary: t('error'),
+    detail: `${err instanceof Error ? err.message : String(err)} (${info})`,
+    life: 15000,
+  })
+  // handled: one toast per error, never tear down the whole app
+  return false
+})
 
 /**
  * Index of the window that is on top AND actually shown. `keepAlive` dialogs

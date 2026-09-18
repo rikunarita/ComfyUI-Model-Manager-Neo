@@ -151,7 +151,7 @@ const requestZipnn = () => {
   <div class="absolute top-2 right-2 z-20 flex items-start gap-1">
     <button
       type="button"
-      class="mm-transition grid size-7 shrink-0 place-items-center rounded-full border backdrop-blur-md active:scale-90"
+      class="mm-transition grid size-8 shrink-0 place-items-center rounded-full border backdrop-blur-md active:scale-90"
       :class="
         starred
           ? 'border-mm-warning/60 bg-mm-bg/70 text-mm-warning shadow-mm-glass-1'
@@ -168,7 +168,7 @@ const requestZipnn = () => {
     <button
       v-if="zipnnApplicable"
       type="button"
-      class="mm-transition mm-zipnn-button size-12 shrink-0 rounded-mm-ctl"
+      class="mm-transition mm-zipnn-button size-8 shrink-0 rounded-mm-ctl"
       :title="zipnnLabel"
       :aria-label="zipnnLabel"
       :disabled="zipnnRunning"

@@ -136,16 +136,24 @@
     </div>
 
     <!--
-      Tensor table: the exact tensor layout of the safetensors header
-      (name / dtype / shape), rendered like Hugging Face's safetensors
-      viewer. Only local safetensors models carry it; very large headers
-      render paginated with an explicit expand action.
+      Tensor structure of the safetensors header. Only local safetensors
+      models carry it; see the tree comment below for the rendering.
     -->
     <div v-if="tensors.length && !editing" class="flex flex-col gap-2">
       <div class="flex items-baseline justify-between gap-2">
         <div class="text-sm font-medium text-mm-muted-fg">{{ $t('info.tensors') }}</div>
         <div class="text-xs text-mm-muted-fg">{{ tensorsSummary }}</div>
       </div>
+      <!--
+        TENSOR TREE: safetensors tensor names are dotted paths
+        (`model.layers.0.self_attn.q_proj.weight`), so the flat 500-row table
+        is now a folder tree - one node per dot segment, HF-viewer style.
+        Folder rows carry a folder icon that collapses / expands the node
+        (closed `Folder`, open `FolderOpen`) plus the aggregate tensor and
+        parameter count; leaf rows keep the exact name tail / dtype / shape.
+        Everything starts MAXIMALLY COLLAPSED (only the top level is shown)
+        and very large nodes page their leaves with an explicit show-all.
+      -->
       <div class="overflow-hidden rounded-mm-ctl border border-mm-border">
         <table class="w-full border-collapse font-mono text-xs">
           <thead>
@@ -158,31 +166,60 @@
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="tensor in visibleTensors"
-              :key="tensor.name"
-              class="h-7 border-b border-mm-border last:border-b-0"
-            >
-              <td class="px-4 break-all text-mm-fg">{{ tensor.name }}</td>
-              <td class="px-4 text-mm-muted-fg">{{ tensor.dtype }}</td>
-              <td class="px-4 text-mm-muted-fg">{{ formatShape(tensor.shape) }}</td>
-            </tr>
+            <template v-for="row in tensorRows" :key="row.key">
+              <tr
+                v-if="row.kind === 'folder'"
+                class="h-7 cursor-pointer border-b border-mm-border select-none hover:bg-mm-fg/6"
+                @click="toggleTensorNode(row.path)"
+              >
+                <td class="px-2" :style="{ paddingLeft: `${8 + row.depth * 16}px` }" colspan="3">
+                  <span class="flex items-center gap-1.5">
+                    <component
+                      :is="expandedNodes.has(row.path) ? FolderOpen : Folder"
+                      class="size-3.5 shrink-0 text-mm-muted-fg"
+                    />
+                    <span class="font-medium text-mm-fg">{{ row.segment }}</span>
+                    <span class="text-mm-muted-fg">
+                      {{
+                        $t('info.tensorsCount', {
+                          count: row.totalCount ?? 0,
+                          params: compactCount(row.totalParams ?? 0),
+                        })
+                      }}
+                    </span>
+                  </span>
+                </td>
+              </tr>
+              <tr v-else-if="row.kind === 'leaf'" class="h-7 border-b border-mm-border">
+                <td
+                  class="px-2 break-all text-mm-fg"
+                  :style="{ paddingLeft: `${26 + row.depth * 16}px` }"
+                >
+                  {{ row.segment }}
+                </td>
+                <td class="px-4 text-mm-muted-fg">{{ row.tensor?.dtype }}</td>
+                <td class="px-4 text-mm-muted-fg">{{ formatShape(row.tensor?.shape ?? []) }}</td>
+              </tr>
+              <tr v-else class="h-7 border-b border-mm-border">
+                <td :style="{ paddingLeft: `${26 + row.depth * 16}px` }" colspan="3">
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    class="border-0 bg-transparent shadow-none backdrop-blur-none"
+                    @click="toggleTensorLeaves(row.path)"
+                  >
+                    {{
+                      row.allLeaves
+                        ? $t('info.tensorsShowLess')
+                        : $t('info.tensorsShowAll', { count: row.totalCount })
+                    }}
+                  </Button>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
-      <Button
-        v-if="tensors.length > TENSOR_PAGE"
-        variant="secondary"
-        size="sm"
-        class="self-start"
-        @click="tensorsExpanded = !tensorsExpanded"
-      >
-        {{
-          tensorsExpanded
-            ? $t('info.tensorsShowLess')
-            : $t('info.tensorsShowAll', { count: tensors.length })
-        }}
-      </Button>
     </div>
 
     <div
@@ -197,7 +234,7 @@
 </template>
 
 <script setup lang="ts">
-import { Info, Pencil } from '@lucide/vue'
+import { Folder, FolderOpen, Info, Pencil } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import InformationValue from 'components/InformationValue.vue'
@@ -257,20 +294,156 @@ const rawRows = computed(() => {
   return entries.map(([key, value]) => ({ key, value: stringify(value) }))
 })
 
-/* ---- tensor table (safetensors header) ---------------------------------- */
+/* ---- tensor tree (safetensors header) ----------------------------------- */
 
-/** Rows rendered before the explicit "show all" expansion. */
+/** Leaves rendered per node before the explicit "show all" expansion. */
 const TENSOR_PAGE = 500
-const tensorsExpanded = ref(false)
 
 const tensors = computed<SafetensorsTensor[]>(() => {
   const list = (model.value as BaseModel).tensors
   return Array.isArray(list) ? list : []
 })
 
-const visibleTensors = computed(() =>
-  tensorsExpanded.value ? tensors.value : tensors.value.slice(0, TENSOR_PAGE),
-)
+interface TensorTreeNode {
+  segment: string
+  path: string
+  children: TensorTreeNode[]
+  tensors: SafetensorsTensor[]
+  totalCount: number
+  totalParams: number
+}
+
+interface TensorRow {
+  key: string
+  kind: 'folder' | 'leaf' | 'more'
+  depth: number
+  path: string
+  segment: string
+  tensor?: SafetensorsTensor
+  totalCount?: number
+  totalParams?: number
+  allLeaves?: boolean
+}
+
+const tensorParams = (list: SafetensorsTensor[]) =>
+  list.reduce((total, tensor) => total + (tensor.shape ?? []).reduce((acc, dim) => acc * dim, 1), 0)
+
+/**
+ * Group tensors by their dotted name into a folder tree:
+ * `a.b.c.w` → folder `a` → folder `b` → folder `c` → leaf `w`.
+ * Names without dots become top-level leaves.
+ */
+const tensorTree = computed<TensorTreeNode>(() => {
+  const root: TensorTreeNode = {
+    segment: '',
+    path: '',
+    children: [],
+    tensors: [],
+    totalCount: 0,
+    totalParams: 0,
+  }
+  const nodes = new Map<string, TensorTreeNode>()
+  for (const tensor of tensors.value) {
+    const segments = (tensor.name ?? '').split('.')
+    let parent = root
+    let path = ''
+    for (let i = 0; i < segments.length - 1; i++) {
+      const segment = segments[i] || '(unnamed)'
+      path = path ? `${path}.${segment}` : segment
+      let node = nodes.get(path)
+      if (!node) {
+        node = { segment, path, children: [], tensors: [], totalCount: 0, totalParams: 0 }
+        nodes.set(path, node)
+        parent.children.push(node)
+      }
+      parent = node
+    }
+    parent.tensors.push(tensor)
+  }
+  const aggregate = (node: TensorTreeNode): [number, number] => {
+    let count = node.tensors.length
+    let params = tensorParams(node.tensors)
+    for (const child of node.children) {
+      const [childCount, childParams] = aggregate(child)
+      count += childCount
+      params += childParams
+    }
+    node.totalCount = count
+    node.totalParams = params
+    return [count, params]
+  }
+  const sortChildren = (node: TensorTreeNode) => {
+    node.children.sort((a, b) => a.segment.localeCompare(b.segment))
+    node.children.forEach(sortChildren)
+  }
+  aggregate(root)
+  sortChildren(root)
+  return root
+})
+
+/** Expanded folder paths; empty by default = maximally collapsed. */
+const expandedNodes = ref<Set<string>>(new Set())
+/** Per-node leaf page size override (show-all toggle). */
+const allLeavesNodes = ref<Set<string>>(new Set())
+
+const toggleTensorNode = (path: string) => {
+  const next = new Set(expandedNodes.value)
+  if (next.has(path)) next.delete(path)
+  else next.add(path)
+  expandedNodes.value = next
+}
+
+const toggleTensorLeaves = (path: string) => {
+  const next = new Set(allLeavesNodes.value)
+  if (next.has(path)) next.delete(path)
+  else next.add(path)
+  allLeavesNodes.value = next
+}
+
+/** Depth-first row list honouring the collapsed/expanded + paging state. */
+const tensorRows = computed<TensorRow[]>(() => {
+  const rows: TensorRow[] = []
+  const walk = (node: TensorTreeNode, depth: number) => {
+    for (const child of node.children) {
+      rows.push({
+        key: `f:${child.path}`,
+        kind: 'folder',
+        depth,
+        path: child.path,
+        segment: child.segment,
+        totalCount: child.totalCount,
+        totalParams: child.totalParams,
+      })
+      if (expandedNodes.value.has(child.path)) walk(child, depth + 1)
+    }
+    const all = allLeavesNodes.value.has(node.path)
+    const leaves = all ? node.tensors : node.tensors.slice(0, TENSOR_PAGE)
+    for (const tensor of leaves) {
+      const tail = node.path ? tensor.name.slice(node.path.length + 1) : tensor.name
+      rows.push({
+        key: `t:${tensor.name}`,
+        kind: 'leaf',
+        depth,
+        path: tensor.name,
+        segment: tail || tensor.name,
+        tensor,
+      })
+    }
+    if (node.tensors.length > TENSOR_PAGE) {
+      rows.push({
+        key: `m:${node.path}`,
+        kind: 'more',
+        depth,
+        path: node.path,
+        segment: '',
+        totalCount: node.tensors.length,
+        allLeaves: all,
+      })
+    }
+  }
+  walk(tensorTree.value, 0)
+  return rows
+})
 
 /** Structural shape rendering, e.g. `[1280, 4, 2]`; scalars read `[]`. */
 const formatShape = (shape: number[]) => `[${(shape ?? []).join(', ')}]`
@@ -283,10 +456,7 @@ const compactCount = (value: number): string => {
 }
 
 const tensorsSummary = computed(() => {
-  const params = tensors.value.reduce(
-    (total, tensor) => total + (tensor.shape ?? []).reduce((acc, dim) => acc * dim, 1),
-    0,
-  )
+  const params = tensorParams(tensors.value)
   return t('info.tensorsSummary', {
     count: tensors.value.length,
     params: compactCount(params),

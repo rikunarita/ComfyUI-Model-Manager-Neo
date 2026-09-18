@@ -98,14 +98,25 @@ const openSaveCollection = () => {
     <template v-if="mode === 'folder'">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         class="shrink-0"
         :disabled="!canGoUp"
         @click="emits('up')"
       >
         <ChevronUp class="size-4" />
       </Button>
-      <ResponseBreadcrumb class="h-10 w-56 shrink-0" :items="breadcrumbItems"></ResponseBreadcrumb>
+      <!--
+        PATH READ-OUT GROWS ON DEMAND: the breadcrumb used to reserve a fixed
+        `w-56` slot even at the folder root, i.e. permanent dead space in the
+        bar. It now renders only while a path exists and takes exactly the
+        width its crumbs need (capped at half the bar, internals ellipsise),
+        so the space opens up only when the path actually gets deeper.
+      -->
+      <ResponseBreadcrumb
+        v-if="breadcrumbItems.length"
+        class="h-9 max-w-[50%] shrink-0"
+        :items="breadcrumbItems"
+      ></ResponseBreadcrumb>
     </template>
 
     <div class="min-w-40 flex-1">
@@ -117,6 +128,23 @@ const openSaveCollection = () => {
       ></ResponseInput>
     </div>
 
+    <!--
+      SAVE-SEARCH BUTTON IN THE GAP: the slack between the search field and
+      the collections select now hosts the "save current search" button. It
+      sits at reduced opacity so it reads as a quiet secondary control in
+      that space, and brightens on hover/focus so it is unmistakably a
+      button, not decoration.
+    -->
+    <Button
+      variant="secondary"
+      size="icon"
+      class="shrink-0 opacity-60 hover:opacity-100 focus-visible:opacity-100"
+      :title="$t('collectionsSave')"
+      :aria-label="$t('collectionsSave')"
+      @click="openSaveCollection"
+    >
+      <Save class="size-4" />
+    </Button>
     <ResponseSelect
       v-model="collectionState.activeId"
       class="w-44 shrink-0"
@@ -127,36 +155,26 @@ const openSaveCollection = () => {
       </template>
     </ResponseSelect>
     <Button
-      variant="secondary"
-      size="icon"
-      class="shrink-0"
-      :title="$t('collectionsSave')"
-      :aria-label="$t('collectionsSave')"
-      @click="openSaveCollection"
-    >
-      <Save class="size-4" />
-    </Button>
-    <Button
       v-if="activeCol"
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       class="shrink-0"
       :title="$t('clearSelection')"
       :aria-label="$t('clearSelection')"
       @click="collectionState.activeId = null"
     >
-      <X class="size-3.5" />
+      <X class="size-4" />
     </Button>
     <Button
       v-if="activeCol"
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       class="shrink-0"
       :title="$t('delete')"
       :aria-label="$t('delete')"
       @click="removeCollection(activeCol.id)"
     >
-      <Trash2 class="size-3.5" />
+      <Trash2 class="size-4" />
     </Button>
 
     <ResponseSelect

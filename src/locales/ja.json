@@ -124,6 +124,7 @@
     "tensorDtype": "データ型",
     "tensorShape": "形状",
     "tensorsSummary": "{count} テンソル ・ {params} パラメータ",
+    "tensorsCount": "{count} テンソル ・ {params} パラメータ",
     "tensorsShowAll": "全 {count} テンソルを表示",
     "tensorsShowLess": "折りたたむ"
   },

@@ -65,7 +65,7 @@
             <ChevronLeft class="size-4" />
           </Button>
         </div>
-        <div class="flex h-10 items-center gap-2">
+        <div class="flex h-9 items-center gap-2">
           <Button
             v-for="item in items"
             :key="item.value"

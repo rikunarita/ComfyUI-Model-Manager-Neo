@@ -90,8 +90,9 @@ A single grid of every model of every type, with a toolbar:
 ### Folder layout
 
 A file‑manager style tree with a breadcrumb trail (each crumb carries a folder
-glyph). Double‑click a folder to enter it, use the breadcrumb or the ↑ button
-to go back. Right‑click a model for the context menu (**Open**). The trail
+glyph). The trail reserves nothing at the root - it opens up only as the path
+gets deeper. Double‑click a folder to enter it, use the breadcrumb or the ↑
+button to go back. Right‑click a model for the context menu (**Open**). The trail
 always keeps the folder you are in readable: intermediate crumbs ellipsise
 first as the window narrows, and in narrow windows the toolbar stacks
 vertically — the same responsive rule as the flat view — instead of clipping
@@ -129,7 +130,9 @@ folders whose name starts with `.`).
   cards also carry the **aggregate size of their model type**.
 - **Duplicate warning** — a model whose recorded SHA256 matches another file in
   the library shows a red alert with the duplicate's path in the detail window.
-- **Smart collections** (flat view) — save the current search + type filter as
+- **Smart collections** (flat view) — the _save search_ button sits in the
+  slack before the collection select (dimmed, brightens on hover so it reads
+  as a button); save the current search + type filter as
   a named collection (persisted per user) and re‑apply it from the collections
   select; the active collection shows as a chip with clear / delete buttons.
 - **Hygiene scan** (both toolbars) — a local‑only sweep (no network, no
@@ -176,10 +179,12 @@ base‑info table, and two tabs.
   without front‑matter show the `__metadata__` block read straight from the
   safetensors header, verbatim (nothing is cached or scanned in the
   background). Safetensors models additionally get a **Tensor** section: the
-  exact tensor layout parsed from the safetensors header (name / dtype /
-  shape, rendered like Hugging Face's safetensors viewer) with a tensor and
-  parameter‑count summary; very large headers render paginated with an
-  explicit _show all_ action. The **Open model page** button in the action row — like its
+  exact tensor layout parsed from the safetensors header, rendered like
+  Hugging Face's safetensors viewer as a **folder tree**: dotted tensor names
+  are grouped per segment, each folder row carries a folder icon that
+  collapses / expands that level (everything starts maximally collapsed) plus
+  its tensor / parameter count, and leaf rows keep name tail / dtype / shape;
+  very large nodes page their leaves with an explicit _show all_ action. The **Open model page** button in the action row — like its
   twin in the card hover column — wears the logo of the source hub (Civitai
   or Hugging Face) as its background whenever the notes record the platform.
 
@@ -233,6 +238,11 @@ Open **Download List** from the header, then:
    version in the toolbar and the file in the editor.
 
    ![resolved result](screenshots/download-resolved.png)
+
+   The editor below the version row is a single scrolling column (gallery on
+   top, file pick + download, metadata editor and the description /
+   information tabs beneath), so nothing can be squeezed out of sight no
+   matter how narrow the window is.
 
 4. In the editor you can set the destination type/directory, a file name
    (folder prefixes allowed), the preview images — the **whole gallery** the
