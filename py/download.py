@@ -95,6 +95,18 @@ class TaskContent:
         self.subFolder = kwargs.get("subFolder", None)  # ← 追加
         self.msRepoId = kwargs.get("msRepoId", None)
         self.msFilePath = kwargs.get("msFilePath", None)
+        # The client submits multipart FormData, so nested objects arrive as
+        # JSON *strings*; normalise `hashes` back to a dict once, here, so
+        # every consumer (ModelScope sha verification, ...) can rely on it.
+        hashes = self.hashes
+        if isinstance(hashes, str):
+            import json as _json
+
+            try:
+                hashes = _json.loads(hashes)
+            except Exception:
+                hashes = None
+        self.hashes = hashes if isinstance(hashes, dict) else None
 
     def to_dict(self):
         return {
@@ -469,6 +481,8 @@ class ModelDownload:
         if not repo_id or not file_path:
             raise RuntimeError("Missing ModelScope repository/file information")
         sha = (task_content.hashes or {}).get("SHA256") or None
+        if not isinstance(sha, str):
+            sha = None
 
         loop = asyncio.get_running_loop()
         total_size = task_content.sizeBytes
