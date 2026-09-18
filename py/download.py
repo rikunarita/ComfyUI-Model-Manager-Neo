@@ -300,7 +300,15 @@ class ModelDownload:
 
         needed = float(task_data.get("sizeBytes", 0) or 0)
         if needed > 0:
-            free = shutil.disk_usage(os.path.dirname(model_path)).free
+            # The target sub-folder may not exist yet (it is created on
+            # completion), so measure the nearest existing ancestor volume.
+            check_dir = os.path.dirname(model_path)
+            while not os.path.isdir(check_dir):
+                parent = os.path.dirname(check_dir)
+                if parent == check_dir:
+                    break
+                check_dir = parent
+            free = shutil.disk_usage(check_dir).free
             if needed > free:
                 raise RuntimeError(
                     f"Not enough free disk space: the file needs "
@@ -457,87 +465,6 @@ class ModelDownload:
             task_status.error = None
             utils.print_error(str(e))
 
-    async def download_model_file_modelscope(
-        self,
-        task_id: str,
-        progress_callback: Callable[[TaskStatus], Coroutine[Any, Any, Any]],
-        interval: float = 1.0,
-    ) -> None:
-        """Download through modelscope_hub (international endpoint).
-
-        Mirrors the HuggingFace path: the transfer runs in the io pool while
-        a ProgressCallback subclass marshals throttled progress pushes back
-        onto the main loop; the finished file is moved onto `<task>.download`
-        so the shared completion path applies unchanged.
-        """
-        from modelscope_hub import HubApi, ProgressCallback
-
-        from .information import MODELSCOPE_INTL_ENDPOINT
-
-        task_status = self.get_task_status(task_id)
-        task_content = self.get_task_content(task_id)
-        repo_id = task_content.msRepoId
-        file_path = task_content.msFilePath
-        if not repo_id or not file_path:
-            raise RuntimeError("Missing ModelScope repository/file information")
-        sha = (task_content.hashes or {}).get("SHA256") or None
-        if not isinstance(sha, str):
-            sha = None
-
-        loop = asyncio.get_running_loop()
-        total_size = task_content.sizeBytes
-        state = {"done": 0, "last": 0.0}
-
-        def push() -> None:
-            task_status.downloadedSize = float(state["done"])
-            task_status.progress = (
-                (state["done"] / total_size * 100) if total_size > 0 else 0.0
-            )
-            asyncio.run_coroutine_threadsafe(progress_callback(task_status), loop)
-
-        class _Cb(ProgressCallback):
-            def update(self, size: int) -> None:
-                state["done"] += size
-                now = time.time()
-                if now - state["last"] >= interval:
-                    state["last"] = now
-                    push()
-
-            def end(self) -> None:
-                push()
-
-        download_path = utils.get_download_path()
-        tmp_dir = utils.join_path(download_path, f"{task_id}_ms")
-        os.makedirs(tmp_dir, exist_ok=True)
-        token = auth.get_modelscope_token()
-
-        def _run():
-            api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT, token=token)
-            # The public HubApi.download_file has no callback hook; the
-            # DownloadManager behind it does (progress_callbacks classes).
-            return api.downloader.download_file(
-                repo_id,
-                "model",
-                file_path,
-                local_dir=pathlib.Path(tmp_dir),
-                expected_sha256=sha,
-                progress_callbacks=[_Cb],
-            )
-
-        try:
-            path = await loop.run_in_executor(utils.io_executor(), _run)
-            push()
-            download_tmp_file = utils.join_path(download_path, f"{task_id}.download")
-            if os.path.exists(download_tmp_file):
-                os.remove(download_tmp_file)
-            shutil.move(str(path), download_tmp_file)
-        finally:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-
-        task_status.progress = 100.0
-        await progress_callback(task_status)
-        await self._download_complete(task_id)
-
     async def _download_complete(self, task_id: str):
         task_content = self.get_task_content(task_id)
         download_path = utils.get_download_path()
@@ -681,6 +608,58 @@ class ModelDownload:
             task_status.status = "pause"
             await utils.send_json("update_download_task", task_status.to_dict())
 
+    async def _hub_transfer(
+        self,
+        task_id: str,
+        progress_callback: Callable[[TaskStatus], Coroutine[Any, Any, Any]],
+        interval: float,
+        fetch: Callable[[Callable[..., None]], tuple],
+    ) -> None:
+        """Shared transfer plumbing for the hub backends (HF / ModelScope).
+
+        ``fetch(report)`` runs on the io executor and returns
+        ``(downloaded_path, cleanup_or_None)``; ``report(sent, total, bps)``
+        marshals throttled progress pushes onto the main loop. Completion
+        (move onto ``<task>.download`` + the shared completion path) is
+        identical for every backend - the hubs only differ in *how* they
+        fetch, which stays inside their ``fetch`` closure.
+        """
+        loop = asyncio.get_running_loop()
+        task_status = self.get_task_status(task_id)
+        task_content = self.get_task_content(task_id)
+        total_size = task_content.sizeBytes
+        state = {"last": 0.0}
+
+        async def _push(sent: float, total: float, bps: float) -> None:
+            task_status.downloadedSize = sent
+            if total:
+                task_status.totalSize = total
+                task_status.progress = sent / total * 100
+            task_status.bps = bps
+            await progress_callback(task_status)
+
+        def report(sent: float, total: float, bps: float = 0.0) -> None:
+            now = time.time()
+            if now - state["last"] < interval:
+                return
+            state["last"] = now
+            asyncio.run_coroutine_threadsafe(_push(sent, total, bps), loop)
+
+        path, cleanup = await loop.run_in_executor(utils.io_executor(), fetch, report)
+        try:
+            download_path = utils.get_download_path()
+            tmp = utils.join_path(download_path, f"{task_id}.download")
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            shutil.move(str(path), tmp)
+        finally:
+            if cleanup:
+                cleanup()
+        task_status.progress = 100.0
+        task_status.bps = 0.0
+        await progress_callback(task_status)
+        await self._download_complete(task_id)
+
     async def download_model_file_hf(
         self,
         task_id: str,
@@ -689,7 +668,6 @@ class ModelDownload:
     ):
         try:
             from huggingface_hub import hf_hub_download
-            from huggingface_hub.utils import HfHubHTTPError, EntryNotFoundError, RepositoryNotFoundError, GatedRepoError
         except ImportError:
             raise RuntimeError(
                 "huggingface_hub is not installed. Please install it with: pip install huggingface_hub hf_xet"
@@ -700,7 +678,6 @@ class ModelDownload:
         except ImportError:
             base_tqdm = None
 
-        task_status = self.get_task_status(task_id)
         task_content = self.get_task_content(task_id)
 
         model_url = task_content.downloadUrl
@@ -710,13 +687,16 @@ class ModelDownload:
         parsed = urlparse(model_url)
         path_parts = [p for p in parsed.path.strip("/").split("/") if p]
 
+        fallback_headers = {"User-Agent": config.user_agent}
+        token = auth.get_hf_token()
+        if token:
+            fallback_headers["Authorization"] = f"Bearer {token}"
+
         if len(path_parts) < 3:
             utils.print_warning(f"HF URL format unexpected, falling back to HTTP: {model_url}")
-            headers = {"User-Agent": config.user_agent}
-            token = auth.get_hf_token()
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
-            await self.download_model_file_http(task_id, headers, progress_callback, interval)
+            await self.download_model_file_http(
+                task_id, fallback_headers, progress_callback, interval
+            )
             return
 
         space = path_parts[0]
@@ -737,125 +717,105 @@ class ModelDownload:
                 filename = "/".join(path_parts[2:])
             if not filename:
                 utils.print_warning(f"Could not parse HF filename, falling back to HTTP: {model_url}")
-                headers = {"User-Agent": config.user_agent}
-                token = auth.get_hf_token()
-                if token:
-                    headers["Authorization"] = f"Bearer {token}"
-                await self.download_model_file_http(task_id, headers, progress_callback, interval)
+                await self.download_model_file_http(
+                    task_id, fallback_headers, progress_callback, interval
+                )
                 return
 
         download_path = utils.get_download_path()
         task_hf_dir = utils.join_path(download_path, f"{task_id}_hf")
         os.makedirs(task_hf_dir, exist_ok=True)
 
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.get_event_loop()
+        def fetch(report):
+            class ModelManagerTqdm(base_tqdm if base_tqdm else object):  # type: ignore[misc]
+                def __init__(self, *args, **kwargs):
+                    kwargs.pop("name", None)
+                    kwargs["disable"] = False
+                    if base_tqdm:
+                        super().__init__(*args, **kwargs)
 
-        last_progress_time = [time.time()]
+                def update(self, n=1):
+                    if base_tqdm:
+                        super().update(n)
+                    try:
+                        rate = self.format_dict.get("rate") if base_tqdm else None
+                        report(
+                            float(self.n),
+                            float(self.total or 0),
+                            float(rate) if rate else 0.0,
+                        )
+                    except Exception:
+                        pass
 
-        class ModelManagerTqdm(base_tqdm if base_tqdm else object):  # type: ignore[misc]
-            def __init__(self, *args, **kwargs):
-                kwargs.pop("name", None)
-                kwargs["disable"] = False
-                if base_tqdm:
-                    super().__init__(*args, **kwargs)
-
-            def update(self, n=1):
-                if base_tqdm:
-                    super().update(n)
-                try:
-                    current_time = time.time()
-                    if current_time - last_progress_time[0] < interval:
-                        return
-                    last_progress_time[0] = current_time
-                    task_status.downloadedSize = float(self.n)
-                    if self.total:
-                        task_status.totalSize = float(self.total)
-                    task_status.progress = (self.n / self.total * 100) if self.total > 0 else 0
-                    
-                    # bps を tqdm の組み込みレートから取得（出処から直接）
-                    rate = self.format_dict.get('rate') if base_tqdm else None
-                    task_status.bps = float(rate) if rate else 0.0  # ← 修正
-                    
-                    asyncio.run_coroutine_threadsafe(
-                        progress_callback(task_status),
-                        loop
-                    )
-                except Exception:
-                    pass
-
-        token = auth.get_hf_token()
-
-        result_path = None
-        try:
-            result_path = await loop.run_in_executor(
-                utils.io_executor(),
-                lambda: hf_hub_download(
-                    repo_id=repo_id,
-                    filename=filename,
-                    revision=revision,
-                    token=token,
-                    local_dir=task_hf_dir,
-                    force_download=False,
-                    tqdm_class=ModelManagerTqdm if base_tqdm else None,
-                    user_agent=config.user_agent,
-                ),
+            result_path = hf_hub_download(
+                repo_id=repo_id,
+                filename=filename,
+                revision=revision,
+                token=token,
+                local_dir=task_hf_dir,
+                force_download=False,
+                tqdm_class=ModelManagerTqdm if base_tqdm else None,
+                user_agent=config.user_agent,
             )
-        except (EntryNotFoundError, RepositoryNotFoundError, GatedRepoError) as e:
-            if os.path.isdir(task_hf_dir):
-                shutil.rmtree(task_hf_dir, ignore_errors=True)
-            raise RuntimeError(f"HuggingFace access denied for {repo_id}: {e}. Please check your HF API token and repository access.")
-        except HfHubHTTPError as e:
-            if os.path.isdir(task_hf_dir):
-                shutil.rmtree(task_hf_dir, ignore_errors=True)
-            raise RuntimeError(f"HuggingFace download failed: {e}")
-        except Exception as e:
-            if os.path.isdir(task_hf_dir):
-                shutil.rmtree(task_hf_dir, ignore_errors=True)
-            raise RuntimeError(f"Failed to download from HuggingFace: {e}")
+            return result_path, lambda: shutil.rmtree(task_hf_dir, ignore_errors=True)
 
-        if not result_path or not os.path.exists(result_path):
-            if os.path.isdir(task_hf_dir):
-                shutil.rmtree(task_hf_dir, ignore_errors=True)
-            raise RuntimeError(f"Downloaded file not found at {result_path}")
+        await self._hub_transfer(task_id, progress_callback, interval, fetch)
 
-        download_tmp_file = utils.join_path(download_path, f"{task_id}.download")
+    async def download_model_file_modelscope(
+        self,
+        task_id: str,
+        progress_callback: Callable[[TaskStatus], Coroutine[Any, Any, Any]],
+        interval: float = 1.0,
+    ) -> None:
+        """Download through modelscope_hub (international endpoint).
 
-        if os.path.exists(download_tmp_file):
-            os.remove(download_tmp_file)
+        Only the fetch differs from the HuggingFace path: a ProgressCallback
+        subclass feeds the shared reporter, and the finished file is handed
+        to the shared completion plumbing unchanged.
+        """
+        from modelscope_hub import HubApi, ProgressCallback
 
-        try:
-            shutil.move(result_path, download_tmp_file)
-        except Exception:
-            try:
-                shutil.copy2(result_path, download_tmp_file)
-            except Exception:
-                pass
+        from .information import MODELSCOPE_INTL_ENDPOINT
 
-        if os.path.isdir(task_hf_dir):
-            try:
-                shutil.rmtree(task_hf_dir)
-            except Exception as e:
-                utils.print_warning(f"Failed to clean up HF task dir {task_hf_dir}: {e}")
+        task_content = self.get_task_content(task_id)
+        repo_id = task_content.msRepoId
+        file_path = task_content.msFilePath
+        if not repo_id or not file_path:
+            raise RuntimeError("Missing ModelScope repository/file information")
+        sha = (task_content.hashes or {}).get("SHA256") or None
+        if not isinstance(sha, str):
+            sha = None
+        file_size = float(task_content.sizeBytes or 0)
 
-        total_size = task_content.sizeBytes
-        actual_size = os.path.getsize(download_tmp_file)
-        if total_size == 0:
-            total_size = actual_size
-        task_content.sizeBytes = total_size
-        self.set_task_content(task_id, task_content)
+        download_path = utils.get_download_path()
+        tmp_dir = utils.join_path(download_path, f"{task_id}_ms")
+        os.makedirs(tmp_dir, exist_ok=True)
+        token = auth.get_modelscope_token()
 
-        task_status.downloadedSize = float(actual_size)
-        task_status.totalSize = float(total_size)
-        task_status.progress = 100.0
-        task_status.bps = 0
-        await progress_callback(task_status)
+        def fetch(report):
+            acc = {"done": 0.0}
 
-        await self._download_complete(task_id)
+            class _Cb(ProgressCallback):
+                def update(self, size: int) -> None:
+                    acc["done"] += size
+                    report(acc["done"], file_size, 0.0)
 
-# Singleton instance
+                def end(self) -> None:
+                    report(acc["done"], file_size, 0.0)
+
+            api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT, token=token)
+            path = api.downloader.download_file(
+                repo_id,
+                "model",
+                file_path,
+                local_dir=pathlib.Path(tmp_dir),
+                expected_sha256=sha,
+                progress_callbacks=[_Cb],
+            )
+            return path, lambda: shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        await self._hub_transfer(task_id, progress_callback, interval, fetch)
+
 _model_download_instance = None
 
 def get_model_download():
