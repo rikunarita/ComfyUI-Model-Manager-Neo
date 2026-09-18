@@ -129,6 +129,13 @@ folders whose name starts with `.`).
   cards also carry the **aggregate size of their model type**.
 - **Duplicate warning** — a model whose recorded SHA256 matches another file in
   the library shows a red alert with the duplicate's path in the detail window.
+- **Smart collections** (flat view) — save the current search + type filter as
+  a named collection (persisted per user) and re‑apply it from the collections
+  select; the active collection shows as a chip with clear / delete buttons.
+- **Hygiene scan** (both toolbars) — a local‑only sweep (no network, no
+  hashing) listing orphaned preview / notes files, models without any preview
+  (with a shortcut into their editor) and empty folders; selected entries are
+  removed through the usual Danger confirmation.
 - **Hover actions** (flat layout, large cards) — **Add node**, **Copy node**,
   **Load workflow from preview**, **Open model page** (the button wears the
   source platform's logo as its background when the platform is known).
