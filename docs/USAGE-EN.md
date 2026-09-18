@@ -219,8 +219,8 @@ Open **Download List** from the header, then:
 
 ![create download task](screenshots/download.png)
 
-1. Paste a **Civitai model page**, **HuggingFace repo/blob/tree** or a **direct
-   file link** (`.safetensors`, `.ckpt`, `.gguf`, …) and press **Enter** or the
+1. Paste a **Civitai model page**, **HuggingFace repo/blob/tree**,
+   **ModelScope model page** (`www.modelscope.ai`) or a **direct file link** (`.safetensors`, `.ckpt`, `.gguf`, …) and press **Enter** or the
    search icon.
 2. For a direct link you must pick the **Model Type** first (only types your
    ComfyUI has are offered); an optional **Subfolder** field lets you place the
@@ -252,6 +252,12 @@ task bookkeeping. Paused downloads resume with an HTTP `Range` request.
 > backend and are pushed over the websocket.
 
 ## 7. Uploading to HuggingFace
+
+The form carries a **provider switch** (Hugging Face / ModelScope). ModelScope
+uploads always talk to the international `www.modelscope.ai` domain; repository
+creation (public/private), destination path and the live progress read-out work
+for both providers, and the folder-view batch upload (selected folders → every
+model inside, sub-folders preserved) honours the chosen provider too.
 
 Set your token first: **Settings → Model Manager Neo → API Key → HuggingFace
 API Key** (or export `HF_TOKEN`).

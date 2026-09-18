@@ -11,7 +11,7 @@
         <ModelPreview v-model:editable="editable" class="shrink-0"></ModelPreview>
 
         <div class="flex flex-1 flex-col gap-4 overflow-hidden">
-          <div class="flex min-h-10 items-center justify-end gap-4">
+          <div class="flex min-h-10 items-center justify-end gap-4 overflow-x-auto *:shrink-0">
             <slot name="action" :metadata="formInstance.metadata.value"></slot>
           </div>
 

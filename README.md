@@ -212,7 +212,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 <details>
 <summary><b>Download</b></summary>
 
-- Paste a **Civitai**, **Hugging Face** or **direct file** URL.
+- Paste a **Civitai**, **Hugging Face**, **ModelScope** (`www.modelscope.ai`)
+  or **direct file** URL.
 - Resolve multiple files/versions per page and pick the one you want.
 - Direct links require an explicit target type, with an optional custom
   sub‑folder.
@@ -232,9 +233,11 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 
 - **From local file** into any model folder (registered as a live task with
   progress in the Download List).
-- **To Hugging Face** _(new in Neo)_: authenticated via your HF token, creates
-  the repository if it doesn't exist (public/private), choose the destination
-  path, and watch progress. Selected **folders** upload as a batch (every model
+- **To Hugging Face or ModelScope** _(new in Neo)_: pick the provider in the
+  form; authenticated via the matching token, creates the repository if it
+  doesn't exist (public/private), choose the destination path, and watch
+  progress. ModelScope always talks to the international `www.modelscope.ai`
+  domain, and its logo backs the "open model page" button like the others. Selected **folders** upload as a batch (every model
   inside, sub‑folders preserved) from the folder view's selection bar.
 
 </details>

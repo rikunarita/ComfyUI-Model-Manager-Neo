@@ -36,6 +36,7 @@ export const assetUrl = (name: string) => `${ASSET_BASE}/${name}.svg`
 const PLATFORM_LOGO: Record<string, string> = {
   civitai: assetUrl('civitai-icon'),
   huggingface: assetUrl('hf-icon'),
+  modelscope: assetUrl('modelscope-icon'),
 }
 
 /** The logo URL of a model platform, if Neo ships one for it. */

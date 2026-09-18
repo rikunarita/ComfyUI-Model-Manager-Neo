@@ -14,70 +14,32 @@
       stretched to the whole dialog and stacked, so the folder toolbar looked
       nothing like the flat one. Same controls, same order, same look.
     -->
-    <div ref="toolbarContainer" class="w-full px-4 pb-4">
-      <div :class="['flex gap-4', $toolbar_2xl('flex-row', 'flex-col')]">
-        <div class="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            class="shrink-0"
-            :disabled="folderPaths.length < 2"
-            @click="handleGoBackParentFolder"
-          >
-            <ChevronUp class="size-4" />
-          </Button>
-
-          <ResponseBreadcrumb
-            class="h-10 min-w-0 flex-1"
-            :items="breadcrumbItems"
-          ></ResponseBreadcrumb>
-        </div>
-
-        <div class="flex-1">
-          <ResponseInput
-            v-model="searchContent"
-            :placeholder="$t('searchModels')"
-            :allow-clear="true"
-            suffix-icon="pi pi-search"
-          ></ResponseInput>
-        </div>
-
-        <!--
-          View parity with the flat view: the same sort and card-size selects
-          live here too (folder view = flat view scoped to one folder, plus
-          the folder-only extras). "Add folder" creates a sub-folder inside
-          the currently open folder.
-        -->
-        <div class="flex items-center justify-between gap-4 overflow-hidden">
-          <GridCommonControls
-            v-model:sort-order="sortOrder"
-            :sort-order-options="sortOrderOptions"
-            @hygiene="openHygiene"
-          />
-          <Button
-            variant="secondary"
-            size="icon"
-            :disabled="!currentFolderInfo"
-            :title="$t('addFolder')"
-            :aria-label="$t('addFolder')"
-            @click="openCreateFolder"
-          >
-            <FolderPlus class="size-4" />
-          </Button>
-          <Button
-            variant="secondary"
-            size="icon"
-            :class="selection.state.enabled && 'border-mm-accent/50 bg-mm-accent/20 text-mm-accent'"
-            :title="$t('selectFiles')"
-            :aria-label="$t('selectFiles')"
-            :aria-pressed="selection.state.enabled"
-            @click="toggleSelectMode"
-          >
-            <ListChecks class="size-4" />
-          </Button>
-        </div>
-      </div>
-    </div>
+    <ViewToolbar
+      v-model:search="searchContent"
+      v-model:sort-order="sortOrder"
+      mode="folder"
+      :breadcrumb-items="breadcrumbItems"
+      :can-go-up="folderPaths.length >= 2"
+      :sort-order-options="sortOrderOptions"
+      :selection-enabled="selection.state.enabled"
+      :get-query="explorerQuery"
+      @up="handleGoBackParentFolder"
+      @toggle-select="toggleSelectMode"
+    >
+      <template #extra>
+        <Button
+          variant="secondary"
+          size="icon"
+          class="shrink-0"
+          :disabled="!currentFolderInfo"
+          :title="$t('addFolder')"
+          :aria-label="$t('addFolder')"
+          @click="openCreateFolder"
+        >
+          <FolderPlus class="size-4" />
+        </Button>
+      </template>
+    </ViewToolbar>
 
     <div
       ref="contentContainer"
@@ -161,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronUp, FolderPlus, ListChecks } from '@lucide/vue'
+import { FolderPlus } from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { type ReferenceElement } from 'reka-ui'
@@ -169,18 +131,14 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardHoverActions from 'components/CardHoverActions.vue'
 import DialogCreateFolder from 'components/DialogCreateFolder.vue'
-import DialogHygiene from 'components/DialogHygiene.vue'
-import GridCommonControls from 'components/GridCommonControls.vue'
 import ModelCard from 'components/ModelCard.vue'
-import ResponseBreadcrumb from 'components/ResponseBreadcrumb.vue'
-import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import SelectionBulkBar from 'components/SelectionBulkBar.vue'
 import { Button } from 'components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from 'components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
+import ViewToolbar from 'components/ViewToolbar.vue'
 import { useConfig } from 'hooks/config'
-import { useContainerQueries } from 'hooks/container'
 import { useDialog } from 'hooks/dialog'
 import { type ModelTreeNode, useModelExplorer } from 'hooks/explorer'
 import { useGridSelectOptions } from 'hooks/gridOptions'
@@ -217,15 +175,6 @@ const toggleSelectMode = () => {
 }
 
 /* ---- create folder ------------------------------------------------------ */
-const openHygiene = () => {
-  dialog.open({
-    key: 'hygiene',
-    title: t('hygiene'),
-    content: DialogHygiene,
-    defaultSize: { width: 680, height: 520 },
-  })
-}
-
 const openCreateFolder = () => {
   const info = currentFolderInfo.value
   if (!info) return
@@ -267,8 +216,6 @@ const contentSize = useElementSize(contentContainer)
 
 // Same responsive rule as the flat view's toolbar (DialogManager): below a
 // 42 rem container the toolbar stacks instead of squeezing its controls.
-const toolbarContainer = ref<HTMLElement | null>(null)
-const { $2xl: $toolbar_2xl } = useContainerQueries(toolbarContainer)
 
 const itemSize = computed(() => {
   return cardSize.value.height + gutter.y
@@ -350,6 +297,12 @@ const sortFolderContents = (list: ModelTreeNode[]): ModelTreeNode[] => {
   })
   return [...folderItems, ...modelItems]
 }
+
+/** Snapshot of the folder view's search state for "save current search". */
+const explorerQuery = () => ({
+  tokens: (searchContent.value ?? '').split(/\s+/).filter(Boolean),
+  types: [] as string[],
+})
 
 const currentDataList = computed(() => {
   let renderedList = dataTreeList.value

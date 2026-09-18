@@ -215,7 +215,7 @@ ComfyUI を再起動してください。Python 依存（`huggingface_hub`・`hf
 ![ダウンロードタスク作成](screenshots/download.png)
 
 1. **Civitai のモデルページ**・**HuggingFace の repo/blob/tree**・
-   **直接ファイルリンク**（`.safetensors`・`.ckpt`・`.gguf` など）を貼り付け、
+   **ModelScope のモデルページ**(`www.modelscope.ai`)・**直接ファイルリンク**（`.safetensors`・`.ckpt`・`.gguf` など）を貼り付け、
    Enter または検索アイコンを押します。
 2. 直接リンクの場合は先に**モデル種別**を選ぶ必要があります（現在の ComfyUI に
    存在する種別のみ提示）。任意の**サブフォルダ**欄でより深く置けます。
@@ -246,6 +246,11 @@ ComfyUI を再起動してください。Python 依存（`huggingface_hub`・`hf
 > 生き、websocket でプッシュされます。
 
 ## 7. HuggingFace へのアップロード
+
+フォームには**プロバイダ切替**(Hugging Face / ModelScope)があります。ModelScope は
+常に国際ドメイン `www.modelscope.ai` へ接続します。リポジトリ作成(公開/非公開)・
+保存先パス・進捗表示は両プロバイダで共通し、フォルダビューの一括アップロード
+(選択フォルダ内の全モデル・サブフォルダ構造保持)も選択中のプロバイダへ送信します。
 
 先にトークンを設定します: **設定 → Model Manager Neo → API キー →
 HuggingFace API キー**（または環境変数 `HF_TOKEN`）。

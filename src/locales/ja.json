@@ -138,7 +138,8 @@
     "download": "ダウンロード",
     "autoCompressUnusedDays": "この日数以上未使用のモデルを自動圧縮(0=無効)",
     "autoCompressOnDownload": "ダウンロード完了後に自動圧縮する",
-    "pauseDuringPrompt": "prompt 実行中はダウンロードを一時停止する"
+    "pauseDuringPrompt": "prompt 実行中はダウンロードを一時停止する",
+    "api_key.modelscope": "ModelScope API キー"
   },
   "modelTypeLabel": {
     "checkpoints": "チェックポイント",
@@ -281,5 +282,28 @@
   "hygieneClean": "清理するものはありません。",
   "collections": "コレクション",
   "collectionsSave": "現在の検索を保存",
-  "collectionsNamePlaceholder": "コレクション名"
+  "collectionsNamePlaceholder": "コレクション名",
+  "providerHf": "Hugging Face",
+  "providerMs": "ModelScope",
+  "msUpload": {
+    "phase": {
+      "prepare": "準備中…",
+      "hash": "ハッシュ計算中…",
+      "upload": "アップロード中…"
+    },
+    "hashHint": "ローカルでチェックサムを計算中 - まだ送信は開始されていません",
+    "success": "成功",
+    "error": "エラー",
+    "errorFallback": "ModelScope アップロードに失敗しました",
+    "skipped": "スキップ",
+    "skippedDetail": "'{repo}' に同一ファイルが既に存在します",
+    "skippedHint": " - ModelScope は空コミットをスキップするため転送はありませんでした。別の保存先パスを指定すると新しいコミットを作成できます。",
+    "deduplicated": "ModelScope に保存済み",
+    "deduplicatedDetail": "ModelScope が同一バイトを保持しているため転送はありませんでした。'{path}' は '{repo}' へコミットされました",
+    "createdPrivate": "リポジトリを非公開で作成",
+    "createdPublic": "リポジトリを公開で作成",
+    "folderBatch": "選択フォルダから {n} ファイル",
+    "successMany": "{n} ファイルをアップロードしました",
+    "noFilesInFolders": "選択フォルダにモデルファイルがありません"
+  }
 }

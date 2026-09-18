@@ -1,77 +1,16 @@
 <template>
   <div ref="contentContainer" class="flex h-full flex-col gap-4 overflow-hidden">
-    <div class="grid grid-cols-1 justify-center gap-4 px-8" :style="$content_lg(contentStyle)">
-      <div ref="toolbarContainer" class="col-span-full">
-        <div :class="['flex gap-4', $toolbar_2xl('flex-row', 'flex-col')]">
-          <div class="flex-1">
-            <ResponseInput
-              v-model="searchContent"
-              :placeholder="$t('searchModels')"
-              :allow-clear="true"
-              suffix-icon="pi pi-search"
-            ></ResponseInput>
-          </div>
-
-          <div class="flex items-center justify-between gap-4 overflow-hidden">
-            <ResponseSelect
-              v-model="collectionState.activeId"
-              class="flex-1"
-              :items="collectionOptions"
-            ></ResponseSelect>
-            <ResponseSelect
-              v-model="currentType"
-              class="flex-1"
-              :items="typeOptions"
-            ></ResponseSelect>
-            <GridCommonControls
-              v-model:sort-order="sortOrder"
-              :sort-order-options="sortOrderOptions"
-              @hygiene="openHygiene"
-            />
-            <Button
-              variant="secondary"
-              size="icon"
-              :class="
-                selection.state.enabled && 'border-mm-accent/50 bg-mm-accent/20 text-mm-accent'
-              "
-              :title="$t('selectFiles')"
-              :aria-label="$t('selectFiles')"
-              :aria-pressed="selection.state.enabled"
-              @click="toggleSelectMode"
-            >
-              <ListChecks class="size-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Active smart collection chip -->
-    <div v-if="activeCol" class="flex items-center gap-2 px-8">
-      <span
-        class="flex items-center gap-1 rounded-full border border-mm-accent/40 bg-mm-accent/15 px-2 py-0.5 text-xs text-mm-accent"
-      >
-        {{ activeCol.name }}
-        <button
-          type="button"
-          class="grid size-3.5 place-items-center rounded-full hover:bg-mm-accent/25"
-          :title="$t('clearSelection')"
-          :aria-label="$t('clearSelection')"
-          @click="collectionState.activeId = null"
-        >
-          <X class="size-3" />
-        </button>
-        <button
-          type="button"
-          class="grid size-3.5 place-items-center rounded-full hover:bg-mm-danger/25"
-          :title="$t('delete')"
-          :aria-label="$t('delete')"
-          @click="removeCollection(activeCol.id)"
-        >
-          <Trash2 class="size-3" />
-        </button>
-      </span>
-    </div>
+    <ViewToolbar
+      v-model:search="searchContent"
+      v-model:sort-order="sortOrder"
+      v-model:current-type="currentType"
+      mode="flat"
+      :sort-order-options="sortOrderOptions"
+      :type-options="typeOptions"
+      :selection-enabled="selection.state.enabled"
+      :get-query="currentQuery"
+      @toggle-select="toggleSelectMode"
+    />
 
     <ResponseScroll :items="list" :item-size="itemSize" class="h-full flex-1">
       <template #item="{ item }">
@@ -121,31 +60,19 @@
 </template>
 
 <script setup lang="ts" name="manager-dialog">
-import { Box, ListChecks, Trash2, X } from '@lucide/vue'
+import { Box } from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
 import { chunk } from 'es-toolkit'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardHoverActions from 'components/CardHoverActions.vue'
-import DialogHygiene from 'components/DialogHygiene.vue'
-import DialogSaveCollection from 'components/DialogSaveCollection.vue'
-import GridCommonControls from 'components/GridCommonControls.vue'
 import ModelCard from 'components/ModelCard.vue'
-import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
-import ResponseSelect from 'components/ResponseSelect.vue'
 import SelectionBulkBar from 'components/SelectionBulkBar.vue'
-import { Button } from 'components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
-import {
-  activeCollection,
-  collectionState,
-  matchesCollection,
-  removeCollection,
-} from 'hooks/collections'
+import ViewToolbar from 'components/ViewToolbar.vue'
+import { activeCollection, matchesCollection } from 'hooks/collections'
 import { useConfig } from 'hooks/config'
-import { useContainerQueries } from 'hooks/container'
-import { useDialog } from 'hooks/dialog'
 import { type ModelTreeNode } from 'hooks/explorer'
 import { useGridSelectOptions } from 'hooks/gridOptions'
 import { useModels } from 'hooks/model'
@@ -161,11 +88,7 @@ const { data, visibleTypes, getFullPath } = useModels()
 const { openModelDetail } = useModelDetail()
 const { t } = useI18n()
 
-const toolbarContainer = ref<HTMLElement | null>(null)
-const { $2xl: $toolbar_2xl } = useContainerQueries(toolbarContainer)
-
 const contentContainer = ref<HTMLElement | null>(null)
-const { $lg: $content_lg } = useContainerQueries(contentContainer)
 
 const searchContent = ref<string>()
 // Optimization B-3: the grid filter+sort is O(n log n); running it on every
@@ -188,8 +111,6 @@ const typeOptions = computed(() => {
 })
 
 const { sortOrder, sortOrderOptions, compareRecent } = useGridSelectOptions()
-const dialog = useDialog()
-
 /* ---- smart collections ------------------------------------------------- */
 const activeCol = computed(() => activeCollection())
 
@@ -197,40 +118,6 @@ const currentQuery = () => ({
   tokens: (searchContent.value ?? '').split(/\s+/).filter(Boolean),
   types: currentType.value !== allType ? [currentType.value] : [],
 })
-
-const openSaveCollection = () => {
-  dialog.open({
-    key: 'save-collection',
-    title: t('collectionsSave'),
-    content: DialogSaveCollection,
-    contentProps: { query: currentQuery() },
-    defaultSize: { width: 420, height: 190 },
-  })
-}
-
-const collectionOptions = computed(() => [
-  ...collectionState.collections.map(c => ({
-    label: c.name,
-    value: c.id,
-    command: () => {
-      collectionState.activeId = c.id
-    },
-  })),
-  {
-    label: t('collectionsSave'),
-    value: '__save__',
-    command: () => openSaveCollection(),
-  },
-])
-
-const openHygiene = () => {
-  dialog.open({
-    key: 'hygiene',
-    title: t('hygiene'),
-    content: DialogHygiene,
-    defaultSize: { width: 680, height: 520 },
-  })
-}
 
 const itemSize = computed(() => {
   let itemHeight = cardSize.value.height

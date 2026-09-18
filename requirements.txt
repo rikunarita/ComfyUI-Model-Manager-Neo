@@ -1,3 +1,4 @@
 markdownify>=0.14.0
 huggingface_hub>=0.34.0,<1.32.0
 hf_xet>=1.1.0
+modelscope_hub>=0.4.3

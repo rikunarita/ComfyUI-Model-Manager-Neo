@@ -284,6 +284,14 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
     })
 
     app.ui?.settings.addSetting({
+      id: 'ModelManager.APIKey.ModelScope',
+      category: [t('modelManager'), t('setting.apiKey'), 'ModelScope'],
+      name: 'ModelScope API Key',
+      defaultValue: undefined,
+      type: renderApiKey('modelscope'),
+    })
+
+    app.ui?.settings.addSetting({
       id: 'ModelManager.APIKey.Civitai',
       category: [t('modelManager'), t('setting.apiKey'), 'Civitai'],
       name: 'Civitai API Key',

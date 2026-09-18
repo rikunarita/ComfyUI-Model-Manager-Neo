@@ -138,7 +138,8 @@
     "download": "下载",
     "autoCompressUnusedDays": "自动压缩超过此天数未使用的模型(0=关闭)",
     "autoCompressOnDownload": "下载完成后自动压缩",
-    "pauseDuringPrompt": "提示执行时暂停下载"
+    "pauseDuringPrompt": "提示执行时暂停下载",
+    "api_key.modelscope": "ModelScope API 密钥"
   },
   "modelTypeLabel": {
     "checkpoints": "Checkpoint",
@@ -281,5 +282,28 @@
   "hygieneClean": "无需清理。",
   "collections": "集合",
   "collectionsSave": "保存当前搜索",
-  "collectionsNamePlaceholder": "集合名称"
+  "collectionsNamePlaceholder": "集合名称",
+  "providerHf": "Hugging Face",
+  "providerMs": "ModelScope",
+  "msUpload": {
+    "phase": {
+      "prepare": "准备中…",
+      "hash": "计算哈希中…",
+      "upload": "上传中…"
+    },
+    "hashHint": "正在本地计算校验和 - 尚未开始传输",
+    "success": "成功",
+    "error": "错误",
+    "errorFallback": "ModelScope 上传失败",
+    "skipped": "已跳过",
+    "skippedDetail": "'{repo}' 中已存在相同文件",
+    "skippedHint": " - ModelScope 跳过了空提交，因此没有传输任何内容。使用不同的目标路径可创建新提交。",
+    "deduplicated": "ModelScope 已保存",
+    "deduplicatedDetail": "ModelScope 已持有完全相同的字节，因此没有传输。'{path}' 已提交到 '{repo}'",
+    "createdPrivate": "仓库已创建为私有",
+    "createdPublic": "仓库已创建为公开",
+    "folderBatch": "来自所选文件夹的 {n} 个文件",
+    "successMany": "已上传 {n} 个文件",
+    "noFilesInFolders": "所选文件夹中没有模型文件"
+  }
 }

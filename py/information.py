@@ -41,6 +41,7 @@ _SVG_ASSETS = {
     # Model-hub logos, worn as the background of the "open model page" button.
     "civitai-icon": ("assets", "AIModelHub-Logos", "civitai-icon.svg"),
     "hf-icon": ("assets", "AIModelHub-Logos", "hf-icon.svg"),
+    "modelscope-icon": ("assets", "AIModelHub-Logos", "modelscope-icon.svg"),
 }
 _SVG_CACHE: dict[str, tuple[int, str, bytes]] = {}
 
@@ -398,6 +399,88 @@ class HuggingfaceModelSearcher(ModelSearcher):
         return _filter_tree_files
 
 
+# ModelScope international site (per project policy: always the .ai domain).
+MODELSCOPE_INTL_ENDPOINT = "https://www.modelscope.ai"
+
+_MODEL_FILE_EXTS = (".bin", ".ckpt", ".gguf", ".onnx", ".pt", ".pth", ".safetensors")
+
+
+class ModelScopeModelSearcher(ModelSearcher):
+    """Model listing of a ModelScope model repository (international site).
+
+    Mirrors the HuggingFace searcher: one entry per model file of the repo,
+    with the front-matter the Information tab and the duplicate warning read
+    (`website: ModelScope`), plus the repo/file pair the downloader needs.
+    """
+
+    def search_by_url(self, url: str):
+        parsed_url = urlparse(url)
+        parts = [p for p in parsed_url.path.strip("/").split("/") if p]
+        if len(parts) < 3 or parts[0] != "models":
+            return []
+        owner, name = parts[1], parts[2]
+        repo_id = f"{owner}/{name}"
+
+        from modelscope_hub import HubApi
+
+        token = auth.get_modelscope_token()
+        api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT, token=token)
+        files = api.list_repo_files(repo_id, "model")
+
+        model_page = f"{MODELSCOPE_INTL_ENDPOINT}/models/{repo_id}"
+        models: list[dict] = []
+        for fi in files:
+            if fi.is_dir:
+                continue
+            ext = os.path.splitext(fi.path)[1]
+            if ext not in _MODEL_FILE_EXTS:
+                continue
+            basename = os.path.splitext(os.path.basename(fi.path))[0]
+            sha = fi.sha256 or (fi.lfs or {}).get("sha256")
+            hashes = {"SHA256": sha} if sha else None
+
+            metadata_info: dict = {
+                "website": "ModelScope",
+                "modelPage": model_page,
+                "author": owner,
+            }
+            if hashes:
+                metadata_info["hashes"] = hashes
+            description_parts = [
+                "---",
+                yaml.dump(metadata_info).strip(),
+                "---",
+                "",
+                f"# {name}",
+                "",
+                f"Model repository: {model_page}",
+                "",
+            ]
+
+            models.append(
+                {
+                    "id": fi.path,
+                    "shortname": name,
+                    "basename": basename,
+                    "extension": ext,
+                    "preview": [],
+                    "sizeBytes": fi.size or 0,
+                    "type": "",
+                    "pathIndex": 0,
+                    "subFolder": "",
+                    "description": "\n".join(description_parts),
+                    "metadata": {},
+                    "downloadPlatform": "modelscope",
+                    "downloadUrl": None,
+                    "hashes": hashes,
+                    "files": None,
+                    "msRepoId": repo_id,
+                    "msFilePath": fi.path,
+                }
+            )
+        return models
+
+
 class Information:
     def add_routes(self, routes):
 
@@ -615,4 +698,8 @@ class Information:
             return CivitaiModelSearcher()
         elif host_name == "huggingface.co":
             return HuggingfaceModelSearcher()
+        elif host_name in ("modelscope.ai", "modelscope.cn") or (
+            host_name or ""
+        ).endswith(".modelscope.ai"):
+            return ModelScopeModelSearcher()
         return UnknownWebsiteSearcher()

@@ -185,7 +185,8 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 ![创建下载任务](screenshots/download.png)
 
-1. 粘贴 **Civitai 模型页**、**HuggingFace 的 repo/blob/tree** 或**直接文件链接**
+1. 粘贴 **Civitai 模型页**、**HuggingFace 的 repo/blob/tree**、**ModelScope 模型页**
+   （`www.modelscope.ai`）或**直接文件链接**
    （`.safetensors`、`.ckpt`、`.gguf` 等），按 Enter 或搜索图标。
 2. 直接链接必须先选择**模型类型**（只提供当前 ComfyUI 存在的类型）；可选的
    **子文件夹**栏可把文件放得更深。
@@ -210,6 +211,10 @@ HTTP `Range` 断点续传。
 > 进度、暂停与完成在关闭窗口后依然有效：任务活在后端，通过 websocket 推送。
 
 ## 7. 上传到 HuggingFace
+
+表单带有**提供方切换**（Hugging Face / ModelScope）。ModelScope 始终连接国际域名
+`www.modelscope.ai`。仓库创建（公开/私有）、仓库内目标路径与实时进度对两者通用；
+文件夹视图的批量上传（所选文件夹内全部模型、保留子文件夹结构）也遵循所选提供方。
 
 先设置令牌：**设置 → Model Manager Neo → 密钥 → HuggingFace API 密钥**
 （或导出环境变量 `HF_TOKEN`）。

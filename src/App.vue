@@ -15,6 +15,7 @@ import { useI18n } from 'vue-i18n'
 import DialogDownload from 'components/DialogDownload.vue'
 import DialogExplorer from 'components/DialogExplorer.vue'
 import DialogHfUpload from 'components/DialogHfUpload.vue'
+import DialogHygiene from 'components/DialogHygiene.vue'
 import DialogManager from 'components/DialogManager.vue'
 import GlobalConfirm from 'components/GlobalConfirm.vue'
 import GlobalDialogStack from 'components/GlobalDialogStack.vue'
@@ -125,6 +126,15 @@ onMounted(() => {
     })
   }
 
+  const openHygieneDialog = () => {
+    dialog.open({
+      key: 'hygiene',
+      title: t('hygiene'),
+      content: DialogHygiene,
+      defaultSize: { width: 680, height: 520 },
+    })
+  }
+
   const toggleLayout = () => {
     const newValue = !config.flat.value
     config.flat.value = newValue
@@ -168,6 +178,12 @@ onMounted(() => {
           icon: layoutIcon,
           command: toggleLayout,
           tooltip: flat.value ? t('switchToFolderView') : t('switchToFlatView'),
+        },
+        {
+          key: 'hygiene',
+          icon: 'pi pi-scan',
+          command: openHygieneDialog,
+          tooltip: t('hygiene'),
         },
         {
           key: 'toggle-hidden',

@@ -20,6 +20,7 @@ interface HfProgressDetail {
   totalSize?: number
   progress?: number
   phase?: HfUploadPhase
+  provider?: 'hf' | 'modelscope'
 }
 
 interface HfCompleteDetail {
@@ -34,6 +35,7 @@ interface HfCompleteDetail {
   url?: string | null
   fileCount?: number
   skippedCount?: number
+  provider?: 'hf' | 'modelscope'
 }
 
 /**
@@ -53,6 +55,8 @@ export const hfUploadState = reactive<{
   phase: HfUploadPhase
   repoId: string
   pathInRepo: string
+  /** Hub provider of the running upload (toast wording / phase labels). */
+  provider: 'hf' | 'modelscope'
 }>({
   taskId: null,
   active: false,
@@ -60,6 +64,7 @@ export const hfUploadState = reactive<{
   phase: 'prepare',
   repoId: '',
   pathInRepo: '',
+  provider: 'hf',
 })
 
 /**
@@ -100,37 +105,42 @@ const { t } = useI18nGlobal()
 api.addEventListener('update_hf_upload_progress', (event: CustomEvent) => {
   const detail = event.detail as HfProgressDetail | undefined
   if (!matches(detail)) return
+  if (detail?.provider) hfUploadState.provider = detail.provider
   hfUploadState.active = true
   hfUploadState.progress = Math.floor(detail?.progress ?? 0)
   hfUploadState.phase = detail?.phase ?? 'upload'
 })
 
-const reportHfSkipped = (repoId: string, url: string) => {
+const nsOf = (provider?: 'hf' | 'modelscope') =>
+  provider === 'modelscope' ? 'msUpload' : 'hfUpload'
+
+const reportHfSkipped = (ns: string, repoId: string, url: string) => {
   // huggingface_hub skips empty commits: the identical file already sits at
   // the destination. Reporting that as a plain success is what made a
   // re-upload look like a silently broken upload.
   toast.add({
     severity: 'warn',
-    summary: t('hfUpload.skipped'),
-    detail: t('hfUpload.skippedDetail', { repo: repoId }) + url + t('hfUpload.skippedHint'),
+    summary: t(`${ns}.skipped`),
+    detail: t(`${ns}.skippedDetail`, { repo: repoId }) + url + t(`${ns}.skippedHint`),
     life: 15000,
   })
 }
 
-const reportHfDeduplicated = (repoId: string, pathInRepo: string, url: string) => {
+const reportHfDeduplicated = (ns: string, repoId: string, pathInRepo: string, url: string) => {
   // The commit really happened, but HuggingFace's object store already held
   // the identical bytes ("Upload 0 LFS files"), so not one byte travelled.
   // A bare "Success" next to a bar that never moved reads as a broken
   // upload; say what actually happened and link the committed file.
   toast.add({
     severity: 'info',
-    summary: t('hfUpload.deduplicated'),
-    detail: t('hfUpload.deduplicatedDetail', { path: pathInRepo, repo: repoId }) + url,
+    summary: t(`${ns}.deduplicated`),
+    detail: t(`${ns}.deduplicatedDetail`, { path: pathInRepo, repo: repoId }) + url,
     life: 15000,
   })
 }
 
 const reportHfSuccess = (
+  ns: string,
   repoId: string,
   pathInRepo: string,
   created: boolean,
@@ -138,11 +148,11 @@ const reportHfSuccess = (
   fileCount = 1,
 ) => {
   const createdNote = created
-    ? t(priv ? 'hfUpload.createdPrivate' : 'hfUpload.createdPublic', { repo: repoId })
+    ? t(priv ? `${ns}.createdPrivate` : `${ns}.createdPublic`, { repo: repoId })
     : ''
   toast.add({
     severity: 'success',
-    summary: fileCount > 1 ? t('hfUpload.successMany', { n: fileCount }) : t('hfUpload.success'),
+    summary: fileCount > 1 ? t(`${ns}.successMany`, { n: fileCount }) : t(`${ns}.success`),
     detail: `${pathInRepo} -> ${repoId}${createdNote ? ` (${createdNote})` : ''}`,
     life: 5000,
   })
@@ -161,10 +171,12 @@ api.addEventListener('hf_upload_complete', (event: CustomEvent) => {
   const pathInRepo = detail.pathInRepo || hfUploadState.pathInRepo
   const url = detail.url ? `: ${detail.url}` : ''
 
-  if (detail.skipped) reportHfSkipped(repoId, url)
-  else if (detail.deduplicated) reportHfDeduplicated(repoId, pathInRepo, url)
+  const ns = nsOf(detail.provider)
+  if (detail.skipped) reportHfSkipped(ns, repoId, url)
+  else if (detail.deduplicated) reportHfDeduplicated(ns, repoId, pathInRepo, url)
   else
     reportHfSuccess(
+      ns,
       repoId,
       pathInRepo,
       Boolean(detail.created),
@@ -195,6 +207,7 @@ export const resetHfUploadState = () => {
   hfUploadState.active = true
   hfUploadState.progress = 0
   hfUploadState.phase = 'prepare'
+  hfUploadState.provider = 'hf'
 }
 
 /** Whether a task id has already been reported as finished. */

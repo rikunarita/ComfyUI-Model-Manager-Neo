@@ -62,6 +62,7 @@ class ApiKey:
     ENV_KEYS = {
         "civitai": "CIVITAI_API_KEY",
         "huggingface": "HF_TOKEN",
+        "modelscope": "MODELSCOPE_API_TOKEN",
     }
 
     def bootstrap_from_environment(self) -> list[str]:
@@ -108,6 +109,7 @@ class ApiKey:
         env_map = {
             "civitai": "CIVITAI_API_KEY",
             "huggingface": "HF_TOKEN",
+            "modelscope": "MODELSCOPE_API_TOKEN",
         }
         env_key = env_map.get(key)
         if env_key:
@@ -121,7 +123,7 @@ class ApiKey:
 
     @staticmethod
     def _empty_store() -> dict:
-        return {"civitai": None, "huggingface": None}
+        return {"civitai": None, "huggingface": None, "modelscope": None}
 
     def _sanitize(self, data) -> dict:
         """Only accept a flat str->str|None mapping (keys are secrets)."""
@@ -204,6 +206,11 @@ def get_hf_headers():
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
+
+def get_modelscope_token():
+    """Get ModelScope API token."""
+    return get_api_key().get_value("modelscope")
+
 
 def get_civitai_headers():
     """

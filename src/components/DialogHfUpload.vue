@@ -63,6 +63,22 @@
         <div class="flex h-full flex-col gap-4 overflow-hidden">
           <ResponseScroll class="min-h-0 flex-1">
             <div class="flex flex-col gap-4 py-2">
+              <div class="flex items-center gap-2">
+                <Button
+                  :variant="provider === 'hf' ? 'default' : 'secondary'"
+                  size="sm"
+                  @click="switchProvider('hf')"
+                >
+                  {{ $t('providerHf') }}
+                </Button>
+                <Button
+                  :variant="provider === 'modelscope' ? 'default' : 'secondary'"
+                  size="sm"
+                  @click="switchProvider('modelscope')"
+                >
+                  {{ $t('providerMs') }}
+                </Button>
+              </div>
               <div v-if="folderMode" class="rounded-lg border border-mm-border p-3">
                 <div class="font-bold">
                   {{ $t('hfUpload.folderBatch', { n: files?.length ?? 0 }) }}
@@ -260,13 +276,23 @@ const handleBackModelSelect = () => {
 const repoId = ref<string>()
 const privateRepo = ref(false)
 const pathInRepo = ref<string>()
+const provider = ref<'hf' | 'modelscope'>('hf')
+
+const switchProvider = (next: 'hf' | 'modelscope') => {
+  if (provider.value === next) return
+  provider.value = next
+  whoamiName.value = undefined
+  whoamiError.value = undefined
+  void fetchWhoami()
+}
 
 const whoamiName = ref<string>()
 const whoamiError = ref<string>()
 
 const fetchWhoami = async () => {
   try {
-    const result = await request('/hf/whoami')
+    const route = provider.value === 'hf' ? '/hf/whoami' : '/modelscope/whoami'
+    const result = await request(route)
     whoamiName.value = result?.name
   } catch (error) {
     whoamiError.value = (error as Error).message
@@ -291,7 +317,10 @@ const fetchWhoami = async () => {
 const hfUpload = hfUploadState
 
 /** Human-readable name of the phase the backend is currently in. */
-const phaseLabel = computed(() => t(`hfUpload.phase.${hfUpload.phase}`))
+const phaseLabel = computed(() => {
+  const ns = hfUpload.provider === 'modelscope' ? 'msUpload' : 'hfUpload'
+  return t(`${ns}.phase.${hfUpload.phase}`)
+})
 
 /**
  * `prepare` has no measurable percentage yet, so sweep instead of pinning the
@@ -306,6 +335,7 @@ const handleUpload = async () => {
   resetHfUploadState()
   hfUpload.repoId = repoId.value ?? ''
   hfUpload.pathInRepo = pathInRepo.value ?? ''
+  const uploadRoute = provider.value === 'hf' ? '/hf/upload' : '/modelscope/upload'
   const payload = folderMode.value
     ? {
         files: props.files,
@@ -322,7 +352,7 @@ const handleUpload = async () => {
         private: privateRepo.value,
       }
   try {
-    const result = await request('/hf/upload', {
+    const result = await request(uploadRoute, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

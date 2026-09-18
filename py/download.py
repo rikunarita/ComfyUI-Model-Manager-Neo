@@ -2,6 +2,7 @@ import asyncio
 import base64
 import functools
 import os
+import pathlib
 import shutil
 import time
 import uuid
@@ -77,6 +78,8 @@ class TaskContent:
     revision: Optional[str] = None
     source: str = "remote"
     subFolder: Optional[str] = None  # ← 追加
+    msRepoId: Optional[str] = None
+    msFilePath: Optional[str] = None
 
     def __init__(self, **kwargs: Any):
         self.type = kwargs.get("type") or ""
@@ -90,6 +93,8 @@ class TaskContent:
         self.revision = kwargs.get("revision", None)
         self.source = kwargs.get("source", "remote")
         self.subFolder = kwargs.get("subFolder", None)  # ← 追加
+        self.msRepoId = kwargs.get("msRepoId", None)
+        self.msFilePath = kwargs.get("msFilePath", None)
 
     def to_dict(self):
         return {
@@ -104,6 +109,8 @@ class TaskContent:
             "revision": self.revision,
             "source": self.source,
             "subFolder": self.subFolder,  # ← 追加
+            "msRepoId": self.msRepoId,
+            "msFilePath": self.msFilePath,
         }
 
 class ModelDownload:
@@ -396,7 +403,13 @@ class ModelDownload:
 
                 progress_interval = 1.0
 
-                if download_platform == "huggingface":
+                if download_platform == "modelscope":
+                    await self.download_model_file_modelscope(
+                        task_id=task_id,
+                        progress_callback=report_progress,
+                        interval=progress_interval,
+                    )
+                elif download_platform == "huggingface":
                     await self.download_model_file_hf(
                         task_id=task_id,
                         progress_callback=report_progress,
@@ -431,6 +444,85 @@ class ModelDownload:
             await utils.send_json("update_download_task", task_status.to_dict())
             task_status.error = None
             utils.print_error(str(e))
+
+    async def download_model_file_modelscope(
+        self,
+        task_id: str,
+        progress_callback: Callable[[TaskStatus], Coroutine[Any, Any, Any]],
+        interval: float = 1.0,
+    ) -> None:
+        """Download through modelscope_hub (international endpoint).
+
+        Mirrors the HuggingFace path: the transfer runs in the io pool while
+        a ProgressCallback subclass marshals throttled progress pushes back
+        onto the main loop; the finished file is moved onto `<task>.download`
+        so the shared completion path applies unchanged.
+        """
+        from modelscope_hub import HubApi, ProgressCallback
+
+        from .information import MODELSCOPE_INTL_ENDPOINT
+
+        task_status = self.get_task_status(task_id)
+        task_content = self.get_task_content(task_id)
+        repo_id = task_content.msRepoId
+        file_path = task_content.msFilePath
+        if not repo_id or not file_path:
+            raise RuntimeError("Missing ModelScope repository/file information")
+        sha = (task_content.hashes or {}).get("SHA256") or None
+
+        loop = asyncio.get_running_loop()
+        total_size = task_content.sizeBytes
+        state = {"done": 0, "last": 0.0}
+
+        def push() -> None:
+            task_status.downloadedSize = float(state["done"])
+            task_status.progress = (
+                (state["done"] / total_size * 100) if total_size > 0 else 0.0
+            )
+            asyncio.run_coroutine_threadsafe(progress_callback(task_status), loop)
+
+        class _Cb(ProgressCallback):
+            def update(self, size: int) -> None:
+                state["done"] += size
+                now = time.time()
+                if now - state["last"] >= interval:
+                    state["last"] = now
+                    push()
+
+            def end(self) -> None:
+                push()
+
+        download_path = utils.get_download_path()
+        tmp_dir = utils.join_path(download_path, f"{task_id}_ms")
+        os.makedirs(tmp_dir, exist_ok=True)
+        token = auth.get_modelscope_token()
+
+        def _run():
+            api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT, token=token)
+            # The public HubApi.download_file has no callback hook; the
+            # DownloadManager behind it does (progress_callbacks classes).
+            return api.downloader.download_file(
+                repo_id,
+                "model",
+                file_path,
+                local_dir=pathlib.Path(tmp_dir),
+                expected_sha256=sha,
+                progress_callbacks=[_Cb],
+            )
+
+        try:
+            path = await loop.run_in_executor(utils.io_executor(), _run)
+            push()
+            download_tmp_file = utils.join_path(download_path, f"{task_id}.download")
+            if os.path.exists(download_tmp_file):
+                os.remove(download_tmp_file)
+            shutil.move(str(path), download_tmp_file)
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        task_status.progress = 100.0
+        await progress_callback(task_status)
+        await self._download_complete(task_id)
 
     async def _download_complete(self, task_id: str):
         task_content = self.get_task_content(task_id)

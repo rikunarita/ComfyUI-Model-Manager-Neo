@@ -138,7 +138,8 @@
     "download": "Download",
     "autoCompressUnusedDays": "Auto-compress models unused for this many days (0 = off)",
     "autoCompressOnDownload": "Auto-compress a model after its download completes",
-    "pauseDuringPrompt": "Pause downloads while a prompt is executing"
+    "pauseDuringPrompt": "Pause downloads while a prompt is executing",
+    "api_key.modelscope": "ModelScope API Key"
   },
   "modelTypeLabel": {
     "checkpoints": "Checkpoints",
@@ -281,5 +282,28 @@
   "hygieneClean": "Nothing to clean.",
   "collections": "Collections",
   "collectionsSave": "Save current search",
-  "collectionsNamePlaceholder": "Collection name"
+  "collectionsNamePlaceholder": "Collection name",
+  "providerHf": "Hugging Face",
+  "providerMs": "ModelScope",
+  "msUpload": {
+    "phase": {
+      "prepare": "Preparing…",
+      "hash": "Hashing…",
+      "upload": "Uploading…"
+    },
+    "hashHint": "Computing the checksum locally - no bytes have left the machine yet",
+    "success": "Success",
+    "error": "Error",
+    "errorFallback": "ModelScope upload failed",
+    "skipped": "Skipped",
+    "skippedDetail": "An identical file already exists in '{repo}'",
+    "skippedHint": " - ModelScope skipped the empty commit, so nothing was transferred. Use a different destination path to create a new commit.",
+    "deduplicated": "Already stored on ModelScope",
+    "deduplicatedDetail": "ModelScope already holds these exact bytes, so nothing was transferred. '{path}' was committed to '{repo}'",
+    "createdPrivate": "repository created as private",
+    "createdPublic": "repository created as public",
+    "folderBatch": "{n} files from the selected folders",
+    "successMany": "Uploaded {n} files",
+    "noFilesInFolders": "The selected folders contain no model files"
+  }
 }
