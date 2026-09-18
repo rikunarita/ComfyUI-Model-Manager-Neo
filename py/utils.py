@@ -316,6 +316,38 @@ def get_model_metadata(filename: str):
     except:
         return {}
 
+def get_model_tensors(filename: str):
+    """Exact tensor layout of a safetensors file: [{name, dtype, shape}].
+
+    Parses the *full* safetensors JSON header (the structure the safetensors
+    library writes), so the Information tab can render a faithful tensor
+    table - name / dtype / shape - like Hugging Face's safetensors viewer.
+    The `__metadata__` entry is skipped; it has its own section.
+    """
+    if not filename.endswith(".safetensors"):
+        return []
+    try:
+        # MoE headers run into the megabytes; 32 MiB covers every real model.
+        out = comfy.utils.safetensors_header(filename, max_size=1024 * 1024 * 32)
+        if out is None:
+            return []
+        header = json.loads(out)
+    except Exception:
+        return []
+    tensors = []
+    for name, spec in header.items():
+        if name == "__metadata__" or not isinstance(spec, dict):
+            continue
+        tensors.append(
+            {
+                "name": name,
+                "dtype": spec.get("dtype", ""),
+                "shape": spec.get("shape", []),
+            }
+        )
+    return tensors
+
+
 # Preview file naming scheme (ordered by display priority):
 #   1. `<basename>.<ext>`          the primary preview
 #   2. `<basename>.preview.<ext>`  the second preview (historic name)

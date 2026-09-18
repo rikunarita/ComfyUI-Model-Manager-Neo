@@ -273,6 +273,55 @@
   }
 }
 
+/* -------------------------------------------------------------------------
+ * MODERN GLASS SCROLLBARS:
+ * Every native scrollbar inside the extension (model grid, dialogs, tab
+ * panes, toolbar overflow) becomes a rounded, mostly-transparent pill with
+ * a frosted highlight instead of the UA's opaque block scrollbar. The track
+ * stays fully clear so the glass surface beneath shows through; the thumb
+ * brightens on hover/drag. ResponseScroll's bespoke overlay scrollbar is
+ * untouched by design.
+ * ------------------------------------------------------------------------- */
+:where(#comfyui-model-manager, .mm-scope),
+:where(#comfyui-model-manager, .mm-scope) * {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--mm-fg) 22%, transparent) transparent;
+}
+
+:where(#comfyui-model-manager, .mm-scope)::-webkit-scrollbar,
+:where(#comfyui-model-manager, .mm-scope) *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+:where(#comfyui-model-manager, .mm-scope)::-webkit-scrollbar-track,
+:where(#comfyui-model-manager, .mm-scope) *::-webkit-scrollbar-track,
+:where(#comfyui-model-manager, .mm-scope)::-webkit-scrollbar-corner,
+:where(#comfyui-model-manager, .mm-scope) *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:where(#comfyui-model-manager, .mm-scope)::-webkit-scrollbar-thumb,
+:where(#comfyui-model-manager, .mm-scope) *::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--mm-fg) 14%, transparent);
+  backdrop-filter: blur(8px) saturate(160%);
+  -webkit-backdrop-filter: blur(8px) saturate(160%);
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+  transition: background-color 160ms ease;
+}
+
+:where(#comfyui-model-manager, .mm-scope)::-webkit-scrollbar-thumb:hover,
+:where(#comfyui-model-manager, .mm-scope) *::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--mm-fg) 26%, transparent);
+}
+
+:where(#comfyui-model-manager, .mm-scope)::-webkit-scrollbar-thumb:active,
+:where(#comfyui-model-manager, .mm-scope) *::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in oklab, var(--mm-fg) 34%, transparent);
+}
+
 /* Base — scoped element normalization (our container only) */
 @layer mm-base {
   #comfyui-model-manager {

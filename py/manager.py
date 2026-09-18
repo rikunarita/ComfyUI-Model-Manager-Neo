@@ -498,6 +498,7 @@ class ModelManager:
         directory = os.path.dirname(model_path)
 
         metadata = utils.get_model_metadata(model_path)
+        tensors = utils.get_model_tensors(model_path)
 
         description_file = utils.get_model_description_name(model_path)
         description_file = utils.join_path(directory, description_file)
@@ -509,6 +510,7 @@ class ModelManager:
         return {
             "metadata": metadata,
             "description": description,
+            "tensors": tensors,
         }
 
     def update_model(self, model_path: str, model_data: dict):

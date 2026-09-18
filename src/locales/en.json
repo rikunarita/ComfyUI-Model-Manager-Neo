@@ -118,7 +118,14 @@
     "modelPage": "Model Page",
     "preview": "Preview Images",
     "fileMetadata": "Safetensors Metadata",
-    "website": "Model Platform"
+    "website": "Model Platform",
+    "tensors": "Tensor Structure",
+    "tensorName": "Name",
+    "tensorDtype": "Dtype",
+    "tensorShape": "Shape",
+    "tensorsSummary": "{count} tensors · {params} parameters",
+    "tensorsShowAll": "Show all {count} tensors",
+    "tensorsShowLess": "Collapse"
   },
   "setting": {
     "apiKey": "API Key",
@@ -305,5 +312,6 @@
     "folderBatch": "{n} files from the selected folders",
     "successMany": "Uploaded {n} files",
     "noFilesInFolders": "The selected folders contain no model files"
-  }
+  },
+  "collectionsEmpty": "No saved collections yet - use the save button next to this menu."
 }

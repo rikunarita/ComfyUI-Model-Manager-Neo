@@ -1,6 +1,13 @@
 export type ContainerSize = { width: number; height: number }
 export type ContainerPosition = { left: number; top: number }
 
+/** One tensor entry of a safetensors header (Information tab, Tensor table). */
+export interface SafetensorsTensor {
+  name: string
+  dtype: string
+  shape: number[]
+}
+
 export interface BaseModel {
   id: number | string
   basename: string
@@ -13,6 +20,8 @@ export interface BaseModel {
   preview: string | string[]
   description: string
   metadata: Record<string, string>
+  /** Exact safetensors tensor layout; only the detail endpoint provides it. */
+  tensors?: SafetensorsTensor[]
 }
 
 export interface Model extends BaseModel {

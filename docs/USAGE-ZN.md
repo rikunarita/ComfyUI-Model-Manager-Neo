@@ -147,7 +147,9 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
   全部哈希（`AutoV1` … `SHA256_12`）、格式与精度、模型平台、可点击的模型页链接
   以及**所有**预览图 URL；解析器不认识的键按原样列在表格末尾。没有 front-matter
   的模型则原样显示直接从 safetensors 头读出的 `__metadata__`（没有任何后台扫描或
-  缓存）。操作行中的**打开模型页**按钮与卡片悬停列中的同名按钮一样：只要笔记记录了
+  缓存）。safetensors 模型还会多出 **Tensor** 一节：从 safetensors 头解析出的精确
+  张量结构（名称 / 数据类型 / 形状，与 Hugging Face 查看器同款展示）原样渲染成表格，
+  并汇总张量数与参数量；超大表头按 500 行分页，可点击"显示全部"展开。操作行中的**打开模型页**按钮与卡片悬停列中的同名按钮一样：只要笔记记录了
   来源平台，就以该 hub（Civitai / Hugging Face）的 logo 作为按钮背景。
 
 ### 编辑

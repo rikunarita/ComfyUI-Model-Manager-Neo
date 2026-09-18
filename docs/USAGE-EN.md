@@ -175,7 +175,11 @@ base‑info table, and two tabs.
   parser does not know are listed verbatim at the end of the table. Models
   without front‑matter show the `__metadata__` block read straight from the
   safetensors header, verbatim (nothing is cached or scanned in the
-  background). The **Open model page** button in the action row — like its
+  background). Safetensors models additionally get a **Tensor** section: the
+  exact tensor layout parsed from the safetensors header (name / dtype /
+  shape, rendered like Hugging Face's safetensors viewer) with a tensor and
+  parameter‑count summary; very large headers render paginated with an
+  explicit _show all_ action. The **Open model page** button in the action row — like its
   twin in the card hover column — wears the logo of the source hub (Civitai
   or Hugging Face) as its background whenever the notes record the platform.
 

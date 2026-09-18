@@ -261,8 +261,10 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - The **Open model page** action wears the logo of the model's source hub
   (Civitai or Hugging Face) as its button background, so a model's origin is
   recognisable at a glance.
-- Model information (safetensors metadata, Markdown notes, preview) is loaded on
-  demand when a model is opened — there is no separate library‑wide scan step.
+- Model information (safetensors metadata, the full safetensors **tensor
+  layout** (name / dtype / shape, Hugging Face‑viewer style), Markdown notes,
+  preview) is loaded on demand when a model is opened — there is no separate
+  library‑wide scan step.
 
 </details>
 

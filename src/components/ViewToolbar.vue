@@ -56,15 +56,26 @@ const { cardSizeOptions, cardSizeFlag } = useGridSelectOptions()
 
 const activeCol = computed(() => activeCollection())
 
-const collectionOptions = computed<SelectOptions[]>(() => [
-  ...collectionState.collections.map(c => ({
+const collectionOptions = computed<SelectOptions[]>(() => {
+  const saved = collectionState.collections.map(c => ({
     label: c.name,
     value: c.id,
     command: () => {
       collectionState.activeId = c.id
     },
-  })),
-])
+  }))
+  if (saved.length === 0) {
+    // A blank menu reads as "nothing happens"; say what to do instead.
+    return [
+      {
+        label: t('collectionsEmpty'),
+        value: '__empty__',
+        command: () => {},
+      },
+    ]
+  }
+  return saved
+})
 
 const openSaveCollection = () => {
   dialog.open({

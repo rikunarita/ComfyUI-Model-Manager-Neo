@@ -17,7 +17,7 @@
     <input
       ref="inputRef"
       v-model="inputValue"
-      class="flex-1 border-none bg-transparent text-sm text-mm-fg outline-none placeholder:text-mm-muted-fg"
+      class="min-w-0 flex-1 border-none bg-transparent text-sm text-mm-fg outline-none placeholder:text-mm-muted-fg"
       type="text"
       :placeholder="placeholder"
       spellcheck="false"

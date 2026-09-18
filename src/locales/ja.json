@@ -118,7 +118,14 @@
     "modelPage": "モデルページ",
     "preview": "プレビュー画像",
     "fileMetadata": "Safetensors メタデータ",
-    "website": "モデルプラットフォーム"
+    "website": "モデルプラットフォーム",
+    "tensors": "テンソル構造",
+    "tensorName": "名前",
+    "tensorDtype": "データ型",
+    "tensorShape": "形状",
+    "tensorsSummary": "{count} テンソル ・ {params} パラメータ",
+    "tensorsShowAll": "全 {count} テンソルを表示",
+    "tensorsShowLess": "折りたたむ"
   },
   "setting": {
     "apiKey": "API キー",
@@ -305,5 +312,6 @@
     "folderBatch": "選択フォルダから {n} ファイル",
     "successMany": "{n} ファイルをアップロードしました",
     "noFilesInFolders": "選択フォルダにモデルファイルがありません"
-  }
+  },
+  "collectionsEmpty": "保存済みコレクションはありません - 隣の保存ボタンから作成できます。"
 }

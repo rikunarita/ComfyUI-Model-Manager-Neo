@@ -135,8 +135,58 @@
       </table>
     </div>
 
+    <!--
+      Tensor table: the exact tensor layout of the safetensors header
+      (name / dtype / shape), rendered like Hugging Face's safetensors
+      viewer. Only local safetensors models carry it; very large headers
+      render paginated with an explicit expand action.
+    -->
+    <div v-if="tensors.length && !editing" class="flex flex-col gap-2">
+      <div class="flex items-baseline justify-between gap-2">
+        <div class="text-sm font-medium text-mm-muted-fg">{{ $t('info.tensors') }}</div>
+        <div class="text-xs text-mm-muted-fg">{{ tensorsSummary }}</div>
+      </div>
+      <div class="overflow-hidden rounded-mm-ctl border border-mm-border">
+        <table class="w-full border-collapse font-mono text-xs">
+          <thead>
+            <tr
+              class="border-b border-mm-border bg-mm-fg/6 text-left text-mm-muted-fg backdrop-blur-sm"
+            >
+              <th class="px-4 py-2 font-medium">{{ $t('info.tensorName') }}</th>
+              <th class="w-24 px-4 py-2 font-medium">{{ $t('info.tensorDtype') }}</th>
+              <th class="w-44 px-4 py-2 font-medium">{{ $t('info.tensorShape') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="tensor in visibleTensors"
+              :key="tensor.name"
+              class="h-7 border-b border-mm-border last:border-b-0"
+            >
+              <td class="px-4 break-all text-mm-fg">{{ tensor.name }}</td>
+              <td class="px-4 text-mm-muted-fg">{{ tensor.dtype }}</td>
+              <td class="px-4 text-mm-muted-fg">{{ formatShape(tensor.shape) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <Button
+        v-if="tensors.length > TENSOR_PAGE"
+        variant="secondary"
+        size="sm"
+        class="self-start"
+        @click="tensorsExpanded = !tensorsExpanded"
+      >
+        {{
+          tensorsExpanded
+            ? $t('info.tensorsShowLess')
+            : $t('info.tensorsShowAll', { count: tensors.length })
+        }}
+      </Button>
+    </div>
+
     <div
-      v-if="!rows.length && !rawRows.length && !editing"
+      v-if="!rows.length && !rawRows.length && !tensors.length && !editing"
       class="flex flex-col items-center gap-2 py-5"
     >
       <!-- BUG FIX: `pi pi-info-circle` rendered empty (PrimeIcons removed). -->
@@ -155,6 +205,7 @@ import { Button } from 'components/ui/button'
 import { Input } from 'components/ui/input'
 import { useModelDescription, useModelMetadata } from 'hooks/model'
 import { useToast } from 'hooks/toast'
+import { type BaseModel, type SafetensorsTensor } from 'types/typings'
 import {
   type InformationRow,
   buildInformationRows,
@@ -204,6 +255,42 @@ const rawRows = computed(() => {
   const entries = Object.entries(source)
   if (!entries.length) return []
   return entries.map(([key, value]) => ({ key, value: stringify(value) }))
+})
+
+/* ---- tensor table (safetensors header) ---------------------------------- */
+
+/** Rows rendered before the explicit "show all" expansion. */
+const TENSOR_PAGE = 500
+const tensorsExpanded = ref(false)
+
+const tensors = computed<SafetensorsTensor[]>(() => {
+  const list = (model.value as BaseModel).tensors
+  return Array.isArray(list) ? list : []
+})
+
+const visibleTensors = computed(() =>
+  tensorsExpanded.value ? tensors.value : tensors.value.slice(0, TENSOR_PAGE),
+)
+
+/** Structural shape rendering, e.g. `[1280, 4, 2]`; scalars read `[]`. */
+const formatShape = (shape: number[]) => `[${(shape ?? []).join(', ')}]`
+
+const compactCount = (value: number): string => {
+  if (value >= 1e9) return `${(value / 1e9).toFixed(2)}B`
+  if (value >= 1e6) return `${(value / 1e6).toFixed(2)}M`
+  if (value >= 1e3) return `${(value / 1e3).toFixed(1)}K`
+  return String(value)
+}
+
+const tensorsSummary = computed(() => {
+  const params = tensors.value.reduce(
+    (total, tensor) => total + (tensor.shape ?? []).reduce((acc, dim) => acc * dim, 1),
+    0,
+  )
+  return t('info.tensorsSummary', {
+    count: tensors.value.length,
+    params: compactCount(params),
+  })
 })
 
 /* ---- edit mode --------------------------------------------------------- */
