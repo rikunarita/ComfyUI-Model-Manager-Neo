@@ -14,16 +14,30 @@
       />
     </slot>
 
+    <!--
+      Plain controlled input: the DOM element owns the text while the user
+      types (including IME composition), and `content` is committed on the
+      configured trigger event. The previous implementation layered a second
+      `input` listener plus an inner buffer computed on top of v-model; the
+      commit handler had no composition guard, so an `input` event fired
+      mid-composition read the stale committed value and wrote it back into
+      `el.value`, wiping the characters being composed (the field looked
+      "unable to type" under a Japanese IME). One listener with an explicit
+      composition guard cannot break that way.
+    -->
     <input
       ref="inputRef"
-      v-model="inputValue"
       class="min-w-0 flex-1 border-none bg-transparent text-sm text-mm-fg outline-none placeholder:text-mm-muted-fg"
       type="text"
+      :value="content ?? ''"
       :placeholder="placeholder"
       spellcheck="false"
       autocomplete="off"
       v-bind="$attrs"
-      @[trigger]="updateContent"
+      @input="onInput"
+      @change="onChange"
+      @compositionstart="composing = true"
+      @compositionend="onCompositionEnd"
     />
 
     <!--
@@ -69,48 +83,57 @@ const props = defineProps<Props>()
 const [content, modifiers] = defineModel<string, 'trim' | 'valid'>()
 
 const inputRef = ref<HTMLInputElement>()
-
-const innerValue = ref<string>()
-const inputValue = computed({
-  get: () => innerValue.value ?? content.value,
-  set: val => {
-    innerValue.value = val
-  },
-})
+const composing = ref(false)
 
 const trigger = computed(() => props.updateTrigger ?? 'change')
 
-const updateContent = () => {
-  let value = inputValue.value
-
+/** Commit the DOM value into the model (trim / validate honoured). */
+const commit = () => {
+  const el = inputRef.value
+  if (!el) return
+  let value: string | undefined = el.value
   if (modifiers.trim) {
     value = value?.trim()
   }
-
   if (modifiers.valid) {
     const isValid = props.validate?.(value) ?? true
     if (!isValid) {
-      innerValue.value = content.value
+      // Restore the last committed value; the DOM diverged from the model.
+      el.value = content.value ?? ''
       return
     }
   }
-
-  innerValue.value = undefined
   content.value = value
-  // Only write back when the DOM value actually differs (e.g. after a failed
-  // validation or a trim). Rewriting an identical value resets the caret to the
-  // end, which is jarring while typing with update-trigger="input".
-  if (inputRef.value && inputRef.value.value !== (value ?? '')) {
-    inputRef.value.value = value ?? ''
+  // Only write back when the DOM value actually differs (a trim or a failed
+  // validation); rewriting an identical value resets the caret.
+  if (el.value !== (value ?? '')) {
+    el.value = value ?? ''
   }
 }
 
-defineOptions({
-  inheritAttrs: false,
-})
+const onInput = () => {
+  // While an IME composition is open the DOM text is provisional; committing
+  // it (or rewriting the element) would destroy the composition.
+  if (composing.value) return
+  if (trigger.value === 'input') commit()
+}
+
+const onCompositionEnd = () => {
+  composing.value = false
+  if (trigger.value === 'input') commit()
+}
+
+/** `change`-triggered fields commit on Enter / blur (also post-composition). */
+const onChange = () => {
+  if (composing.value) return
+  if (trigger.value !== 'input') commit()
+}
 
 const clearContent = () => {
   content.value = undefined
-  inputRef.value?.focus()
+  if (inputRef.value) {
+    inputRef.value.value = ''
+    inputRef.value.focus()
+  }
 }
 </script>
