@@ -314,6 +314,7 @@
   "downloads": "下载量",
   "searchNoResults": "无结果",
   "searchFailed": "搜索失败",
+  "searchMore": "加载更多",
   "planTarget": "目标路径",
   "planSize": "大小",
   "planHash": "SHA256",

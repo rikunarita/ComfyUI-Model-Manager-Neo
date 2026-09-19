@@ -58,7 +58,11 @@
             {{ $t('searchFailed') }}
           </span>
         </div>
-        <div class="flex min-h-0 flex-col gap-1 overflow-y-auto">
+        <div
+          :ref="el => setColumnRef(platform, el)"
+          class="flex min-h-0 flex-col gap-1 overflow-y-auto"
+          @scroll="updateColumnBottom(platform)"
+        >
           <div
             v-for="item in searchItems[platform] ?? []"
             :key="item.key"
@@ -101,6 +105,21 @@
           <div v-if="!(searchItems[platform] ?? []).length" class="p-1 text-xs text-mm-muted-fg">
             {{ $t('searchNoResults') }}
           </div>
+          <!--
+            "Show more": appears once the column is scrolled to its bottom
+            (or never overflows) and the platform reported a next page; one
+            click appends the next cursor page of that column only.
+          -->
+          <button
+            v-if="canLoadMore(platform)"
+            type="button"
+            class="flex items-center justify-center gap-1 rounded-mm-ctl border border-mm-border bg-mm-fg/6 p-1 text-xs text-mm-muted-fg hover:bg-mm-fg/12 hover:text-mm-fg"
+            :disabled="loadingMore[platform]"
+            @click.stop="loadMore(platform)"
+          >
+            <ChevronDown class="size-3.5" />
+            {{ $t('searchMore') }}
+          </button>
         </div>
       </div>
     </div>
@@ -264,8 +283,8 @@
 </template>
 
 <script setup lang="ts">
-import { Box, CheckCircle, Download, Search } from '@lucide/vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import { Box, CheckCircle, ChevronDown, Download, Search } from '@lucide/vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseInput from 'components/ResponseInput.vue'
@@ -342,7 +361,10 @@ const searchMode = computed(() => {
   if (!url) return false
   return !url.startsWith('https://')
 })
-const searchResults = ref<Record<string, { items: SearchItem[]; error?: string }> | null>(null)
+const searchResults = ref<Record<
+  string,
+  { items: SearchItem[]; error?: string; nextCursor?: string | null }
+> | null>(null)
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 interface SearchItem {
@@ -405,6 +427,61 @@ const searchErrors = computed(() => {
   }
   return out
 })
+/* ---- per-column "show more" paging -------------------------------------- */
+const columnEls: Record<string, HTMLElement | null> = {}
+const atBottom = ref<Record<string, boolean>>({})
+const loadingMore = ref<Record<string, boolean>>({})
+
+/** Bottom-of-column detection; a column that never overflows counts as
+ *  "at bottom" so its show-more button is reachable without scrolling. */
+const updateColumnBottom = (platform: string) => {
+  const el = columnEls[platform]
+  if (!el) return
+  atBottom.value[platform] =
+    el.scrollHeight - el.clientHeight <= 4 || el.scrollTop + el.clientHeight >= el.scrollHeight - 4
+}
+
+const setColumnRef = (platform: string, el: unknown) => {
+  columnEls[platform] = (el as HTMLElement | null) ?? null
+  if (columnEls[platform]) updateColumnBottom(platform)
+}
+
+// A fresh result set replaces the columns: re-measure once rendered.
+watch(searchResults, () => {
+  nextTick(() => {
+    for (const platform of visiblePlatforms.value) updateColumnBottom(platform)
+  })
+})
+
+const canLoadMore = (platform: string) =>
+  Boolean(searchResults.value?.[platform]?.nextCursor) && Boolean(atBottom.value[platform])
+
+const loadMore = async (platform: string) => {
+  const state = searchResults.value?.[platform]
+  const cursor = state?.nextCursor
+  const query = modelUrl.value
+  if (!state || !cursor || !query || loadingMore.value[platform]) return
+  loadingMore.value[platform] = true
+  try {
+    const res = await request(
+      `/search?query=${encodeURIComponent(query)}&limit=8` +
+        `&platform=${encodeURIComponent(platform)}&cursor=${encodeURIComponent(cursor)}`,
+    )
+    const page = res?.[platform]
+    const target = searchResults.value?.[platform]
+    if (page && target) {
+      target.items.push(...(page.items ?? []))
+      target.nextCursor = page.nextCursor ?? null
+      if (page.error) target.error = page.error
+    }
+  } catch (error) {
+    toast.add({ severity: 'error', detail: (error as Error).message, life: 6000 })
+  } finally {
+    loadingMore.value[platform] = false
+    nextTick(() => updateColumnBottom(platform))
+  }
+}
+
 const platformLabel = (platform: string) =>
   platform === 'hf' ? t('providerHf') : platform === 'modelscope' ? t('providerMs') : t('civitai')
 const openExternal = (url: string) => window.open(url, '_blank')
@@ -419,7 +496,7 @@ const selectSearchResult = (item: SearchItem) => {
 }
 
 const REPO_ID_RE = /^[\w.-]+\/[\w.-]+$/
-/** Enter / search icon: URL mode resolves; search mode picks or re-searches. */
+/** Enter / search icon: one press resolves straight into the editor. */
 const handleEnter = () => {
   const value = (modelUrl.value ?? '').trim()
   if (!value) return
@@ -434,6 +511,13 @@ const handleEnter = () => {
     modelUrl.value = `https://huggingface.co/${value}`
     return void searchModelsByUrl()
   }
+  // One Enter must always advance: with results on screen the first row of
+  // the first non-empty column is the best candidate; without any result
+  // yet, run the name search immediately (no debounce wait).
+  const best = visiblePlatforms.value
+    .map(platform => (searchItems.value[platform] ?? [])[0])
+    .find(item => Boolean(item))
+  if (best) return selectSearchResult(best)
   return void runModelSearch(value)
 }
 

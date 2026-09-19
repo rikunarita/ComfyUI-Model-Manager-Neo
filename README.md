@@ -243,7 +243,7 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - **From local file** into any model folder (registered as a live task with
   progress in the Download List).
 - **To Hugging Face or ModelScope**: pick the platform in the wizard's first
-  step; authenticated via the matching token, creates the repository if it
+  step (each hub presents itself as a logo tile); authenticated via the matching token, creates the repository if it
   doesn't exist (public/private), choose the destination path, and watch
   progress. ModelScope always talks to the international `www.modelscope.ai`
   domain, and its logo backs the "open model page" button like the others.
@@ -328,9 +328,14 @@ search.
   user / organisation page, the **repository name** opens the model page —
   both underline on hover and open in the browser; clicking anywhere else on
   the row resolves that model straight into the download editor.
-- Plain **`username/repo-name`** input is supported: Enter selects an exact
-  match from the results, and a bare repository id resolves directly to its
-  Hugging Face repository.
+- Plain **`username/repo-name`** input is supported, and **one Enter always
+  resolves**: an exact match among the results first, then the bare repository
+  id as a Hugging Face repository, then the top row of the first non-empty
+  column; with no results yet, Enter runs the name search immediately.
+- Every column pages: scrolling it to the bottom reveals a **“∨ Show more”**
+  button whenever a next page exists, and one click appends that column's next
+  page (Hugging Face by download-order offset, ModelScope by page number,
+  Civitai through the API's own cursor).
 - Platforms can be hidden per user in **Settings → Model Manager Neo →
   Search** (one boolean per platform).
 

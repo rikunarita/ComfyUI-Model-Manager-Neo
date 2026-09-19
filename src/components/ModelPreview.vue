@@ -144,6 +144,7 @@
           save path converts them to uploaded preview files).
         -->
         <button
+          v-if="canAddLocal"
           type="button"
           class="grid aspect-square w-full place-items-center rounded-mm-ctl border-2 border-dashed border-mm-border text-mm-muted-fg hover:border-mm-accent/60 hover:bg-mm-surface-hover hover:text-mm-accent"
           :title="$t('previewAdd')"
@@ -155,7 +156,7 @@
       </div>
     </div>
 
-    <div v-if="editable" class="flex flex-col gap-4 whitespace-nowrap">
+    <div v-if="sourceControlsVisible" class="flex flex-col gap-4 whitespace-nowrap">
       <!--
         LAYOUT FIX: the source-type switcher / network input / local upload
         used to be `position: absolute` overlays parked over empty spacer divs
@@ -249,6 +250,15 @@ const { $sm, $md } = useContainerQueries()
 
 /** Edit mode of the stacked (download dialog) layout: preview left, gallery right. */
 const stackedEditable = computed(() => props.layout === 'stacked' && Boolean(editable.value))
+
+/**
+ * The stacked (download task) layout no longer offers the preview source
+ * switcher (default / network / local / none) nor the local add-tile: the
+ * gallery resolved from the model page is the single preview source there.
+ * The model detail editor keeps the full controls.
+ */
+const sourceControlsVisible = computed(() => Boolean(editable.value) && props.layout !== 'stacked')
+const canAddLocal = computed(() => props.layout !== 'stacked')
 
 /** The gallery editor is meaningful for the saved ("default") source; the
  *  grid also renders (with just the add-tile) when no preview exists yet. */

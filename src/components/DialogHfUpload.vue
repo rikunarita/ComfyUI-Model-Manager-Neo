@@ -14,46 +14,86 @@
         flow continues through type and model selection.
       -->
       <TabsList v-if="folderMode" class="grid w-full grid-cols-2">
-        <TabsTrigger value="platform">{{ $t('selectPlatform') }}</TabsTrigger>
-        <TabsTrigger value="upload" :disabled="stepValue === 'platform'">{{
-          $t('upload')
-        }}</TabsTrigger>
+        <TabsTrigger value="platform" class="max-w-full min-w-0">
+          <span class="w-full truncate" :class="stepTextClass($t('selectPlatform'))">{{
+            $t('selectPlatform')
+          }}</span>
+        </TabsTrigger>
+        <TabsTrigger value="upload" class="max-w-full min-w-0" :disabled="stepValue === 'platform'">
+          <span class="w-full truncate" :class="stepTextClass($t('upload'))">{{
+            $t('upload')
+          }}</span>
+        </TabsTrigger>
       </TabsList>
       <TabsList v-else class="grid w-full grid-cols-4">
-        <TabsTrigger value="platform">{{ $t('selectPlatform') }}</TabsTrigger>
-        <TabsTrigger value="type" :disabled="stepValue === 'platform'">{{
-          $t('selectModelType')
-        }}</TabsTrigger>
-        <TabsTrigger value="model" :disabled="stepValue === 'platform' || stepValue === 'type'">{{
-          $t('selectModel')
-        }}</TabsTrigger>
+        <TabsTrigger value="platform" class="max-w-full min-w-0">
+          <span class="w-full truncate" :class="stepTextClass($t('selectPlatform'))">{{
+            $t('selectPlatform')
+          }}</span>
+        </TabsTrigger>
+        <TabsTrigger value="type" class="max-w-full min-w-0" :disabled="stepValue === 'platform'">
+          <span class="w-full truncate" :class="stepTextClass($t('selectModelType'))">{{
+            $t('selectModelType')
+          }}</span>
+        </TabsTrigger>
+        <TabsTrigger
+          value="model"
+          class="max-w-full min-w-0"
+          :disabled="stepValue === 'platform' || stepValue === 'type'"
+        >
+          <span class="w-full truncate" :class="stepTextClass($t('selectModel'))">{{
+            $t('selectModel')
+          }}</span>
+        </TabsTrigger>
         <TabsTrigger
           value="upload"
+          class="max-w-full min-w-0"
           :disabled="stepValue === 'platform' || stepValue === 'type' || stepValue === 'model'"
-          >{{ $t('upload') }}</TabsTrigger
         >
+          <span class="w-full truncate" :class="stepTextClass($t('upload'))">{{
+            $t('upload')
+          }}</span>
+        </TabsTrigger>
       </TabsList>
 
       <!-- Step: upload platform -->
       <TabsContent value="platform" class="flex-1 overflow-hidden">
         <div class="flex h-full flex-col items-center justify-center gap-4">
           <div class="text-sm text-mm-muted-fg">{{ $t('selectPlatformHint') }}</div>
-          <div class="flex gap-4">
+          <!--
+            Platform tiles: the two buttons stretch to half the dialog each;
+            the label keeps its centred position and size while the extended
+            area carries the hub's logo (assets/AIModelHub-Logos), so the
+            choice reads as "which hub" at a glance.
+          -->
+          <div class="grid w-full grid-cols-2 gap-4">
             <Button
               size="lg"
+              class="relative h-16"
               :variant="provider === 'hf' ? 'default' : 'secondary'"
               :title="$t('providerHf')"
               @click="chooseProvider('hf')"
             >
-              {{ $t('providerHf') }}
+              <img
+                :src="assetUrl('hf-icon')"
+                alt=""
+                class="absolute top-1/2 left-4 size-8 -translate-y-1/2"
+              />
+              <span class="absolute inset-0 grid place-items-center">{{ $t('providerHf') }}</span>
             </Button>
             <Button
               size="lg"
+              class="relative h-16"
               :variant="provider === 'modelscope' ? 'default' : 'secondary'"
               :title="$t('providerMs')"
               @click="chooseProvider('modelscope')"
             >
-              {{ $t('providerMs') }}
+              <img
+                :src="assetUrl('modelscope-icon')"
+                alt=""
+                class="absolute top-1/2 left-4 size-8 -translate-y-1/2"
+              />
+              <span class="absolute inset-0 grid place-items-center">{{ $t('providerMs') }}</span>
             </Button>
           </div>
         </div>
@@ -250,8 +290,16 @@ import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
 import { type Model } from 'types/typings'
 import { bytesToSize } from 'utils/common'
-import { NO_PREVIEW_URL } from 'utils/media'
+import { assetUrl, NO_PREVIEW_URL } from 'utils/media'
 import { genModelKey } from 'utils/model'
+
+/**
+ * Auto-condense for the wizard step chips: long labels (e.g. the Japanese
+ * 「アップロード先プラットフォームを選択」) used to overflow their grid cell;
+ * labels beyond eight characters drop one type size, and the trigger itself
+ * truncates as the final guard.
+ */
+const stepTextClass = (label: string) => (label.length > 8 ? 'text-xs' : '')
 
 interface Props {
   /** Folder batch mode: upload these files instead of a single selection. */

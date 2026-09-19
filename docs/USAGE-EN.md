@@ -224,7 +224,9 @@ Press the **pencil** to enter edit mode (the window turns into a form):
   segments are rejected, and the backend re‑checks path traversal server‑side.
 - **Preview** — `Default` (carousel) / `Network` (paste an image or video URL) /
   `Local` (drag & drop or pick a file; images are converted to WebP, videos keep
-  their format) / `None` (removes every preview file). In edit mode a
+  their format) / `None` (removes every preview file). The source switcher lives
+  in the model detail editor only; the download dialog uses the gallery resolved
+  from the model page as its single preview source. In edit mode a
   thumbnail **grid** below the preview manages the gallery: pick the primary,
   move entries left / right, or remove single images; the dashed tile at the
   end of the grid adds local image file(s) as new previews. The page left open
@@ -270,6 +272,8 @@ Open **Download List** from the header, then:
    model page offers is kept, and the image left selected in the carousel
    becomes the card's primary preview — and a Markdown description (Civitai/HF
    descriptions are pre‑filled, including trigger words and YAML metadata).
+   The download dialog keeps that resolved gallery as its single preview
+   source (no source switching).
 5. **Download** starts a background task. The previews are fetched in the
    browser when possible and server‑side otherwise; if both fail the model
    still downloads, just without a preview. The dialog shows the **free space**
@@ -286,8 +290,14 @@ name → owner page, repository name → model page (hover underlines, tap opens
 clicking anywhere else on the row resolves that model into the editor. A plain
 `username/repo-name` is accepted too: Enter selects an exact match from the
 results, and a bare repository id resolves straight to its Hugging Face
-repository. Platforms can be hidden in **Settings → Model Manager Neo →
-Search** (one boolean per platform).
+repository. **One Enter always resolves**: an exact match among the results
+first, then `username/repo-name` as a Hugging Face repository, then the top row
+of the first non-empty column; with no results yet, Enter runs the name search
+immediately. Each column also pages: scrolling it to the bottom reveals a
+**“∨ Show more”** button whenever a next page exists, and one click appends
+that column's next page (Hugging Face by download-order offset, ModelScope by
+page number, Civitai through the API's own cursor). Platforms can be hidden in
+**Settings → Model Manager Neo → Search** (one boolean per platform).
 
 ### Download plan & safety checks
 

@@ -314,6 +314,7 @@
   "downloads": "Downloads",
   "searchNoResults": "No results",
   "searchFailed": "Search failed",
+  "searchMore": "Show more",
   "planTarget": "Destination",
   "planSize": "Size",
   "planHash": "SHA256",

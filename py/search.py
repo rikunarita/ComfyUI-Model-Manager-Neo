@@ -2,11 +2,15 @@
 
 Routes
 ------
-GET /model-manager/search?query=&limit=
+GET /model-manager/search?query=&limit=&platform=&cursor=
     Parallel model-name search across Hugging Face (huggingface_hub
     ``HfApi.list_models``), ModelScope (``modelscope_hub`` ``list_repos``) and
     Civitai (public REST ``/api/v1/models``). Every item carries the owner
     avatar (best effort) and deep links to the model page and the owner page.
+    Results page per platform through an opaque ``nextCursor`` (HF: item
+    offset, ModelScope: page number, Civitai: the API's own cursor - with a
+    ``query`` the API refuses ``page``); re-requesting with ``platform`` +
+    ``cursor`` appends the next page ("show more").
 GET /model-manager/auth-status
     Which hub API keys are currently configured (no network round-trip).
 GET /model-manager/civitai/whoami
@@ -133,18 +137,27 @@ def _hf_avatar(owner: str) -> str | None:
     return _cache_avatar(owner, None)
 
 
-def _search_huggingface(query: str, limit: int) -> list[dict]:
+def _search_huggingface(query: str, limit: int, cursor: str | None) -> tuple[list[dict], str | None]:
     from huggingface_hub import HfApi
 
     items: list[dict] = []
+    offset = max(0, int(cursor or 0))
     # `expand=["author"]` is required: without it list_models leaves
     # `author` empty on search results (verified against huggingface_hub).
-    for m in HfApi().list_models(
-        search=query, sort="downloads", limit=limit, expand=["author"]
-    ):
+    # One extra item is fetched to learn whether a further page exists.
+    models = HfApi().list_models(
+        search=query, sort="downloads", limit=offset + limit + 1, expand=["author"]
+    )
+    seen = 0
+    for m in models:
         mid = getattr(m, "id", None) or getattr(m, "modelId", None)
         if not mid or "/" not in mid:
             continue
+        if seen < offset:
+            seen += 1
+            continue
+        if len(items) > limit:
+            break
         owner, repo = mid.split("/", 1)
         owner = getattr(m, "author", None) or owner
         items.append(
@@ -161,7 +174,9 @@ def _search_huggingface(query: str, limit: int) -> list[dict]:
                 "ownerUrl": f"https://huggingface.co/{owner}",
             }
         )
-    return items
+        seen += 1
+    next_cursor = str(offset + limit) if len(items) > limit else None
+    return items[:limit], next_cursor
 
 
 _MS_OWNER_CACHE: dict[str, tuple[str | None, str | None, str | None]] = {}
@@ -253,11 +268,14 @@ def _ms_owner_info(owner: str, name: str) -> tuple[str | None, str | None, str |
         return _cache_ms_owner(owner, (None, None, None))
 
 
-def _search_modelscope(query: str, limit: int) -> list[dict]:
+def _search_modelscope(query: str, limit: int, cursor: str | None) -> tuple[list[dict], str | None]:
     from modelscope_hub import HubApi
 
     api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT)
-    page = api.list_repos("model", search=query, sort="downloads", page_size=limit)
+    page_number = max(1, int(cursor or 1))
+    page = api.list_repos(
+        "model", search=query, sort="downloads", page_number=page_number, page_size=limit
+    )
     items: list[dict] = []
     for r in page.items:
         owner = getattr(r, "owner", None)
@@ -281,17 +299,23 @@ def _search_modelscope(query: str, limit: int) -> list[dict]:
                 "ownerUrl": f"{MODELSCOPE_INTL_ENDPOINT}/organization/{owner}",
             }
         )
-    return items
+    next_cursor = str(page_number + 1) if getattr(page, "has_next", False) else None
+    return items, next_cursor
 
 
-def _search_civitai(query: str, limit: int) -> list[dict]:
+def _search_civitai(query: str, limit: int, cursor: str | None) -> tuple[list[dict], str | None]:
     token = auth.get_civitai_token()
     headers = dict(_UA)
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    params: dict[str, str] = {"query": query, "limit": str(limit)}
+    # With a `query` the API refuses `page` and asks for cursor pagination
+    # (verified live: "Cannot use page param with query search").
+    if cursor:
+        params["cursor"] = cursor
     r = requests.get(
         "https://civitai.com/api/v1/models",
-        params={"query": query, "limit": str(limit)},
+        params=params,
         headers=headers,
         timeout=SEARCH_TIMEOUT,
     )
@@ -319,7 +343,8 @@ def _search_civitai(query: str, limit: int) -> list[dict]:
                 "ownerUrl": f"https://civitai.com/user/{owner}",
             }
         )
-    return items
+    next_cursor = (payload.get("metadata") or {}).get("nextCursor") or None
+    return items, (str(next_cursor) if next_cursor is not None else None)
 
 
 _PROVIDERS = {
@@ -340,17 +365,28 @@ class SearchRoutes:
                 limit = 8
             if not query:
                 return web.json_response({"success": True, "data": {}})
+            # "Show more" paging: a single platform can be re-requested with
+            # its own cursor; a fresh search runs every provider cursor-less.
+            platform = (request.query.get("platform") or "").strip()
+            cursor = (request.query.get("cursor") or "").strip() or None
             loop = asyncio.get_running_loop()
 
-            def run(provider: str):
+            def run(provider: str, page_cursor: str | None):
                 try:
-                    return provider, {"items": _PROVIDERS[provider](query, limit)}
+                    items, next_cursor = _PROVIDERS[provider](query, limit, page_cursor)
+                    return provider, {"items": items, "nextCursor": next_cursor}
                 except Exception as e:  # provider outage must not kill the rest
                     utils.print_warning(f"search provider {provider} failed: {e}")
-                    return provider, {"items": [], "error": str(e)}
+                    return provider, {"items": [], "error": str(e), "nextCursor": None}
+
+            if platform in _PROVIDERS:
+                name, res = await loop.run_in_executor(
+                    utils.io_executor(), run, platform, cursor
+                )
+                return web.json_response({"success": True, "data": {name: res}})
 
             with ThreadPoolExecutor(max_workers=3) as pool:
-                futs = [pool.submit(run, name) for name in _PROVIDERS]
+                futs = [pool.submit(run, name, None) for name in _PROVIDERS]
                 data = {}
                 for fut in as_completed(futs, timeout=SEARCH_TIMEOUT + 5):
                     name, res = fut.result()

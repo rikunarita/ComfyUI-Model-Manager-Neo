@@ -168,6 +168,9 @@ const openSaveCollection = () => {
           >
             <Save class="size-4" />
           </span>
+          <!-- Thin divider: the save zone and the collection label must read
+               as two controls inside the one pill. -->
+          <span aria-hidden="true" class="h-4 w-px shrink-0 bg-mm-fg/25"></span>
           <span class="ml-1 max-w-40 truncate">{{ activeCol?.name ?? $t('collections') }}</span>
           <ChevronDown class="size-4 opacity-60" />
         </Button>

@@ -211,6 +211,14 @@ watch(
     for (const item of items) {
       if (!states[item.key]) {
         states[item.key] = createGeometry(item)
+        continue
+      }
+      // Re-showing a keepAlive window: never let it come back half off-screen
+      // (e.g. it was parked near an edge and the viewport shrank since).
+      if (item.visible !== false) {
+        const st = states[item.key]
+        st.left = clamp(st.left, 0, Math.max(0, window.innerWidth - st.width))
+        st.top = clamp(st.top, 0, Math.max(0, window.innerHeight - st.height))
       }
     }
   },
@@ -228,6 +236,7 @@ watch(allowResize, resizable => {
       st.height = clamp(st.height, c.minHeight, Math.max(c.minHeight, window.innerHeight))
       st.left = (window.innerWidth - st.width) / 2
       st.top = (window.innerHeight - st.height) / 2
+      userPositioned.delete(item.key)
     } else {
       st.width = window.innerWidth
       st.height = window.innerHeight
@@ -238,6 +247,41 @@ watch(allowResize, resizable => {
     st.restore = undefined
   }
 })
+
+/**
+ * Viewport changes (window resize, fullscreen or zoom changes) re-centre
+ * every dialog the user never positioned by hand and clamp the rest into
+ * view, so no panel can end up sitting off-centre or half off-screen without
+ * an explicit gesture - the "the panel drifted on its own" defect.
+ */
+const repositionAll = () => {
+  for (const item of stack.value) {
+    const st = states[item.key]
+    if (!st) continue
+    if (st.isMaximized) {
+      st.width = window.innerWidth
+      st.height = window.innerHeight
+      st.left = 0
+      st.top = 0
+      continue
+    }
+    if (!userPositioned.has(item.key)) {
+      const fresh = createGeometry(item)
+      st.width = fresh.width
+      st.height = fresh.height
+      st.left = fresh.left
+      st.top = fresh.top
+      continue
+    }
+    const c = constraintsFor(item)
+    st.width = clamp(st.width, c.minWidth, Math.max(c.minWidth, window.innerWidth))
+    st.height = clamp(st.height, c.minHeight, Math.max(c.minHeight, window.innerHeight))
+    st.left = clamp(st.left, 0, Math.max(0, window.innerWidth - st.width))
+    st.top = clamp(st.top, 0, Math.max(0, window.innerHeight - st.height))
+  }
+}
+
+window.addEventListener('resize', repositionAll)
 
 const toggleMaximize = (item: DialogItem) => {
   const st = states[item.key]
@@ -273,7 +317,24 @@ const toggleMaximize = (item: DialogItem) => {
 /* ------------------------------------------------------------------ */
 /* Resize                                                             */
 /* ------------------------------------------------------------------ */
-const resizeState = ref<{ key: string; directions: string[] } | null>(null)
+/**
+ * Keys whose geometry the user positioned by hand (drag / resize past the
+ * gesture threshold). Everything else re-centres when the viewport changes,
+ * so a window resize / fullscreen toggle / zoom change can never leave a
+ * panel sitting off-centre ("the panel drifted without me moving it").
+ */
+const userPositioned = new Set<string>()
+
+/** Pixels a press must travel before it counts as a move gesture. */
+const GESTURE_THRESHOLD = 3
+
+const resizeState = ref<{
+  key: string
+  directions: string[]
+  startX: number
+  startY: number
+  applied: boolean
+} | null>(null)
 
 const updateGlobalStyle = (direction?: string) => {
   let cursor = ''
@@ -344,6 +405,12 @@ const resize = (event: MouseEvent) => {
   const st = states[rs.key]
   if (!st) return
 
+  if (!rs.applied) {
+    if (Math.hypot(event.clientX - rs.startX, event.clientY - rs.startY) < GESTURE_THRESHOLD) return
+    rs.applied = true
+    userPositioned.add(rs.key)
+  }
+
   const item = stack.value.find(candidate => candidate.key === rs.key)
   const c = constraintsFor(item ?? {})
 
@@ -361,7 +428,13 @@ const stopResize = () => {
 
 const startResize = (item: DialogItem, event: MouseEvent) => {
   const direction = (event.target as HTMLElement).getAttribute('data-resize-pos') ?? ''
-  resizeState.value = { key: item.key, directions: direction.split('-') }
+  resizeState.value = {
+    key: item.key,
+    directions: direction.split('-'),
+    startX: event.clientX,
+    startY: event.clientY,
+    applied: false,
+  }
   updateGlobalStyle(direction)
   document.addEventListener('mousemove', resize)
   document.addEventListener('mouseup', stopResize)
@@ -376,6 +449,7 @@ const dragState = ref<{
   startY: number
   originLeft: number
   originTop: number
+  moved: boolean
 } | null>(null)
 
 const onDragMove = (event: MouseEvent) => {
@@ -384,16 +458,16 @@ const onDragMove = (event: MouseEvent) => {
   const st = states[d.key]
   if (!st) return
 
-  st.left = clamp(
-    d.originLeft + (event.clientX - d.startX),
-    0,
-    Math.max(0, window.innerWidth - st.width),
-  )
-  st.top = clamp(
-    d.originTop + (event.clientY - d.startY),
-    0,
-    Math.max(0, window.innerHeight - st.height),
-  )
+  const dx = event.clientX - d.startX
+  const dy = event.clientY - d.startY
+  if (!d.moved) {
+    if (Math.hypot(dx, dy) < GESTURE_THRESHOLD) return
+    d.moved = true
+    userPositioned.add(d.key)
+  }
+
+  st.left = clamp(d.originLeft + dx, 0, Math.max(0, window.innerWidth - st.width))
+  st.top = clamp(d.originTop + dy, 0, Math.max(0, window.innerHeight - st.height))
 }
 
 const stopDrag = () => {
@@ -417,6 +491,7 @@ const startDrag = (item: DialogItem, event: MouseEvent) => {
     startY: event.clientY,
     originLeft: st.left,
     originTop: st.top,
+    moved: false,
   }
   document.body.style.cursor = 'move'
   document.body.style.userSelect = 'none'
@@ -427,5 +502,6 @@ const startDrag = (item: DialogItem, event: MouseEvent) => {
 onBeforeUnmount(() => {
   stopResize()
   stopDrag()
+  window.removeEventListener('resize', repositionAll)
 })
 </script>

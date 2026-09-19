@@ -314,6 +314,7 @@
   "downloads": "ダウンロード数",
   "searchNoResults": "結果なし",
   "searchFailed": "検索失敗",
+  "searchMore": "さらに表示",
   "planTarget": "保存先",
   "planSize": "サイズ",
   "planHash": "SHA256",
