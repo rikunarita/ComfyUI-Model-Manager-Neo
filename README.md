@@ -192,9 +192,13 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   another file in the library raise a red **duplicate warning** in the detail
   window.
 - **Smart collections** — save the flat view's current search + type filter as
-  a named, per‑user collection and re‑apply it with one click. The _save
-  search_ button lives in the slack before the collection select (dimmed
-  until hovered).
+  a named, per‑user collection and re‑apply it with one click. The **save**
+  (floppy) and **collections** controls are merged into a single button: the
+  floppy icon sits inside the collections button, a hair's width of slack
+  before the label, so the two former neighbours read as one pill `[💾 Collections ▾]`.
+  The floppy keeps its own click / keyboard target (it opens the save dialog)
+  while the rest of the button opens the menu that applies / switches saved
+  collections.
 - **Hygiene scan** — a local‑only sweep (no network, no hashing) for orphaned
   previews / notes, models without previews and empty folders, with bulk
   cleanup behind the usual confirmation.
@@ -217,6 +221,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 
 - Paste a **Civitai**, **Hugging Face**, **ModelScope** (`www.modelscope.ai`)
   or **direct file** URL.
+- Page URLs on Civitai's mirror host `civitai.red` are treated exactly like
+  **Civitai** (the stored model page keeps the pasted host).
 - Resolve multiple files/versions per page and pick the one you want.
 - Direct links require an explicit target type, with an optional custom
   sub‑folder.
@@ -267,7 +273,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   save becomes the card's primary preview; the dashed tile at the end of the
   edit-mode gallery grid adds local image files.
 - The **Open model page** action wears the logo of the model's source hub
-  (Civitai or Hugging Face) as its button background, so a model's origin is
+  (Civitai, Hugging Face or ModelScope) as its button background, so a model's
+  origin is
   recognisable at a glance.
 - Model information (safetensors metadata, the full safetensors **tensor
   layout** as a collapsible **folder tree** (dotted tensor names grouped per
@@ -311,8 +318,12 @@ debounce and each column reports its own errors instead of failing the whole
 search.
 
 - Every result row shows the publishing user's / organisation's **avatar** in a
-  rounded frame (an initials badge when the hub publishes none) plus the
-  all‑time download count.
+  rounded frame: Hugging Face resolves organisation and personal avatars
+  through the API (`/api/organizations/{name}` and `/api/users/{name}`), and
+  ModelScope through `GET https://www.modelscope.ai/api/v1/models/{owner}/{repo}`
+  (the owner's `Organization` block carries the avatar and the display name).
+  An initials badge appears when the hub publishes none, plus the all‑time
+  download count.
 - The model id is split into two deep links: the **owner name** opens the
   user / organisation page, the **repository name** opens the model page —
   both underline on hover and open in the browser; clicking anywhere else on
@@ -338,13 +349,24 @@ popularised, adapted to the manager's task system:
   models recorded in the destination folder's library.
 - **Executable‑format warning** — pickle / archive payloads can execute code
   when loaded; the editor says so before you download.
-- **Civitai whoami** — the connected account is shown when a key is configured,
-  and 401 failures explain exactly where to create a key and how to resume.
+- **Hub accounts (whoami)** — for every platform with a configured key
+  (Hugging Face, ModelScope, Civitai) the download dialog shows the connected
+  account through that hub's whoami endpoint, and 401 failures explain exactly
+  where to create a key and how to resume.
 
 Finally, enlarging a preview of a Civitai‑origin model opens the lightbox with
 the image on the left and its parsed **generation metadata** on the right
 (prompt, negative prompt, sampler, steps, CFG scale, seed, clip skip, size,
 base model and the resource recipe), fetched per image from the Civitai API.
+
+And the model detail window's **identify by hash** asks the Civitai catalog
+which model version a local file is (a reverse lookup by hash): the hashes
+already recorded in the Markdown sidecar are tried first, and only when none
+of them hits is the file hashed in a single pass (`SHA256` / `AutoV2` /
+`AutoV1` / `CRC32`, plus `BLAKE3` when available). A hit opens the resolved
+model / version with its base model, trigger words, file list and the same
+`civitai download` command the official CLI prints on a hit; a miss says no
+matching model version was found.
 
 ---
 

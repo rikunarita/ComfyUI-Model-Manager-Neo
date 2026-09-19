@@ -114,8 +114,10 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 - **重复警告** — 记录的 SHA256 与库中另一文件一致时，详情窗口以红色警告显示
   重复文件的路径。
 - **智能集合**（展平视图）— 将当前搜索+类型过滤保存为命名集合（按用户持久化），
-  通过集合选择器一键重新应用；应用中的集合以芯片显示，可清除/删除。**保存搜索**
-  按钮位于集合选择器前的空档处（平时减淡、悬停变亮，一眼可知是按钮）。
+  通过集合菜单一键重新应用；应用中的集合以芯片显示，可清除/删除。**保存（软盘）与
+  集合已合并为一个按钮**：软盘图标位于集合按钮内、标签前仅留一丝空隙——两个旧邻居
+  读作一枚胶囊 `[💾 集合 ▾]`；软盘保留自己的点击/键盘目标（打开保存对话框），
+  按钮的其余部分打开应用/切换已保存集合的菜单。
 - **卫生扫描**（两个工具栏）— 仅本地（不使用网络、不计算哈希）列出孤立预览/笔记、
   缺少预览的模型（可直达编辑器）与空文件夹；选中项经 Danger 确认后删除。
 - **悬停操作**（展平布局、大卡片） — **添加节点**、**复制节点**、**从预览载入工作流**、
@@ -146,7 +148,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 - **Description 标签** — 渲染保存在模型旁 `*.md` 文件中的 Markdown，链接在新标签打开。
 - **Information 标签** — 汇总模型所记录全部信息的表格（默认只读；编辑模式下铅笔
   按钮**在警告之后**打开编辑，保存表单时重写笔记的 front-matter）：笔记开头的 YAML
-  front-matter（Civitai / Hugging Face 下载写入的内容）会被解析为作者、基础模型、
+  front-matter（Civitai / Hugging Face / ModelScope 下载写入的内容）会被解析为作者、基础模型、
   全部哈希（`AutoV1` … `SHA256_12`）、格式与精度、模型平台、可点击的模型页链接
   以及**所有**预览图 URL；解析器不认识的键按原样列在表格末尾。没有 front-matter
   的模型则原样显示直接从 safetensors 头读出的 `__metadata__`（没有任何后台扫描或
@@ -155,7 +157,16 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
   点击即可折叠/展开，默认全部折叠），文件夹行汇总张量数与参数量，叶行保留
   名称尾段 / 数据类型 / 形状（与 Hugging Face 查看器同款展示）；超大节点按
   500 行分页，可点击"显示全部"展开。操作行中的**打开模型页**按钮与卡片悬停列中的同名按钮一样：只要笔记记录了
-  来源平台，就以该 hub（Civitai / Hugging Face）的 logo 作为按钮背景。
+  来源平台，就以该 hub（Civitai / Hugging Face / ModelScope）的 logo 作为按钮背景。
+
+### 按哈希识别
+
+模型详情操作行中的**指纹按钮**向 Civitai 目录逆查"这个本地文件是哪个模型版本"
+（按哈希识别）：先尝试笔记 front-matter 中已记录的哈希（`AutoV1` / `AutoV2` / `SHA256` /
+`CRC32` / `BLAKE3`），均未命中时才以单遍扫描计算文件哈希。命中会打开解析出的模型/版本，
+连同基础模型、触发词、文件列表，以及官方 CLI 命中时打印的同一条 `civitai download`
+命令（可一键复制）；未命中则提示未找到匹配的模型版本。该识别按文件、按需进行，
+不会执行任何全库扫描或哈希计算。
 
 ### 编辑
 
@@ -195,7 +206,8 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 1. 粘贴 **Civitai 模型页**、**Hugging Face 的 repo/blob/tree**、**ModelScope 模型页**
    （`www.modelscope.ai`）或**直接文件链接**
-   （`.safetensors`、`.ckpt`、`.gguf` 等），按 Enter 或搜索图标。
+   （`.safetensors`、`.ckpt`、`.gguf` 等），按 Enter 或搜索图标。Civitai 镜像主机
+   `civitai.red` 的页面 URL 同样按 Civitai 处理。
 2. 直接链接必须先选择**模型类型**（只提供当前 ComfyUI 存在的类型）；可选的
    **子文件夹**栏可把文件放得更深。
 3. Civitai / HF 页面会解析出一个或多个**版本**与**文件**：版本在工具栏选，
@@ -228,7 +240,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 是否已设置。Civitai 下载在完成后与公开 SHA256 校验(不一致时删除文件并使任务失败);
 其他类型的捆绑文件(如 VAE)会被路由到对应的模型文件夹;当版本的基础模型与目标文件夹
 已记录的库不符,或载荷为加载时可能执行代码的 pickle / 压缩包格式时,会显示警告。
-已设置密钥时,窗口顶部会显示所连接的 Civitai 账号。
+对每个已设置密钥的平台（Hugging Face、ModelScope、Civitai），窗口顶部会显示所连接的账号。
 
 ### 灯箱中的生成元数据
 

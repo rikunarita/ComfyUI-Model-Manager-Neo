@@ -9,7 +9,7 @@
   "downloadList": "下载列表",
   "downloadTask": "下载任务",
   "createDownloadTask": "创建下载任务",
-  "pleaseInputModelUrl": "输入 civitai.com, huggingface.co 的 URL 或直接文件链接 (.safetensors, .ckpt 等)",
+  "pleaseInputModelUrl": "粘贴 Hugging Face / ModelScope / CivitAI 仓库或直链，或按模型名搜索",
   "directFileDetected": "检测到直接文件下载",
   "subfolderOptional": "子文件夹（可选）：",
   "subfolderPlaceholder": "例如 subfolder/path",
@@ -301,6 +301,16 @@
   "providerMs": "ModelScope",
   "civitai": "Civitai",
   "civitaiAccount": "Civitai 账号",
+  "hfAccount": "Hugging Face 账号",
+  "modelscopeAccount": "ModelScope 账号",
+  "identifyByHash": "按哈希识别",
+  "identifyByHashHint": "向 Civitai 反查该文件所属的模型版本",
+  "identifyMiss": "没有 Civitai 模型版本与该文件的哈希匹配。",
+  "identifyMatchedHash": "匹配的哈希",
+  "identifyTriggerWords": "触发词",
+  "identifyFiles": "该版本的文件",
+  "identifyHashes": "文件哈希",
+  "copyCommand": "复制命令",
   "downloads": "下载量",
   "searchNoResults": "无结果",
   "searchFailed": "搜索失败",
@@ -352,5 +362,5 @@
     "successMany": "已上传 {n} 个文件",
     "noFilesInFolders": "所选文件夹中没有模型文件"
   },
-  "collectionsEmpty": "暂无已保存的集合 - 可使用旁边的保存按钮创建。"
+  "collectionsEmpty": "暂无已保存的集合 - 可使用本菜单左侧的保存图标创建。"
 }

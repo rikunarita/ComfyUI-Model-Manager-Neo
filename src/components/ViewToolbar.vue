@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { ChevronUp, ListChecks, Save, Trash2, X } from '@lucide/vue'
-import { computed } from 'vue'
+import { Check, ChevronDown, ChevronUp, ListChecks, Save, Trash2, X } from '@lucide/vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DialogSaveCollection from 'components/DialogSaveCollection.vue'
 import ResponseBreadcrumb from 'components/ResponseBreadcrumb.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
 import { Button } from 'components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from 'components/ui/dropdown-menu'
 import {
   activeCollection,
   collectionState,
@@ -55,6 +61,7 @@ const dialog = useDialog()
 const { cardSizeOptions, cardSizeFlag } = useGridSelectOptions()
 
 const activeCol = computed(() => activeCollection())
+const collectionMenuOpen = ref(false)
 
 const collectionOptions = computed<SelectOptions[]>(() => {
   const saved = collectionState.collections.map(c => ({
@@ -78,6 +85,9 @@ const collectionOptions = computed<SelectOptions[]>(() => {
 })
 
 const openSaveCollection = () => {
+  // The floppy lives inside the menu trigger; the save dialog must not open
+  // with the collection menu still floating above the toolbar.
+  collectionMenuOpen.value = false
   dialog.open({
     key: 'save-collection',
     title: t('collectionsSave'),
@@ -129,38 +139,49 @@ const openSaveCollection = () => {
     </div>
 
     <!--
-      SAVE-SEARCH BUTTON IN THE GAP: the slack between the search field and
-      the collections select now hosts the "save current search" button. It
-      sits at reduced opacity so it reads as a quiet secondary control in
-      that space, and brightens on hover/focus so it is unmistakably a
-      button, not decoration.
+      SAVE + COLLECTION AS ONE CONTROL: the floppy (save the current search)
+      sits *inside* the collection button, a whisper of margin before the
+      label, so the two former neighbours read as a single pill:
+      [💾 Collection ▾]. The floppy keeps its own click / keyboard target -
+      it opens the save dialog and `stop` keeps the menu shut - while every
+      other pixel of the pill opens the menu that applies / switches saved
+      searches.
     -->
-    <Button
-      variant="secondary"
-      size="icon"
-      class="shrink-0 opacity-60 hover:opacity-100 focus-visible:opacity-100"
-      :title="$t('collectionsSave')"
-      :aria-label="$t('collectionsSave')"
-      @click="openSaveCollection"
-    >
-      <Save class="size-4" />
-    </Button>
-    <!--
-      CONTENT-FIT SELECTS: the drop selects shrink-wrap their current label
-      (ResponseSelect truncates inside a `max-w-*` ceiling) instead of
-      reserving fixed `w-44` / `w-36` frames that left a wide dead margin
-      beside short labels. Long values (collection names, card-size labels)
-      ellipsise at the ceiling rather than stretching the bar.
-    -->
-    <ResponseSelect
-      v-model="collectionState.activeId"
-      class="max-w-56 shrink-0"
-      :items="collectionOptions"
-    >
-      <template #label>
-        {{ activeCol?.name ?? $t('collections') }}
-      </template>
-    </ResponseSelect>
+    <DropdownMenu v-model:open="collectionMenuOpen">
+      <DropdownMenuTrigger as-child>
+        <Button
+          variant="secondary"
+          class="shrink-0 whitespace-nowrap"
+          :title="activeCol?.name ?? $t('collections')"
+        >
+          <span
+            role="button"
+            tabindex="0"
+            class="-ml-1 grid size-6 shrink-0 place-items-center rounded-mm-ctl opacity-60 hover:bg-mm-fg/10 hover:opacity-100 focus-visible:opacity-100"
+            :title="$t('collectionsSave')"
+            :aria-label="$t('collectionsSave')"
+            @click.stop="openSaveCollection"
+            @keydown.enter.stop.prevent="openSaveCollection"
+            @keydown.space.stop.prevent="openSaveCollection"
+          >
+            <Save class="size-4" />
+          </span>
+          <span class="ml-1 max-w-40 truncate">{{ activeCol?.name ?? $t('collections') }}</span>
+          <ChevronDown class="size-4 opacity-60" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" class="max-h-75 min-w-32 overflow-y-auto">
+        <DropdownMenuItem
+          v-for="item in collectionOptions"
+          :key="item.value"
+          class="justify-between"
+          @select="item.command?.()"
+        >
+          <span>{{ item.label }}</span>
+          <Check v-if="collectionState.activeId === item.value" class="size-4 text-mm-accent" />
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
     <Button
       v-if="activeCol"
       variant="ghost"
@@ -184,6 +205,13 @@ const openSaveCollection = () => {
       <Trash2 class="size-4" />
     </Button>
 
+    <!--
+      CONTENT-FIT SELECTS: the drop selects shrink-wrap their current label
+      (ResponseSelect truncates inside a `max-w-*` ceiling) instead of
+      reserving fixed frames that left a wide dead margin beside short
+      labels; long values ellipsise at the ceiling rather than stretching
+      the bar.
+    -->
     <ResponseSelect
       v-if="mode === 'flat'"
       v-model="currentType"

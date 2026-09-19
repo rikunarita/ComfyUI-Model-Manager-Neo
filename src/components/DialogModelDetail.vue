@@ -86,6 +86,23 @@
             >
               <ExternalLink class="size-4" />
             </Button>
+            <!--
+              IDENTIFY BY HASH: asks the Civitai catalog which model version
+              this very file is (by-hash reverse lookup; the sidecar hashes
+              are tried before the file is read at all). A hit opens the
+              resolved version; a miss says so in a toast.
+            -->
+            <Button
+              variant="ghost"
+              size="icon-action"
+              :title="$t('identifyByHashHint')"
+              :aria-label="$t('identifyByHash')"
+              :disabled="identifying"
+              @click="identifyByHash"
+            >
+              <Loader2 v-if="identifying" class="size-4 animate-spin" />
+              <Fingerprint v-else class="size-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon-action"
@@ -140,14 +157,26 @@
 </template>
 
 <script setup lang="ts">
-import { Copy, ExternalLink, PenSquare, Plus, Star, Trash2, Workflow } from '@lucide/vue'
+import {
+  Copy,
+  ExternalLink,
+  Fingerprint,
+  Loader2,
+  PenSquare,
+  Plus,
+  Star,
+  Trash2,
+  Workflow,
+} from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DialogIdentifyHash from 'components/DialogIdentifyHash.vue'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
 import { Progress } from 'components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
+import { useDialog } from 'hooks/dialog'
 import {
   genModelFullName,
   genModelUrl,
@@ -155,7 +184,7 @@ import {
   useModelNodeAction,
   useModels,
 } from 'hooks/model'
-import { useRequest } from 'hooks/request'
+import { request, useRequest } from 'hooks/request'
 import { isModelStarred, toggleModelStar } from 'hooks/stars'
 import { useToast } from 'hooks/toast'
 import {
@@ -175,6 +204,7 @@ const props = defineProps<Props>()
 
 const { t } = useI18n()
 const { toast, confirm } = useToast()
+const dialog = useDialog()
 const { remove, update } = useModels()
 
 const editable = ref(false)
@@ -214,6 +244,45 @@ const openModelPage = (url?: string) => {
     return
   }
   window.open(url, '_blank')
+}
+
+/* ---- identify by hash ----------------------------------------------------- */
+const identifying = ref(false)
+const identifyByHash = async () => {
+  identifying.value = true
+  try {
+    const params = new URLSearchParams({
+      type: props.model.type,
+      index: String(props.model.pathIndex ?? 0),
+      filename: genModelFullName(props.model),
+    })
+    const result = await request(`/identify-by-hash?${params.toString()}`)
+    if (result?.matched) {
+      dialog.open({
+        key: 'identify-hash',
+        title: t('identifyByHash'),
+        content: DialogIdentifyHash,
+        contentProps: { result },
+        defaultSize: { width: 560, height: 640 },
+      })
+    } else {
+      toast.add({
+        severity: 'info',
+        summary: t('identifyByHash'),
+        detail: t('identifyMiss'),
+        life: 8000,
+      })
+    }
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: t('identifyByHash'),
+      detail: (error as Error).message,
+      life: 8000,
+    })
+  } finally {
+    identifying.value = false
+  }
 }
 
 const { addModelNode, copyModelNode, loadPreviewWorkflow } = useModelNodeAction()

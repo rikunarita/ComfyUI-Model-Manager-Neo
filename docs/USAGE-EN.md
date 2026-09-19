@@ -131,11 +131,15 @@ folders whose name starts with `.`).
   cards also carry the **aggregate size of their model type**.
 - **Duplicate warning** — a model whose recorded SHA256 matches another file in
   the library shows a red alert with the duplicate's path in the detail window.
-- **Smart collections** (flat view) — the _save search_ button sits in the
-  slack before the collection select (dimmed, brightens on hover so it reads
-  as a button); save the current search + type filter as
+- **Smart collections** (flat view) — save the current search + type filter as
   a named collection (persisted per user) and re‑apply it from the collections
-  select; the active collection shows as a chip with clear / delete buttons.
+  menu; the active collection shows as a chip with clear / delete buttons.
+  The **save (floppy) and collections controls are merged into one button**:
+  the floppy icon sits inside the collections button, a hair's width of slack
+  before the label, so the two former neighbours read as one pill
+  `[💾 Collections ▾]` — the floppy keeps its own click / keyboard target (it
+  opens the save dialog) while the rest of the button opens the menu that
+  applies / switches saved collections.
 - **Hygiene scan** (both toolbars) — a local‑only sweep (no network, no
   hashing) listing orphaned preview / notes files, models without any preview
   (with a shortcut into their editor) and empty folders; selected entries are
@@ -169,10 +173,10 @@ base‑info table, and two tabs.
 
 - **Description** tab — rendered Markdown stored in a `*.md` file next to the
   model. Links open in a new tab.
-- **Information** tab — a table of everything recorded about the (read‑only by
-  default; in edit mode the pencil opens it **behind a warning**, and saving
-  the form rewrites the notes' front‑matter)
-  model. The YAML front‑matter of the notes (what Civitai / Hugging Face
+- **Information** tab — a table of everything recorded about the model
+  (read‑only by default; in edit mode the pencil opens it **behind a warning**,
+  and saving the form rewrites the notes' front‑matter).
+  The YAML front‑matter of the notes (what Civitai / Hugging Face / ModelScope
   downloads write) is parsed into rows: author, base model, every file hash
   (`AutoV1` … `SHA256_12`), format and precision, the model platform, a
   clickable model‑page link and the URLs of **all** preview images; keys the
@@ -186,8 +190,21 @@ base‑info table, and two tabs.
   collapses / expands that level (everything starts maximally collapsed) plus
   its tensor / parameter count, and leaf rows keep name tail / dtype / shape;
   very large nodes page their leaves with an explicit _show all_ action. The **Open model page** button in the action row — like its
-  twin in the card hover column — wears the logo of the source hub (Civitai
-  or Hugging Face) as its background whenever the notes record the platform.
+  twin in the card hover column — wears the logo of the source hub (Civitai,
+  Hugging Face or ModelScope) as its background whenever the notes record the
+  platform.
+
+### Identify by hash
+
+The **fingerprint button** in the model detail action row asks the Civitai
+catalog which model version a local file is (a reverse lookup by hash): the
+hashes already recorded in the notes' front‑matter (`AutoV1` / `AutoV2` /
+`SHA256` / `CRC32` / `BLAKE3`) are tried first, and only when none of them
+hits is the file hashed in a single pass. A hit opens the resolved model /
+version with its base model, trigger words and file list, plus the same
+`civitai download` command the official CLI prints on a hit (copyable with one
+click); a miss reports that no matching model version was found. The lookup is
+per‑file and on demand — no library‑wide scan or hashing ever runs.
 
 ### Editing
 
@@ -231,8 +248,10 @@ Open **Download List** from the header, then:
 ![create download task](screenshots/download.png)
 
 1. Paste a **Civitai model page**, **Hugging Face repo/blob/tree**,
-   **ModelScope model page** (`www.modelscope.ai`) or a **direct file link** (`.safetensors`, `.ckpt`, `.gguf`, …) and press **Enter** or the
-   search icon.
+   **ModelScope model page** (`www.modelscope.ai`) or a **direct file link**
+   (`.safetensors`, `.ckpt`, `.gguf`, …) and press **Enter** or the search
+   icon. Page URLs on Civitai's mirror host `civitai.red` behave exactly like
+   Civitai.
 2. For a direct link you must pick the **Model Type** first (only types your
    ComfyUI has are offered); an optional **Subfolder** field lets you place the
    file deeper.
@@ -279,8 +298,9 @@ completion (a mismatch deletes the file and fails the task); bundled files of
 another type (a VAE, …) are routed into the matching model folder; and warnings
 appear when the version's base model is foreign to the destination folder's
 recorded library, or when the payload is a pickle/archive format that can
-execute code when loaded. The connected Civitai account is shown at the top of
-the window when a key is configured.
+execute code when loaded. For every platform with a configured key
+(Hugging Face, ModelScope, Civitai) the connected account is shown at the top
+of the window.
 
 ### Generation metadata in the lightbox
 

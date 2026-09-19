@@ -88,6 +88,13 @@ _PREVIEW_ENCODE_CACHE: dict[str, tuple[int, int, bytes]] = {}
 _PREVIEW_ENCODE_LIMIT = 64
 
 
+# Civitai is mirrored at `civitai.red`: the REST API and the download
+# endpoints answer identically (both hosts were queried and compared), so
+# URLs from either front door resolve through the same searcher and both
+# wear the Civitai identity (logo, API key, safety net) everywhere.
+CIVITAI_HOSTS = ("civitai.com", "civitai.red")
+
+
 class ModelSearcher(ABC):
     """
     Abstract class for model searcher.
@@ -110,6 +117,16 @@ class CivitaiModelSearcher(ModelSearcher):
     def search_by_url(self, url: str):
         parsed_url = urlparse(url)
 
+        # The host the URL arrived on must be used for the API round trip
+        # and echoed into the stored model page, otherwise looking up a
+        # mirror URL hit the canonical API and silently re-pointed the model
+        # at civitai.com.
+        host = (
+            parsed_url.hostname
+            if parsed_url.hostname in CIVITAI_HOSTS
+            else CIVITAI_HOSTS[0]
+        )
+
         pathname = parsed_url.path
         match = re.match(r"^/models/(\d*)", pathname)
         model_id = match.group(1) if match else None
@@ -121,7 +138,7 @@ class CivitaiModelSearcher(ModelSearcher):
             return []
 
         headers = auth.get_civitai_headers()
-        response = requests.get(f"https://civitai.com/api/v1/models/{model_id}", headers=headers)
+        response = requests.get(f"https://{host}/api/v1/models/{model_id}", headers=headers)
         response.raise_for_status()
         res_data: dict = response.json()
 
@@ -148,7 +165,7 @@ class CivitaiModelSearcher(ModelSearcher):
 
                 metadata_info = {
                     "website": "Civitai",
-                    "modelPage": f"https://civitai.com/models/{model_id}?modelVersionId={version.get('id')}",
+                    "modelPage": f"https://{host}/models/{model_id}?modelVersionId={version.get('id')}",
                     "author": res_data.get("creator", {}).get("username", None),
                     "baseModel": version.get("baseModel"),
                     "hashes": file.get("hashes"),
@@ -697,7 +714,7 @@ class Information:
     def get_model_searcher_by_url(self, url: str) -> ModelSearcher:
         parsed_url = urlparse(url)
         host_name = parsed_url.hostname
-        if host_name == "civitai.com":
+        if host_name in CIVITAI_HOSTS:
             return CivitaiModelSearcher()
         elif host_name == "huggingface.co":
             return HuggingfaceModelSearcher()

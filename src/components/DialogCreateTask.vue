@@ -26,9 +26,13 @@
       </template>
     </ResponseInput>
 
-    <!-- Connected Civitai account (token check, like the hub whoami rows). -->
-    <div v-if="civitaiAccount" class="-mt-2 text-xs text-mm-muted-fg">
-      {{ $t('civitaiAccount') }}: {{ civitaiAccount }}
+    <!--
+      Connected hub accounts: one row per platform whose API key is
+      configured (Hugging Face, ModelScope, Civitai), resolved through the
+      matching whoami route.
+    -->
+    <div v-if="accountRows.length" class="-mt-2 flex flex-col gap-0.5 text-xs text-mm-muted-fg">
+      <div v-for="row in accountRows" :key="row.label">{{ row.label }}: {{ row.name }}</div>
     </div>
 
     <!--
@@ -78,9 +82,9 @@
               <div class="truncate">
                 <a
                   class="cursor-pointer hover:underline"
-                  :title="item.ownerUrl"
+                  :title="item.ownerDescription || item.ownerUrl"
                   @click.stop.prevent="openExternal(item.ownerUrl)"
-                  >{{ item.owner }}</a
+                  >{{ item.ownerDisplay || item.owner }}</a
                 >/<a
                   class="cursor-pointer hover:underline"
                   :title="item.pageUrl"
@@ -340,6 +344,8 @@ interface SearchItem {
   platform: string
   key: string
   owner: string
+  ownerDisplay?: string | null
+  ownerDescription?: string | null
   repo: string
   title: string
   downloads: number
@@ -422,9 +428,21 @@ const handleEnter = () => {
   return void runModelSearch(value)
 }
 
-/* ---- civitai account + download plan + warnings ------------------------- */
+/* ---- hub accounts + download plan + warnings ---------------------------- */
 const authStatus = ref<Record<string, boolean>>({})
+const hfAccount = ref<string>()
+const modelscopeAccount = ref<string>()
 const civitaiAccount = ref<string>()
+
+/** Configured accounts only, in Hugging Face / ModelScope / Civitai order. */
+const accountRows = computed(() => {
+  const rows: { label: string; name: string }[] = []
+  if (hfAccount.value) rows.push({ label: t('hfAccount'), name: hfAccount.value })
+  if (modelscopeAccount.value)
+    rows.push({ label: t('modelscopeAccount'), name: modelscopeAccount.value })
+  if (civitaiAccount.value) rows.push({ label: t('civitaiAccount'), name: civitaiAccount.value })
+  return rows
+})
 
 onMounted(async () => {
   try {
@@ -432,14 +450,23 @@ onMounted(async () => {
   } catch {
     authStatus.value = {}
   }
-  if (authStatus.value.civitai) {
+  const whoami = async (enabled: boolean | undefined, route: string) => {
+    if (!enabled) return undefined
     try {
-      const me = await request('/civitai/whoami')
-      civitaiAccount.value = me?.name || undefined
+      const me = await request(route)
+      return (me?.name as string | undefined) || undefined
     } catch {
-      civitaiAccount.value = undefined
+      return undefined
     }
   }
+  const [hf, ms, civ] = await Promise.all([
+    whoami(authStatus.value.hf, '/hf/whoami'),
+    whoami(authStatus.value.modelscope, '/modelscope/whoami'),
+    whoami(authStatus.value.civitai, '/civitai/whoami'),
+  ])
+  hfAccount.value = hf
+  modelscopeAccount.value = ms
+  civitaiAccount.value = civ
 })
 
 const downloadPlan = computed(() => {

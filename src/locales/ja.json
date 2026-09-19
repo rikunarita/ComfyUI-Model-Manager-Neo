@@ -9,7 +9,7 @@
   "downloadList": "ダウンロード一覧",
   "downloadTask": "ダウンロードタスク",
   "createDownloadTask": "ダウンロードタスクを作成",
-  "pleaseInputModelUrl": "civitai.com / huggingface.co のURL、または直接ファイルリンク（.safetensors、.ckpt など）を入力してください",
+  "pleaseInputModelUrl": "HuggingFace・ModelScope・CivitAIのリポジトリまたはダイレクトURL、もしくはモデル名で検索",
   "directFileDetected": "直接ファイルダウンロードとして認識しました",
   "subfolderOptional": "サブフォルダ（任意）:",
   "subfolderPlaceholder": "例: subfolder/path",
@@ -301,6 +301,16 @@
   "providerMs": "ModelScope",
   "civitai": "Civitai",
   "civitaiAccount": "Civitai アカウント",
+  "hfAccount": "Hugging Face アカウント",
+  "modelscopeAccount": "ModelScope アカウント",
+  "identifyByHash": "ハッシュで識別",
+  "identifyByHashHint": "このファイルがどのモデルバージョンかCivitaiへ逆引きします",
+  "identifyMiss": "このファイルのハッシュに一致するCivitaiのモデルバージョンはありません。",
+  "identifyMatchedHash": "一致したハッシュ",
+  "identifyTriggerWords": "トリガーワード",
+  "identifyFiles": "このバージョンのファイル",
+  "identifyHashes": "ファイルハッシュ",
+  "copyCommand": "コマンドをコピー",
   "downloads": "ダウンロード数",
   "searchNoResults": "結果なし",
   "searchFailed": "検索失敗",
@@ -352,5 +362,5 @@
     "successMany": "{n} ファイルをアップロードしました",
     "noFilesInFolders": "選択フォルダにモデルファイルがありません"
   },
-  "collectionsEmpty": "保存済みコレクションはありません - 隣の保存ボタンから作成できます。"
+  "collectionsEmpty": "保存済みコレクションはありません - メニュー左の保存アイコンから作成できます。"
 }

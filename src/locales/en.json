@@ -9,7 +9,7 @@
   "downloadList": "Download List",
   "downloadTask": "Download Task",
   "createDownloadTask": "Create Download Task",
-  "pleaseInputModelUrl": "Input a URL from civitai.com, huggingface.co, or direct file link (.safetensors, .ckpt, etc.)",
+  "pleaseInputModelUrl": "Paste a Hugging Face / ModelScope / CivitAI repo or direct URL, or search by model name",
   "directFileDetected": "Direct file download detected",
   "subfolderOptional": "Subfolder (optional):",
   "subfolderPlaceholder": "e.g., subfolder/path",
@@ -301,6 +301,16 @@
   "providerMs": "ModelScope",
   "civitai": "Civitai",
   "civitaiAccount": "Civitai account",
+  "hfAccount": "Hugging Face account",
+  "modelscopeAccount": "ModelScope account",
+  "identifyByHash": "Identify by hash",
+  "identifyByHashHint": "Ask Civitai which model version this file is (reverse hash lookup)",
+  "identifyMiss": "No Civitai model version matches any hash of this file.",
+  "identifyMatchedHash": "Matched hash",
+  "identifyTriggerWords": "Trigger words",
+  "identifyFiles": "Files of this version",
+  "identifyHashes": "File hashes",
+  "copyCommand": "Copy command",
   "downloads": "Downloads",
   "searchNoResults": "No results",
   "searchFailed": "Search failed",
@@ -352,5 +362,5 @@
     "successMany": "Uploaded {n} files",
     "noFilesInFolders": "The selected folders contain no model files"
   },
-  "collectionsEmpty": "No saved collections yet - use the save button next to this menu."
+  "collectionsEmpty": "No saved collections yet - use the save icon on the left of this menu."
 }

@@ -20,6 +20,7 @@ All network calls run in the IO executor; a failing provider degrades to an
 """
 
 import asyncio
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -47,22 +48,31 @@ def _cache_avatar(key: str, value: str | None) -> str | None:
 def _hf_avatar(owner: str) -> str | None:
     """Hugging Face owner avatar.
 
-    ``GET /api/users/{name}/avatar`` answers ``{"avatarUrl": …}`` for accounts
-    with a custom avatar and 404 otherwise (orgs without one) - verified
-    against the live API. The UI falls back to an initials badge.
+    Personal accounts answer ``{"avatarUrl": …}`` on
+    ``GET /api/users/{name}/avatar``; organisations live under
+    ``GET /api/organizations/{name}/avatar`` instead - the users endpoint
+    answers 404 ("This user does not exist") for them, which is why org-owned
+    repositories (Qwen, unsloth, …) used to fall back to an initials badge.
+    Both shapes were verified against the live API. Accounts without any
+    avatar fall back to the initials badge in the UI.
     """
     if owner in _AVATAR_CACHE:
         return _AVATAR_CACHE[owner]
-    try:
-        r = requests.get(
-            f"https://huggingface.co/api/users/{owner}/avatar", headers=_UA, timeout=8
-        )
-        if r.status_code != 200:
-            return _cache_avatar(owner, None)
-        url = (r.json() or {}).get("avatarUrl")
-        return _cache_avatar(owner, url if isinstance(url, str) and url else None)
-    except Exception:
-        return _cache_avatar(owner, None)
+    for kind in ("users", "organizations"):
+        try:
+            r = requests.get(
+                f"https://huggingface.co/api/{kind}/{owner}/avatar",
+                headers=_UA,
+                timeout=8,
+            )
+            if r.status_code != 200:
+                continue
+            url = (r.json() or {}).get("avatarUrl")
+            if isinstance(url, str) and url:
+                return _cache_avatar(owner, url)
+        except Exception:
+            continue
+    return _cache_avatar(owner, None)
 
 
 def _search_huggingface(query: str, limit: int) -> list[dict]:
@@ -96,28 +106,93 @@ def _search_huggingface(query: str, limit: int) -> list[dict]:
     return items
 
 
-def _ms_owner_info(api, owner: str, name: str) -> tuple[str | None, str]:
-    """(avatar, owner page url) of a ModelScope owner, via the model payload.
+_MS_OWNER_CACHE: dict[str, tuple[str | None, str | None, str | None]] = {}
+_MS_OWNER_CACHE_LIMIT = 256
 
-    ``GET /api/v1/models/{owner}/{name}`` carries ``Data.Avatar`` and the
-    ``Data.Organization`` block (empty for personal accounts) - verified
-    against the live international endpoint. Personal profile slugs are not
-    exposed by the public API, so personal owners link to the site's owner
-    page format as well.
+
+def _cache_ms_owner(key: str, value: tuple[str | None, str | None, str | None]):
+    _MS_OWNER_CACHE[key] = value
+    while len(_MS_OWNER_CACHE) > _MS_OWNER_CACHE_LIMIT:
+        _MS_OWNER_CACHE.pop(next(iter(_MS_OWNER_CACHE)))
+    return value
+
+
+def _ms_plain_description(desc: str | None) -> str | None:
+    """Plain-text form of a ModelScope profile description.
+
+    ModelScope answers either plain text or a rich-text JSON tree
+    (``["root",{},["p",{},["span",{"data-type":"text"},["span",
+    {"data-type":"leaf"},"…"]]]]``); the JSON form is flattened to its leaf
+    strings so a tooltip never shows raw JSON. Empty leaves yield None.
     """
-    if owner in _AVATAR_CACHE:
-        return _AVATAR_CACHE[owner], f"{MODELSCOPE_INTL_ENDPOINT}/organization/{owner}"
-    avatar: str | None = None
+    text = (desc or "").strip()
+    if not text:
+        return None
+    if not text.startswith("["):
+        return text
     try:
-        data = (api.openapi.get_model(owner, name) or {}).get("Data") or {}
-        avatar = data.get("Avatar") or None
-        org = data.get("Organization") or {}
-        if not avatar:
-            avatar = org.get("Avatar") or None
+        leaves: list[str] = []
+
+        def walk(node):
+            if isinstance(node, list):
+                if len(node) >= 2 and node[-2] == "leaf" and isinstance(node[-1], str):
+                    leaves.append(node[-1])
+                for child in node:
+                    walk(child)
+            elif isinstance(node, dict):
+                for child in node.values():
+                    walk(child)
+
+        walk(json.loads(text))
+        plain = "".join(leaves).strip()
+        return plain or None
     except Exception:
-        avatar = None
-    avatar = _cache_avatar(owner, avatar if isinstance(avatar, str) and avatar else None)
-    return avatar, f"{MODELSCOPE_INTL_ENDPOINT}/organization/{owner}"
+        return None
+
+
+def _ms_owner_info(owner: str, name: str) -> tuple[str | None, str | None, str | None]:
+    """(avatar, display, description) of a ModelScope owner, via the payload.
+
+    ``GET /api/v1/models/{owner}/{name}`` answers ``{"Data": {"Name": ...,
+    "Organization": {"Name": ..., "Description": ..., "Avatar": ...}}}``.
+    ``Data.Organization.Name`` is the organization's display name (the block
+    is absent for personal accounts), ``Data.Organization.Description`` the
+    profile description (may be an empty string), and
+    ``Data.Organization.Avatar`` the organization's avatar URL. Rich-text
+    JSON descriptions are flattened to plain text (see
+    ``_ms_plain_description``). The legacy ``/openapi/v1/`` surface the SDK's
+    ``openapi.get_model`` hits carries none of them (verified against the
+    live endpoint), which is why owners used to fall back to an initials
+    badge. Personal accounts keep the raw account name and the initials badge
+    in the UI. Verified against the live international endpoint.
+    """
+    if owner in _MS_OWNER_CACHE:
+        return _MS_OWNER_CACHE[owner]
+    try:
+        r = requests.get(
+            f"{MODELSCOPE_INTL_ENDPOINT}/api/v1/models/{owner}/{name}",
+            headers=_UA,
+            timeout=8,
+        )
+        if r.status_code != 200:
+            return _cache_ms_owner(owner, (None, None, None))
+        data = (r.json() or {}).get("Data") or {}
+        org = data.get("Organization") or {}
+        display = org.get("Name")
+        desc = org.get("Description")
+        avatar = org.get("Avatar")
+        if not isinstance(display, str) or not display.strip():
+            return _cache_ms_owner(owner, (None, None, None))
+        return _cache_ms_owner(
+            owner,
+            (
+                avatar.strip() if isinstance(avatar, str) and avatar.strip() else None,
+                display.strip(),
+                _ms_plain_description(desc if isinstance(desc, str) else None),
+            ),
+        )
+    except Exception:
+        return _cache_ms_owner(owner, (None, None, None))
 
 
 def _search_modelscope(query: str, limit: int) -> list[dict]:
@@ -131,19 +206,21 @@ def _search_modelscope(query: str, limit: int) -> list[dict]:
         name = getattr(r, "name", None)
         if not owner or not name:
             continue
-        avatar, owner_url = _ms_owner_info(api, owner, name)
+        avatar, display, description = _ms_owner_info(owner, name)
         items.append(
             {
                 "platform": "modelscope",
                 "key": f"{owner}/{name}",
                 "owner": owner,
+                "ownerDisplay": display,
+                "ownerDescription": description,
                 "repo": name,
                 "title": f"{owner}/{name}",
                 "downloads": getattr(r, "downloads", 0) or 0,
                 "likes": getattr(r, "likes", 0) or 0,
                 "avatar": avatar,
                 "pageUrl": f"{MODELSCOPE_INTL_ENDPOINT}/models/{owner}/{name}",
-                "ownerUrl": owner_url,
+                "ownerUrl": f"{MODELSCOPE_INTL_ENDPOINT}/organization/{owner}",
             }
         )
     return items
