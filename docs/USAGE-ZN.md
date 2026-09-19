@@ -161,7 +161,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 ### 按哈希识别
 
-模型详情操作行中的**指纹按钮**向 Civitai 目录逆查"这个本地文件是哪个模型版本"
+模型详情操作行中的**哈希逆查按钮**（HashReverse 图标）向 Civitai 目录逆查"这个本地文件是哪个模型版本"
 （按哈希识别）：先尝试笔记 front-matter 中已记录的哈希（`AutoV1` / `AutoV2` / `SHA256` /
 `CRC32` / `BLAKE3`），均未命中时才以单遍扫描计算文件哈希。命中会打开解析出的模型/版本，
 连同基础模型、触发词、文件列表，以及官方 CLI 命中时打印的同一条 `civitai download`

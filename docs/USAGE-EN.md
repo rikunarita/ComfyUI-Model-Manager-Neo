@@ -196,7 +196,8 @@ base‑info table, and two tabs.
 
 ### Identify by hash
 
-The **fingerprint button** in the model detail action row asks the Civitai
+The **hash reverse-lookup button** (the HashReverse artwork icon) in the model
+detail action row asks the Civitai
 catalog which model version a local file is (a reverse lookup by hash): the
 hashes already recorded in the notes' front‑matter (`AutoV1` / `AutoV2` /
 `SHA256` / `CRC32` / `BLAKE3`) are tried first, and only when none of them
