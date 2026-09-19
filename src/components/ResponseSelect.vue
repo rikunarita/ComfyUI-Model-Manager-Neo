@@ -19,7 +19,19 @@
               class="size-4 shrink-0 opacity-60"
             />
           </slot>
-          <span class="flex-1 scrollbar-none overflow-scroll text-right">
+          <!--
+            CONTENT-SIZED TRIGGER: the label used to sit in a fixed-width
+            button (`w-36` / `w-44` at the call sites) with the dead space
+            parked to the LEFT of the right-aligned label, which read as an
+            oversized, empty frame around short labels. The span now keeps
+            `flex-1` (so full-width call sites still push the chevron to the
+            right edge) but truncates instead of scrolling, which lets the
+            button shrink-wrap its label: its max-content contribution sizes
+            the button, while `overflow-hidden` keeps the flex minimum at 0 so
+            constrained parents ellipsise instead of overflowing. Call sites
+            that need a ceiling pass a `max-w-*` class.
+          -->
+          <span class="flex-1 truncate text-right">
             <slot name="label">{{ currentLabel }}</slot>
           </span>
           <slot name="suffix">

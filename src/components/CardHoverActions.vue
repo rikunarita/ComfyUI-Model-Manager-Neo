@@ -4,7 +4,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from 'components/ui/button'
 import { useConfig } from 'hooks/config'
-import { useModelNodeAction } from 'hooks/model'
+import { normalizePreviews, useModelNodeAction } from 'hooks/model'
 import { type Model } from 'types/typings'
 import { platformBackgroundStyle, platformLogo } from 'utils/media'
 
@@ -13,6 +13,12 @@ const { model } = defineProps<{ model: Model }>()
 const { t } = useI18n()
 const { cardSize } = useConfig()
 const { addModelNode, copyModelNode, loadPreviewWorkflow, openModelPage } = useModelNodeAction()
+
+/**
+ * The workflow action needs a REAL preview: models without one carry the
+ * NO-PREVIEW artwork URL, which is truthy but holds no workflow.
+ */
+const hasPreview = computed(() => normalizePreviews(model.preview).length > 0)
 
 /**
  * The hover column only makes sense while the card is large enough to show
@@ -58,7 +64,7 @@ const showActions = computed(() => cardSize.value.width > 120 && cardSize.value.
         <Copy class="size-4" />
       </Button>
       <Button
-        v-show="model.preview"
+        v-show="hasPreview"
         variant="secondary"
         size="icon-sm"
         class="rounded-full"

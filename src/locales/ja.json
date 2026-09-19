@@ -225,6 +225,7 @@
   "addNode": "グラフにノードを追加",
   "copyNode": "ノードをクリップボードへコピー",
   "loadWorkflow": "プレビューからワークフローを読込",
+  "noPreviewWorkflow": "ワークフローを読み込めるプレビュー画像がないモデルです",
   "editModel": "モデルを編集",
   "deleteModel": "モデルを削除",
   "pause": "一時停止",

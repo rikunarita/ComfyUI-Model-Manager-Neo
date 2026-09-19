@@ -105,6 +105,7 @@
               <Copy class="size-4" />
             </Button>
             <Button
+              v-show="hasPreview"
               variant="ghost"
               size="icon-action"
               :title="$t('loadWorkflow')"
@@ -147,7 +148,13 @@ import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
 import { Progress } from 'components/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
-import { genModelFullName, genModelUrl, useModelNodeAction, useModels } from 'hooks/model'
+import {
+  genModelFullName,
+  genModelUrl,
+  normalizePreviews,
+  useModelNodeAction,
+  useModels,
+} from 'hooks/model'
 import { useRequest } from 'hooks/request'
 import { isModelStarred, toggleModelStar } from 'hooks/stars'
 import { useToast } from 'hooks/toast'
@@ -210,6 +217,9 @@ const openModelPage = (url?: string) => {
 }
 
 const { addModelNode, copyModelNode, loadPreviewWorkflow } = useModelNodeAction()
+
+/** The workflow action needs a real preview (the NO-PREVIEW artwork is not one). */
+const hasPreview = computed(() => normalizePreviews(props.model.preview).length > 0)
 
 /* ---- ZipNN ---------------------------------------------------------- */
 const zipnnIcon = assetUrl('zipnn-button')

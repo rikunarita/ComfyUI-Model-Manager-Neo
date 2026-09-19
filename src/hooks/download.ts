@@ -270,8 +270,14 @@ export const useModelSearch = () => {
     // can never drop an image the model page offers.
     const frontPreviews = frontmatterPreviews(item.description)
     if (frontPreviews.length) fileSelectionItem.preview = frontPreviews
+    // BUG FIX: the comparator took ONE argument and returned -1 / 1 based on
+    // it alone - an inconsistent ordering ("every element is smaller than
+    // every other") whose result depends on the engine's sort internals and
+    // could reverse the non-Model files. A proper two-arg comparator keeps
+    // Model files first and everyone else in their original order (stable).
     fileSelectionItem.selectionFiles = fileSelectionItem.files
-      ?.sort(file => (file.type === 'Model' ? -1 : 1))
+      ?.slice()
+      .sort((a, b) => Number(b.type === 'Model') - Number(a.type === 'Model'))
       .map(file => {
         const parts = file.name.split('.')
         const extension = `.${parts.pop()}`

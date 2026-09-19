@@ -372,6 +372,14 @@ export const queueSingleCompress = (items: SingleCompressItem[]) => {
 
 export const queueZipnnBatches = (items: ZipnnBatchItem[]) => {
   batchQueue.push(...items)
+  // BUG FIX: this used to shift-and-start unconditionally, so calling it while
+  // another task was already running (a single compression in flight, or a
+  // previous batch) launched a SECOND concurrent ZipNN task. The progress
+  // state tracks one task: `beginTask` reset it onto the newer target and the
+  // older task's `zipnn_complete` event was then filtered out by the taskId
+  // mismatch - its grid refresh / settle never ran and the queue stalled.
+  // Start only when idle; the completion handler drains the queue otherwise.
+  if (zipnnState.active) return
   const next = batchQueue.shift()
   if (next) void startZipnnBatch(next.mode, next.folder, next.key)
 }

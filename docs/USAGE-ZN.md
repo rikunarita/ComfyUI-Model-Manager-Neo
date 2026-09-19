@@ -114,8 +114,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
   重复文件的路径。
 - **智能集合**（展平视图）— 将当前搜索+类型过滤保存为命名集合（按用户持久化），
   通过集合选择器一键重新应用；应用中的集合以芯片显示，可清除/删除。**保存搜索**
-  按钮位于集合选择器前的空档处（平时减淡、悬停变亮，一眼可知是按钮）；工具栏/
-  标题栏/操作行的所有控件统一为 36 px 一种尺寸。
+  按钮位于集合选择器前的空档处（平时减淡、悬停变亮，一眼可知是按钮）。
 - **卫生扫描**（两个工具栏）— 仅本地（不使用网络、不计算哈希）列出孤立预览/笔记、
   缺少预览的模型（可直达编辑器）与空文件夹；选中项经 Danger 确认后删除。
 - **悬停操作**（展平布局、大卡片） — **添加节点**、**复制节点**、**从预览载入工作流**、
@@ -173,8 +172,9 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
   `…/models/unet/subfolder/`（缺少的文件夹会自动创建）。`\ : * ? " < > |` 以及空、
   `.`、`..` 段会被拒绝，后端还会再次做路径穿越校验。
 - **预览** — `默认`（轮播）/ `网络`（粘贴图片或视频 URL）/ `本地`（拖放或选择文件；
-  图片转 WebP，视频保留原格式）/ `无`（删除全部预览文件）。编辑模式的缩略图条可管理
-  图集（选择主预览、左右移动、删除单张）；保存时停留的那一页成为卡片的**主预览**。
+  图片转 WebP，视频保留原格式）/ `无`（删除全部预览文件）。编辑模式下预览下方的
+  缩略图网格可管理图集（选择主预览、左右移动、删除单张）；保存时停留的那一页
+  成为卡片的**主预览**。
 - **Description** — 点击提示文字旁的**编辑（铅笔）图标**打开 Markdown 文本框，
   文本框失焦即保存：
 
@@ -198,8 +198,9 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 2. 直接链接必须先选择**模型类型**（只提供当前 ComfyUI 存在的类型）；可选的
    **子文件夹**栏可把文件放得更深。
 3. Civitai / HF 页面会解析出一个或多个**版本**与**文件**：版本在工具栏选，
-   文件在编辑器里选。版本行以下的编辑器是单列滚动（图库在上，其下为文件选择+
-   下载、元数据编辑、描述/信息页签），窗口再窄也不会挤丢任何控件。
+   文件在编辑器里选。版本行以下的编辑器把图库网格放在左侧、预览放在右侧，
+   其下为文件选择+下载、元数据编辑、描述/信息页签的单列滚动，窗口再窄也
+   不会挤丢任何控件。
 
    ![解析结果](screenshots/download-resolved.png)
 
@@ -225,7 +226,8 @@ HTTP `Range` 断点续传。
 文件夹视图的批量上传（所选文件夹内全部模型、保留子文件夹结构）也遵循所选提供方。
 
 先设置令牌：**设置 → Model Manager Neo → 密钥 → HuggingFace API 密钥**
-（或导出环境变量 `HF_TOKEN`）。
+（或导出环境变量 `HF_TOKEN`）；上传到 ModelScope 时使用 **ModelScope API 密钥**
+（或 `MODELSCOPE_API_TOKEN`）。
 
 打开标题栏的**上传到 HuggingFace**：
 
@@ -285,9 +287,10 @@ HTTP `Range` 断点续传。
   按钮退出。
   ![lightbox](screenshots/lightbox.png)
 - **环境变量密钥**。当 `private.key` 为空且导出了 `HF_TOKEN` /
-  `CIVITAI_API_KEY` 时，仅把环境中实际存在的密钥自动写入 `private.key`。
+  `CIVITAI_API_KEY` / `MODELSCOPE_API_TOKEN` 时，仅把环境中实际存在的密钥
+  自动写入 `private.key`。
 - **超大上传**。超过 ComfyUI 服务器上传上限(`--max-upload-size`，默认 100 MB)
-  的文件会以提示条说明如何提高上限，而不是裸的「HTTP 413」。
+  的文件会以提示条说明如何提高上限，而不是直接抛出「HTTP 413」。
 
 ## 10. 多选与 ZipNN 压缩
 
@@ -370,9 +373,10 @@ ComfyUI **设置 → Model Manager Neo**：
 
 ### 密钥
 
-- **HuggingFace API 密钥** / **Civitai API 密钥** — 保存在扩展目录旁的 `private.key`
-  中（界面打码显示），并可用 `HF_TOKEN` / `CIVITAI_API_KEY` 环境变量兜底。旧版本保存
-  在 ComfyUI 用户设置中的密钥会在首次运行时自动迁移。
+- **HuggingFace API 密钥** / **Civitai API 密钥** / **ModelScope API 密钥** —
+  保存在扩展目录旁的 `private.key` 中（界面打码显示），并可用 `HF_TOKEN` /
+  `CIVITAI_API_KEY` / `MODELSCOPE_API_TOKEN` 环境变量兜底。旧版本保存在
+  ComfyUI 用户设置中的密钥会在首次运行时自动迁移。
 
 ### 模型列表
 

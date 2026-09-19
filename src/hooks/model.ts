@@ -49,10 +49,17 @@ const systemStat = ref()
 const ZNN_ORIGINAL_SIZE_KEY = 'znn_neo_original_bytes'
 
 /** Preview field -> ordered URL list (the no-preview artwork counts as none). */
-const normalizePreviews = (preview: string | string[] | undefined): string[] => {
+export const normalizePreviews = (preview: string | string[] | undefined): string[] => {
   if (!preview) return []
   const list = Array.isArray(preview) ? preview : [preview]
-  return list.filter(item => Boolean(item) && item !== NO_PREVIEW_SENTINEL)
+  // BUG FIX: only the sentinel string was filtered, but the model list hands
+  // out the *artwork URL* (`NO_PREVIEW_URL`) for models without a preview - a
+  // truthy string. Consumers that ask "is there a real preview?" (the
+  // load-workflow action and its button gates) therefore saw a preview where
+  // there is none and tried to fetch the SVG artwork as a workflow.
+  return list.filter(
+    item => Boolean(item) && item !== NO_PREVIEW_SENTINEL && item !== NO_PREVIEW_URL,
+  )
 }
 
 const samePreviews = (a: string[], b: string[]) =>
@@ -1028,7 +1035,19 @@ export const useModelNodeAction = () => {
     // cast the value straight to `string`, so for a gallery `fetch()` received
     // "url1,url2" (the array's toString) and always failed. The embedded
     // workflow lives in the primary preview, which is the first entry.
+    // Models without a preview carry the NO-PREVIEW artwork URL (truthy), so
+    // the guard goes through `normalizePreviews`, which counts only real
+    // previews - fetching the artwork as a workflow only ever errored out.
     const previewUrl = normalizePreviews(model.preview)[0]
+    if (!previewUrl) {
+      toast.add({
+        severity: 'warn',
+        summary: t('warning'),
+        detail: t('noPreviewWorkflow'),
+        life: 5000,
+      })
+      return
+    }
     const response = await fetch(previewUrl)
     const data = await response.blob()
     const type = data.type

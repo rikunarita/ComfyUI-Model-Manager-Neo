@@ -54,23 +54,22 @@ the experience from the ground up:
 - <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **PrimeVue‑free** — the entire PrimeVue dependency was removed and replaced
   with lightweight, headless **[reka-ui]** primitives + **Tailwind CSS v4** +
   **[Lucide]** icons (shadcn‑vue style components you can read and tweak).
-- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Upload to Hugging Face** — publish any local model straight to a HF repo
-  (creates the repo if needed, private option, live progress) — _new in Neo_.
+- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Upload to Hugging Face / ModelScope** — publish any local model straight to a
+  HF repo or a ModelScope model repo (creates the repo if needed, private
+  option, live progress).
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN lossless compression** — compress / decompress safetensors models in
   place (`.znn.safetensors`) with confirmation, progress and an inverted icon on
   compressed models; whole folders batch-compress into sealed
   `<name>_DeltaZNN` bundles, and fine-tunes shrink to tiny **delta files**
-  against their base —
-  _new in Neo_.
+  against their base.
 - <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Multi-select** — tick cards to add several models to the workflow or
-  delete them in one go — _new in Neo_. Folders can be ticked too: "Add to
+  delete them in one go. Folders can be ticked too: "Add to
   workflow" expands them recursively, "Delete" removes them wholesale.
 - <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **Stars** — every model and folder card carries a star toggle at its top-right
   (also in the model-detail action row and the selection bar); starred entries
-  show a filled yellow star and always sort first — _new in Neo_.
+  show a filled yellow star and always sort first.
 - <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **Create folders** — the folder view offers an "Add Folder" button that
-  creates arbitrarily named (sub-)folders inside the open directory —
-  _new in Neo_.
+  creates arbitrarily named (sub-)folders inside the open directory.
 - <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Direct‑link downloads** — paste a raw `.safetensors`/`.ckpt`/`.gguf` URL,
   pick the target folder, optionally choose a custom sub‑folder.
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` acceleration** — Hugging Face transfers use the chunked,
@@ -194,8 +193,7 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - **Smart collections** — save the flat view's current search + type filter as
   a named, per‑user collection and re‑apply it with one click. The _save
   search_ button lives in the slack before the collection select (dimmed
-  until hovered), and every toolbar / header / action control shares one
-  36 px size so the chrome never mixes heights.
+  until hovered).
 - **Hygiene scan** — a local‑only sweep (no network, no hashing) for orphaned
   previews / notes, models without previews and empty folders, with bulk
   cleanup behind the usual confirmation.
@@ -237,7 +235,7 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 
 - **From local file** into any model folder (registered as a live task with
   progress in the Download List).
-- **To Hugging Face or ModelScope** _(new in Neo)_: pick the provider in the
+- **To Hugging Face or ModelScope**: pick the provider in the
   form; authenticated via the matching token, creates the repository if it
   doesn't exist (public/private), choose the destination path, and watch
   progress. ModelScope always talks to the international `www.modelscope.ai`
@@ -277,9 +275,10 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 <details>
 <summary><b>Settings &amp; i18n</b></summary>
 
-- API keys for **Civitai** and **Hugging Face**, stored locally in `private.key`
-  (with `CIVITAI_API_KEY` / `HF_TOKEN` environment fallbacks). Keys migrate out
-  of ComfyUI user settings on first run.
+- API keys for **Civitai**, **Hugging Face** and **ModelScope**, stored locally
+  in `private.key` (with `CIVITAI_API_KEY` / `HF_TOKEN` / `MODELSCOPE_API_TOKEN`
+  environment fallbacks). Keys migrate out of ComfyUI user settings on first
+  run.
 - Exclude model types from the model list; include/exclude hidden files.
 - ZipNN automation: auto‑compress models unused for N days, auto‑compress
   after a download completes, and pause downloads while a prompt executes.
@@ -295,7 +294,7 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 
 ## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> ZipNN lossless compression
 
-**Neo's headline feature.** Large `.safetensors` checkpoints eat disk space fast.
+Large `.safetensors` checkpoints eat disk space fast.
 Neo can compress and decompress them **in place, losslessly**, using the
 [ZipNN](https://github.com/zipnn/zipnn) format — the same tensor-aware scheme the
 official ZipNN project uses, so the results stay interchangeable with the wider
@@ -407,7 +406,7 @@ sides have the same byte length when the delta is created.
 ### Bundled, so it just works
 
 <details>
-<summary><b>Why this used to be painful — and how Neo fixes it</b></summary>
+<summary><b>Why ZipNN is vendored</b></summary>
 
 ZipNN's Python side is trivial, but its compressor is a C extension
 (`zipnn_core`, built on FiniteStateEntropy). **PyPI ships no Linux wheels for
@@ -505,8 +504,9 @@ The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
 
 ### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="22" height="22" align="middle" alt=""> Toolchain
 
-Biome was trialled and then **removed** in favour of a conventional,
-fully‑configured **ESLint 10 flat config** + **Prettier** pipeline (see
+The lint / format pipeline is a conventional, fully‑configured
+**ESLint 10 flat config** + **Prettier** setup, complemented by
+[Fallow](https://fallow.tools) for dead‑code and duplication analysis (see
 [Development](#development)).
 
 ---
@@ -516,72 +516,30 @@ fully‑configured **ESLint 10 flat config** + **Prettier** pipeline (see
 ## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="28" height="28" align="middle" alt=""> Removed feature: batch scan
 
 The **“Batch scan model information”** feature has been **removed entirely**. It
-was redundant: opening a model already loads, on demand and for exactly the model
-you are looking at, everything the scan used to backfill in bulk.
-
-- `DialogModelDetail` requests `GET /model-manager/model/{type}/{index}/{filename}`
-  as soon as it mounts. That returns the model's `__metadata__` (read straight
-  from the safetensors header) and the Markdown notes stored beside the file.
-- The preview is served by `GET /model-manager/preview/{type}/{index}/{filename}`,
-  which resolves whichever preview file exists (`.webp` / `.png` / `.jpg` / video,
-  as `name.ext` or `name.preview.ext`). A model without one carries the bundled
-  glass `NO-PREVIEW.svg` URL straight in the model list, so the route has no
-  fallback chain and answers a plain 404 for anything that does not exist.
+was redundant: the model detail
+window requests that model's `__metadata__` (read straight from the safetensors
+header) and the Markdown notes stored beside the file, and the preview route
+resolves whichever preview file exists — a model without one carries the
+bundled glass `NO-PREVIEW.svg` URL straight in the model list.
 
 A library‑wide walk that hashed every model and queried Civitai by hash was a
 second, far slower route to the same information — plus a modal dialog, a global
-store, two websocket events, a task file on disk and its own settings, all of
-which had to be maintained. All of it is gone.
+store, websocket events, a task file on disk and its own settings, all of which
+had to be maintained. All of it is gone, frontend and backend alike (scan
+dialog, scan hooks, scan routes and task bookkeeping, hash‑by‑search, and the
+recursive‑walk / sha256 helpers that only the scan used).
 
-**Frontend**
-
-- Deleted `src/components/DialogScanning.vue` and `src/hooks/scan.ts`.
-- `App.vue`: removed the `scanning` toolbar button, `openModelScanning()` and the
-  `DialogScanning` import; `utils/iconMap.ts`: removed the
-  `mdi mdi-folder-search-outline` mapping and its `FolderSearch` import.
-- Dropped ten scan‑only keys from `en.json` / `zh.json`
-  (`batchScanModelInformation`, `modelInformationScanning`, `scanModelInformation`,
-  `selectedAllPaths`, `scanFullInformation`, `scanMissInformation`,
-  `scanCompleted`, `scanCompletedWithErrors`, `setting.scanAll`,
-  `setting.scanMissing`).
-
-**Backend**
-
-- `py/information.py`: removed the `GET` and `POST /model-manager/model-info/scan`
-  routes, `create_scan_model_info_task`, `download_model_info`,
-  `get_scan_model_info_task_list`, `get_scan_information_task_filepath`,
-  `SCAN_TASK_ID` and the scan's own `DownloadThreadPool` (along with the now
-  unused `functools` / `thread` imports).
-- Removed `ModelSearcher.search_by_hash` and its three implementations — the scan
-  was the only caller. `_resolve_model_type` stays: `search_by_url` uses it.
-- `py/utils.py`: removed `recursive_search_files` and `calculate_sha256` (and the
-  `hashlib` import) — both existed only for the scan.
-- The `update_scan_information_task` / `complete_scan_information_task` websocket
-  events no longer exist, and no `downloads/scan_information.task` file is written.
-
-**Deliberately kept** — these say “scan” but are _not_ part of the batch scan:
-
-- `ModelManager.Scan.excludeScanTypes` and `ModelManager.Scan.IncludeHiddenFiles`
-  drive the **model list** (which types are loaded into the grid, and whether
-  `.`‑prefixed files are shown) and the toolbar's show/hide‑hidden‑files toggle.
-  **These two setting ID strings are intentionally unchanged**: the ID is the key
-  ComfyUI persists the user's value under, so renaming it would silently orphan
-  every existing installation's saved setting.
-- Everything _around_ those IDs was still de‑scan‑ned, because none of it is
-  persisted: the settings category is now **Model List** (was “Scan”), the label
-  is **“Exclude model types (separate with commas)”** (was “Exclude scan types”),
-  the i18n keys are `setting.modelList` / `setting.excludeModelTypes`, the
-  TypeScript identifier is `configSetting.excludeModelTypes`, and the backend
-  setting group in `py/config.py` is `model_list` (so `manager.py` now resolves
-  `model_list.include_hidden_files`).
-- `ModelManager.scan_models()` / `os.scandir` — builds the model **list** (“scan”
-  here means “enumerate a folder”, as it did upstream). Left as‑is on purpose:
-  renaming it would churn code that has nothing to do with the removed feature.
-- `scan_model_download_task_list()` — lists **download tasks**. Same reasoning.
-- Tailwind's “source scan” wording in `src/style.css` — unrelated.
-- `ui/tree`, `ui/progress`, `useModelFolder`, and the `selectModelType` /
-  `selectSubdirectory` / `selectedSpecialPath` / `noModelsInCurrentPath` strings —
-  shared with the Upload and Hugging Face Upload dialogs and the model editor.
+Two scan‑era setting IDs — `ModelManager.Scan.excludeScanTypes` and
+`ModelManager.Scan.IncludeHiddenFiles` — **keep their ID strings on purpose**:
+they now drive the **model list** (which types are loaded into the grid, and
+whether `.`‑prefixed files are shown), and the ID is the key ComfyUI persists
+the user's value under, so renaming it would silently orphan every existing
+installation's saved setting. Everything around them was renamed to match the
+new role (settings category **Model List**, label **“Exclude model types
+(separate with commas)”**). Other identifiers that merely contain “scan”
+(`scan_models()`, which enumerates folders, and
+`scan_model_download_task_list()`, which lists download tasks) are upstream
+naming for unrelated behaviour and were left as‑is.
 
 > [!NOTE]
 > **What this gives up:** the only way to _bulk backfill_ previews and
@@ -600,6 +558,8 @@ Step‑by‑step usage guides, each complete and self‑contained:
 - [`docs/USAGE-EN.md`](docs/USAGE-EN.md) — English
 - [`docs/USAGE-JA.md`](docs/USAGE-JA.md) — 日本語
 - [`docs/USAGE-ZN.md`](docs/USAGE-ZN.md) — 中文
+
+A Japanese version of this front page lives in [`README-ja.md`](README-ja.md).
 
 They cover installation, both layouts, card interactions and drag‑to‑graph, the
 model editor (folder picker, folder‑prefixed names, previews, descriptions),

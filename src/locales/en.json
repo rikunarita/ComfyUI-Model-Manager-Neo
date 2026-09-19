@@ -225,6 +225,7 @@
   "addNode": "Add node to graph",
   "copyNode": "Copy node to clipboard",
   "loadWorkflow": "Load workflow from preview",
+  "noPreviewWorkflow": "This model has no preview image to load a workflow from",
   "editModel": "Edit model",
   "deleteModel": "Delete model",
   "pause": "Pause",

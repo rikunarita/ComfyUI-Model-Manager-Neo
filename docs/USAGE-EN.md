@@ -207,9 +207,9 @@ Press the **pencil** to enter edit mode (the window turns into a form):
 - **Preview** — `Default` (carousel) / `Network` (paste an image or video URL) /
   `Local` (drag & drop or pick a file; images are converted to WebP, videos keep
   their format) / `None` (removes every preview file). In edit mode a
-  thumbnail strip manages the gallery: pick the primary, move entries left /
-  right, or remove single images. The page left open on save becomes the
-  card's **primary** preview.
+  thumbnail **grid** below the preview manages the gallery: pick the primary,
+  move entries left / right, or remove single images. The page left open on
+  save becomes the card's **primary** preview.
 - **Description** — press the **Edit (pencil) icon** next to the hint text to
   open the Markdown textarea; it saves when the textarea loses focus:
 
@@ -239,10 +239,10 @@ Open **Download List** from the header, then:
 
    ![resolved result](screenshots/download-resolved.png)
 
-   The editor below the version row is a single scrolling column (gallery on
-   top, file pick + download, metadata editor and the description /
-   information tabs beneath), so nothing can be squeezed out of sight no
-   matter how narrow the window is.
+   The editor below the version row places the **gallery grid on the left and
+   the preview on the right**, with file pick + download, metadata editor and
+   the description / information tabs beneath, so nothing can be squeezed out
+   of sight no matter how narrow the window is.
 
 4. In the editor you can set the destination type/directory, a file name
    (folder prefixes allowed), the preview images — the **whole gallery** the
@@ -274,7 +274,8 @@ for both providers, and the folder-view batch upload (selected folders → every
 model inside, sub-folders preserved) honours the chosen provider too.
 
 Set your token first: **Settings → Model Manager Neo → API Key → HuggingFace
-API Key** (or export `HF_TOKEN`).
+API Key** (or export `HF_TOKEN`); for ModelScope uploads use the **ModelScope
+API Key** (or `MODELSCOPE_API_TOKEN`).
 
 Open **Upload to HuggingFace** from the header:
 
@@ -339,8 +340,8 @@ server‑side (no arbitrary writes, no path traversal).
   button dismiss it.
   ![lightbox](screenshots/lightbox.png)
 - **Environment keys.** If `private.key` is empty and `HF_TOKEN` /
-  `CIVITAI_API_KEY` are exported, those keys are adopted into `private.key`
-  automatically (only the ones actually present).
+  `CIVITAI_API_KEY` / `MODELSCOPE_API_TOKEN` are exported, those keys are
+  adopted into `private.key` automatically (only the ones actually present).
 - **Oversized uploads.** A file above your ComfyUI server's upload limit
   (`--max-upload-size`, default 100 MB) is reported with a toast explaining
   exactly how to raise the limit, instead of a bare "HTTP 413".
@@ -456,10 +457,11 @@ ComfyUI **Settings → Model Manager Neo**:
 
 ### API Key
 
-- **HuggingFace API Key** / **Civitai API Key** — stored locally in
-  `private.key` next to the extension (masked in the UI), with `HF_TOKEN` /
-  `CIVITAI_API_KEY` as environment fallbacks. Keys saved in older versions’
-  ComfyUI user settings are migrated automatically on first run.
+- **HuggingFace API Key** / **Civitai API Key** / **ModelScope API Key** —
+  stored locally in `private.key` next to the extension (masked in the UI),
+  with `HF_TOKEN` / `CIVITAI_API_KEY` / `MODELSCOPE_API_TOKEN` as environment
+  fallbacks. Keys saved in older versions’ ComfyUI user settings are migrated
+  automatically on first run.
 
 ### Model List
 

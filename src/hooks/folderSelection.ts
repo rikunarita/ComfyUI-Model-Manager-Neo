@@ -6,7 +6,6 @@ import { applyFolderStars, isFolderStarred } from 'hooks/stars'
 import { useToast } from 'hooks/toast'
 import { queueZipnnBatches, useSelection, zipnnState } from 'hooks/zipnn'
 import { useZipnnDeltaDialog } from 'hooks/zipnnDelta'
-import { assetUrl } from 'utils/media'
 import { genModelKey, isBundleFolderName } from 'utils/model'
 
 /**
@@ -105,13 +104,11 @@ export const useFolderSelection = (getTree: () => ModelTreeNode[]) => {
   }
 
   /* ---- ZipNN batch (folder selection) ---------------------------------- */
-  const zipnnIcon = assetUrl('zipnn-button')
   const zipnnRunning = computed(
     () =>
       zipnnState.active &&
       selectedFolderNodes.value.some(n => genModelKey(n) === zipnnState.targetKey),
   )
-  const batchProgress = computed(() => zipnnState.progress)
   const batchInverted = computed(
     () =>
       selectedFolderNodes.value.length > 0 &&
@@ -190,9 +187,7 @@ export const useFolderSelection = (getTree: () => ModelTreeNode[]) => {
     selectedFolderNodes,
     addSelectedToWorkflow,
     deleteSelected,
-    zipnnIcon,
     zipnnRunning,
-    batchProgress,
     batchInverted,
     batchLabel,
     requestBatch,

@@ -225,6 +225,7 @@
   "addNode": "向画布添加节点",
   "copyNode": "复制节点到剪贴板",
   "loadWorkflow": "从预览载入工作流",
+  "noPreviewWorkflow": "该模型没有可用于载入工作流的预览图",
   "editModel": "编辑模型",
   "deleteModel": "删除模型",
   "pause": "暂停",

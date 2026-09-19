@@ -55,7 +55,18 @@
     </ResponseScroll>
 
     <!-- Bulk actions for the selection mode (shared with the folder view) -->
-    <SelectionBulkBar v-if="selection.state.enabled && selectionCount > 0" :tree="flatModels" />
+    <!--
+      The flat view's selection is model-only: the folder-only extras (folder
+      star toggle, ZipNN batch / folder upload buttons) must not render there
+      - with the default `folder-actions` the star button showed up in the
+      flat bar and did nothing when clicked (its subject list is always
+      empty outside the folder view).
+    -->
+    <SelectionBulkBar
+      v-if="selection.state.enabled && selectionCount > 0"
+      :tree="flatModels"
+      :folder-actions="false"
+    />
   </div>
 </template>
 

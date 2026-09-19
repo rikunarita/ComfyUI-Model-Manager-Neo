@@ -145,9 +145,16 @@ const openSaveCollection = () => {
     >
       <Save class="size-4" />
     </Button>
+    <!--
+      CONTENT-FIT SELECTS: the drop selects shrink-wrap their current label
+      (ResponseSelect truncates inside a `max-w-*` ceiling) instead of
+      reserving fixed `w-44` / `w-36` frames that left a wide dead margin
+      beside short labels. Long values (collection names, card-size labels)
+      ellipsise at the ceiling rather than stretching the bar.
+    -->
     <ResponseSelect
       v-model="collectionState.activeId"
-      class="w-44 shrink-0"
+      class="max-w-56 shrink-0"
       :items="collectionOptions"
     >
       <template #label>
@@ -180,17 +187,17 @@ const openSaveCollection = () => {
     <ResponseSelect
       v-if="mode === 'flat'"
       v-model="currentType"
-      class="w-36 shrink-0"
+      class="max-w-56 shrink-0"
       :items="typeOptions"
     ></ResponseSelect>
     <ResponseSelect
       v-model="sortOrder"
-      class="w-36 shrink-0"
+      class="max-w-56 shrink-0"
       :items="sortOrderOptions"
     ></ResponseSelect>
     <ResponseSelect
       v-model="cardSizeFlag"
-      class="w-36 shrink-0"
+      class="max-w-56 shrink-0"
       :items="cardSizeOptions"
     ></ResponseSelect>
 

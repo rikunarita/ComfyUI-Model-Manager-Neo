@@ -25,10 +25,14 @@
             : ['relative flex gap-4 overflow-hidden', $xl('flex-row', 'flex-col')]
         "
       >
-        <ModelPreview
-          v-model:editable="editable"
-          :class="layout === 'stacked' ? 'justify-self-center' : 'shrink-0'"
-        ></ModelPreview>
+        <!--
+          WIDTH FIX: the stacked (download dialog) column used to be
+          `justify-self-center`, i.e. sized to its content - which let the old
+          gallery strip's enormous min-content width inflate the column past
+          the dialog edges. ModelPreview now owns its sizing: full-width and
+          min-w-0 when stacked, content-sized and shrink-0 in the detail row.
+        -->
+        <ModelPreview v-model:editable="editable" :layout="layout"></ModelPreview>
 
         <div
           :class="
