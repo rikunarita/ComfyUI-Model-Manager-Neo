@@ -145,7 +145,9 @@ const openSaveCollection = () => {
       [💾 Collection ▾]. The floppy keeps its own click / keyboard target -
       it opens the save dialog and `stop` keeps the menu shut - while every
       other pixel of the pill opens the menu that applies / switches saved
-      searches.
+      searches. The floppy draws at FULL opacity (only the chevron stays
+      dimmed) and plates on hover / focus, so the save zone keeps a visible
+      boundary against the label instead of reading as its prefix glyph.
     -->
     <DropdownMenu v-model:open="collectionMenuOpen">
       <DropdownMenuTrigger as-child>
@@ -157,7 +159,7 @@ const openSaveCollection = () => {
           <span
             role="button"
             tabindex="0"
-            class="-ml-1 grid size-6 shrink-0 place-items-center rounded-mm-ctl opacity-60 hover:bg-mm-fg/10 hover:opacity-100 focus-visible:opacity-100"
+            class="-ml-1 grid size-6 shrink-0 place-items-center rounded-mm-ctl hover:bg-mm-fg/10 focus-visible:bg-mm-fg/10"
             :title="$t('collectionsSave')"
             :aria-label="$t('collectionsSave')"
             @click.stop="openSaveCollection"

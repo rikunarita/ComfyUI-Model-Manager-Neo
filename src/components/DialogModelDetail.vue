@@ -101,7 +101,7 @@
               @click="identifyByHash"
             >
               <Loader2 v-if="identifying" class="size-4 animate-spin" />
-              <Fingerprint v-else class="size-4" />
+              <HashReverseIcon v-else />
             </Button>
             <Button
               variant="ghost"
@@ -157,20 +157,11 @@
 </template>
 
 <script setup lang="ts">
-import {
-  Copy,
-  ExternalLink,
-  Fingerprint,
-  Loader2,
-  PenSquare,
-  Plus,
-  Star,
-  Trash2,
-  Workflow,
-} from '@lucide/vue'
+import { Copy, ExternalLink, Loader2, PenSquare, Plus, Star, Trash2, Workflow } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DialogIdentifyHash from 'components/DialogIdentifyHash.vue'
+import HashReverseIcon from 'components/HashReverseIcon.vue'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
