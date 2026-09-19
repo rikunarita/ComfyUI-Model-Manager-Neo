@@ -239,8 +239,8 @@ Open **Download List** from the header, then:
 
    ![resolved result](screenshots/download-resolved.png)
 
-   The editor below the version row places the **gallery grid on the left and
-   the preview on the right**, with file pick + download, metadata editor and
+   The editor below the version row places the **preview on the left and the
+   gallery grid on the right**, with file pick + download, metadata editor and
    the description / information tabs beneath, so nothing can be squeezed out
    of sight no matter how narrow the window is.
 

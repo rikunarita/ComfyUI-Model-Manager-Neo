@@ -17,9 +17,10 @@
 
       The gallery is now a WRAPPING GRID (no scroll container, padded so the
       per-thumbnail controls are never clipped) and, in the stacked layout
-      used by the download dialog, it sits LEFT of the single preview image
-      instead of below it (preview right, gallery left; below the `md`
-      container breakpoint the row folds into a column, preview first).
+      used by the download dialog, it sits RIGHT of the single preview image
+      (preview left, gallery right; below the `md` container breakpoint the
+      row folds into a column, preview first). The preview block comes first
+      in the DOM so the visual and tab order agree in both directions.
     -->
     <div
       :class="[
@@ -27,62 +28,6 @@
         stackedEditable ? ['items-start', $md('flex-row', 'flex-col')] : 'flex-col',
       ]"
     >
-      <!-- Gallery management (edit mode): pick the primary preview, reorder
-           entries and drop single images. The page left open on save becomes
-           the card's primary preview. -->
-      <div
-        v-if="showGallery"
-        :class="[
-          'grid content-start gap-2 p-1.5',
-          'grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))]',
-          stackedEditable ? $md('order-1 min-w-0 flex-1', 'order-2 w-full') : 'w-full',
-        ]"
-        :style="layout === 'auto' ? { maxWidth: `${cardWidth}px` } : undefined"
-      >
-        <div
-          v-for="(url, index) in defaultContent"
-          :key="`${url}-${index}`"
-          class="relative"
-          :class="index === defaultContentPage && 'ring-2 ring-mm-accent'"
-        >
-          <img
-            :src="url"
-            class="aspect-square w-full cursor-pointer rounded-mm-ctl object-cover"
-            alt=""
-            @click="defaultContentPage = index"
-          />
-          <div class="absolute -top-1.5 -right-1.5 flex gap-0.5">
-            <button
-              type="button"
-              class="grid size-4 place-items-center rounded-full border border-mm-fg/25 bg-mm-bg/80 text-mm-fg backdrop-blur-md hover:text-mm-accent"
-              :title="$t('previewMoveLeft')"
-              :aria-label="$t('previewMoveLeft')"
-              @click.stop="movePreview(index, -1)"
-            >
-              <ChevronLeft class="size-3" />
-            </button>
-            <button
-              type="button"
-              class="grid size-4 place-items-center rounded-full border border-mm-fg/25 bg-mm-bg/80 text-mm-fg backdrop-blur-md hover:text-mm-accent"
-              :title="$t('previewMoveRight')"
-              :aria-label="$t('previewMoveRight')"
-              @click.stop="movePreview(index, 1)"
-            >
-              <ChevronRight class="size-3" />
-            </button>
-            <button
-              type="button"
-              class="grid size-4 place-items-center rounded-full border border-mm-danger/40 bg-mm-bg/80 text-mm-danger backdrop-blur-md hover:bg-mm-danger/20"
-              :title="$t('previewRemove')"
-              :aria-label="$t('previewRemove')"
-              @click.stop="removePreview(index)"
-            >
-              <X class="size-3" />
-            </button>
-          </div>
-        </div>
-      </div>
-
       <div :class="previewClass" :style="previewStyle">
         <!--
           The visible media is the *current page* of the gallery. The old
@@ -133,6 +78,62 @@
             {{ defaultContentPage + 1 }} / {{ defaultContent.length }}
           </div>
         </template>
+      </div>
+
+      <!-- Gallery management (edit mode): pick the primary preview, reorder
+           entries and drop single images. The page left open on save becomes
+           the card's primary preview. -->
+      <div
+        v-if="showGallery"
+        :class="[
+          'grid content-start gap-2 p-1.5',
+          'grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))]',
+          stackedEditable ? $md('min-w-0 flex-1', 'w-full') : 'w-full',
+        ]"
+        :style="layout === 'auto' ? { maxWidth: `${cardWidth}px` } : undefined"
+      >
+        <div
+          v-for="(url, index) in defaultContent"
+          :key="`${url}-${index}`"
+          class="relative"
+          :class="index === defaultContentPage && 'ring-2 ring-mm-accent'"
+        >
+          <img
+            :src="url"
+            class="aspect-square w-full cursor-pointer rounded-mm-ctl object-cover"
+            alt=""
+            @click="defaultContentPage = index"
+          />
+          <div class="absolute -top-1.5 -right-1.5 flex gap-0.5">
+            <button
+              type="button"
+              class="grid size-4 place-items-center rounded-full border border-mm-fg/25 bg-mm-bg/80 text-mm-fg backdrop-blur-md hover:text-mm-accent"
+              :title="$t('previewMoveLeft')"
+              :aria-label="$t('previewMoveLeft')"
+              @click.stop="movePreview(index, -1)"
+            >
+              <ChevronLeft class="size-3" />
+            </button>
+            <button
+              type="button"
+              class="grid size-4 place-items-center rounded-full border border-mm-fg/25 bg-mm-bg/80 text-mm-fg backdrop-blur-md hover:text-mm-accent"
+              :title="$t('previewMoveRight')"
+              :aria-label="$t('previewMoveRight')"
+              @click.stop="movePreview(index, 1)"
+            >
+              <ChevronRight class="size-3" />
+            </button>
+            <button
+              type="button"
+              class="grid size-4 place-items-center rounded-full border border-mm-danger/40 bg-mm-bg/80 text-mm-danger backdrop-blur-md hover:bg-mm-danger/20"
+              :title="$t('previewRemove')"
+              :aria-label="$t('previewRemove')"
+              @click.stop="removePreview(index)"
+            >
+              <X class="size-3" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -199,7 +200,7 @@ interface Props {
    *             preview card (capped by the dialog) and the gallery wraps
    *             underneath the preview.
    * `stacked` – the download task window: full-width column; in edit mode the
-   *             gallery grid sits left of the preview image.
+   *             preview image sits left of the gallery grid.
    */
   layout?: 'auto' | 'stacked'
 }
@@ -227,7 +228,7 @@ const {
 
 const { $sm, $md } = useContainerQueries()
 
-/** Edit mode of the stacked (download dialog) layout: gallery left, preview right. */
+/** Edit mode of the stacked (download dialog) layout: preview left, gallery right. */
 const stackedEditable = computed(() => props.layout === 'stacked' && Boolean(editable.value))
 
 /** The gallery editor is only meaningful for the saved ("default") source. */
@@ -249,7 +250,7 @@ const currentPreview = computed(() => {
 
 /**
  * Preview frame classes: in the stacked edit row the frame is the fixed-width
- * right-hand side of the row (and the first block when the row folds into a
+ * left-hand side of the row (and the first block when the row folds into a
  * column); everywhere else it stays a centred, card-width block.
  */
 const previewClass = computed(() => [
@@ -258,7 +259,7 @@ const previewClass = computed(() => [
   'overflow-hidden',
   'rounded-lg',
   stackedEditable.value
-    ? $md(showGallery.value ? 'order-2 shrink-0' : 'mx-auto shrink-0', 'order-1 w-full')
+    ? $md(showGallery.value ? 'shrink-0' : 'mx-auto shrink-0', 'w-full')
     : ['mx-auto', 'w-full'],
 ])
 
