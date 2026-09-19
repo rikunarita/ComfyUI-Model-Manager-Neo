@@ -241,7 +241,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   progress. ModelScope always talks to the international `www.modelscope.ai`
   domain, and its logo backs the "open model page" button like the others.
   The optional **related assets** switch also uploads every `<model name>.*`
-  sidecar (preview images, Markdown notes) next to the model. Selected
+  sidecar (preview images, Markdown notes) next to the model — notes are
+  committed as the repository's `README.md` by default. Selected
   **folders** upload as a batch (every model inside, sub‑folders preserved)
   from the folder view's selection bar.
 

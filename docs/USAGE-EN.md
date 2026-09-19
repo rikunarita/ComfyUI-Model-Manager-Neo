@@ -59,7 +59,8 @@ The manager is a **non‑modal window**: it floats above ComfyUI but the canvas
 stays fully interactive, so you can drag models onto the graph while browsing.
 Windows are draggable by their title bar, resizable from any edge/corner, and
 maximisable with the ⤢ button. Several windows can be open at once; clicking one
-brings it to the front.
+brings it to the front. The manager window's title bar carries a live read-out
+of the library's total model size.
 
 > The loading indicator is **scoped to the panel it belongs to** — while a
 > request is in flight only that window is dimmed and blurred; the canvas, the
@@ -295,6 +296,9 @@ Open **Upload to Hugging Face / ModelScope** from the header:
    - **Also upload related assets (previews / notes)** — uploads every
      `<model name>.*` sidecar (preview images, Markdown notes) into the same
      repository directory as the model.
+   - **Upload the model's notes as README.md** (on by default) — commits the
+     model's Markdown notes as the repository's `README.md` instead of
+     `<model name>.md`.
    - **Destination path in repo** — directory + file name inside the repo.
 
 Press **Upload**. The request returns immediately and the transfer runs in the

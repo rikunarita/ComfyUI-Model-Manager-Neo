@@ -10,7 +10,7 @@
 
 <script setup lang="ts">
 import { ConfigProvider } from 'reka-ui'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DialogDownload from 'components/DialogDownload.vue'
 import DialogExplorer from 'components/DialogExplorer.vue'
@@ -30,6 +30,7 @@ import { useStoreProvider } from 'hooks/store'
 import { useToast } from 'hooks/toast'
 import { takeZipnnSettle } from 'hooks/zipnn'
 import { $el, app, ComfyButton } from 'scripts/comfyAPI'
+import { bytesToSize } from 'utils/common'
 
 const { t } = useI18n()
 
@@ -39,6 +40,21 @@ const { openModelDetail } = useModelDetail()
 const { toast } = useToast()
 
 const firstOpenManager = ref(true)
+
+/**
+ * Aggregate size of every model file in the library - the live read-out next
+ * to the manager window's title (folder entries carry no size of their own;
+ * type-root cards show the same per-type sum).
+ */
+const totalModelBytes = computed(() => {
+  let sum = 0
+  for (const list of Object.values(models.data.value)) {
+    for (const entry of list) {
+      if (!entry.isFolder) sum += entry.sizeBytes || 0
+    }
+  }
+  return sum
+})
 
 /**
  * ZipNN completion handling, at APP lifetime.
@@ -170,6 +186,7 @@ onMounted(() => {
     dialog.open({
       key: 'model-manager',
       title: t('modelManager'),
+      badge: () => `${t('totalSize')}: ${bytesToSize(totalModelBytes.value)}`,
       content: flat.value ? DialogManager : DialogExplorer,
       keepAlive: true,
       headerButtons: [

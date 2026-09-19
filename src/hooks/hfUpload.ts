@@ -21,6 +21,8 @@ interface HfProgressDetail {
   progress?: number
   phase?: HfUploadPhase
   provider?: 'hf' | 'modelscope'
+  /** False when the hub reports no per-chunk transfer progress (ModelScope). */
+  chunked?: boolean
 }
 
 interface HfCompleteDetail {
@@ -57,6 +59,10 @@ export const hfUploadState = reactive<{
   pathInRepo: string
   /** Hub provider of the running upload (toast wording / phase labels). */
   provider: 'hf' | 'modelscope'
+  /** Whether the transfer reports per-chunk percentages (false: ModelScope,
+   *  whose hub library consumes the payload opaquely - the bar renders
+   *  indeterminate during its transfer phase instead of a frozen number). */
+  chunked: boolean
 }>({
   taskId: null,
   active: false,
@@ -65,6 +71,7 @@ export const hfUploadState = reactive<{
   repoId: '',
   pathInRepo: '',
   provider: 'hf',
+  chunked: true,
 })
 
 /**
@@ -106,6 +113,7 @@ api.addEventListener('update_hf_upload_progress', (event: CustomEvent) => {
   const detail = event.detail as HfProgressDetail | undefined
   if (!matches(detail)) return
   if (detail?.provider) hfUploadState.provider = detail.provider
+  if (detail?.chunked !== undefined) hfUploadState.chunked = detail.chunked
   hfUploadState.active = true
   hfUploadState.progress = Math.floor(detail?.progress ?? 0)
   hfUploadState.phase = detail?.phase ?? 'upload'
@@ -207,7 +215,9 @@ export const resetHfUploadState = () => {
   hfUploadState.active = true
   hfUploadState.progress = 0
   hfUploadState.phase = 'prepare'
-  hfUploadState.provider = 'hf'
+  // NOTE: `provider` is NOT reset here - the upload wizard owns the platform
+  // selection and the backend events carry the provider of the running task.
+  hfUploadState.chunked = true
 }
 
 /** Whether a task id has already been reported as finished. */

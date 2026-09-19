@@ -138,6 +138,7 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
     path_in_repo = (data.get("pathInRepo") or "").strip()
     private = bool(data.get("private", False))
     include_assets = bool(data.get("includeAssets", False))
+    rename_notes = bool(data.get("renameNotesToReadme", False))
 
     if not repo_id:
         raise RuntimeError("Repository id is required")
@@ -150,16 +151,28 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
         """Queue the model's sidecars (`<model name>.*`: previews and notes).
 
         They live next to the model on disk and land next to it in the
-        repository (same directory as the model's destination path).
+        repository (same directory as the model's destination path). With
+        `renameNotesToReadme` the model's Markdown notes are committed as
+        `README.md` (the hub's conventional readme name) instead of their
+        local `<model name>.md` name.
         """
         repo_dir = in_repo.rsplit("/", 1)[0] if "/" in in_repo else ""
         local_dir = os.path.dirname(local)
-        names = utils.get_model_all_previews(local) + utils.get_model_all_descriptions(local)
+        names: list[str] = []
+        if include_assets:
+            names += utils.get_model_all_previews(local)
+        if include_assets or rename_notes:
+            names += [n for n in utils.get_model_all_descriptions(local)]
+        readme_done = False
         for name in names:
             asset_local = utils.join_path(local_dir, name)
             if not os.path.isfile(asset_local):
                 continue
-            asset_repo = f"{repo_dir}/{name}" if repo_dir else name
+            repo_name = name
+            if rename_notes and name.endswith(".md") and not readme_done:
+                repo_name = "README.md"
+                readme_done = True
+            asset_repo = f"{repo_dir}/{repo_name}" if repo_dir else repo_name
             if any(entry["path_in_repo"] == asset_repo for entry in files):
                 continue
             files.append({"local_path": asset_local, "path_in_repo": asset_repo})
@@ -185,7 +198,7 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
             if local is None:
                 raise RuntimeError(f"Model file not found: {fname}")
             files.append({"local_path": local, "path_in_repo": f"{base}/{fname}"})
-            if include_assets:
+            if include_assets or rename_notes:
                 append_related_assets(local, f"{base}/{fname}")
     else:
         model_type = data.get("type", None)
@@ -197,7 +210,7 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
         if local_path is None:
             raise RuntimeError(f"Model file not found: {fullname}")
         files.append({"local_path": local_path, "path_in_repo": path_in_repo})
-        if include_assets:
+        if include_assets or rename_notes:
             append_related_assets(local_path, path_in_repo)
     return files, repo_id, path_in_repo, private
 
@@ -206,6 +219,14 @@ class HubUploadBackend:
     """The provider-specific slice of a hub upload (HF / ModelScope)."""
 
     provider: str = "hf"
+
+    #: True when the hub streams through `_ProgressFile.read()` so the transfer
+    #: itself reports per-chunk progress (huggingface_hub). False for hubs that
+    #: consume the payload opaquely (modelscope_hub reads file-like objects
+    #: into bytes before transferring): the shared pipeline then runs an
+    #: explicit hash pass for visible progress, and the UI renders the transfer
+    #: phase as an indeterminate bar instead of a frozen percentage.
+    streams_upload_progress: bool = True
 
     def make_api(self, token: str):
         raise NotImplementedError
@@ -269,6 +290,7 @@ async def run_hub_upload(
                     "progress": progress,
                     "phase": phase,
                     "provider": backend.provider,
+                    "chunked": backend.streams_upload_progress,
                 },
             ),
             loop,
@@ -321,9 +343,17 @@ async def run_hub_upload(
                     "progress": (completed_bytes / total_size * 100) if total_size else 100.0,
                     "phase": PHASE_UPLOAD,
                     "provider": backend.provider,
+                    "chunked": backend.streams_upload_progress,
                 },
             )
             continue
+
+        # Hubs that consume the payload opaquely (modelscope_hub) never fire
+        # per-chunk upload callbacks; run the hashing pass explicitly so the
+        # bar shows real activity, and let the UI render the transfer itself
+        # as indeterminate (see `streams_upload_progress`).
+        if not backend.streams_upload_progress:
+            await loop.run_in_executor(utils.io_executor(), hash_local_file)
 
         def _transfer():
             api = ensure()
@@ -370,6 +400,7 @@ async def run_hub_upload(
             "progress": 100.0,
             "phase": PHASE_UPLOAD,
             "provider": backend.provider,
+            "chunked": backend.streams_upload_progress,
         },
     )
     await utils.send_json(
@@ -583,6 +614,7 @@ async def _start_hub_upload(
             "progress": 0.0,
             "phase": PHASE_PREPARE,
             "provider": backend.provider,
+            "chunked": backend.streams_upload_progress,
         },
     )
 

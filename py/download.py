@@ -793,15 +793,25 @@ class ModelDownload:
         token = auth.get_modelscope_token()
 
         def fetch(report):
-            acc = {"done": 0.0}
+            acc = {"done": 0.0, "last_done": 0.0, "last_at": time.time(), "bps": 0.0}
 
             class _Cb(ProgressCallback):
                 def update(self, size: int) -> None:
                     acc["done"] += size
-                    report(acc["done"], file_size, 0.0)
+                    # modelscope_hub reports chunk sizes only; derive the
+                    # transfer speed here (smoothed) so the task row can show
+                    # a live speed read-out like the other backends do.
+                    now = time.time()
+                    dt = now - acc["last_at"]
+                    if dt >= 0.25:
+                        instant = (acc["done"] - acc["last_done"]) / dt
+                        acc["bps"] = 0.7 * acc["bps"] + 0.3 * instant if acc["bps"] else instant
+                        acc["last_done"] = acc["done"]
+                        acc["last_at"] = now
+                    report(acc["done"], file_size, acc["bps"])
 
                 def end(self) -> None:
-                    report(acc["done"], file_size, 0.0)
+                    report(acc["done"], file_size, acc["bps"])
 
             api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT, token=token)
             path = api.downloader.download_file(

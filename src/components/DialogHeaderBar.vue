@@ -34,9 +34,15 @@ const { t } = useI18n()
     :class="movable ? 'cursor-move' : 'cursor-default'"
     @mousedown.left="emits('drag', $event)"
   >
-    <DialogTitle class="text-base font-medium select-none">
-      {{ item.title }}
-    </DialogTitle>
+    <div class="flex min-w-0 items-center gap-3">
+      <DialogTitle class="truncate text-base font-medium select-none">
+        {{ item.title }}
+      </DialogTitle>
+      <!-- Live read-out next to the title (manager window: total model size). -->
+      <span v-if="item.badge" class="shrink-0 text-sm text-mm-muted-fg tabular-nums select-none">
+        {{ item.badge() }}
+      </span>
+    </div>
     <div class="flex items-center gap-1">
       <Button
         v-for="action in item.headerButtons"

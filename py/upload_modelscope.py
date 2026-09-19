@@ -25,6 +25,12 @@ class MsBackend(HubUploadBackend):
 
     provider = "modelscope"
 
+    # modelscope_hub reads file-like payloads into bytes before transferring,
+    # so no per-chunk callback can fire during the transfer (see the boundary
+    # notifications in upload_one); the shared pipeline compensates with an
+    # explicit hash pass + an indeterminate transfer bar in the UI.
+    streams_upload_progress = False
+
     def __init__(self, token: str, repo_id: str):
         self._token = token
         self._repo_id = repo_id

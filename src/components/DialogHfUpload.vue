@@ -136,7 +136,8 @@
                 </div>
               </div>
               <div v-if="whoamiName" class="text-sm opacity-60">
-                {{ $t('hfAccount') }}: {{ whoamiName }}
+                {{ provider === 'hf' ? $t('providerHf') : $t('providerMs') }}
+                {{ $t('account') }}: {{ whoamiName }}
               </div>
               <div
                 v-if="whoamiError"
@@ -152,6 +153,16 @@
                 <Checkbox id="hf-private-repo" v-model="privateRepo" />
                 <label for="hf-private-repo" class="text-sm">
                   {{ $t('privateRepoIfCreate') }}
+                </label>
+              </div>
+              <div class="flex items-center gap-2">
+                <Checkbox id="rename-notes-readme" v-model="renameNotes" />
+                <label
+                  for="rename-notes-readme"
+                  class="text-sm"
+                  :title="$t('renameNotesToReadmeHint')"
+                >
+                  {{ $t('renameNotesToReadme') }}
                 </label>
               </div>
               <div class="flex items-center gap-2">
@@ -195,7 +206,10 @@
             </div>
             <div class="flex items-center gap-2">
               <Progress class="flex-1" :model-value="hfUpload.progress" :mode="barMode" />
-              <span class="w-10 text-right text-xs text-mm-muted-fg tabular-nums">
+              <span
+                v-show="barMode === 'determinate'"
+                class="w-10 text-right text-xs text-mm-muted-fg tabular-nums"
+              >
                 {{ hfUpload.progress }}%
               </span>
             </div>
@@ -228,6 +242,7 @@ import { Checkbox } from 'components/ui/checkbox'
 import { Input } from 'components/ui/input'
 import { Progress } from 'components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from 'components/ui/tabs'
+import { useDialog } from 'hooks/dialog'
 import { hfUploadState, isFinishedTask, resetHfUploadState } from 'hooks/hfUpload'
 import { useLoading } from 'hooks/loading'
 import { genModelFullName, useModels } from 'hooks/model'
@@ -252,6 +267,7 @@ const folderTotalSize = computed(() =>
 const { t } = useI18n()
 const { toast } = useToast()
 const loading = useLoading()
+const dialog = useDialog()
 // Optimization B-8: the model store already caches every folder it fetched,
 // so re-opening this dialog (or switching back to a type) no longer
 // re-requests the whole listing - it reads the cache and only fetches what
@@ -329,6 +345,8 @@ const repoId = ref<string>()
 const privateRepo = ref(false)
 /** Also upload the model's sidecars (previews / notes) next to the model. */
 const includeAssets = ref(false)
+/** Commit the model's Markdown notes as the repository's README.md. */
+const renameNotes = ref(true)
 const pathInRepo = ref<string>()
 const provider = ref<'hf' | 'modelscope'>('hf')
 
@@ -344,6 +362,9 @@ const chooseProvider = (next: 'hf' | 'modelscope') => {
     whoamiError.value = undefined
     void fetchWhoami()
   }
+  // The window title names the chosen platform from here on.
+  const item = dialog.stack.value.find(entry => entry.key === 'model-manager-hf-upload')
+  if (item) item.title = t(next === 'hf' ? 'uploadToHf' : 'uploadToMs')
   stepValue.value = folderMode.value ? 'upload' : 'type'
 }
 
@@ -351,11 +372,17 @@ const whoamiName = ref<string>()
 const whoamiError = ref<string>()
 
 const fetchWhoami = async () => {
+  const picked = provider.value
   try {
-    const route = provider.value === 'hf' ? '/hf/whoami' : '/modelscope/whoami'
+    const route = picked === 'hf' ? '/hf/whoami' : '/modelscope/whoami'
     const result = await request(route)
+    // A slow answer from the previous platform must not label the new one.
+    if (provider.value !== picked) return
     whoamiName.value = result?.name
+    whoamiError.value = undefined
   } catch (error) {
+    if (provider.value !== picked) return
+    whoamiName.value = undefined
     whoamiError.value = (error as Error).message
   }
 }
@@ -388,7 +415,11 @@ const phaseLabel = computed(() => {
  * bar to 0%; `hash` and `upload` both report real fractions.
  */
 const barMode = computed<'determinate' | 'indeterminate'>(() =>
-  hfUpload.phase === 'prepare' || hfUpload.progress <= 0 ? 'indeterminate' : 'determinate',
+  hfUpload.phase === 'prepare' ||
+  hfUpload.progress <= 0 ||
+  (hfUpload.phase === 'upload' && !hfUpload.chunked)
+    ? 'indeterminate'
+    : 'determinate',
 )
 
 const handleUpload = async () => {
@@ -404,6 +435,7 @@ const handleUpload = async () => {
         pathInRepo: pathInRepo.value,
         private: privateRepo.value,
         includeAssets: includeAssets.value,
+        renameNotesToReadme: renameNotes.value,
       }
     : {
         type: selectedModel.value!.type,
@@ -413,6 +445,7 @@ const handleUpload = async () => {
         pathInRepo: pathInRepo.value,
         private: privateRepo.value,
         includeAssets: includeAssets.value,
+        renameNotesToReadme: renameNotes.value,
       }
   try {
     const result = await request(uploadRoute, {

@@ -14,6 +14,12 @@ export interface DialogItem {
   title: string
   content: Component
   contentProps?: Record<string, any>
+  /**
+   * Optional live read-out rendered next to the title (e.g. the manager
+   * window's aggregate model size). Called during the header's render, so it
+   * may read reactive state.
+   */
+  badge?: () => string
   keepAlive?: boolean
   headerButtons?: HeaderButton[]
   defaultSize?: Partial<ContainerSize>
