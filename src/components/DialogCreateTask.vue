@@ -71,6 +71,7 @@
               :src="item.avatar"
               alt=""
               class="size-8 shrink-0 rounded-mm-ctl border border-mm-border object-cover"
+              @error="onAvatarError(item)"
             />
             <span
               v-else
@@ -252,7 +253,7 @@
       </ModelContent>
     </KeepAlive>
 
-    <div v-show="data.length === 0">
+    <div v-show="urlResolveAttempted && data.length === 0">
       <div class="flex flex-col items-center gap-4 py-8">
         <!-- BUG FIX: `pi pi-box` rendered empty (PrimeIcons removed). -->
         <Box class="size-8 opacity-60" />
@@ -295,6 +296,10 @@ const selectedModelType = ref<string>()
 
 // Custom subfolder input (NEW)
 const customSubFolder = ref<string>('')
+
+/** True once an explicit Enter / search-icon resolve was attempted; gates
+ *  the "no models found" empty state (it must never appear while typing). */
+const urlResolveAttempted = ref(false)
 
 /**
  * Pretty label for a model-folder key, translated through the
@@ -403,6 +408,10 @@ const searchErrors = computed(() => {
 const platformLabel = (platform: string) =>
   platform === 'hf' ? t('providerHf') : platform === 'modelscope' ? t('providerMs') : t('civitai')
 const openExternal = (url: string) => window.open(url, '_blank')
+/** A failed avatar load (CDN hiccup, blocked host) falls back to the badge. */
+const onAvatarError = (item: SearchItem) => {
+  item.avatar = null
+}
 const selectSearchResult = (item: SearchItem) => {
   searchResults.value = null
   modelUrl.value = item.pageUrl
@@ -533,8 +542,15 @@ const executableWarning = computed(() => {
 
 const searchModelsByUrl = async () => {
   if (modelUrl.value) {
+    const target = modelUrl.value
     const modelType = isDirectFile.value ? selectedModelType.value : undefined
-    await search(modelUrl.value, modelType)
+    // The empty state ("no models found") may only appear once an explicit
+    // Enter / search-icon resolve was attempted and came back empty or 404 -
+    // never while the user is still typing or browsing search results. The
+    // flag is raised AFTER the round trip (and only if the field still holds
+    // the attempted URL) so a modelUrl watch reset cannot race it away.
+    await search(target, modelType)
+    if (modelUrl.value === target) urlResolveAttempted.value = true
   }
 }
 
@@ -545,6 +561,7 @@ watch(modelUrl, () => {
   // (previously the state survived a switch to a non-direct URL).
   selectedModelType.value = undefined
   customSubFolder.value = ''
+  urlResolveAttempted.value = false
 })
 
 // Watch for model type changes on direct files and refresh the model

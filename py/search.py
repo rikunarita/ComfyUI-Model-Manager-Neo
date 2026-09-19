@@ -20,8 +20,10 @@ All network calls run in the IO executor; a failing provider degrades to an
 """
 
 import asyncio
+import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import quote, urlparse
 
 import requests
 from aiohttp import web
@@ -43,6 +45,62 @@ def _cache_avatar(key: str, value: str | None) -> str | None:
     while len(_AVATAR_CACHE) > _AVATAR_CACHE_LIMIT:
         _AVATAR_CACHE.pop(next(iter(_AVATAR_CACHE)))
     return value
+
+
+# ---------------------------------------------------------------------------
+# Avatar proxy. ModelScope's resource CDN serves uploaded avatar objects with
+# ``Content-Type: application/octet-stream`` (verified live on both
+# resources.modelscope.ai and resources.modelscope.cn), which browsers may
+# refuse to paint inside ``<img>``; hot-link- and geo-unstable CDNs are another
+# failure source the user's browser should not have to fight. The extension
+# therefore re-serves hub avatars from its own route with a sniffed, correct
+# content type, cached in memory with an ETag like the SVG artwork.
+# ---------------------------------------------------------------------------
+_AVATAR_PROXY_HOSTS = ("modelscope.ai", "modelscope.cn", "huggingface.co", "civitai.com")
+_AVATAR_PROXY_CACHE: dict[str, tuple[str, str, bytes]] = {}
+_AVATAR_PROXY_LIMIT = 96
+
+
+def _sniff_image_content_type(body: bytes) -> str:
+    if body[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if body[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if body[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if body[:4] == b"RIFF" and body[8:12] == b"WEBP":
+        return "image/webp"
+    if body[:2] == b"BM":
+        return "image/bmp"
+    if b"<svg" in body[:64]:
+        return "image/svg+xml"
+    return "application/octet-stream"
+
+
+def _fetch_avatar_bytes(url: str) -> bytes | None:
+    try:
+        r = requests.get(url, headers=_UA, timeout=10)
+    except Exception:
+        return None
+    if r.status_code != 200 or not r.content:
+        return None
+    return r.content
+
+
+def avatar_proxy_url(url: str | None) -> str | None:
+    """Route a hub avatar through the extension's proxy (None stays None)."""
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return None
+    if parsed.scheme != "https":
+        return None
+    host = parsed.hostname or ""
+    if not host.endswith(_AVATAR_PROXY_HOSTS):
+        return None
+    return f"/model-manager/avatar?url={quote(url, safe='')}"
 
 
 def _hf_avatar(owner: str) -> str | None:
@@ -218,7 +276,7 @@ def _search_modelscope(query: str, limit: int) -> list[dict]:
                 "title": f"{owner}/{name}",
                 "downloads": getattr(r, "downloads", 0) or 0,
                 "likes": getattr(r, "likes", 0) or 0,
-                "avatar": avatar,
+                "avatar": avatar_proxy_url(avatar),
                 "pageUrl": f"{MODELSCOPE_INTL_ENDPOINT}/models/{owner}/{name}",
                 "ownerUrl": f"{MODELSCOPE_INTL_ENDPOINT}/organization/{owner}",
             }
@@ -298,6 +356,45 @@ class SearchRoutes:
                     name, res = fut.result()
                     data[name] = res
             return web.json_response({"success": True, "data": data})
+
+        @routes.get("/model-manager/avatar")
+        async def avatar_proxy(request):
+            """Re-serve a hub avatar with a correct, sniffed content type.
+
+            See ``avatar_proxy_url``: ModelScope's CDN answers avatar objects
+            as ``application/octet-stream``, which browsers may refuse to
+            paint; the proxy also keeps hot-link- and geo-unstable CDNs out of
+            the user's browser. Cached in memory with an ETag and a day-long
+            max-age, like the SVG artwork.
+            """
+            url = (request.query.get("url") or "").strip()
+            try:
+                parsed = urlparse(url)
+            except Exception:
+                raise web.HTTPNotFound()
+            host = parsed.hostname or ""
+            if parsed.scheme != "https" or not host.endswith(_AVATAR_PROXY_HOSTS):
+                raise web.HTTPNotFound()
+
+            hit = _AVATAR_PROXY_CACHE.get(url)
+            if hit is None:
+                loop = asyncio.get_running_loop()
+                body = await loop.run_in_executor(utils.io_executor(), _fetch_avatar_bytes, url)
+                if body is None:
+                    raise web.HTTPNotFound()
+                etag = f'"avatar-{hashlib.sha256(body).hexdigest()[:16]}"'
+                hit = (etag, _sniff_image_content_type(body), body)
+                _AVATAR_PROXY_CACHE[url] = hit
+                while len(_AVATAR_PROXY_CACHE) > _AVATAR_PROXY_LIMIT:
+                    _AVATAR_PROXY_CACHE.pop(next(iter(_AVATAR_PROXY_CACHE)))
+            etag, content_type, body = hit
+            headers = {
+                "ETag": etag,
+                "Cache-Control": "public, max-age=86400, must-revalidate",
+            }
+            if request.headers.get("If-None-Match") == etag:
+                return web.Response(status=304, headers=headers)
+            return web.Response(body=body, content_type=content_type, headers=headers)
 
         @routes.get("/model-manager/auth-status")
         async def auth_status(request):
