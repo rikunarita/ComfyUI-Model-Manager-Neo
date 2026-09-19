@@ -257,6 +257,37 @@ Open **Download List** from the header, then:
    of the target volume and warns (and the backend refuses) when the file
    cannot fit.
 
+### Model name search (multi-platform)
+
+When the input does **not** start with `https://` the same field becomes a
+model-name search box: results arrive in parallel from **Hugging Face** (left),
+**ModelScope** (middle) and **Civitai** (right). Each row carries the owner's
+avatar (or an initials badge), the download count and two deep links - owner
+name → owner page, repository name → model page (hover underlines, tap opens);
+clicking anywhere else on the row resolves that model into the editor. A plain
+`username/repo-name` is accepted too: Enter selects an exact match from the
+results, and a bare repository id resolves straight to its Hugging Face
+repository. Platforms can be hidden in **Settings → Model Manager Neo →
+Search** (one boolean per platform).
+
+### Download plan & safety checks
+
+Once a version is resolved the editor shows a dry-run plan: the destination
+path, the announced size, the published SHA256 and whether the platform API key
+is configured. Civitai downloads are verified against the published SHA256 on
+completion (a mismatch deletes the file and fails the task); bundled files of
+another type (a VAE, …) are routed into the matching model folder; and warnings
+appear when the version's base model is foreign to the destination folder's
+recorded library, or when the payload is a pickle/archive format that can
+execute code when loaded. The connected Civitai account is shown at the top of
+the window when a key is configured.
+
+### Generation metadata in the lightbox
+
+Enlarging a preview of a Civitai-origin model shows the image on the left and
+its parsed generation metadata on the right: prompt, negative prompt, sampler,
+steps, CFG scale, seed, clip skip, size, base model and the resource recipe.
+
 ### Download List
 
 Two sections — **External Downloads** and **Local Uploads** — each row showing a

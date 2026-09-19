@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import functools
+import hashlib
 import os
 import pathlib
 import shutil
@@ -124,6 +125,17 @@ class TaskContent:
             "msRepoId": self.msRepoId,
             "msFilePath": self.msFilePath,
         }
+
+def _sha256_of(path: str) -> str | None:
+    """Lower-case hex SHA256 of a file (None when it vanished)."""
+    if not os.path.isfile(path):
+        return None
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 
 class ModelDownload:
     def __init__(self):
@@ -486,6 +498,28 @@ class ModelDownload:
         download_tmp_file = utils.join_path(download_path, f"{task_id}.download")
         model_path = utils.get_full_path(model_type, path_index, fullname)
 
+        # Civitai integrity gate: verify the downloaded bytes against the
+        # SHA256 the model page published (recorded in the task hashes at
+        # resolve time) BEFORE the file enters the library - the same default
+        # the official civitai CLI applies. A mismatch deletes the partial
+        # file and fails the task, so a corrupted or tampered transfer can
+        # never masquerade as a finished download.
+        expected_sha = (task_content.hashes or {}).get("SHA256")
+        if task_content.downloadPlatform == "civitai" and expected_sha:
+            loop = asyncio.get_running_loop()
+            actual_sha = await loop.run_in_executor(
+                utils.cpu_executor(), _sha256_of, download_tmp_file
+            )
+            if actual_sha and actual_sha.casefold() != str(expected_sha).casefold():
+                if os.path.isfile(download_tmp_file):
+                    os.remove(download_tmp_file)
+                raise RuntimeError(
+                    f"SHA256 mismatch for {fullname}: the page published "
+                    f"{expected_sha} but the downloaded bytes hash to "
+                    f"{actual_sha}. The file was deleted - re-download or "
+                    "check the source."
+                )
+
         utils.rename_model(download_tmp_file, model_path)
 
         await asyncio.sleep(1)
@@ -558,6 +592,20 @@ class ModelDownload:
                 model_url, headers=headers, allow_redirects=True
             ) as response:
                 if response.status not in (200, 206):
+                    if (
+                        response.status == 401
+                        and task_content.downloadPlatform == "civitai"
+                    ):
+                        # Scope-aware guidance: gated Civitai files answer 401
+                        # without a token - say exactly where to get one and
+                        # how to retry instead of a bare status code.
+                        raise RuntimeError(
+                            f"Civitai rejected the download of {task_content.fullname} "
+                            "(401 Unauthorized): this file requires authentication. "
+                            "Create an API key at https://civitai.com/user/account, "
+                            "store it in Settings > Model Manager Neo > API Key > "
+                            "Civitai, then resume this task."
+                        )
                     raise RuntimeError(
                         f"Failed to download {task_content.fullname}, status code: {response.status}"
                     )

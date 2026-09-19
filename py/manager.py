@@ -28,54 +28,57 @@ _MODEL_PAGE_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.S)
 # 4 KB head read per model file dominates the scan time (the "it takes ~20 s
 # until a download shows up" complaint). Cache the parsed triple against the
 # sidecar's (mtime_ns, size) so steady-state scans only pay a stat().
-_SITE_CACHE: dict[str, tuple[int, int, str | None, str | None, str | None]] = {}
+_SITE_CACHE: dict[str, tuple[int, int, str | None, str | None, str | None, str | None]] = {}
 _SITE_CACHE_LIMIT = 4096
 
 
 def _model_site_info_of(
     names: set[str], basename: str, directory: str, sub_folder: str
-) -> tuple[str | None, str | None, str | None]:
-    """The model page URL and platform recorded in the notes front-matter.
+) -> tuple[str | None, str | None, str | None, str | None]:
+    """The model page URL, platform, SHA256 and base model of the notes.
 
-    Civitai / Hugging Face downloads store `modelPage` and `website` in the YAML
-    front-matter of the `.md` sidecar. Reading just that header (a few hundred
-    bytes) at scan time is what lets the grid offer an "open model page" action
-    - wearing the platform's logo as its background - without loading every
-    description in full.
+    Civitai / Hugging Face downloads store `modelPage`, `website`, `hashes` and
+    `baseModel` in the YAML front-matter of the `.md` sidecar. Reading just that
+    header (a few hundred bytes) at scan time is what lets the grid offer an
+    "open model page" action - wearing the platform's logo as its background -
+    and the download dialog its base-model compatibility warning, without
+    loading every description in full.
     """
     candidate = f"{basename}.md"
     if candidate not in names:
-        return None, None, None
+        return None, None, None, None
     path = utils.join_path(directory, sub_folder, candidate) if sub_folder else utils.join_path(directory, candidate)
     try:
         st = os.stat(path)
     except OSError:
-        return None, None, None
+        return None, None, None, None
     hit = _SITE_CACHE.get(path)
     if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
-        return hit[2], hit[3], hit[4]
+        return hit[2], hit[3], hit[4], hit[5]
     try:
         with open(path, "r", encoding="utf-8") as f:
             head = f.read(4096)
     except OSError:
-        return None, None, None
+        return None, None, None, None
     match = _MODEL_PAGE_RE.match(head)
     if not match:
-        return None, None, None
+        return None, None, None, None
     try:
         meta = yaml.safe_load(match.group(1)) or {}
     except Exception:
-        return None, None, None
+        return None, None, None, None
     if not isinstance(meta, dict):
-        return None, None, None
+        return None, None, None, None
     page = meta.get("modelPage")
     platform = meta.get("website")
     hashes = meta.get("hashes")
     sha = hashes.get("SHA256") if isinstance(hashes, dict) else None
+    base = meta.get("baseModel")
     parsed = (
         page if isinstance(page, str) and page.startswith("http") else None,
         platform if isinstance(platform, str) and platform.strip() else None,
         sha.upper() if isinstance(sha, str) and sha.strip() else None,
+        base if isinstance(base, str) and base.strip() else None,
     )
     _SITE_CACHE[path] = (st.st_mtime_ns, st.st_size, *parsed)
     while len(_SITE_CACHE) > _SITE_CACHE_LIMIT:
@@ -369,10 +372,10 @@ class ModelManager:
                 return None
 
             stat = entry.stat()
-            model_page, model_platform, model_sha = (
+            model_page, model_platform, model_sha, model_base = (
                 _model_site_info_of(names, basename, directory=base_path, sub_folder=sub_folder)
                 if is_file
-                else (None, None, None)
+                else (None, None, None, None)
             )
             return {
                 "type": folder,
@@ -390,6 +393,8 @@ class ModelManager:
                 # SHA256 recorded in the notes front-matter (Civitai downloads):
                 # powers the duplicate-model warning without any hashing pass.
                 "modelSha256": model_sha,
+                # baseModel of the notes front-matter (download-dialog warning)
+                "modelBase": model_base,
                 "createdAt": round(stat.st_ctime_ns / 1000000),
                 "updatedAt": round(stat.st_mtime_ns / 1000000),
             }

@@ -34,6 +34,8 @@ export interface Model extends BaseModel {
   modelPlatform?: string
   /** SHA256 recorded in the notes front-matter (duplicate detection). */
   modelSha256?: string
+  /** baseModel recorded in the notes front-matter (download base-mismatch warning). */
+  modelBase?: string
 }
 
 export interface VersionModelFile {

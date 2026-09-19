@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import yaml from 'yaml'
 import { autoCompressDownloaded } from 'hooks/autoCompress'
 import { useLoading } from 'hooks/loading'
+import { useModels } from 'hooks/model'
 import { request } from 'hooks/request'
 import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
@@ -251,10 +252,16 @@ type FileSelectionVersionModel = VersionModel & {
   selectionFiles?: WithSelection<VersionModelFile>[]
 }
 
+/** Version-file type → destination model folder (layout routing). */
+const FILE_TYPE_ROUTE: Record<string, string> = {
+  VAE: 'vae',
+}
+
 export const useModelSearch = () => {
   const { t } = useI18n()
   const loading = useLoading()
   const { toast } = useToast()
+  const { folders } = useModels()
 
   const data = ref<WithSelection<FileSelectionVersionModel>[]>([])
 
@@ -309,6 +316,20 @@ export const useModelSearch = () => {
               currentModel.value.hashes = file.hashes
               currentModel.value.description = description
               currentModel.value.currentFileId = file.id
+              // Layout routing (the civitai CLI's `--layout comfyui` idea):
+              // a version file whose own type maps to another model folder
+              // (a bundled VAE, ...) is filed into that folder instead of the
+              // currently selected one, so bundles never pollute it.
+              const routed = FILE_TYPE_ROUTE[file.type]
+              if (routed && folders.value[routed] && currentModel.value.type !== routed) {
+                currentModel.value.type = routed
+                currentModel.value.pathIndex = 0
+                toast.add({
+                  severity: 'info',
+                  detail: t('routedByFileType', { type: routed }),
+                  life: 4000,
+                })
+              }
             }
           },
         }

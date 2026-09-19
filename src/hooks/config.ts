@@ -359,6 +359,29 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       },
     })
 
+    // Search-result platform visibility (the multi-platform model search).
+    app.ui?.settings.addSetting({
+      id: 'ModelManager.Search.HideHuggingFace',
+      category: [t('modelManager'), t('setting.search'), 'HideHuggingFace'],
+      name: t('setting.hideSearchHf'),
+      type: 'boolean',
+      defaultValue: false,
+    })
+    app.ui?.settings.addSetting({
+      id: 'ModelManager.Search.HideModelScope',
+      category: [t('modelManager'), t('setting.search'), 'HideModelScope'],
+      name: t('setting.hideSearchMs'),
+      type: 'boolean',
+      defaultValue: false,
+    })
+    app.ui?.settings.addSetting({
+      id: 'ModelManager.Search.HideCivitai',
+      category: [t('modelManager'), t('setting.search'), 'HideCivitai'],
+      name: t('setting.hideSearchCivitai'),
+      type: 'boolean',
+      defaultValue: false,
+    })
+
     app.ui?.settings.addSetting({
       id: configSetting.excludeModelTypes,
       category: [t('modelManager'), t('setting.modelList'), 'ExcludeModelTypes'],

@@ -194,6 +194,7 @@
       v-model:open="lightboxOpen"
       v-model:index="lightboxIndex"
       :items="lightboxItems"
+      :civitai-version-id="civitaiVersionId"
     />
   </div>
 </template>
@@ -209,7 +210,7 @@ import ResponseInput from 'components/ResponseInput.vue'
 import { Button } from 'components/ui/button'
 import { useConfig } from 'hooks/config'
 import { useContainerQueries } from 'hooks/container'
-import { useModelPreview } from 'hooks/model'
+import { useModelBaseInfo, useModelPreview } from 'hooks/model'
 import { isVideoUrl } from 'utils/media'
 
 interface Props {
@@ -316,6 +317,25 @@ const nextPage = () => {
 }
 
 /* ---- lightbox ---------------------------------------------------------- */
+const baseInfo = useModelBaseInfo()
+
+/**
+ * Civitai model-version id recorded in the model page URL of the notes
+ * (`…/models/<id>?modelVersionId=<vid>`); enables the lightbox's generation
+ * metadata panel. Null for models without a Civitai origin.
+ */
+const civitaiVersionId = computed<number | null>(() => {
+  const page = (baseInfo.model.value as { modelPage?: string } | undefined)?.modelPage
+  if (!page) return null
+  try {
+    const vid = new URL(page).searchParams.get('modelVersionId')
+    const parsed = vid ? Number(vid) : NaN
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  } catch {
+    return null
+  }
+})
+
 const lightboxOpen = ref(false)
 const lightboxIndex = ref(0)
 

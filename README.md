@@ -35,7 +35,8 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 
 - [Why Neo?](#why-neo) · [Screenshots](#screenshots) · [Installation](#installation) ·
   [Features](#features)
-- [ZipNN lossless compression](#zipnn) · [What changed from the original](#what-changed) ·
+- [Model search & discovery](#search) · [ZipNN lossless compression](#zipnn) ·
+  [What changed from the original](#what-changed) ·
   [Removed feature: batch scan](#removed-feature)
 - [Documentation](#documentation) · [Development](#development) ·
   [Credits & Attribution](#credits) · [License](#license)
@@ -292,6 +293,58 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   their base language.
 
 </details>
+
+---
+
+<a id="search"></a>
+
+## <img src="https://api.iconify.design/lucide/search.svg?color=%2314b8a6" width="28" height="28" align="middle" alt=""> Model search & multi‑platform discovery
+
+The **Create Download Task** window accepts more than page URLs: anything that
+does **not** start with `https://` is treated as a model‑name query and searched
+in parallel across three platforms — **Hugging Face** (left column, through
+`huggingface_hub`'s `HfApi.list_models`), **ModelScope** (middle, through
+`modelscope_hub`) and **Civitai** (right, public REST API). The `https://`
+prefix is checked character by character while you type, so the field flips
+between search mode and URL mode in real time; results refresh with a short
+debounce and each column reports its own errors instead of failing the whole
+search.
+
+- Every result row shows the publishing user's / organisation's **avatar** in a
+  rounded frame (an initials badge when the hub publishes none) plus the
+  all‑time download count.
+- The model id is split into two deep links: the **owner name** opens the
+  user / organisation page, the **repository name** opens the model page —
+  both underline on hover and open in the browser; clicking anywhere else on
+  the row resolves that model straight into the download editor.
+- Plain **`username/repo-name`** input is supported: Enter selects an exact
+  match from the results, and a bare repository id resolves directly to its
+  Hugging Face repository.
+- Platforms can be hidden per user in **Settings → Model Manager Neo →
+  Search** (one boolean per platform).
+
+Civitai downloads additionally carry the safety net the official CLI
+popularised, adapted to the manager's task system:
+
+- **Download plan (dry run)** — before starting, the editor shows the resolved
+  destination path, the announced size, the published SHA256 and whether the
+  platform API key is configured.
+- **SHA256 verification** — completed Civitai downloads are hashed and compared
+  against the published SHA256; a mismatch deletes the file and fails the task.
+- **Layout routing** — a version file whose own type maps to another model
+  folder (a bundled VAE, …) is filed into that folder instead of the selected
+  one.
+- **Base‑model warning** — when the version's base model is foreign to the base
+  models recorded in the destination folder's library.
+- **Executable‑format warning** — pickle / archive payloads can execute code
+  when loaded; the editor says so before you download.
+- **Civitai whoami** — the connected account is shown when a key is configured,
+  and 401 failures explain exactly where to create a key and how to resume.
+
+Finally, enlarging a preview of a Civitai‑origin model opens the lightbox with
+the image on the left and its parsed **generation metadata** on the right
+(prompt, negative prompt, sampler, steps, CFG scale, seed, clip skip, size,
+base model and the resource recipe), fetched per image from the Civitai API.
 
 ---
 

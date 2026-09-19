@@ -46,6 +46,7 @@ from .py import upload
 from .py import upload_hf
 from .py import upload_modelscope
 from .py import compress
+from .py import search
 
 routes = config.routes
 
@@ -58,6 +59,7 @@ upload.ModelUploader().add_routes(routes)
 upload_hf.HfUploader().add_routes(routes)
 upload_modelscope.MsUploader().add_routes(routes)
 compress.ZipNNRoutes().add_routes(routes)
+search.SearchRoutes().add_routes(routes)
 
 WEB_DIRECTORY = "web"
 NODE_CLASS_MAPPINGS = {}

@@ -13,7 +13,7 @@
       :allow-clear="true"
       update-trigger="input"
       :placeholder="$t('pleaseInputModelUrl')"
-      @keydown.enter="searchModelsByUrl"
+      @keydown.enter="handleEnter"
     >
       <template #suffix>
         <!--
@@ -22,9 +22,83 @@
           starts the Civitai / Hugging Face / direct-link search was never drawn
           at all (only the Enter key still worked). Lucide `Search` restores it.
         -->
-        <Search class="size-4 cursor-pointer opacity-60" @click="searchModelsByUrl" />
+        <Search class="size-4 cursor-pointer opacity-60" @click="handleEnter" />
       </template>
     </ResponseInput>
+
+    <!-- Connected Civitai account (token check, like the hub whoami rows). -->
+    <div v-if="civitaiAccount" class="-mt-2 text-xs text-mm-muted-fg">
+      {{ $t('civitaiAccount') }}: {{ civitaiAccount }}
+    </div>
+
+    <!--
+      Model-name search (any input that does not start with `https://`):
+      parallel results from Hugging Face (left), ModelScope (middle) and
+      Civitai (right). Rows carry the owner avatar in a rounded frame; the
+      owner and repository halves of the id are deep links (hover underline,
+      tap opens the page); clicking anywhere else resolves that model here.
+    -->
+    <div
+      v-if="searchMode && searchResults && visiblePlatforms.length"
+      class="grid gap-3 rounded-mm-ctl border border-mm-border bg-mm-fg/4 p-3"
+      :style="{ gridTemplateColumns: `repeat(${visiblePlatforms.length}, minmax(0, 1fr))` }"
+    >
+      <div v-for="platform in visiblePlatforms" :key="platform" class="flex min-w-0 flex-col gap-2">
+        <div class="flex items-center justify-between gap-2 text-xs text-mm-muted-fg">
+          <span class="font-medium">{{ platformLabel(platform) }}</span>
+          <span
+            v-if="searchErrors[platform]"
+            class="truncate text-mm-warning"
+            :title="searchErrors[platform]"
+          >
+            {{ $t('searchFailed') }}
+          </span>
+        </div>
+        <div class="flex min-h-0 flex-col gap-1 overflow-y-auto">
+          <div
+            v-for="item in searchItems[platform] ?? []"
+            :key="item.key"
+            class="flex cursor-pointer items-center gap-2 rounded-mm-ctl border border-transparent p-1 hover:border-mm-border hover:bg-mm-fg/8"
+            :title="item.title"
+            @click="selectSearchResult(item)"
+          >
+            <img
+              v-if="item.avatar"
+              :src="item.avatar"
+              alt=""
+              class="size-8 shrink-0 rounded-mm-ctl border border-mm-border object-cover"
+            />
+            <span
+              v-else
+              class="grid size-8 shrink-0 place-items-center rounded-mm-ctl border border-mm-border bg-mm-accent/25 text-xs font-bold text-mm-fg"
+            >
+              {{ (item.owner || '?').slice(0, 1).toUpperCase() }}
+            </span>
+            <div class="min-w-0 flex-1 text-sm">
+              <div class="truncate">
+                <a
+                  class="cursor-pointer hover:underline"
+                  :title="item.ownerUrl"
+                  @click.stop.prevent="openExternal(item.ownerUrl)"
+                  >{{ item.owner }}</a
+                >/<a
+                  class="cursor-pointer hover:underline"
+                  :title="item.pageUrl"
+                  @click.stop.prevent="openExternal(item.pageUrl)"
+                  >{{ item.repo }}</a
+                >
+              </div>
+              <div class="truncate text-xs text-mm-muted-fg">
+                {{ $t('downloads') }}: {{ item.downloads }}
+              </div>
+            </div>
+          </div>
+          <div v-if="!(searchItems[platform] ?? []).length" class="p-1 text-xs text-mm-muted-fg">
+            {{ $t('searchNoResults') }}
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Direct file URL indicator with folder selection -->
     <div v-if="isDirectFile && modelUrl" class="flex flex-col gap-2">
@@ -78,6 +152,55 @@
       >
         {{ $t('freeSpace', { size: bytesToSize(freeSpace) }) }}
         <span v-if="(currentModel.sizeBytes || 0) > freeSpace">— {{ $t('notEnoughSpace') }}</span>
+      </div>
+
+      <!--
+        Dry-run style plan of the pending task: where the file will land, its
+        announced size, the published SHA256 (verified on completion for
+        Civitai) and whether the platform API key is configured.
+      -->
+      <div
+        v-if="downloadPlan"
+        class="mt-2 flex flex-col gap-1 rounded-mm-ctl border border-mm-border bg-mm-fg/4 p-2 text-xs text-mm-muted-fg"
+      >
+        <div class="flex justify-between gap-2">
+          <span class="shrink-0">{{ $t('planTarget') }}</span>
+          <span class="truncate text-mm-fg" :title="downloadPlan.target">{{
+            downloadPlan.target
+          }}</span>
+        </div>
+        <div class="flex justify-between gap-2">
+          <span class="shrink-0">{{ $t('planSize') }}</span>
+          <span class="text-mm-fg">{{ downloadPlan.size }}</span>
+        </div>
+        <div v-if="downloadPlan.sha" class="flex justify-between gap-2">
+          <span class="shrink-0">{{ $t('planHash') }}</span>
+          <span class="truncate font-mono text-mm-fg" :title="downloadPlan.sha">
+            {{ downloadPlan.sha.slice(0, 16) }}…
+          </span>
+        </div>
+        <div class="flex justify-between gap-2">
+          <span class="shrink-0">{{ $t('planAuth') }}</span>
+          <span :class="downloadPlan.authOk ? 'text-mm-success' : 'text-mm-warning'">
+            {{ downloadPlan.authLabel }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Base-model family mismatch against the destination folder's library. -->
+      <div
+        v-if="baseMismatchWarning"
+        class="mt-2 rounded-mm-ctl border border-mm-warning/30 bg-mm-warning/12 p-2 text-sm text-mm-warning backdrop-blur-sm"
+      >
+        {{ baseMismatchWarning }}
+      </div>
+
+      <!-- Pickle / archive payloads can execute code when loaded. -->
+      <div
+        v-if="executableWarning"
+        class="mt-2 rounded-mm-ctl border border-mm-danger/30 bg-mm-danger/12 p-2 text-sm text-mm-danger backdrop-blur-sm"
+      >
+        {{ $t('execWarning') }}
       </div>
     </div>
 
@@ -137,7 +260,7 @@
 
 <script setup lang="ts">
 import { Box, CheckCircle, Download, Search } from '@lucide/vue'
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ModelContent from 'components/ModelContent.vue'
 import ResponseInput from 'components/ResponseInput.vue'
@@ -150,8 +273,10 @@ import { useLoading } from 'hooks/loading'
 import { useModels } from 'hooks/model'
 import { request } from 'hooks/request'
 import { useToast } from 'hooks/toast'
+import { app } from 'scripts/comfyAPI'
 import { type VersionModel, type WithResolved } from 'types/typings'
 import { bytesToSize, isDirectFileUrl, previewUrlToFile } from 'utils/common'
+import { parseFrontmatter } from 'utils/modelInformation'
 
 const { isMobile } = useConfig()
 const { t, te } = useI18n()
@@ -200,7 +325,184 @@ const modelTypeOptions = computed(() =>
 const isDirectFile = computed(() => (modelUrl.value ? isDirectFileUrl(modelUrl.value) : false))
 
 const { current, currentModel, data, search } = useModelSearch()
-const { folders } = useModels()
+const { folders, data: modelsData } = useModels()
+
+/* ---- model-name search (input without `https://` prefix) ---------------- */
+const searchMode = computed(() => {
+  const url = modelUrl.value
+  if (!url) return false
+  return !url.startsWith('https://')
+})
+const searchResults = ref<Record<string, { items: SearchItem[]; error?: string }> | null>(null)
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+
+interface SearchItem {
+  platform: string
+  key: string
+  owner: string
+  repo: string
+  title: string
+  downloads: number
+  avatar: string | null
+  pageUrl: string
+  ownerUrl: string
+}
+
+// Real-time `https://` prefix check: while the prefix is not (yet) typed the
+// field behaves as a search box; once it is, it behaves as a URL field.
+watch(modelUrl, value => {
+  clearTimeout(searchTimer)
+  if (!value || value.startsWith('https://')) {
+    searchResults.value = null
+    return
+  }
+  searchTimer = setTimeout(() => void runModelSearch(value), 400)
+})
+
+const runModelSearch = async (query: string) => {
+  try {
+    searchResults.value = await request(`/search?query=${encodeURIComponent(query)}&limit=8`)
+  } catch (error) {
+    searchResults.value = null
+    toast.add({ severity: 'error', detail: (error as Error).message, life: 6000 })
+  }
+}
+
+const PLATFORM_HIDE_SETTING: Record<string, string> = {
+  hf: 'ModelManager.Search.HideHuggingFace',
+  modelscope: 'ModelManager.Search.HideModelScope',
+  civitai: 'ModelManager.Search.HideCivitai',
+}
+const visiblePlatforms = computed(() =>
+  ['hf', 'modelscope', 'civitai'].filter(
+    platform =>
+      !(app.ui?.settings.getSettingValue<boolean>(PLATFORM_HIDE_SETTING[platform]) ?? false),
+  ),
+)
+const searchItems = computed(() => {
+  const out: Record<string, SearchItem[]> = {}
+  for (const platform of visiblePlatforms.value) {
+    out[platform] = searchResults.value?.[platform]?.items ?? []
+  }
+  return out
+})
+const searchErrors = computed(() => {
+  const out: Record<string, string> = {}
+  for (const platform of visiblePlatforms.value) {
+    const error = searchResults.value?.[platform]?.error
+    if (error) out[platform] = error
+  }
+  return out
+})
+const platformLabel = (platform: string) =>
+  platform === 'hf' ? t('providerHf') : platform === 'modelscope' ? t('providerMs') : t('civitai')
+const openExternal = (url: string) => window.open(url, '_blank')
+const selectSearchResult = (item: SearchItem) => {
+  searchResults.value = null
+  modelUrl.value = item.pageUrl
+  void searchModelsByUrl()
+}
+
+const REPO_ID_RE = /^[\w.-]+\/[\w.-]+$/
+/** Enter / search icon: URL mode resolves; search mode picks or re-searches. */
+const handleEnter = () => {
+  const value = (modelUrl.value ?? '').trim()
+  if (!value) return
+  if (!searchMode.value) return void searchModelsByUrl()
+  const lowered = value.toLowerCase()
+  const exact = Object.values(searchItems.value)
+    .flat()
+    .find(item => item.key.toLowerCase() === lowered || item.title.toLowerCase() === lowered)
+  if (exact) return selectSearchResult(exact)
+  // `username/repo-name` without a scheme resolves straight to the HF repo.
+  if (REPO_ID_RE.test(value)) {
+    modelUrl.value = `https://huggingface.co/${value}`
+    return void searchModelsByUrl()
+  }
+  return void runModelSearch(value)
+}
+
+/* ---- civitai account + download plan + warnings ------------------------- */
+const authStatus = ref<Record<string, boolean>>({})
+const civitaiAccount = ref<string>()
+
+onMounted(async () => {
+  try {
+    authStatus.value = (await request('/auth-status')) ?? {}
+  } catch {
+    authStatus.value = {}
+  }
+  if (authStatus.value.civitai) {
+    try {
+      const me = await request('/civitai/whoami')
+      civitaiAccount.value = me?.name || undefined
+    } catch {
+      civitaiAccount.value = undefined
+    }
+  }
+})
+
+const downloadPlan = computed(() => {
+  const model = currentModel.value
+  if (!model || !model.type) return null
+  const base = folders.value[model.type]?.[model.pathIndex ?? 0]
+  if (!base) return null
+  const sub = model.subFolder ? `${model.subFolder}/` : ''
+  const platform = String((model as any).downloadPlatform ?? '').toLowerCase()
+  const authKey =
+    platform === 'civitai'
+      ? 'civitai'
+      : platform === 'huggingface'
+        ? 'hf'
+        : platform === 'modelscope'
+          ? 'modelscope'
+          : null
+  return {
+    target: `${base}/${sub}${model.basename}${model.extension}`,
+    size: bytesToSize(model.sizeBytes),
+    sha: ((model as any).hashes as Record<string, string> | undefined)?.SHA256 || null,
+    authOk: authKey ? Boolean(authStatus.value[authKey]) : true,
+    authLabel: authKey
+      ? `${platformLabel(authKey)}: ${authStatus.value[authKey] ? t('authSet') : t('authUnset')}`
+      : t('authUnneeded'),
+  }
+})
+
+/** Version baseModel vs the base models recorded in the destination folder. */
+const baseMismatchWarning = computed(() => {
+  const model = currentModel.value
+  if (!model?.type || !model.description) return null
+  const front = parseFrontmatter(model.description)
+  const versionBase = typeof front?.baseModel === 'string' ? front.baseModel : null
+  if (!versionBase) return null
+  const bases = new Set<string>()
+  for (const item of modelsData.value[model.type] ?? []) {
+    if (!item.isFolder && item.modelBase) bases.add(item.modelBase)
+  }
+  if (bases.size < 3 || bases.has(versionBase)) return null
+  return t('baseMismatch', { version: versionBase, folder: [...bases].slice(0, 3).join(', ') })
+})
+
+const EXECUTABLE_EXTS = [
+  '.ckpt',
+  '.pt',
+  '.pth',
+  '.bin',
+  '.pickle',
+  '.pkl',
+  '.zip',
+  '.tar',
+  '.gz',
+  '.tgz',
+  '.rar',
+  '.7z',
+]
+const executableWarning = computed(() => {
+  const model = currentModel.value
+  if (!model) return false
+  const name = `${model.basename}${model.extension}`.toLowerCase()
+  return EXECUTABLE_EXTS.some(ext => name.endsWith(ext))
+})
 
 const searchModelsByUrl = async () => {
   if (modelUrl.value) {
