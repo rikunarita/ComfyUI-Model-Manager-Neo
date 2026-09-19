@@ -12,7 +12,7 @@ from . import auth
 from . import download
 from . import utils
 
-# In-flight hub uploads (HuggingFace AND ModelScope), keyed by task id.
+# In-flight hub uploads (Hugging Face AND ModelScope), keyed by task id.
 #
 # BUG FIX heritage: the upload used to run inside the HTTP handler, so
 # ComfyUI's 60 s fetch abort / aiohttp handler cancellation killed multi-GB
@@ -108,6 +108,20 @@ class _ProgressFile(io.BufferedIOBase):
     def tell(self) -> int:
         return self._file.tell()
 
+    @property
+    def size(self) -> int:
+        """Total bytes of the wrapped file."""
+        return self._size
+
+    def notify(self, sent: int, total: int, phase: str) -> None:
+        """Emit a progress boundary by hand.
+
+        Used by providers whose hub library exposes no per-chunk upload
+        callback (modelscope_hub reads file-like objects into bytes before
+        transferring, so the wrapper's read() never sees the transfer pass).
+        """
+        self._on_progress(sent, total, phase)
+
     def close(self) -> None:
         self._file.close()
         super().close()
@@ -123,6 +137,7 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
     repo_id = (data.get("repoId") or "").strip()
     path_in_repo = (data.get("pathInRepo") or "").strip()
     private = bool(data.get("private", False))
+    include_assets = bool(data.get("includeAssets", False))
 
     if not repo_id:
         raise RuntimeError("Repository id is required")
@@ -130,6 +145,25 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
         raise RuntimeError("Destination path in repository is required")
 
     files: list[dict] = []
+
+    def append_related_assets(local: str, in_repo: str) -> None:
+        """Queue the model's sidecars (`<model name>.*`: previews and notes).
+
+        They live next to the model on disk and land next to it in the
+        repository (same directory as the model's destination path).
+        """
+        repo_dir = in_repo.rsplit("/", 1)[0] if "/" in in_repo else ""
+        local_dir = os.path.dirname(local)
+        names = utils.get_model_all_previews(local) + utils.get_model_all_descriptions(local)
+        for name in names:
+            asset_local = utils.join_path(local_dir, name)
+            if not os.path.isfile(asset_local):
+                continue
+            asset_repo = f"{repo_dir}/{name}" if repo_dir else name
+            if any(entry["path_in_repo"] == asset_repo for entry in files):
+                continue
+            files.append({"local_path": asset_local, "path_in_repo": asset_repo})
+
     raw_files = data.get("files")
     if raw_files:
         import json as _json
@@ -151,6 +185,8 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
             if local is None:
                 raise RuntimeError(f"Model file not found: {fname}")
             files.append({"local_path": local, "path_in_repo": f"{base}/{fname}"})
+            if include_assets:
+                append_related_assets(local, f"{base}/{fname}")
     else:
         model_type = data.get("type", None)
         path_index = int(data.get("pathIndex", 0))
@@ -161,6 +197,8 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
         if local_path is None:
             raise RuntimeError(f"Model file not found: {fullname}")
         files.append({"local_path": local_path, "path_in_repo": path_in_repo})
+        if include_assets:
+            append_related_assets(local_path, path_in_repo)
     return files, repo_id, path_in_repo, private
 
 
@@ -462,14 +500,14 @@ class HfUploader:
 
         @routes.get("/model-manager/hf/whoami")
         async def hf_whoami(request):
-            """The authenticated HuggingFace user (token check for the UI)."""
+            """The authenticated Hugging Face user (token check for the UI)."""
             try:
                 token = auth.get_hf_token()
                 if not token:
                     return web.json_response(
                         {
                             "success": False,
-                            "error": "HuggingFace token not set. Please set it in Settings > API Key.",
+                            "error": "Hugging Face token not set. Please set it in Settings > API Key.",
                         }
                     )
 
@@ -489,19 +527,19 @@ class HfUploader:
                     }
                 )
             except Exception as e:
-                error_msg = f"HuggingFace whoami failed: {str(e)}"
+                error_msg = f"Hugging Face whoami failed: {str(e)}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
         @routes.post("/model-manager/hf/upload")
         async def hf_upload(request):
-            """Start a HuggingFace upload; answers with a task id immediately."""
+            """Start a Hugging Face upload; answers with a task id immediately."""
             try:
                 json_data = await request.json()
                 task_id = await self.start_upload(json_data)
                 return web.json_response({"success": True, "data": {"taskId": task_id}})
             except Exception as e:
-                error_msg = f"HuggingFace upload failed: {str(e)}"
+                error_msg = f"Hugging Face upload failed: {str(e)}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -509,7 +547,7 @@ class HfUploader:
         token = auth.get_hf_token()
         if not token:
             raise RuntimeError(
-                "HuggingFace token not set. Please set it in Settings > API Key."
+                "Hugging Face token not set. Please set it in Settings > API Key."
             )
         files, repo_id, path_in_repo, private = parse_upload_payload(data)
         return await _start_hub_upload(

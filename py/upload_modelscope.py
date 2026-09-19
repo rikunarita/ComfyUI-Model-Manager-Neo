@@ -7,6 +7,7 @@ from . import utils
 from .information import MODELSCOPE_INTL_ENDPOINT
 from .upload_hf import (
     HubUploadBackend,
+    PHASE_UPLOAD,
     _ProgressFile,
     _start_hub_upload,
     parse_upload_payload,
@@ -47,6 +48,15 @@ class MsBackend(HubUploadBackend):
     def upload_one(self, api, payload: _ProgressFile, in_repo: str):
         import os as _os
 
+        # modelscope_hub reads file-like objects fully into bytes before the
+        # transfer starts, so the wrapper's per-chunk reports never fire during
+        # it (unlike huggingface_hub, which streams through read()). Report the
+        # two honest boundaries instead: "transfer starting" (the bar returns to
+        # this file's baseline and the phase flips to Uploading) and "transfer
+        # finished" (upload_file returning means the commit landed). Without
+        # them the bar would keep claiming the hash pass's 100% while the
+        # transfer is still running.
+        payload.notify(0, payload.size, PHASE_UPLOAD)
         api.upload_file(
             self._repo_id,
             "model",
@@ -55,7 +65,10 @@ class MsBackend(HubUploadBackend):
             commit_message=f"Upload {_os.path.basename(in_repo)}",
             disable_tqdm=True,
         )
-        return payload.transferred_bytes, False
+        payload.notify(payload.size, payload.size, PHASE_UPLOAD)
+        # The hub consumed its own bytes copy; per-chunk transferred count is
+        # unavailable, so report None (the completion event carries the totals).
+        return None, False
 
     def file_url(self, repo_id: str, in_repo: str) -> str:
         return f"{MODELSCOPE_INTL_ENDPOINT}/models/{repo_id}/files/{in_repo}"
@@ -90,8 +103,10 @@ class MsUploader:
                     {
                         "success": True,
                         "data": {
-                            "name": getattr(info, "name", None),
-                            "fullname": getattr(info, "name", None),
+                            # modelscope_hub's UserInfo carries `username`
+                            # (there is no `name` attribute on the dataclass).
+                            "name": getattr(info, "username", None),
+                            "fullname": getattr(info, "username", None),
                         },
                     }
                 )

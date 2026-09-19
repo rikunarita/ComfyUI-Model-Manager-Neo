@@ -86,6 +86,15 @@ export const useModels = defineStore('models', store => {
   const folders = ref<ModelFolder>({})
   const initialized = ref(false)
 
+  /**
+   * True only after the FIRST full model-list sweep has finished. The panel
+   * loading caption uses it to tell the initial "Loading…" from later
+   * "Updating…" scrims. (`initialized` already flips when the folder table
+   * arrives - i.e. while the very first scan is still running - which made
+   * every loading overlay, including the first one, read "Updating…".)
+   */
+  const loadedOnce = ref(false)
+
   const refreshFolders = async () => {
     return request('/models').then(resData => {
       folders.value = resData
@@ -190,6 +199,7 @@ export const useModels = defineStore('models', store => {
       })
     }
     lastFullRefreshAt.value = Date.now()
+    loadedOnce.value = true
   }
 
   /**
@@ -392,6 +402,7 @@ export const useModels = defineStore('models', store => {
 
   return {
     initialized: initialized,
+    loadedOnce: loadedOnce,
     folders: folders,
     data: models,
     refresh: refreshAllModels,

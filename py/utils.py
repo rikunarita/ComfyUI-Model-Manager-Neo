@@ -496,7 +496,7 @@ def save_model_previews(
     """Save every supplied preview, in order, under the naming scheme.
 
     Feature: the editor and the download flow used to keep a single preview
-    file and silently drop the rest of a Civitai/HuggingFace gallery. Each
+    file and silently drop the rest of a Civitai/Hugging Face gallery. Each
     entry is now stored - primary as `<basename>.<ext>`, the following ones as
     `<basename>.preview.<ext>`, `<basename>.preview2.<ext>`, ... - so the
     carousel and the lightbox can page through all of them.

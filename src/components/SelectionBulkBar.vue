@@ -61,7 +61,7 @@ const uploadFoldersToHf = () => {
   }
   dialog.open({
     key: 'model-manager-hf-upload',
-    title: t('uploadToHuggingFace'),
+    title: t('uploadToHub'),
     content: DialogHfUpload,
     contentProps: { files },
   })
@@ -101,7 +101,7 @@ const uploadFoldersToHf = () => {
         @click="uploadFoldersToHf"
       >
         <Upload class="size-4" />
-        {{ $t('uploadToHuggingFace') }}
+        {{ $t('uploadToHub') }}
       </Button>
       <SelectionBarZipnnButton
         :visible="folderActions && selectedFolderNodes.length > 0"

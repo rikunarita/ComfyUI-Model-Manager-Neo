@@ -48,6 +48,7 @@
         type="button"
         class="mm-transition absolute top-1/2 left-4 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md hover:bg-white/25 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none active:scale-95"
         :aria-label="t('previousPreview')"
+        :title="t('previousPreview')"
         @click.stop="prev"
       >
         <ChevronLeft class="size-6" />
@@ -57,6 +58,7 @@
         type="button"
         class="mm-transition absolute top-1/2 right-4 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md hover:bg-white/25 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none active:scale-95"
         :aria-label="t('nextPreview')"
+        :title="t('nextPreview')"
         @click.stop="next"
       >
         <ChevronRight class="size-6" />
@@ -65,6 +67,7 @@
         type="button"
         class="mm-transition absolute top-4 right-4 grid size-10 place-items-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md hover:bg-white/25 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none active:scale-95"
         :aria-label="t('close')"
+        :title="t('close')"
         @click.stop="close"
       >
         <X class="size-5" />

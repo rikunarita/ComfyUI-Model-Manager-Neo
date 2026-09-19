@@ -1,6 +1,6 @@
 <template>
   <div class="h-full px-4">
-    <Tabs v-model="stepValue" class="flex h-full flex-col" default-value="1">
+    <Tabs v-model="stepValue" class="flex h-full flex-col" default-value="platform">
       <!-- Folder batch mode jumps straight to the upload form. -->
       <div
         v-if="folderMode"
@@ -8,21 +8,72 @@
       >
         {{ $t('hfUpload.folderBatch', { n: files?.length ?? 0 }) }}
       </div>
-      <TabsList v-else class="grid w-full grid-cols-3">
-        <TabsTrigger value="1">{{ $t('selectModelType') }}</TabsTrigger>
-        <TabsTrigger value="2" :disabled="stepValue === '1'">{{ $t('selectModel') }}</TabsTrigger>
-        <TabsTrigger value="3" :disabled="stepValue === '1' || stepValue === '2'">{{
-          $t('uploadToHuggingFace')
+      <!--
+        The wizard always starts at the upload PLATFORM (both modes); the
+        folder batch flow then goes straight to the form, the single-model
+        flow continues through type and model selection.
+      -->
+      <TabsList v-if="folderMode" class="grid w-full grid-cols-2">
+        <TabsTrigger value="platform">{{ $t('selectPlatform') }}</TabsTrigger>
+        <TabsTrigger value="upload" :disabled="stepValue === 'platform'">{{
+          $t('upload')
         }}</TabsTrigger>
       </TabsList>
+      <TabsList v-else class="grid w-full grid-cols-4">
+        <TabsTrigger value="platform">{{ $t('selectPlatform') }}</TabsTrigger>
+        <TabsTrigger value="type" :disabled="stepValue === 'platform'">{{
+          $t('selectModelType')
+        }}</TabsTrigger>
+        <TabsTrigger value="model" :disabled="stepValue === 'platform' || stepValue === 'type'">{{
+          $t('selectModel')
+        }}</TabsTrigger>
+        <TabsTrigger
+          value="upload"
+          :disabled="stepValue === 'platform' || stepValue === 'type' || stepValue === 'model'"
+          >{{ $t('upload') }}</TabsTrigger
+        >
+      </TabsList>
 
-      <!-- Step 1: Select model type -->
-      <TabsContent value="1" class="flex-1 overflow-hidden">
-        <ModelTypeButtonGrid :items="typeOptions" />
+      <!-- Step: upload platform -->
+      <TabsContent value="platform" class="flex-1 overflow-hidden">
+        <div class="flex h-full flex-col items-center justify-center gap-4">
+          <div class="text-sm text-mm-muted-fg">{{ $t('selectPlatformHint') }}</div>
+          <div class="flex gap-4">
+            <Button
+              size="lg"
+              :variant="provider === 'hf' ? 'default' : 'secondary'"
+              :title="$t('providerHf')"
+              @click="chooseProvider('hf')"
+            >
+              {{ $t('providerHf') }}
+            </Button>
+            <Button
+              size="lg"
+              :variant="provider === 'modelscope' ? 'default' : 'secondary'"
+              :title="$t('providerMs')"
+              @click="chooseProvider('modelscope')"
+            >
+              {{ $t('providerMs') }}
+            </Button>
+          </div>
+        </div>
       </TabsContent>
 
-      <!-- Step 2: Select model -->
-      <TabsContent value="2" class="flex-1 overflow-hidden">
+      <!-- Step: Select model type -->
+      <TabsContent value="type" class="flex-1 overflow-hidden">
+        <div class="flex h-full flex-col overflow-hidden">
+          <ModelTypeButtonGrid :items="typeOptions" class="min-h-0 flex-1" />
+          <div class="flex justify-between pt-6">
+            <Button variant="secondary" @click="stepValue = 'platform'">
+              <ChevronLeft class="size-4" />
+              {{ $t('back') }}
+            </Button>
+          </div>
+        </div>
+      </TabsContent>
+
+      <!-- Step: Select model -->
+      <TabsContent value="model" class="flex-1 overflow-hidden">
         <div class="flex h-full flex-col overflow-hidden">
           <ResponseScroll class="flex-1">
             <div
@@ -58,27 +109,11 @@
         </div>
       </TabsContent>
 
-      <!-- Step 3: Upload to HuggingFace -->
-      <TabsContent value="3" class="flex-1 overflow-hidden">
+      <!-- Step: upload form -->
+      <TabsContent value="upload" class="flex-1 overflow-hidden">
         <div class="flex h-full flex-col gap-4 overflow-hidden">
           <ResponseScroll class="min-h-0 flex-1">
             <div class="flex flex-col gap-4 py-2">
-              <div class="flex items-center gap-2">
-                <Button
-                  :variant="provider === 'hf' ? 'default' : 'secondary'"
-                  size="sm"
-                  @click="switchProvider('hf')"
-                >
-                  {{ $t('providerHf') }}
-                </Button>
-                <Button
-                  :variant="provider === 'modelscope' ? 'default' : 'secondary'"
-                  size="sm"
-                  @click="switchProvider('modelscope')"
-                >
-                  {{ $t('providerMs') }}
-                </Button>
-              </div>
               <div v-if="folderMode" class="rounded-lg border border-mm-border p-3">
                 <div class="font-bold">
                   {{ $t('hfUpload.folderBatch', { n: files?.length ?? 0 }) }}
@@ -119,6 +154,16 @@
                   {{ $t('privateRepoIfCreate') }}
                 </label>
               </div>
+              <div class="flex items-center gap-2">
+                <Checkbox id="include-related-assets" v-model="includeAssets" />
+                <label
+                  for="include-related-assets"
+                  class="text-sm"
+                  :title="$t('includeAssetsHint')"
+                >
+                  {{ $t('includeAssets') }}
+                </label>
+              </div>
               <div class="flex flex-col gap-2">
                 <label class="text-sm font-medium">{{ $t('pathInRepo') }}</label>
                 <Input v-model="pathInRepo" placeholder="folder/model.safetensors" />
@@ -156,11 +201,11 @@
             </div>
           </div>
           <div class="flex justify-between pt-6">
-            <Button v-if="!folderMode" variant="secondary" @click="handleBackModelSelect">
+            <Button variant="secondary" @click="handleBackModelSelect">
               <ChevronLeft class="size-4" />
               {{ $t('back') }}
             </Button>
-            <span v-else></span>
+            <span></span>
             <Button :disabled="!repoId || !pathInRepo || hfUpload.active" @click="handleUpload">
               <Upload class="size-4" />
               {{ $t('upload') }}
@@ -213,7 +258,7 @@ const loading = useLoading()
 // is missing.
 const { data: modelsCache, refreshFolder, visibleTypes } = useModels()
 
-const stepValue = ref(folderMode.value ? '3' : '1')
+const stepValue = ref<'platform' | 'type' | 'model' | 'upload'>('platform')
 const currentType = ref<string>()
 
 const typeOptions = computed(() => {
@@ -223,7 +268,7 @@ const typeOptions = computed(() => {
       value: type,
       command: () => {
         currentType.value = type
-        stepValue.value = '2'
+        stepValue.value = 'model'
         fetchModels(type)
       },
     }
@@ -259,31 +304,47 @@ const selectedModel = ref<Model>()
 const handleSelectModel = (model: Model) => {
   selectedModel.value = model
   pathInRepo.value = genModelFullName(model)
-  stepValue.value = '3'
+  stepValue.value = 'upload'
 }
 
+/** Back from the model grid to the type grid. */
 const handleBackTypeSelect = () => {
+  selectedModel.value = undefined
   currentType.value = undefined
   modelList.value = []
-  stepValue.value = '1'
+  stepValue.value = 'type'
 }
 
+/** Back from the form: to the model grid, or to the platform step in batch mode. */
 const handleBackModelSelect = () => {
+  if (folderMode.value) {
+    stepValue.value = 'platform'
+    return
+  }
   selectedModel.value = undefined
-  stepValue.value = '2'
+  stepValue.value = 'model'
 }
 
 const repoId = ref<string>()
 const privateRepo = ref(false)
+/** Also upload the model's sidecars (previews / notes) next to the model. */
+const includeAssets = ref(false)
 const pathInRepo = ref<string>()
 const provider = ref<'hf' | 'modelscope'>('hf')
 
-const switchProvider = (next: 'hf' | 'modelscope') => {
-  if (provider.value === next) return
-  provider.value = next
-  whoamiName.value = undefined
-  whoamiError.value = undefined
-  void fetchWhoami()
+/**
+ * Platform step: pick the hub and advance (batch mode jumps to the form,
+ * the single-model flow to the type grid). Re-picking another platform
+ * re-checks the account name for it.
+ */
+const chooseProvider = (next: 'hf' | 'modelscope') => {
+  if (provider.value !== next) {
+    provider.value = next
+    whoamiName.value = undefined
+    whoamiError.value = undefined
+    void fetchWhoami()
+  }
+  stepValue.value = folderMode.value ? 'upload' : 'type'
 }
 
 const whoamiName = ref<string>()
@@ -342,6 +403,7 @@ const handleUpload = async () => {
         repoId: repoId.value,
         pathInRepo: pathInRepo.value,
         private: privateRepo.value,
+        includeAssets: includeAssets.value,
       }
     : {
         type: selectedModel.value!.type,
@@ -350,6 +412,7 @@ const handleUpload = async () => {
         repoId: repoId.value,
         pathInRepo: pathInRepo.value,
         private: privateRepo.value,
+        includeAssets: includeAssets.value,
       }
   try {
     const result = await request(uploadRoute, {

@@ -19,7 +19,7 @@ single bundled Vue 3 app injected into the page.
 4. [Model cards](#4-model-cards)
 5. [Model detail & editing](#5-model-detail--editing)
 6. [Downloading models](#6-downloading-models)
-7. [Uploading to HuggingFace](#7-uploading-to-huggingface)
+7. [Uploading to Hugging Face](#7-uploading-to-hugging-face)
 8. [Upload from a local file](#8-upload-from-a-local-file)
 9. [Feedback, galleries and the lightbox](#9-feedback-galleries-and-the-lightbox)
 10. [Multi-select and ZipNN compression](#10-multi-select-and-zipnn-compression)
@@ -171,7 +171,7 @@ base‑info table, and two tabs.
 - **Information** tab — a table of everything recorded about the (read‑only by
   default; in edit mode the pencil opens it **behind a warning**, and saving
   the form rewrites the notes' front‑matter)
-  model. The YAML front‑matter of the notes (what Civitai / HuggingFace
+  model. The YAML front‑matter of the notes (what Civitai / Hugging Face
   downloads write) is parsed into rows: author, base model, every file hash
   (`AutoV1` … `SHA256_12`), format and precision, the model platform, a
   clickable model‑page link and the URLs of **all** preview images; keys the
@@ -208,8 +208,9 @@ Press the **pencil** to enter edit mode (the window turns into a form):
   `Local` (drag & drop or pick a file; images are converted to WebP, videos keep
   their format) / `None` (removes every preview file). In edit mode a
   thumbnail **grid** below the preview manages the gallery: pick the primary,
-  move entries left / right, or remove single images. The page left open on
-  save becomes the card's **primary** preview.
+  move entries left / right, or remove single images; the dashed tile at the
+  end of the grid adds local image file(s) as new previews. The page left open
+  on save becomes the card's **primary** preview.
 - **Description** — press the **Edit (pencil) icon** next to the hint text to
   open the Markdown textarea; it saves when the textarea loses focus:
 
@@ -228,7 +229,7 @@ Open **Download List** from the header, then:
 
 ![create download task](screenshots/download.png)
 
-1. Paste a **Civitai model page**, **HuggingFace repo/blob/tree**,
+1. Paste a **Civitai model page**, **Hugging Face repo/blob/tree**,
    **ModelScope model page** (`www.modelscope.ai`) or a **direct file link** (`.safetensors`, `.ckpt`, `.gguf`, …) and press **Enter** or the
    search icon.
 2. For a direct link you must pick the **Model Type** first (only types your
@@ -265,30 +266,35 @@ task bookkeeping. Paused downloads resume with an HTTP `Range` request.
 > Progress, pause and completion survive closing the window: tasks live in the
 > backend and are pushed over the websocket.
 
-## 7. Uploading to HuggingFace
+## 7. Uploading to Hugging Face
 
-The form carries a **provider switch** (Hugging Face / ModelScope). ModelScope
+The wizard asks for the **upload platform** first (Hugging Face or ModelScope),
+then continues through type / model selection into the upload form. ModelScope
 uploads always talk to the international `www.modelscope.ai` domain; repository
 creation (public/private), destination path and the live progress read-out work
-for both providers, and the folder-view batch upload (selected folders → every
-model inside, sub-folders preserved) honours the chosen provider too.
+for both platforms, and the folder-view batch upload (selected folders → every
+model inside, sub-folders preserved) honours the chosen platform too.
 
-Set your token first: **Settings → Model Manager Neo → API Key → HuggingFace
+Set your token first: **Settings → Model Manager Neo → API Key → Hugging Face
 API Key** (or export `HF_TOKEN`); for ModelScope uploads use the **ModelScope
 API Key** (or `MODELSCOPE_API_TOKEN`).
 
-Open **Upload to HuggingFace** from the header:
+Open **Upload to Hugging Face / ModelScope** from the header:
 
-1. **Select model type** — a button per type.
-2. **Select model** — the grid of that type; picking one pre‑fills the
+1. **Select upload platform** — Hugging Face or ModelScope.
+2. **Select model type** — a button per type.
+3. **Select model** — the grid of that type; picking one pre‑fills the
    destination path with the model’s relative path.
-3. **Upload to HuggingFace**:
+4. **Upload**:
 
    ![hf upload form](screenshots/hf-upload.png)
 
    - **Repository ID** — `username/repo-name`.
    - **Create as private if the repository does not exist** — applies _only on
      creation_; an existing repository keeps its own visibility.
+   - **Also upload related assets (previews / notes)** — uploads every
+     `<model name>.*` sidecar (preview images, Markdown notes) into the same
+     repository directory as the model.
    - **Destination path in repo** — directory + file name inside the repo.
 
 Press **Upload**. The request returns immediately and the transfer runs in the
@@ -305,12 +311,12 @@ the current phase:
 
 ### Messages you may see on completion
 
-| Toast                                                               | Meaning                                                                                                                                                                                                     |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Success** — `path -> repo`                                        | a new commit was created and bytes were transferred                                                                                                                                                         |
-| **Already stored on HuggingFace**                                   | the identical bytes already existed in the repository’s object store, so HuggingFace transferred nothing (`Upload 0 LFS files`) but a new commit pointing at them **was** created; the toast links the file |
-| **Skipped** — “An identical file already exists in 'repo': <url> …” | the very same file already sits at that exact path; HuggingFace refuses empty commits, so nothing was done. Pick another destination path to create a new commit                                            |
-| **Error**                                                           | the transfer failed; the message carries the backend reason                                                                                                                                                 |
+| Toast                                                               | Meaning                                                                                                                                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Success** — `path -> repo`                                        | a new commit was created and bytes were transferred                                                                                                                                                          |
+| **Already stored on Hugging Face**                                  | the identical bytes already existed in the repository’s object store, so Hugging Face transferred nothing (`Upload 0 LFS files`) but a new commit pointing at them **was** created; the toast links the file |
+| **Skipped** — “An identical file already exists in 'repo': <url> …” | the very same file already sits at that exact path; Hugging Face refuses empty commits, so nothing was done. Pick another destination path to create a new commit                                            |
+| **Error**                                                           | the transfer failed; the message carries the backend reason                                                                                                                                                  |
 
 ## 8. Upload from a local file
 
@@ -363,7 +369,7 @@ selected a bulk bar appears at the bottom of the window:
   compress / decompress the selected folders (see below);
 - **ZipNN delta compress** (exactly two plain models selected) — opens the
   base/fine-tune picker (see below);
-- **Upload to HuggingFace** (folders selected) — batch‑uploads every model
+- **Upload to Hugging Face** (folders selected) — batch‑uploads every model
   inside the selected folders (sub‑folders preserved) through the same upload
   dialog;
 - **Star** (folders selected, icon only) — yellow when every selected folder
@@ -457,7 +463,7 @@ ComfyUI **Settings → Model Manager Neo**:
 
 ### API Key
 
-- **HuggingFace API Key** / **Civitai API Key** / **ModelScope API Key** —
+- **Hugging Face API Key** / **Civitai API Key** / **ModelScope API Key** —
   stored locally in `private.key` next to the extension (masked in the UI),
   with `HF_TOKEN` / `CIVITAI_API_KEY` / `MODELSCOPE_API_TOKEN` as environment
   fallbacks. Keys saved in older versions’ ComfyUI user settings are migrated
@@ -493,7 +499,7 @@ else falls back to English.
 | Symptom                               | Cause / fix                                                                                                                                       |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The manager button is missing         | the frontend did not register the extension — check the ComfyUI log for an import error, and that the folder is named `ComfyUI-Model-Manager-Neo` |
-| `HuggingFace token not set`           | set the token in Settings (or `HF_TOKEN`) and reopen the dialog                                                                                   |
+| `Hugging Face token not set`          | set the token in Settings (or `HF_TOKEN`) and reopen the dialog                                                                                   |
 | A download never starts               | the URL may need authentication (Civitai gated models) — set the Civitai key; the task row shows the server’s error text                          |
 | “Failed to update model: PathIndex …” | the selected type has no folder on this machine — pick a type from the dropdown                                                                   |
 | The UI looks unstyled / grey boxes    | you are looking at a stale `web/` bundle; rebuild with `pnpm build` (only needed when developing)                                                 |

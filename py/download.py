@@ -769,7 +769,7 @@ class ModelDownload:
     ) -> None:
         """Download through modelscope_hub (international endpoint).
 
-        Only the fetch differs from the HuggingFace path: a ProgressCallback
+        Only the fetch differs from the Hugging Face path: a ProgressCallback
         subclass feeds the shared reporter, and the finished file is handed
         to the shared completion plumbing unchanged.
         """

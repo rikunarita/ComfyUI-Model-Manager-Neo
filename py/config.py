@@ -6,7 +6,7 @@ extension_uri: str = ""  # set by __init__.py before any route exists
 setting_key = {
     "api_key": {
         "civitai": "ModelManager.APIKey.Civitai",
-        "huggingface": "ModelManager.APIKey.HuggingFace",
+        "huggingface": "ModelManager.APIKey.Hugging Face",
     },
     "download": {
         "max_task_count": "ModelManager.Download.MaxTaskCount",

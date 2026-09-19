@@ -1,7 +1,7 @@
 import yaml from 'yaml'
 
 /**
- * Civitai / HuggingFace / direct-link downloads prepend a YAML front-matter
+ * Civitai / Hugging Face / direct-link downloads prepend a YAML front-matter
  * block to the model notes (the `description` field):
  *
  * ```
@@ -202,7 +202,7 @@ export const buildInformationRows = (description: string | undefined | null): In
   rows.push(...hashRows(frontmatter.hashes))
   rows.push(...metadataRows(frontmatter.metadata))
 
-  // website: the model's source platform (Civitai / HuggingFace / ...).
+  // website: the model's source platform (Civitai / Hugging Face / ...).
   const website = textRow('website', { key: 'info.website' }, frontmatter.website)
   if (website) rows.push(website)
 

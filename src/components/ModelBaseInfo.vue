@@ -197,7 +197,7 @@ watch(type, () => {
 //    saving a move/rename sent `type: ""` and the backend rejected it with
 //    "PathIndex 0 is not in " (the type root could not be resolved);
 //  - in the Create Download Task dialog (always `editable`) the type resolved
-//    from the Civitai/HuggingFace search was wiped, forcing a manual pick.
+//    from the Civitai/Hugging Face search was wiped, forcing a manual pick.
 // `type` is part of the form data cloned from the model and must survive
 // entering edit mode; the user can still change it via the selector below.
 

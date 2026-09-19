@@ -16,7 +16,7 @@ defineProps<Props>()
 <template>
   <!--
     The "pick a model type" button grid of the upload dialogs (local upload
-    and HuggingFace upload rendered it byte-identically).
+    and Hugging Face upload rendered it byte-identically).
   -->
   <div class="flex h-full flex-col overflow-hidden">
     <ResponseScroll>

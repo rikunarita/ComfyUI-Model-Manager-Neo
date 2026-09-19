@@ -3,7 +3,7 @@
   <slot v-if="type === 'drop'" name="target" v-bind="{ prefixIcon, currentLabel, current }">
     <DropdownMenu>
       <DropdownMenuTrigger as-child :class="$attrs.class">
-        <Button variant="secondary" class="-my-1 py-1 whitespace-nowrap">
+        <Button variant="secondary" class="-my-1 py-1 whitespace-nowrap" :title="currentLabel">
           <slot name="prefix">
             <!--
               BUG FIX: this rendered `<i :class="prefixIcon">`, i.e. a raw

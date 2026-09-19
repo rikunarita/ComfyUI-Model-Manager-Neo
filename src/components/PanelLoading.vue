@@ -13,7 +13,9 @@
     scrim can never cover a toast, a tooltip or the global confirm dialog.
 
     The caption distinguishes the first model-list load ("Loading…") from
-    later refreshes ("Updating…").
+    later refreshes ("Updating…"): the store reports `loadedOnce` only after
+    the first full sweep finished, so the very first scan no longer reads
+    "Updating…".
   -->
   <div
     data-mm-loading
@@ -21,7 +23,7 @@
   >
     <Loader2 class="size-8 animate-spin opacity-40" />
     <span class="text-sm text-mm-muted-fg select-none">
-      {{ modelsInitialized ? t('updating') : t('loading') }}
+      {{ loadedOnce ? t('updating') : t('loading') }}
     </span>
   </div>
 </template>
@@ -32,7 +34,5 @@ import { useI18n } from 'vue-i18n'
 import { useModels } from 'hooks/model'
 
 const { t } = useI18n()
-const { initialized } = useModels()
-
-const modelsInitialized = initialized
+const { loadedOnce } = useModels()
 </script>

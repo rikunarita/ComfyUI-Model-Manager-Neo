@@ -113,17 +113,17 @@ The **Folder** layout one level deep, with the breadcrumb trail (each crumb
 carries the tiny folder glyph; the trail takes no space at the root and opens
 up only as the path gets deeper) and the animated glass folder cards.
 
-### Model detail, editing, and the HuggingFace upload
+### Model detail, editing, and the Hugging Face upload
 
 |                                                                                                                    |                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
 | ![Model info](docs/screenshots/model-info.png)                                                                     | ![Edit mode](docs/screenshots/model-edit.png)                                                    |
 | _Model info: preview, base‑info table (note the trailing `/` on **Directory**), Description and Information tabs._ | _Edit mode: type dropdown, folder picker button, file name that accepts a `folder/name` prefix._ |
 
-|                                                                                |                                                                                          |
-| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| ![HuggingFace upload](docs/screenshots/hf-upload.png)                          | ![Japanese UI](docs/screenshots/ja-model-info.png)                                       |
-| _Upload to HuggingFace, step 3: repo id, private‑on‑create, destination path._ | _The same window in **日本語** — the UI ships complete English / 中文 / 日本語 bundles._ |
+|                                                                                 |                                                                                          |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| ![Hugging Face upload](docs/screenshots/hf-upload.png)                          | ![Japanese UI](docs/screenshots/ja-model-info.png)                                       |
+| _Upload to Hugging Face, step 3: repo id, private‑on‑create, destination path._ | _The same window in **日本語** — the UI ships complete English / 中文 / 日本語 bundles._ |
 
 A 10‑second tour (open → folder view → hover a folder → back → open a model) is
 [`docs/screenshots/hero.gif`](docs/screenshots/hero.gif); dragging a card onto a
@@ -235,12 +235,15 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 
 - **From local file** into any model folder (registered as a live task with
   progress in the Download List).
-- **To Hugging Face or ModelScope**: pick the provider in the
-  form; authenticated via the matching token, creates the repository if it
+- **To Hugging Face or ModelScope**: pick the platform in the wizard's first
+  step; authenticated via the matching token, creates the repository if it
   doesn't exist (public/private), choose the destination path, and watch
   progress. ModelScope always talks to the international `www.modelscope.ai`
-  domain, and its logo backs the "open model page" button like the others. Selected **folders** upload as a batch (every model
-  inside, sub‑folders preserved) from the folder view's selection bar.
+  domain, and its logo backs the "open model page" button like the others.
+  The optional **related assets** switch also uploads every `<model name>.*`
+  sidecar (preview images, Markdown notes) next to the model. Selected
+  **folders** upload as a batch (every model inside, sub‑folders preserved)
+  from the folder view's selection bar.
 
 </details>
 
@@ -259,7 +262,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   table itself is editable behind an explicit warning (it rewrites the notes'
   front‑matter on save).
 - Change or remove a model's preview image — the gallery page left open on
-  save becomes the card's primary preview.
+  save becomes the card's primary preview; the dashed tile at the end of the
+  edit-mode gallery grid adds local image files.
 - The **Open model page** action wears the logo of the model's source hub
   (Civitai or Hugging Face) as its button background, so a model's origin is
   recognisable at a glance.
@@ -563,7 +567,7 @@ A Japanese version of this front page lives in [`README-ja.md`](README-ja.md).
 
 They cover installation, both layouts, card interactions and drag‑to‑graph, the
 model editor (folder picker, folder‑prefixed names, previews, descriptions),
-downloads and the task list, the HuggingFace upload phases and completion
+downloads and the task list, the Hugging Face upload phases and completion
 messages, ZipNN compression, settings and locales, plus a troubleshooting table.
 The screenshots they embed live in [`docs/screenshots/`](docs/screenshots/) with
 a per‑file manifest in
@@ -663,7 +667,7 @@ ComfyUI‑Model‑Manager‑Neo exists only because
 **[`ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)**
 by **[hayden‑cn](https://github.com/hayden-cn)** existed first. Every structural
 idea in this fork — the model‑folder abstraction, the resumable download task
-system with its websocket progress protocol, the Civitai / HuggingFace page
+system with its websocket progress protocol, the Civitai / Hugging Face page
 parsers, the drag‑a‑card‑onto‑the‑graph integration, the model editor's form
 plumbing, even the little affordances like the card‑size presets — is hayden‑cn's
 design. Neo changes the skin, the dependencies and a great many bugs; it did not

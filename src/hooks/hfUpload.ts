@@ -39,7 +39,7 @@ interface HfCompleteDetail {
 }
 
 /**
- * Module-level state of the in-flight HuggingFace upload.
+ * Module-level state of the in-flight Hugging Face upload.
  *
  * BUG FIX: the upload state used to live inside `DialogHfUpload`, so closing
  * the dialog threw every piece of progress away - re-opening showed nothing
@@ -127,7 +127,7 @@ const reportHfSkipped = (ns: string, repoId: string, url: string) => {
 }
 
 const reportHfDeduplicated = (ns: string, repoId: string, pathInRepo: string, url: string) => {
-  // The commit really happened, but HuggingFace's object store already held
+  // The commit really happened, but Hugging Face's object store already held
   // the identical bytes ("Upload 0 LFS files"), so not one byte travelled.
   // A bare "Success" next to a bar that never moved reads as a broken
   // upload; say what actually happened and link the committed file.

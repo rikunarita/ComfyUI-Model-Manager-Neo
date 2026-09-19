@@ -60,6 +60,7 @@
             type="button"
             class="mm-transition absolute top-1/2 left-2 z-10 -translate-y-1/2 rounded-full border border-mm-fg/12 bg-mm-bg/40 p-1 shadow-mm-glass-1 backdrop-blur-md hover:bg-mm-fg/15 focus-visible:ring-2 focus-visible:ring-mm-ring focus-visible:outline-none active:scale-95"
             :aria-label="$t('previousPreview')"
+            :title="$t('previousPreview')"
             @click.stop="prevPage"
           >
             <ChevronLeft class="size-4" />
@@ -68,6 +69,7 @@
             type="button"
             class="mm-transition absolute top-1/2 right-2 z-10 -translate-y-1/2 rounded-full border border-mm-fg/12 bg-mm-bg/40 p-1 shadow-mm-glass-1 backdrop-blur-md hover:bg-mm-fg/15 focus-visible:ring-2 focus-visible:ring-mm-ring focus-visible:outline-none active:scale-95"
             :aria-label="$t('nextPreview')"
+            :title="$t('nextPreview')"
             @click.stop="nextPage"
           >
             <ChevronRight class="size-4" />
@@ -102,6 +104,7 @@
             :src="url"
             class="aspect-square w-full cursor-pointer rounded-mm-ctl object-cover"
             alt=""
+            :title="$t('previewPickPrimary')"
             @click="defaultContentPage = index"
           />
           <div class="absolute -top-1.5 -right-1.5 flex gap-0.5">
@@ -134,6 +137,21 @@
             </button>
           </div>
         </div>
+
+        <!--
+          Add-tile at the END of the gallery: picks local image file(s) and
+          appends them to the gallery like any other entry (object URLs; the
+          save path converts them to uploaded preview files).
+        -->
+        <button
+          type="button"
+          class="grid aspect-square w-full place-items-center rounded-mm-ctl border-2 border-dashed border-mm-border text-mm-muted-fg hover:border-mm-accent/60 hover:bg-mm-surface-hover hover:text-mm-accent"
+          :title="$t('previewAdd')"
+          :aria-label="$t('previewAdd')"
+          @click="pickPreviewFiles"
+        >
+          <Plus class="size-5" />
+        </button>
       </div>
     </div>
 
@@ -181,7 +199,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight, X } from '@lucide/vue'
+import { ChevronLeft, ChevronRight, Plus, X } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import PreviewLightbox from 'components/PreviewLightbox.vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
@@ -231,11 +249,9 @@ const { $sm, $md } = useContainerQueries()
 /** Edit mode of the stacked (download dialog) layout: preview left, gallery right. */
 const stackedEditable = computed(() => props.layout === 'stacked' && Boolean(editable.value))
 
-/** The gallery editor is only meaningful for the saved ("default") source. */
-const showGallery = computed(
-  () =>
-    Boolean(editable.value) && currentType.value === 'default' && defaultContent.value.length > 0,
-)
+/** The gallery editor is meaningful for the saved ("default") source; the
+ *  grid also renders (with just the add-tile) when no preview exists yet. */
+const showGallery = computed(() => Boolean(editable.value) && currentType.value === 'default')
 
 /** The gallery the `<` / `>` buttons page through (default source only). */
 const canPage = computed(() => currentType.value === 'default' && defaultContent.value.length > 1)
@@ -273,6 +289,26 @@ const previewStyle = computed(() => {
 const prevPage = () => {
   defaultContentPage.value =
     (defaultContentPage.value - 1 + defaultContent.value.length) % defaultContent.value.length
+}
+
+/**
+ * The gallery's add-tile: appends local image file(s) to the gallery. The
+ * object URLs behave like any other preview URL (they render immediately and
+ * are converted to uploaded preview files on save).
+ */
+const pickPreviewFiles = () => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.multiple = true
+  input.onchange = () => {
+    const files = input.files
+    if (!files || files.length === 0) return
+    const urls = Array.from(files).map(file => URL.createObjectURL(file))
+    defaultContent.value = [...defaultContent.value, ...urls]
+    defaultContentPage.value = defaultContent.value.length - 1
+  }
+  input.click()
 }
 
 const nextPage = () => {

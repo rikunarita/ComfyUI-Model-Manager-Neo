@@ -170,6 +170,7 @@
               <tr
                 v-if="row.kind === 'folder'"
                 class="h-7 cursor-pointer border-b border-mm-border select-none hover:bg-mm-fg/6"
+                :title="row.path"
                 @click="toggleTensorNode(row.path)"
               >
                 <td class="px-2" :style="{ paddingLeft: `${8 + row.depth * 16}px` }" colspan="3">
@@ -372,8 +373,29 @@ const tensorTree = computed<TensorTreeNode>(() => {
     node.totalParams = params
     return [count, params]
   }
+  /**
+   * Natural order for tree segments: pure-number segments (tensor-name levels
+   * like `0`, `1`, `2`, `10`, …) compare as NUMBERS so `2` never lands after
+   * `19`; everything else keeps a locale-aware compare that also understands
+   * embedded digit runs (`layer2` before `layer10`).
+   */
+  const naturalCompare = (a: string, b: string): number => {
+    const an = Number(a)
+    const bn = Number(b)
+    if (a.trim() !== '' && b.trim() !== '' && Number.isFinite(an) && Number.isFinite(bn)) {
+      if (an !== bn) return an - bn
+      return a.localeCompare(b)
+    }
+    return a.localeCompare(b, undefined, { numeric: true })
+  }
+
+  /** Leaf (tensor) tail shown under a node: the name minus the node prefix. */
+  const tensorTail = (node: TensorTreeNode, tensor: SafetensorsTensor) =>
+    node.path ? (tensor.name ?? '').slice(node.path.length + 1) : (tensor.name ?? '')
+
   const sortChildren = (node: TensorTreeNode) => {
-    node.children.sort((a, b) => a.segment.localeCompare(b.segment))
+    node.children.sort((a, b) => naturalCompare(a.segment, b.segment))
+    node.tensors.sort((a, b) => naturalCompare(tensorTail(node, a), tensorTail(node, b)))
     node.children.forEach(sortChildren)
   }
   aggregate(root)

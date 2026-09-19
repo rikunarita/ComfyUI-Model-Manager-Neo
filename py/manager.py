@@ -37,7 +37,7 @@ def _model_site_info_of(
 ) -> tuple[str | None, str | None, str | None]:
     """The model page URL and platform recorded in the notes front-matter.
 
-    Civitai / HuggingFace downloads store `modelPage` and `website` in the YAML
+    Civitai / Hugging Face downloads store `modelPage` and `website` in the YAML
     front-matter of the `.md` sidecar. Reading just that header (a few hundred
     bytes) at scan time is what lets the grid offer an "open model page" action
     - wearing the platform's logo as its background - without loading every

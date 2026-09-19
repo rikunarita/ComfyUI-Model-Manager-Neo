@@ -7,7 +7,7 @@ from . import utils
 
 class ApiKey:
     """
-    Manages API keys for Civitai and HuggingFace.
+    Manages API keys for Civitai and Hugging Face.
     Keys are stored in a pickle file (private.key) and can be overridden
     by environment variables.
     Priority:
@@ -189,7 +189,7 @@ def get_api_key():
     return _api_key_instance
 
 def get_hf_token():
-    """Get HuggingFace API token."""
+    """Get Hugging Face API token."""
     return get_api_key().get_value("huggingface")
 
 def get_civitai_token():
@@ -198,7 +198,7 @@ def get_civitai_token():
 
 def get_hf_headers():
     """
-    Return HTTP headers for HuggingFace API requests.
+    Return HTTP headers for Hugging Face API requests.
     Includes Authorization Bearer token if available.
     """
     headers = {"User-Agent": config.user_agent}

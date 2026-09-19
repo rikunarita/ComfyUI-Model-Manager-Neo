@@ -113,7 +113,7 @@ onMounted(() => {
   const openHfUploadDialog = () => {
     dialog.open({
       key: 'model-manager-hf-upload',
-      title: t('uploadToHuggingFace'),
+      title: t('uploadToHub'),
       content: DialogHfUpload,
       headerButtons: [
         {
@@ -218,7 +218,7 @@ onMounted(() => {
           key: 'upload',
           icon: 'pi pi-upload',
           command: openHfUploadDialog,
-          tooltip: t('uploadToHuggingFace'),
+          tooltip: t('uploadToHub'),
         },
       ],
       minWidth: cardWidth * 2 + gutter + 42,

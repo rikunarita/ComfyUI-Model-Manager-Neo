@@ -276,9 +276,9 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
 
     // API keys
     app.ui?.settings.addSetting({
-      id: 'ModelManager.APIKey.HuggingFace',
-      category: [t('modelManager'), t('setting.apiKey'), 'HuggingFace'],
-      name: 'HuggingFace API Key',
+      id: 'ModelManager.APIKey.Hugging Face',
+      category: [t('modelManager'), t('setting.apiKey'), 'Hugging Face'],
+      name: 'Hugging Face API Key',
       defaultValue: undefined,
       type: renderApiKey('huggingface'),
     })

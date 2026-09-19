@@ -100,7 +100,10 @@ class ModelSearcher(ABC):
 
 class UnknownWebsiteSearcher(ModelSearcher):
     def search_by_url(self, url: str):
-        raise RuntimeError("Unknown Website, please input a URL from huggingface.co or civitai.com.")
+        raise RuntimeError(
+            "Unknown Website, please input a URL from huggingface.co, civitai.com "
+            "or modelscope.ai."
+        )
 
 
 class CivitaiModelSearcher(ModelSearcher):
@@ -234,7 +237,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
         path_parts = [p for p in pathname.strip("/").split("/") if p]
 
         if len(path_parts) < 2:
-            raise RuntimeError(f"Invalid HuggingFace URL: {url}")
+            raise RuntimeError(f"Invalid Hugging Face URL: {url}")
 
         space = path_parts[0]
         name = path_parts[1]
@@ -292,7 +295,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             size_bytes = file_sizes.get(filename, 0)
 
             metadata_info = {
-                "website": "HuggingFace",
+                "website": "Hugging Face",
                 "modelPage": f"https://huggingface.co/{model_id}",
                 "author": res_data.get("author", None),
                 "preview": image_files,
@@ -408,7 +411,7 @@ _MODEL_FILE_EXTS = (".bin", ".ckpt", ".gguf", ".onnx", ".pt", ".pth", ".safetens
 class ModelScopeModelSearcher(ModelSearcher):
     """Model listing of a ModelScope model repository (international site).
 
-    Mirrors the HuggingFace searcher: one entry per model file of the repo,
+    Mirrors the Hugging Face searcher: one entry per model file of the repo,
     with the front-matter the Information tab and the duplicate warning read
     (`website: ModelScope`), plus the repo/file pair the downloader needs.
     """
