@@ -151,7 +151,12 @@ def _search_huggingface(
     # `author` empty on search results (verified against huggingface_hub).
     # One extra item is fetched to learn whether a further page exists.
     models = HfApi().list_models(
-        search=query, sort=sort, limit=offset + limit + 1, expand=["author"]
+        search=query,
+        sort=sort,
+        limit=offset + limit + 1,
+        # `expand` limits the payload to the listed fields: author (avatar /
+        # owner link) plus the counters the result rows show as icons.
+        expand=["author", "downloads", "likes"],
     )
     seen = 0
     for m in models:
@@ -357,7 +362,7 @@ def _search_civitai(
                 "repo": it.get("name") or str(mid),
                 "title": it.get("name") or str(mid),
                 "downloads": stats.get("downloadCount", 0) or 0,
-                "likes": stats.get("likeCount", 0) or 0,
+                "likes": stats.get("thumbsUpCount", 0) or 0,
                 "avatar": creator.get("image") or None,
                 "pageUrl": f"https://civitai.com/models/{mid}",
                 "ownerUrl": f"https://civitai.com/user/{owner}",

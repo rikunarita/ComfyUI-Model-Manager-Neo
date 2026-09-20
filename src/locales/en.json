@@ -12,7 +12,7 @@
   "pleaseInputModelUrl": "Paste a Hugging Face / ModelScope / CivitAI repo or direct URL, or search by model name",
   "directFileDetected": "Direct file download detected",
   "subfolderOptional": "Subfolder (optional):",
-  "subfolderPlaceholder": "e.g., subfolder/path",
+  "subfolderPlaceholder": "e.g., Subfolder",
   "version": "version:",
   "cancel": "Cancel",
   "save": "Save",
@@ -129,7 +129,8 @@
     "tensorsSummary": "{count} tensors · {params} parameters",
     "tensorsCount": "{count} tensors · {params} params",
     "tensorsShowAll": "Show all {count} tensors",
-    "tensorsShowLess": "Collapse"
+    "tensorsShowLess": "Collapse",
+    "subFolder": "Sub-folder"
   },
   "setting": {
     "apiKey": "API Key",
@@ -311,7 +312,6 @@
   "identifyFiles": "Files of this version",
   "identifyHashes": "File hashes",
   "copyCommand": "Copy command",
-  "downloads": "Downloads",
   "searchNoResults": "No results",
   "searchFailed": "Search failed",
   "searchMore": "Show more",

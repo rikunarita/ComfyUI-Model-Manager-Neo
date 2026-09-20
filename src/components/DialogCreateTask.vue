@@ -108,8 +108,17 @@
                   >{{ item.repo }}</a
                 >
               </div>
-              <div class="truncate text-xs text-mm-muted-fg">
-                {{ $t('downloads') }}: {{ item.downloads }}
+              <!--
+                Counters as icons (download / heart), compact form with the
+                exact number in the tooltip - the label text ("Downloads:")
+                wasted the narrow column width.
+              -->
+              <div class="flex items-center gap-1.5 text-xs text-mm-muted-fg">
+                <Download class="size-3 shrink-0" />
+                <span :title="String(item.downloads)">{{ compactCount(item.downloads) }}</span>
+                <span class="opacity-60">·</span>
+                <Heart class="size-3 shrink-0" />
+                <span :title="String(item.likes)">{{ compactCount(item.likes) }}</span>
               </div>
             </div>
           </div>
@@ -295,7 +304,7 @@
 </template>
 
 <script setup lang="ts">
-import { Box, CheckCircle, ChevronDown, Download, Loader2, Search } from '@lucide/vue'
+import { Box, CheckCircle, ChevronDown, Download, Heart, Loader2, Search } from '@lucide/vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ModelContent from 'components/ModelContent.vue'
@@ -388,6 +397,7 @@ interface SearchItem {
   repo: string
   title: string
   downloads: number
+  likes: number
   avatar: string | null
   pageUrl: string
   ownerUrl: string
@@ -509,6 +519,14 @@ const loadMore = async (platform: string) => {
     loadingMore.value[platform] = false
     nextTick(() => updateColumnBottom(platform))
   }
+}
+
+/** 12600 -> "12.6k" (exact value stays in the tooltip). */
+const compactCount = (value: number) => {
+  const n = Number(value) || 0
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}m`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`
+  return String(n)
 }
 
 const platformLabel = (platform: string) =>

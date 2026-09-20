@@ -596,15 +596,17 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
           if (!folderPath) {
             return undefined
           }
-          const joined = [folderPath, model.value.subFolder].filter(Boolean).join('/')
-          // The row is a DIRECTORY, so it is rendered with its trailing
-          // separator ("models/unet/" rather than "models/unet"). That also
-          // makes it obvious that the file-name field below is relative to it
-          // and may itself contain sub-folders. `ModelBaseInfo.folderKey`
-          // rebuilds the same path without the separator for the folder Tree,
-          // whose keys are plain paths.
-          return `${joined}/`
+          // The row is the BASE DIRECTORY only (the sub-folder has its own
+          // row below), rendered with its trailing separator ("models/unet/"
+          // rather than "models/unet"). `ModelBaseInfo.folderKey` rebuilds
+          // the full path (base + sub-folder, no separator) for the folder
+          // Tree, whose keys are plain paths.
+          return `${folderPath}/`
         },
+      },
+      {
+        key: 'subFolder',
+        formatter: val => (val ? String(val) : '-'),
       },
       {
         key: 'basename',

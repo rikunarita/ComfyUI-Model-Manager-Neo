@@ -12,7 +12,7 @@
   "pleaseInputModelUrl": "粘贴 Hugging Face / ModelScope / CivitAI 仓库或直链，或按模型名搜索",
   "directFileDetected": "检测到直接文件下载",
   "subfolderOptional": "子文件夹（可选）：",
-  "subfolderPlaceholder": "例如 subfolder/path",
+  "subfolderPlaceholder": "例如 Subfolder",
   "version": "版本：",
   "cancel": "取消",
   "save": "保存",
@@ -129,7 +129,8 @@
     "tensorsSummary": "{count} 个张量 · {params} 参数",
     "tensorsCount": "{count} 个张量 · {params} 参数",
     "tensorsShowAll": "显示全部 {count} 个张量",
-    "tensorsShowLess": "收起"
+    "tensorsShowLess": "收起",
+    "subFolder": "子文件夹"
   },
   "setting": {
     "apiKey": "密钥",
@@ -311,7 +312,6 @@
   "identifyFiles": "该版本的文件",
   "identifyHashes": "文件哈希",
   "copyCommand": "复制命令",
-  "downloads": "下载量",
   "searchNoResults": "无结果",
   "searchFailed": "搜索失败",
   "searchMore": "加载更多",

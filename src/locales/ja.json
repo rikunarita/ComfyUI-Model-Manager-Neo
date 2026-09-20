@@ -12,7 +12,7 @@
   "pleaseInputModelUrl": "HuggingFace・ModelScope・CivitAIのリポジトリまたはダイレクトURL、もしくはモデル名で検索",
   "directFileDetected": "直接ファイルダウンロードとして認識しました",
   "subfolderOptional": "サブフォルダ（任意）:",
-  "subfolderPlaceholder": "例: subfolder/path",
+  "subfolderPlaceholder": "例: Subfolder",
   "version": "バージョン:",
   "cancel": "キャンセル",
   "save": "保存",
@@ -129,7 +129,8 @@
     "tensorsSummary": "{count} テンソル ・ {params} パラメータ",
     "tensorsCount": "{count} テンソル ・ {params} パラメータ",
     "tensorsShowAll": "全 {count} テンソルを表示",
-    "tensorsShowLess": "折りたたむ"
+    "tensorsShowLess": "折りたたむ",
+    "subFolder": "サブフォルダ"
   },
   "setting": {
     "apiKey": "API キー",
@@ -311,7 +312,6 @@
   "identifyFiles": "このバージョンのファイル",
   "identifyHashes": "ファイルハッシュ",
   "copyCommand": "コマンドをコピー",
-  "downloads": "ダウンロード数",
   "searchNoResults": "結果なし",
   "searchFailed": "検索失敗",
   "searchMore": "さらに表示",

@@ -235,7 +235,7 @@ const typeOptions = computed(() => {
 const information = computed(() => {
   return Object.values(baseInfo.value).filter(row => {
     if (editable.value) {
-      const hiddenKeys = ['basename', 'pathIndex']
+      const hiddenKeys = ['basename', 'pathIndex', 'subFolder']
       return !hiddenKeys.includes(row.key)
     }
     return true
