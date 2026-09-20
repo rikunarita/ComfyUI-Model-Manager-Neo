@@ -29,16 +29,15 @@ export const useGridSelectOptions = () => {
 
   const cardSizeOptions = computed(() => {
     const customSize = 'size.custom'
-    const customOptionMap = {
-      ...cardSizeMap.value,
-      [customSize]: 'custom',
-    }
-    return Object.keys(customOptionMap).map(key => {
+    return Object.keys(cardSizeMap.value).map(key => {
       return {
         label: t(key),
         value: key,
         command: () => {
           if (key === customSize) {
+            // Apply the custom slot AND open its editor (the map always
+            // carries a `size.custom` entry, so the editor has a row for it).
+            cardSizeFlag.value = key
             settings.showCardSizeSetting()
           } else {
             cardSizeFlag.value = key

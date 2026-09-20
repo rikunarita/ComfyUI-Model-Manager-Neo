@@ -307,6 +307,10 @@ that column's next page (Hugging Face by download-order offset, ModelScope by
 page number, Civitai through the API's own cursor). Platforms can be hidden in
 **Settings → Model Manager Neo → Search** (one boolean per platform).
 
+- **Sort order** — each platform's sort order is selectable in **Settings →
+  Model Manager Neo → Search** (every value its API accepts); the defaults are
+  Hugging Face trending, ModelScope likes and Civitai highest rated.
+
 ### Download plan & safety checks
 
 Once a version is resolved the editor shows a dry-run plan: the destination

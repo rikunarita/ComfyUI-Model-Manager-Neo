@@ -70,7 +70,7 @@
               @click="toggleStar"
             >
               <Star
-                class="size-4"
+                class="size-5"
                 :class="starred ? 'fill-current text-mm-warning' : 'text-mm-fg'"
               />
             </Button>
@@ -84,7 +84,7 @@
               :aria-label="$t('openModelPage')"
               @click="openModelPage(model.modelPage)"
             >
-              <ExternalLink class="size-4" />
+              <ExternalLink class="size-5" />
             </Button>
             <!--
               IDENTIFY BY HASH: asks the Civitai catalog which model version
@@ -100,7 +100,7 @@
               :disabled="identifying"
               @click="identifyByHash"
             >
-              <Loader2 v-if="identifying" class="size-4 animate-spin" />
+              <Loader2 v-if="identifying" class="size-5 animate-spin" />
               <HashReverseIcon v-else />
             </Button>
             <Button
@@ -110,7 +110,7 @@
               :aria-label="$t('addNode')"
               @click.stop="addModelNode(model)"
             >
-              <Plus class="size-4" />
+              <Plus class="size-5" />
             </Button>
             <Button
               variant="ghost"
@@ -119,7 +119,7 @@
               :aria-label="$t('copyNode')"
               @click.stop="copyModelNode(model)"
             >
-              <Copy class="size-4" />
+              <Copy class="size-5" />
             </Button>
             <Button
               v-show="hasPreview"
@@ -129,7 +129,7 @@
               :aria-label="$t('loadWorkflow')"
               @click.stop="loadPreviewWorkflow(model)"
             >
-              <Workflow class="size-4" />
+              <Workflow class="size-5" />
             </Button>
             <!--
               DOWNLOAD TO LOCAL: streams the stored file to the browser as an
@@ -143,7 +143,7 @@
               :aria-label="$t('downloadToLocal')"
               @click="downloadToLocal"
             >
-              <Download class="size-4" />
+              <Download class="size-5" />
             </Button>
             <Button
               variant="ghost"
@@ -152,7 +152,7 @@
               :aria-label="$t('editModel')"
               @click="editable = true"
             >
-              <PenSquare class="size-4" />
+              <PenSquare class="size-5" />
             </Button>
             <Button
               variant="destructive"
@@ -161,7 +161,7 @@
               :aria-label="$t('deleteModel')"
               @click="handleDelete"
             >
-              <Trash2 class="size-4" />
+              <Trash2 class="size-5" />
             </Button>
           </template>
         </template>

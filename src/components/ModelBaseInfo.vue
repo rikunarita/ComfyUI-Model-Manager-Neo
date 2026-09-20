@@ -62,6 +62,24 @@
         </Dialog>
       </div>
 
+      <!--
+        Explicit sub-folder row: the directory read-out above is base path +
+        sub-folder and the folder Tree can pick an existing one, but the
+        sub-folder itself is now directly editable here (the file-name field
+        keeps accepting a deeper `sub/name` prefix, resolved relative to this
+        row on save).
+      -->
+      <div class="flex items-center gap-2">
+        <label class="shrink-0 text-sm font-medium">{{ $t('subfolderOptional') }}</label>
+        <ResponseInput
+          v-model.trim.valid="subFolder"
+          :validate="validateSubFolder"
+          :placeholder="$t('subfolderPlaceholder')"
+          class="flex-1"
+          update-trigger="blur"
+        />
+      </div>
+
       <ResponseInput
         v-model.trim.valid="basename"
         class="-mr-2 text-right"
@@ -251,6 +269,21 @@ const validateBasename = (val: string | undefined) => {
   const segments = val.split('/')
   if (segments.some(segment => segment === '' || segment === '.' || segment === '..')) {
     return fail(t('validation.nameInvalidPath'))
+  }
+  return true
+}
+
+/** The sub-folder row: empty is fine; otherwise the same character / segment
+ *  rules as the file-name field apply to every segment of the path. */
+const validateSubFolder = (val: string | undefined) => {
+  if (!val) return true
+  if (/[\\:*?"<>|]/.test(val)) {
+    toast.add({ severity: 'error', detail: t('validation.nameInvalidChars'), life: 3000 })
+    return false
+  }
+  if (val.split('/').some(segment => segment === '' || segment === '.' || segment === '..')) {
+    toast.add({ severity: 'error', detail: t('validation.nameInvalidPath'), life: 3000 })
+    return false
   }
   return true
 }

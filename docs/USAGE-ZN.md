@@ -244,6 +244,9 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 下载序偏移、ModelScope 按页码、Civitai 使用 API 自身的 cursor)。平台可在
 **设置 → Model Manager Neo → 搜索** 中隐藏(每个平台一个布尔值)。
 
+- **排序** — 每个平台的排序可在 **设置 → Model Manager Neo → 搜索** 中选择(各 API
+  接受的全部值);默认为 Hugging Face 趋势序、ModelScope Like 多顺、Civitai 高评价序。
+
 ### 下载计划与安全检查
 
 版本解析后,编辑器会显示试运行计划:目标路径、公布大小、公开 SHA256 以及平台 API 密钥

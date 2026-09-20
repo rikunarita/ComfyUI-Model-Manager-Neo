@@ -477,7 +477,7 @@ const baseInfoKey = Symbol('baseInfo') as InjectionKey<ReturnType<typeof useMode
 
 export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
   const { t } = useI18n()
-  const { formData: model, modelData } = formInstance
+  const { formData: model, modelData, registerSubmit } = formInstance
 
   const provideModelFolders = inject(modelFolderProvideKey)
   const modelFolders = computed<ModelFolder>(() => {
@@ -645,6 +645,24 @@ export const useModelBaseInfoEditor = (formInstance: ModelFormInstance) => {
     modelFolders,
     model,
   }
+
+  onMounted(() => {
+    registerSubmit(data => {
+      // The name field may carry a deeper `sub/name` prefix: it files the
+      // model relative to the (separately editable) sub-folder row, whose
+      // value is normalised here too (no leading / trailing separators).
+      const sub = String(data.subFolder ?? '').replace(/^\/+|\/+$/g, '')
+      const name = String(data.basename ?? '')
+      const slash = name.lastIndexOf('/')
+      if (slash >= 0) {
+        const prefix = name.slice(0, slash).replace(/^\/+|\/+$/g, '')
+        data.basename = name.slice(slash + 1)
+        data.subFolder = [sub, prefix].filter(Boolean).join('/')
+      } else {
+        data.subFolder = sub
+      }
+    })
+  })
 
   provide(baseInfoKey, result)
 

@@ -33,6 +33,15 @@
         </div>
         <div v-else v-show="showModelName" class="pointer-events-none absolute top-0 size-full p-2">
           <div class="flex h-full flex-col justify-end text-lg">
+            <!--
+              Sub-directory line: a model filed below the type root shows its
+              sub-folder path above the name (flat and folder view alike), so
+              same-named models in different sub-folders stay tellable apart
+              at a glance.
+            -->
+            <div v-if="model.subFolder" class="text-shadow truncate text-sm font-medium">
+              {{ model.subFolder }} /
+            </div>
             <div class="text-shadow line-clamp-3 font-bold break-all">
               {{ model.basename }}
             </div>

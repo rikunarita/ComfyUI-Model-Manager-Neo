@@ -2,11 +2,14 @@
 
 Routes
 ------
-GET /model-manager/search?query=&limit=&platform=&cursor=
+GET /model-manager/search?query=&limit=&platform=&cursor=&sort_hf=&sort_ms=&sort_civitai=
     Parallel model-name search across Hugging Face (huggingface_hub
     ``HfApi.list_models``), ModelScope (``modelscope_hub`` ``list_repos``) and
     Civitai (public REST ``/api/v1/models``). Every item carries the owner
     avatar (best effort) and deep links to the model page and the owner page.
+    Per-platform sort orders arrive as ``sort_hf`` / ``sort_ms`` /
+    ``sort_civitai`` (defaults: trending_score / likes / Highest Rated); values
+    outside each platform's accepted set fall back to the default.
     Results page per platform through an opaque ``nextCursor`` (HF: item
     offset, ModelScope: page number, Civitai: the API's own cursor - with a
     ``query`` the API refuses ``page``); re-requesting with ``platform`` +
@@ -137,7 +140,9 @@ def _hf_avatar(owner: str) -> str | None:
     return _cache_avatar(owner, None)
 
 
-def _search_huggingface(query: str, limit: int, cursor: str | None) -> tuple[list[dict], str | None]:
+def _search_huggingface(
+    query: str, limit: int, cursor: str | None, sort: str
+) -> tuple[list[dict], str | None]:
     from huggingface_hub import HfApi
 
     items: list[dict] = []
@@ -146,7 +151,7 @@ def _search_huggingface(query: str, limit: int, cursor: str | None) -> tuple[lis
     # `author` empty on search results (verified against huggingface_hub).
     # One extra item is fetched to learn whether a further page exists.
     models = HfApi().list_models(
-        search=query, sort="downloads", limit=offset + limit + 1, expand=["author"]
+        search=query, sort=sort, limit=offset + limit + 1, expand=["author"]
     )
     seen = 0
     for m in models:
@@ -268,13 +273,15 @@ def _ms_owner_info(owner: str, name: str) -> tuple[str | None, str | None, str |
         return _cache_ms_owner(owner, (None, None, None))
 
 
-def _search_modelscope(query: str, limit: int, cursor: str | None) -> tuple[list[dict], str | None]:
+def _search_modelscope(
+    query: str, limit: int, cursor: str | None, sort: str
+) -> tuple[list[dict], str | None]:
     from modelscope_hub import HubApi
 
     api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT)
     page_number = max(1, int(cursor or 1))
     page = api.list_repos(
-        "model", search=query, sort="downloads", page_number=page_number, page_size=limit
+        "model", search=query, sort=sort, page_number=page_number, page_size=limit
     )
     items: list[dict] = []
     for r in page.items:
@@ -303,12 +310,14 @@ def _search_modelscope(query: str, limit: int, cursor: str | None) -> tuple[list
     return items, next_cursor
 
 
-def _search_civitai(query: str, limit: int, cursor: str | None) -> tuple[list[dict], str | None]:
+def _search_civitai(
+    query: str, limit: int, cursor: str | None, sort: str
+) -> tuple[list[dict], str | None]:
     token = auth.get_civitai_token()
     headers = dict(_UA)
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    params: dict[str, str] = {"query": query, "limit": str(limit)}
+    params: dict[str, str] = {"query": query, "limit": str(limit), "sort": sort}
     # With a `query` the API refuses `page` and asks for cursor pagination
     # (verified live: "Cannot use page param with query search").
     if cursor:
@@ -322,6 +331,10 @@ def _search_civitai(query: str, limit: int, cursor: str | None) -> tuple[list[di
     r.raise_for_status()
     payload = r.json() or {}
     items: list[dict] = []
+    # Sort keys for the post-pass below (the API ignores `sort` whenever a
+    # `query` is present - verified live - so the orders its payload can
+    # prove are applied here, over the matched set).
+    sort_keys: list[dict] = []
     for it in payload.get("items", []):
         mid = it.get("id")
         if not mid:
@@ -329,6 +342,13 @@ def _search_civitai(query: str, limit: int, cursor: str | None) -> tuple[list[di
         creator = it.get("creator") or {}
         owner = creator.get("username") or f"user{it.get('userId', '')}"
         stats = it.get("stats") or {}
+        sort_keys.append(
+            {
+                "downloads": stats.get("downloadCount", 0) or 0,
+                "likes": stats.get("thumbsUpCount", 0) or 0,
+                "comments": stats.get("commentCount", 0) or 0,
+            }
+        )
         items.append(
             {
                 "platform": "civitai",
@@ -343,6 +363,19 @@ def _search_civitai(query: str, limit: int, cursor: str | None) -> tuple[list[di
                 "ownerUrl": f"https://civitai.com/user/{owner}",
             }
         )
+    # Keys without reliable payload data (Highest Rated - the default and the
+    # API's own no-query order -, Most Collected, Most Images, Newest, Oldest
+    # and Recently Added: the search payload carries neither collected /
+    # image counts nor version dates) keep the API order instead of a
+    # guessed one.
+    paired = list(zip(items, sort_keys))
+    if sort == "Most Downloaded":
+        paired.sort(key=lambda p: -p[0]["downloads"])
+    elif sort == "Most Liked":
+        paired.sort(key=lambda p: -p[1]["likes"])
+    elif sort == "Most Discussed":
+        paired.sort(key=lambda p: -p[1]["comments"])
+    items = [p[0] for p in paired]
     next_cursor = (payload.get("metadata") or {}).get("nextCursor") or None
     return items, (str(next_cursor) if next_cursor is not None else None)
 
@@ -352,6 +385,32 @@ _PROVIDERS = {
     "modelscope": _search_modelscope,
     "civitai": _search_civitai,
 }
+
+# Sort values each platform accepts (verified against the live endpoints and
+# the huggingface_hub docstring). Anything else - a stale setting, a hand-made
+# query - falls back to the per-platform default instead of failing the search.
+_SORTS = {
+    "hf": ("trending_score", "downloads", "likes", "last_modified", "created_at"),
+    "modelscope": ("likes", "downloads", "last_modified", "default"),
+    "civitai": (
+        "Highest Rated",
+        "Most Downloaded",
+        "Most Liked",
+        "Most Discussed",
+        "Most Collected",
+        "Most Images",
+        "Newest",
+        "Oldest",
+        "Recently Added",
+    ),
+}
+_DEFAULT_SORTS = {"hf": "trending_score", "modelscope": "likes", "civitai": "Highest Rated"}
+_SORT_PARAMS = {"hf": "sort_hf", "modelscope": "sort_ms", "civitai": "sort_civitai"}
+
+
+def _resolve_sort(request, provider: str) -> str:
+    value = (request.query.get(_SORT_PARAMS[provider]) or "").strip()
+    return value if value in _SORTS[provider] else _DEFAULT_SORTS[provider]
 
 
 class SearchRoutes:
@@ -371,9 +430,9 @@ class SearchRoutes:
             cursor = (request.query.get("cursor") or "").strip() or None
             loop = asyncio.get_running_loop()
 
-            def run(provider: str, page_cursor: str | None):
+            def run(provider: str, page_cursor: str | None, sort: str):
                 try:
-                    items, next_cursor = _PROVIDERS[provider](query, limit, page_cursor)
+                    items, next_cursor = _PROVIDERS[provider](query, limit, page_cursor, sort)
                     return provider, {"items": items, "nextCursor": next_cursor}
                 except Exception as e:  # provider outage must not kill the rest
                     utils.print_warning(f"search provider {provider} failed: {e}")
@@ -381,12 +440,15 @@ class SearchRoutes:
 
             if platform in _PROVIDERS:
                 name, res = await loop.run_in_executor(
-                    utils.io_executor(), run, platform, cursor
+                    utils.io_executor(), run, platform, cursor, _resolve_sort(request, platform)
                 )
                 return web.json_response({"success": True, "data": {name: res}})
 
             with ThreadPoolExecutor(max_workers=3) as pool:
-                futs = [pool.submit(run, name, None) for name in _PROVIDERS]
+                futs = [
+                    pool.submit(run, name, None, _resolve_sort(request, name))
+                    for name in _PROVIDERS
+                ]
                 data = {}
                 for fut in as_completed(futs, timeout=SEARCH_TIMEOUT + 5):
                     name, res = fut.result()

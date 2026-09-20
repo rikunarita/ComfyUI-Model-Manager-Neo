@@ -128,8 +128,9 @@
             :disabled="loadingMore[platform]"
             @click.stop="loadMore(platform)"
           >
-            <ChevronDown class="size-3.5" />
-            {{ $t('searchMore') }}
+            <Loader2 v-if="loadingMore[platform]" class="size-3.5 animate-spin" />
+            <ChevronDown v-else class="size-3.5" />
+            {{ loadingMore[platform] ? $t('searching') : $t('searchMore') }}
           </button>
         </div>
       </div>
@@ -313,7 +314,7 @@ import { type VersionModel, type WithResolved } from 'types/typings'
 import { bytesToSize, isDirectFileUrl, previewUrlToFile } from 'utils/common'
 import { parseFrontmatter } from 'utils/modelInformation'
 
-const { isMobile } = useConfig()
+const { isMobile, searchSortHf, searchSortModelscope, searchSortCivitai } = useConfig()
 const { t, te } = useI18n()
 const { toast } = useToast()
 const loading = useLoading()
@@ -407,10 +408,18 @@ const searchLoading = ref(false)
 /** The query the visible results belong to (Enter re-searches anything else). */
 const searchedQuery = ref<string | null>(null)
 
+/** Per-platform sort orders chosen in the ComfyUI settings panel. */
+const sortParams = () =>
+  `&sort_hf=${encodeURIComponent(searchSortHf.value)}` +
+  `&sort_ms=${encodeURIComponent(searchSortModelscope.value)}` +
+  `&sort_civitai=${encodeURIComponent(searchSortCivitai.value)}`
+
 const runModelSearch = async (query: string) => {
   searchLoading.value = true
   try {
-    searchResults.value = await request(`/search?query=${encodeURIComponent(query)}&limit=8`)
+    searchResults.value = await request(
+      `/search?query=${encodeURIComponent(query)}&limit=8${sortParams()}`,
+    )
   } catch (error) {
     searchResults.value = null
     toast.add({ severity: 'error', detail: (error as Error).message, life: 6000 })
@@ -484,7 +493,8 @@ const loadMore = async (platform: string) => {
   try {
     const res = await request(
       `/search?query=${encodeURIComponent(query)}&limit=8` +
-        `&platform=${encodeURIComponent(platform)}&cursor=${encodeURIComponent(cursor)}`,
+        `&platform=${encodeURIComponent(platform)}&cursor=${encodeURIComponent(cursor)}` +
+        sortParams(),
     )
     const page = res?.[platform]
     const target = searchResults.value?.[platform]

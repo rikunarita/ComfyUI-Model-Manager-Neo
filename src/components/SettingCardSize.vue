@@ -100,9 +100,12 @@ const dialog = useDialog()
 
 const sizeList = ref<Array<{ id: string; name: string; width: number; height: number }>>([])
 
-const resolveSizeMap = (sizeMap: Record<string, string>) => {
-  return Object.entries(sizeMap).map(([key, value]) => {
-    const [width, height] = value.split('x')
+const resolveSizeMap = (sizeMap: Record<string, string> | null | undefined) => {
+  // The custom slot is always editable: even a map persisted before the
+  // `size.custom` entry existed gets its row (seeded with the default).
+  const source = { 'size.custom': '240x320', ...(sizeMap ?? {}) }
+  return Object.entries(source).map(([key, value]) => {
+    const [width, height] = String(value).split('x')
     return {
       id: key,
       name: key,

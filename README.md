@@ -191,6 +191,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   lightweight capacity dashboard), and models whose recorded SHA256 matches
   another file in the library raise a red **duplicate warning** in the detail
   window.
+- Model cards filed below the type root show their **sub-directory** above the
+  name (flat and folder view alike).
 - **Smart collections** — save the flat view's current search + type filter as
   a named, per‑user collection and re‑apply it with one click. The **save**
   (floppy) and **collections** controls are merged into a single button: the
@@ -341,6 +343,9 @@ search.
   Civitai through the API's own cursor).
 - Platforms can be hidden per user in **Settings → Model Manager Neo →
   Search** (one boolean per platform).
+- Each platform's **sort order** is selectable in the same settings section
+  (every value its API accepts); the defaults are Hugging Face trending,
+  ModelScope likes and Civitai highest rated.
 
 Civitai downloads additionally carry the safety net the official CLI
 popularised, adapted to the manager's task system:
