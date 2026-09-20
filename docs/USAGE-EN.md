@@ -171,6 +171,10 @@ base‑info table, and two tabs.
 
 ### Reading
 
+- **Download to local** — the download-icon button in the action row saves the
+  model file to your machine as an attachment (file name exactly as in the
+  library). Every action-row button shares the ZipNN button's size (2.7rem)
+  inside one inline horizontal scroll row.
 - **Description** tab — rendered Markdown stored in a `*.md` file next to the
   model. Links open in a new tab.
 - **Information** tab — a table of everything recorded about the model
@@ -294,8 +298,10 @@ clicking anywhere else on the row resolves that model into the editor. A plain
 results, and a bare repository id resolves straight to its Hugging Face
 repository. **One Enter always resolves**: an exact match among the results
 first, then `username/repo-name` as a Hugging Face repository, then the top row
-of the first non-empty column; with no results yet, Enter runs the name search
-immediately. Each column also pages: scrolling it to the bottom reveals a
+of the first non-empty column; with no results yet - or with input newer than
+the results on screen - Enter (re-)runs the name search instead of resolving a
+stale row. While a search is in flight a spinner with "Searching..." sits
+centred in the results area (no blur, no dim). Each column also pages: scrolling it to the bottom reveals a
 **“∨ Show more”** button whenever a next page exists, and one click appends
 that column's next page (Hugging Face by download-order offset, ModelScope by
 page number, Civitai through the API's own cursor). Platforms can be hidden in

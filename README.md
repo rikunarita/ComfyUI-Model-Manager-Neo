@@ -274,8 +274,11 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   edit-mode gallery strip adds local image files.
 - The **Open model page** action wears the logo of the model's source hub
   (Civitai, Hugging Face or ModelScope) as its button background, so a model's
-  origin is
-  recognisable at a glance.
+  origin is recognisable at a glance.
+- The **Download to local** action streams the stored file to the browser as an
+  attachment, saved under exactly its library name; the whole detail action row
+  (ZipNN, star, hub page, identify, graph actions, local download, edit,
+  delete) shares one button size inside a single inline scroll row.
 - Model information (safetensors metadata, the full safetensors **tensor
   layout** as a collapsible **folder tree** (dotted tensor names grouped per
   segment, folder icon per level, collapsed by default; name / dtype / shape

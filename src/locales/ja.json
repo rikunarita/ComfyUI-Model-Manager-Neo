@@ -315,6 +315,8 @@
   "searchNoResults": "結果なし",
   "searchFailed": "検索失敗",
   "searchMore": "さらに表示",
+  "searching": "検索中...",
+  "downloadToLocal": "ローカルにダウンロード",
   "planTarget": "保存先",
   "planSize": "サイズ",
   "planHash": "SHA256",

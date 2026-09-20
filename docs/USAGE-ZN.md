@@ -145,6 +145,9 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 ### 查看
 
+- **下载到本地** — 操作行中的下载图标按钮把该模型文件以附件形式保存到本地机器
+  （文件名与库中名称完全一致）。操作行所有按钮与 ZipNN 按钮同尺寸（2.7rem），
+  排在同一条内联横向滚动行中。
 - **Description 标签** — 渲染保存在模型旁 `*.md` 文件中的 Markdown，链接在新标签打开。
 - **Information 标签** — 汇总模型所记录全部信息的表格（默认只读；编辑模式下铅笔
   按钮**在警告之后**打开编辑，保存表单时重写笔记的 front-matter）：笔记开头的 YAML
@@ -234,7 +237,9 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 模型页面(悬停下划线、点击打开);点击行的其他位置会将该模型解析进编辑器。
 也接受纯 `username/repo-name` 输入:Enter 选中结果中的完全匹配,裸仓库 ID 直接解析到
 其 Hugging Face 仓库。**一次 Enter 必定解决**: 依次为结果中的完全匹配、`username/repo-name`
-作为 Hugging Face 仓库、第一个非空列的首条;尚无结果时 Enter 立即执行名称搜索。每列滚动到
+作为 Hugging Face 仓库、第一个非空列的首条;尚无结果、或输入比屏上结果更新时,Enter
+会(重新)执行名称搜索而不是解决过期行。搜索进行中时,结果区域中央显示 spinner 与
+"搜索中..."(无模糊、无变暗)。每列滚动到
 底部且存在下一页时会出现 **“∨ 加载更多”** 按钮,点击即追加该列的下一页(Hugging Face 按
 下载序偏移、ModelScope 按页码、Civitai 使用 API 自身的 cursor)。平台可在
 **设置 → Model Manager Neo → 搜索** 中隐藏(每个平台一个布尔值)。

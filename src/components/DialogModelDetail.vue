@@ -21,7 +21,7 @@
               across the whole gap pushed the row past the column's width and
               its left end was clipped by the preview's `overflow-hidden`.
             -->
-            <div v-if="zipnnRunning" class="mr-auto flex h-9 w-40 items-center gap-2">
+            <div v-if="zipnnRunning" class="mr-auto flex h-[2.7rem] w-40 items-center gap-2">
               <Progress
                 class="min-w-0 flex-1"
                 :model-value="zipnnState.progress"
@@ -63,7 +63,7 @@
             </Tooltip>
             <Button
               variant="ghost"
-              size="icon-action"
+              class="size-[2.7rem]"
               :title="starred ? $t('unstar') : $t('star')"
               :aria-label="starred ? $t('unstar') : $t('star')"
               :aria-pressed="starred"
@@ -77,7 +77,7 @@
             <Button
               v-show="model.modelPage"
               variant="ghost"
-              size="icon-action"
+              class="size-[2.7rem]"
               :class="platformLogo(model.modelPlatform) && 'text-white'"
               :style="platformBackgroundStyle(model.modelPlatform)"
               :title="$t('openModelPage')"
@@ -94,7 +94,7 @@
             -->
             <Button
               variant="ghost"
-              size="icon-action"
+              class="size-[2.7rem]"
               :title="$t('identifyByHashHint')"
               :aria-label="$t('identifyByHash')"
               :disabled="identifying"
@@ -105,7 +105,7 @@
             </Button>
             <Button
               variant="ghost"
-              size="icon-action"
+              class="size-[2.7rem]"
               :title="$t('addNode')"
               :aria-label="$t('addNode')"
               @click.stop="addModelNode(model)"
@@ -114,7 +114,7 @@
             </Button>
             <Button
               variant="ghost"
-              size="icon-action"
+              class="size-[2.7rem]"
               :title="$t('copyNode')"
               :aria-label="$t('copyNode')"
               @click.stop="copyModelNode(model)"
@@ -124,16 +124,30 @@
             <Button
               v-show="hasPreview"
               variant="ghost"
-              size="icon-action"
+              class="size-[2.7rem]"
               :title="$t('loadWorkflow')"
               :aria-label="$t('loadWorkflow')"
               @click.stop="loadPreviewWorkflow(model)"
             >
               <Workflow class="size-4" />
             </Button>
+            <!--
+              DOWNLOAD TO LOCAL: streams the stored file to the browser as an
+              attachment (backend route serves it verbatim with a
+              Content-Disposition filename of the model name as-is).
+            -->
             <Button
               variant="ghost"
-              size="icon-action"
+              class="size-[2.7rem]"
+              :title="$t('downloadToLocal')"
+              :aria-label="$t('downloadToLocal')"
+              @click="downloadToLocal"
+            >
+              <Download class="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              class="size-[2.7rem]"
               :title="$t('editModel')"
               :aria-label="$t('editModel')"
               @click="editable = true"
@@ -142,7 +156,7 @@
             </Button>
             <Button
               variant="destructive"
-              size="icon-action"
+              class="size-[2.7rem]"
               :title="$t('deleteModel')"
               :aria-label="$t('deleteModel')"
               @click="handleDelete"
@@ -157,7 +171,17 @@
 </template>
 
 <script setup lang="ts">
-import { Copy, ExternalLink, Loader2, PenSquare, Plus, Star, Trash2, Workflow } from '@lucide/vue'
+import {
+  Copy,
+  Download,
+  ExternalLink,
+  Loader2,
+  PenSquare,
+  Plus,
+  Star,
+  Trash2,
+  Workflow,
+} from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DialogIdentifyHash from 'components/DialogIdentifyHash.vue'
@@ -235,6 +259,20 @@ const openModelPage = (url?: string) => {
     return
   }
   window.open(url, '_blank')
+}
+
+/** Save the stored file into the browser's download folder under exactly the
+ *  name it carries in the library (backend serves it as an attachment). */
+const downloadToLocal = () => {
+  const fullname = genModelFullName(props.model)
+  const path = fullname.split('/').map(encodeURIComponent).join('/')
+  const url = `/model-manager/model-file/${props.model.type}/${props.model.pathIndex ?? 0}/${path}`
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${props.model.basename}${props.model.extension}`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
 }
 
 /* ---- identify by hash ----------------------------------------------------- */

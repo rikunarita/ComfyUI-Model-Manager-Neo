@@ -315,6 +315,8 @@
   "searchNoResults": "无结果",
   "searchFailed": "搜索失败",
   "searchMore": "加载更多",
+  "searching": "搜索中...",
+  "downloadToLocal": "下载到本地",
   "planTarget": "目标路径",
   "planSize": "大小",
   "planHash": "SHA256",

@@ -42,8 +42,19 @@
       owner and repository halves of the id are deep links (hover underline,
       tap opens the page); clicking anywhere else resolves that model here.
     -->
+    <!--
+      Search-in-flight read-out: a plain centred spinner + caption in exactly
+      the area the result columns will occupy (no scrim, no blur).
+    -->
     <div
-      v-if="searchMode && searchResults && visiblePlatforms.length"
+      v-if="searchMode && searchLoading"
+      class="flex min-h-48 items-center justify-center gap-2 rounded-mm-ctl border border-mm-border bg-mm-fg/4 p-3 text-sm text-mm-muted-fg"
+    >
+      <Loader2 class="size-5 animate-spin" />
+      <span>{{ $t('searching') }}</span>
+    </div>
+    <div
+      v-else-if="searchMode && searchResults && visiblePlatforms.length"
       class="grid gap-3 rounded-mm-ctl border border-mm-border bg-mm-fg/4 p-3"
       :style="{ gridTemplateColumns: `repeat(${visiblePlatforms.length}, minmax(0, 1fr))` }"
     >
@@ -283,7 +294,7 @@
 </template>
 
 <script setup lang="ts">
-import { Box, CheckCircle, ChevronDown, Download, Search } from '@lucide/vue'
+import { Box, CheckCircle, ChevronDown, Download, Loader2, Search } from '@lucide/vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ModelContent from 'components/ModelContent.vue'
@@ -392,12 +403,20 @@ watch(modelUrl, value => {
   searchTimer = setTimeout(() => void runModelSearch(value), 400)
 })
 
+const searchLoading = ref(false)
+/** The query the visible results belong to (Enter re-searches anything else). */
+const searchedQuery = ref<string | null>(null)
+
 const runModelSearch = async (query: string) => {
+  searchLoading.value = true
   try {
     searchResults.value = await request(`/search?query=${encodeURIComponent(query)}&limit=8`)
   } catch (error) {
     searchResults.value = null
     toast.add({ severity: 'error', detail: (error as Error).message, life: 6000 })
+  } finally {
+    searchedQuery.value = query
+    searchLoading.value = false
   }
 }
 
@@ -501,22 +520,30 @@ const handleEnter = () => {
   const value = (modelUrl.value ?? '').trim()
   if (!value) return
   if (!searchMode.value) return void searchModelsByUrl()
+  // Picking from the visible results only applies while those results
+  // actually belong to the current text; once the query changed, one Enter
+  // runs a fresh search instead of resolving a stale row.
+  const fresh = searchedQuery.value === value
   const lowered = value.toLowerCase()
-  const exact = Object.values(searchItems.value)
-    .flat()
-    .find(item => item.key.toLowerCase() === lowered || item.title.toLowerCase() === lowered)
+  const exact = fresh
+    ? Object.values(searchItems.value)
+        .flat()
+        .find(item => item.key.toLowerCase() === lowered || item.title.toLowerCase() === lowered)
+    : undefined
   if (exact) return selectSearchResult(exact)
   // `username/repo-name` without a scheme resolves straight to the HF repo.
   if (REPO_ID_RE.test(value)) {
     modelUrl.value = `https://huggingface.co/${value}`
     return void searchModelsByUrl()
   }
-  // One Enter must always advance: with results on screen the first row of
-  // the first non-empty column is the best candidate; without any result
-  // yet, run the name search immediately (no debounce wait).
-  const best = visiblePlatforms.value
-    .map(platform => (searchItems.value[platform] ?? [])[0])
-    .find(item => Boolean(item))
+  // One Enter must always advance: with fresh results on screen the first row
+  // of the first non-empty column is the best candidate; with none (or stale
+  // ones), run the name search immediately (no debounce wait).
+  const best = fresh
+    ? visiblePlatforms.value
+        .map(platform => (searchItems.value[platform] ?? [])[0])
+        .find(item => Boolean(item))
+    : undefined
   if (best) return selectSearchResult(best)
   return void runModelSearch(value)
 }

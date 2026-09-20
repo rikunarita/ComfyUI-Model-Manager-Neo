@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+from urllib.parse import quote
 
 import yaml
 import folder_paths
@@ -157,6 +158,36 @@ class ModelManager:
                 error_msg = f"Read model info failed: {str(e)}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
+
+        @routes.get("/model-manager/model-file/{type}/{index}/{filename:.*}")
+        async def download_model_file(request):
+            """Stream a saved model file to the browser as an attachment.
+
+            The "download to local" action of the model detail window: the
+            file is served verbatim with ``Content-Disposition: attachment``
+            whose filename is the model name as-is (RFC 5987 ``filename*``
+            for non-ASCII names), so the browser saves it under exactly the
+            name it carries in the library. Same realpath containment guard
+            as the preview route.
+            """
+            model_type = request.match_info.get("type", None)
+            path_index = int(request.match_info.get("index", None))
+            filename = request.match_info.get("filename", None)
+            try:
+                model_path = utils.get_valid_full_path(model_type, path_index, filename)
+                if model_path is None:
+                    raise web.HTTPNotFound()
+            except web.HTTPNotFound:
+                raise
+            except Exception:
+                raise web.HTTPNotFound()
+            base = os.path.basename(model_path)
+            ascii_name = base.encode("ascii", "replace").decode("ascii")
+            disposition = (
+                f"attachment; filename=\"{ascii_name}\"; "
+                f"filename*=UTF-8''{quote(base, safe='._-')}"
+            )
+            return web.FileResponse(model_path, headers={"Content-Disposition": disposition})
 
         @routes.get("/model-manager/hygiene")
         async def hygiene_scan(request):
