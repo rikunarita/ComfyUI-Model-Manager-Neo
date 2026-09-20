@@ -36,10 +36,10 @@
           class="size-full cursor-zoom-in p-1 hover:p-0"
           @click="openLightbox"
         >
-          <PreviewVideo :src="currentPreview" />
+          <PreviewVideo :src="currentPreviewSrc" />
         </div>
         <div v-else class="size-full cursor-zoom-in" @click="openLightbox">
-          <ResponseImage :src="currentPreview" :error="noPreviewContent"></ResponseImage>
+          <ResponseImage :src="currentPreviewSrc" :error="noPreviewContent"></ResponseImage>
         </div>
 
         <!--
@@ -94,7 +94,7 @@
           :class="index === defaultContentPage && 'ring-2 ring-mm-accent'"
         >
           <img
-            :src="url"
+            :src="withPreviewBust(url, previewBust)"
             class="aspect-square w-full cursor-pointer rounded-mm-ctl object-cover"
             alt=""
             :title="$t('previewPickPrimary')"
@@ -166,8 +166,8 @@ import PreviewVideo from 'components/PreviewVideo.vue'
 import ResponseImage from 'components/ResponseImage.vue'
 import { useConfig } from 'hooks/config'
 import { useContainerQueries } from 'hooks/container'
-import { useModelBaseInfo, useModelPreview } from 'hooks/model'
-import { isVideoUrl } from 'utils/media'
+import { previewBust, useModelBaseInfo, useModelPreview } from 'hooks/model'
+import { isVideoUrl, withPreviewBust } from 'utils/media'
 
 interface Props {
   /**
@@ -218,6 +218,8 @@ const canPage = computed(() => defaultContent.value.length > 1)
 
 /** What the preview area shows right now: the current gallery page. */
 const currentPreview = computed(() => preview.value)
+/** Cache-busted source: a save rewrites bytes behind unchanged preview URLs. */
+const currentPreviewSrc = computed(() => withPreviewBust(currentPreview.value, previewBust.value))
 
 /**
  * Preview frame classes: in the stacked edit row the frame is the fixed-width
@@ -302,8 +304,12 @@ const lightboxOpen = ref(false)
 const lightboxIndex = ref(0)
 
 const lightboxItems = computed(() => {
-  if (canPage.value) return defaultContent.value
-  return currentPreview.value ? [currentPreview.value] : []
+  const urls = canPage.value
+    ? defaultContent.value
+    : currentPreview.value
+      ? [currentPreview.value]
+      : []
+  return urls.map(url => withPreviewBust(url, previewBust.value) as string)
 })
 
 const openLightbox = () => {

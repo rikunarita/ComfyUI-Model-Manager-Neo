@@ -83,7 +83,11 @@ def svg_response(request, name: str) -> web.Response:
 # thousand times. The WebP bytes are now memoised against (mtime_ns, size) and
 # answered with an ETag, so a warm grid costs a dict hit plus a 304.
 # ---------------------------------------------------------------------------
-PREVIEW_CACHE_CONTROL = "private, max-age=300, must-revalidate"
+# `no-cache` (revalidate every use against the ETag): a primary-preview swap
+# rewrites the bytes behind UNCHANGED preview URLs, so a fresh-looking
+# max-age cache kept showing the old image ("the switch reverted") until it
+# expired. 304s keep the revalidation cheap (server-side encode is memoised).
+PREVIEW_CACHE_CONTROL = "private, no-cache"
 _PREVIEW_ENCODE_CACHE: dict[str, tuple[int, int, bytes]] = {}
 _PREVIEW_ENCODE_LIMIT = 64
 

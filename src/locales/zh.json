@@ -386,5 +386,7 @@
     "successMany": "已上传 {n} 个文件",
     "noFilesInFolders": "所选文件夹中没有模型文件"
   },
-  "collectionsEmpty": "暂无已保存的集合 - 可使用本菜单左侧的保存图标创建。"
+  "collectionsEmpty": "暂无已保存的集合 - 可使用本菜单左侧的保存图标创建。",
+  "discardChanges": "放弃修改",
+  "discardChangesConfirm": "未保存的修改将被全部放弃，确定吗？"
 }

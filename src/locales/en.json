@@ -386,5 +386,7 @@
     "successMany": "Uploaded {n} files",
     "noFilesInFolders": "The selected folders contain no model files"
   },
-  "collectionsEmpty": "No saved collections yet - use the save icon on the left of this menu."
+  "collectionsEmpty": "No saved collections yet - use the save icon on the left of this menu.",
+  "discardChanges": "Discard changes",
+  "discardChangesConfirm": "Unsaved changes will be discarded. Continue?"
 }

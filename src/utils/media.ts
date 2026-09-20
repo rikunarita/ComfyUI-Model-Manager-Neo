@@ -58,6 +58,17 @@ export const platformBackgroundStyle = (platform: string | undefined) => {
   }
 }
 
+/**
+ * Tag local preview URLs with the save-time bust token: a primary-preview
+ * swap rewrites the bytes behind unchanged URLs, so without the tag the
+ * browser keeps painting the already-decoded old image.
+ */
+export const withPreviewBust = (url: string, bust: number): string => {
+  if (!url || !bust) return url
+  if (!url.startsWith('/model-manager/preview/')) return url
+  return `${url}${url.includes('?') ? '&' : '?'}pb=${bust}`
+}
+
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.m4v', '.ogv']
 
 const VIDEO_HOST_PATTERNS = [

@@ -117,14 +117,46 @@ const emits = defineEmits<{
 const formInstance = useModelFormData(() => cloneDeep(toRaw(props.model)))
 
 useModelBaseInfoEditor(formInstance)
-useModelPreviewEditor(formInstance)
+const previewEditor = useModelPreviewEditor(formInstance)
 useModelDescriptionEditor(formInstance)
 useModelMetadataEditor(formInstance)
 
+/** JSON baseline of the form, taken whenever the editor reaches a clean
+ *  state (entering edit mode, reset, or a fresh model instance). */
+const dirtySnapshot = ref('')
+/** The whole editor state that a save would persist: form fields PLUS the
+ *  gallery order and the currently selected primary page (the page pick
+ *  lives outside formData until submit). */
+const editorState = () =>
+  JSON.stringify({
+    form: toRaw(formInstance.formData.value),
+    gallery: previewEditor.defaultContent.value,
+    page: previewEditor.defaultContentPage.value,
+  })
+const takeSnapshot = () => {
+  dirtySnapshot.value = editorState()
+}
+/** True while the editor holds unsaved edits (parents gate cancel on it). */
+const isDirty = () => editorState() !== dirtySnapshot.value
+
+watch(
+  editable,
+  v => {
+    if (v) takeSnapshot()
+  },
+  { immediate: true },
+)
+
 const handleReset = () => {
   formInstance.reset()
+  takeSnapshot()
   emits('reset')
 }
+
+/** External reset entry point (confirmed cancel, parent-driven refreshes). */
+const resetForm = () => handleReset()
+
+defineExpose({ isDirty, resetForm })
 
 const handleSubmit = async () => {
   const data = formInstance.submit()

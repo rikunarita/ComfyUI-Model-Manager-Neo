@@ -386,5 +386,7 @@
     "successMany": "{n} ファイルをアップロードしました",
     "noFilesInFolders": "選択フォルダにモデルファイルがありません"
   },
-  "collectionsEmpty": "保存済みコレクションはありません - メニュー左の保存アイコンから作成できます。"
+  "collectionsEmpty": "保存済みコレクションはありません - メニュー左の保存アイコンから作成できます。",
+  "discardChanges": "変更を破棄",
+  "discardChangesConfirm": "未保存の変更はすべて破棄されますが、よろしいですか？"
 }

@@ -65,6 +65,13 @@ export const normalizePreviews = (preview: string | string[] | undefined): strin
 const samePreviews = (a: string[], b: string[]) =>
   a.length === b.length && a.every((item, i) => item === b[i])
 
+/**
+ * Bumped whenever a save rewrites preview bytes behind unchanged preview
+ * URLs (primary swap / gallery edit). Consumers append it as a query tag so
+ * every <img> refetches instead of reusing the decoded old image.
+ */
+export const previewBust = ref(0)
+
 type ModelFolder = Record<string, string[]>
 
 const modelFolderProvideKey = Symbol('modelFolder') as InjectionKey<Ref<ModelFolder>>
@@ -307,6 +314,12 @@ export const useModels = defineStore('models', store => {
       .finally(() => {
         loading.hide()
       })
+
+    // Preview bytes were rewritten behind unchanged URLs: force every
+    // consumer (cards, detail, lightbox) to refetch on the next render.
+    if (payload.formData.has('previewFile')) {
+      previewBust.value = Date.now()
+    }
 
     toast.add({
       severity: 'success',

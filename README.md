@@ -267,7 +267,8 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   verbatim at the end), or the safetensors `__metadata__` block, verbatim, for
   models without one.
 - Rename, move between folders/types, or **permanently delete** a model together
-  with its previews and notes.
+  with its previews and notes. Cancelling an edit that holds unsaved changes
+  asks for confirmation first.
 - Read, edit and save Markdown notes stored beside the model; the Information
   table itself is editable behind an explicit warning (it rewrites the notes'
   front‑matter on save).

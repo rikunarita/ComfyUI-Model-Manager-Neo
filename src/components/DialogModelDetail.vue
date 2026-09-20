@@ -2,6 +2,7 @@
   <ResponseScroll class="h-full">
     <div class="px-8">
       <ModelContent
+        ref="contentRef"
         v-model:editable="editable"
         :model="modelContent"
         @submit="handleSave"
@@ -9,7 +10,13 @@
       >
         <template #action>
           <template v-if="editable">
-            <Button variant="secondary" type="reset">{{ $t('cancel') }}</Button>
+            <!--
+              type="button" + handler: cancelling with unsaved edits must ask
+              first; a plain `type="reset"` discarded them unconditionally.
+            -->
+            <Button variant="secondary" type="button" @click="handleCancelClick">
+              {{ $t('cancel') }}
+            </Button>
             <Button type="submit">{{ $t('save') }}</Button>
           </template>
           <template v-else>
@@ -242,6 +249,26 @@ const modelContent = computed(() => {
 
 const handleCancel = () => {
   editable.value = false
+}
+
+const contentRef = ref<InstanceType<typeof ModelContent> | null>(null)
+
+/** Cancel with unsaved edits: confirm before throwing them away. */
+const handleCancelClick = () => {
+  const content = contentRef.value
+  if (content?.isDirty()) {
+    confirm.require({
+      message: t('discardChangesConfirm'),
+      header: t('discardChanges'),
+      icon: 'pi pi-info-circle',
+      rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
+      acceptProps: { label: t('discardChanges'), severity: 'destructive' },
+      accept: () => content.resetForm(),
+      reject: () => {},
+    })
+    return
+  }
+  content?.resetForm()
 }
 
 /**

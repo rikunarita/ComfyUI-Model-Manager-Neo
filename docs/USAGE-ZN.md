@@ -196,7 +196,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
   ![Description 编辑](screenshots/model-edit-description.png)
 
-- **保存 / 取消** — 保存只发一次 `PUT`，只有真正改动的字段
+- **保存 / 取消** — 存在未保存修改时取消会先弹出确认。保存只发一次 `PUT`，只有真正改动的字段
   （名称、类型、目录、预览、描述）会被应用。
 - **删除**（红色垃圾桶） — 经确认对话框后，连同预览与说明文件一起删除模型。
 

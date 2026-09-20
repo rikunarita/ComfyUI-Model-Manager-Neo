@@ -39,10 +39,20 @@
               same-named models in different sub-folders stay tellable apart
               at a glance.
             -->
-            <div v-if="model.subFolder" class="text-shadow truncate text-sm font-medium">
+            <!--
+              Readability plate: backdrop-filter blurs and dims ONLY the box
+              behind the text lines (w-fit hugs the caption), so captions
+              stay legible over busy artwork in both layouts.
+            -->
+            <div
+              v-if="model.subFolder"
+              class="text-shadow w-fit max-w-full truncate rounded-mm-ctl bg-mm-bg/45 px-1.5 py-0.5 text-sm font-medium backdrop-blur-[3px]"
+            >
               {{ model.subFolder }} /
             </div>
-            <div class="text-shadow line-clamp-3 font-bold break-all">
+            <div
+              class="text-shadow line-clamp-3 w-fit max-w-full rounded-mm-ctl bg-mm-bg/45 px-1.5 py-0.5 font-bold break-all backdrop-blur-[3px]"
+            >
               {{ model.basename }}
             </div>
           </div>
@@ -96,9 +106,9 @@ import CardCornerControls from 'components/CardCornerControls.vue'
 import FolderIcon from 'components/FolderIcon.vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
 import { useConfig } from 'hooks/config'
-import { useModelNodeAction } from 'hooks/model'
+import { previewBust, useModelNodeAction } from 'hooks/model'
 import { type BaseModel } from 'types/typings'
-import { isVideoUrl } from 'utils/media'
+import { isVideoUrl, withPreviewBust } from 'utils/media'
 
 interface Props {
   model: BaseModel
@@ -121,7 +131,10 @@ const props = withDefaults(defineProps<Props>(), { width: 200, selectable: false
 defineEmits<{ toggle: [] }>()
 
 const preview = computed(() =>
-  Array.isArray(props.model.preview) ? props.model.preview[0] : props.model.preview,
+  withPreviewBust(
+    Array.isArray(props.model.preview) ? props.model.preview[0] : props.model.preview,
+    previewBust.value,
+  ),
 )
 
 const container = ref<HTMLElement | null>(null)

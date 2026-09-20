@@ -242,7 +242,8 @@ Press the **pencil** to enter edit mode (the window turns into a form):
 
   ![description editor](screenshots/model-edit-description.png)
 
-- **Save / Cancel** — Save issues a single `PUT`; anything that changed
+- **Save / Cancel** — Cancelling with unsaved changes asks for confirmation
+  first. Save issues a single `PUT`; anything that changed
   (name, type, directory, preview, description) is applied atomically per field.
 - **Delete** (red trash) — removes the model **and** its previews and notes
   after a confirmation dialog.
