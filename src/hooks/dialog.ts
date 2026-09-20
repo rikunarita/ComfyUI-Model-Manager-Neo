@@ -48,6 +48,13 @@ export const useDialog = defineStore('dialog', () => {
     const item = stack.value.find(item => item.key === dialog.key)
     if (item) {
       item.visible = true
+      // BUG FIX: re-opening an existing window (same key) used to keep the
+      // ORIGINAL contentProps, so a model detail re-opened after a save
+      // (primary-preview rotation, rename side-effects, a refreshed grid
+      // listing) came back showing the stale model - "the switch was not
+      // reflected". Refresh the payload (and title) on every open.
+      if (dialog.contentProps) item.contentProps = dialog.contentProps
+      if (dialog.title) item.title = dialog.title
       rise(dialog)
     } else {
       stack.value.push({

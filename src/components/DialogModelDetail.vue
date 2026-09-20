@@ -182,7 +182,7 @@ import {
   Trash2,
   Workflow,
 } from '@lucide/vue'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DialogIdentifyHash from 'components/DialogIdentifyHash.vue'
 import HashReverseIcon from 'components/HashReverseIcon.vue'
@@ -220,7 +220,7 @@ const props = defineProps<Props>()
 const { t } = useI18n()
 const { toast, confirm } = useToast()
 const dialog = useDialog()
-const { remove, update } = useModels()
+const { remove, update, data: modelsData } = useModels()
 
 const editable = ref(false)
 
@@ -244,8 +244,35 @@ const handleCancel = () => {
   editable.value = false
 }
 
+/**
+ * One-shot flag: after a save, the grid refresh replaces the listing object
+ * while this window's props still point at the pre-save instance (the dialog
+ * stack keeps the model it was opened with). The watcher below then swaps the
+ * window's payload to the persisted instance exactly once - background
+ * revalidations at any other moment must never reset an open editor.
+ */
+const pendingReflect = ref(false)
+
+watch(
+  () => modelsData.value[props.model.type],
+  list => {
+    if (!pendingReflect.value) return
+    const key = genModelKey(props.model)
+    const fresh = (list ?? []).find(m => genModelKey(m) === key)
+    if (!fresh) return
+    pendingReflect.value = false
+    const item = dialog.stack.value.find(candidate => candidate.key === key)
+    if (item) item.contentProps = { ...item.contentProps, model: fresh }
+  },
+)
+
 const handleSave = async (data: WithResolved<BaseModel>) => {
-  await update(modelContent.value, data)
+  pendingReflect.value = true
+  // updateModel already reports failures with a toast; a failed save simply
+  // cancels the one-shot reflect so the editor keeps its state.
+  await update(modelContent.value, data).catch(() => {
+    pendingReflect.value = false
+  })
   editable.value = false
 }
 
