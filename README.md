@@ -271,7 +271,7 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   front‑matter on save).
 - Change or remove a model's preview image — the gallery page left open on
   save becomes the card's primary preview; the dashed tile at the end of the
-  edit-mode gallery grid adds local image files.
+  edit-mode gallery strip adds local image files.
 - The **Open model page** action wears the logo of the model's source hub
   (Civitai, Hugging Face or ModelScope) as its button background, so a model's
   origin is
@@ -630,7 +630,8 @@ naming for unrelated behaviour and were left as‑is.
 > **What this gives up:** the only way to _bulk backfill_ previews and
 > descriptions from Civitai by file hash. A model whose information was never
 > fetched keeps its placeholder preview until the preview/notes are set by hand
-> (model editor → **Preview** → _Network_ / _Local_), or until it is re‑downloaded
+> (the model editor's gallery strip: add local image files through its dashed
+> tile, or reorder / remove entries), or until it is re‑downloaded
 > through _Create Download Task_, which does carry a preview. Reading a model's
 > information is unaffected — that always came from disk, on demand.
 

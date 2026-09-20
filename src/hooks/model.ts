@@ -21,7 +21,7 @@ import { request } from 'hooks/request'
 import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
 import { api, app } from 'scripts/comfyAPI'
-import { type BaseModel, type Model, type SelectEvent, type WithResolved } from 'types/typings'
+import { type BaseModel, type Model, type WithResolved } from 'types/typings'
 import { bytesToSize, formatDate, previewUrlToFile } from 'utils/common'
 import { NO_PREVIEW_SENTINEL, NO_PREVIEW_URL } from 'utils/media'
 import { genModelKey, resolveModelTypeLoader } from 'utils/model'
@@ -753,19 +753,16 @@ export const useModelFolder = (option: { type?: MaybeRefOrGetter<string | undefi
 /**
  * Editable preview image.
  *
- * In edit mode, there are 4 methods for setting a preview picture:
- * 1. default value, which is the default image of the model type
- * 2. network picture
- * 3. local file
- * 4. no preview
+ * In edit mode, the preview is managed as ONE gallery: the saved previews can
+ * be reordered, removed one by one, extended with local image files (the
+ * dashed add-tile) and re-picked as primary; the historical source switcher
+ * (default / network / local / none) was removed - the resolved gallery is
+ * the single preview source everywhere.
  */
 const previewKey = Symbol('preview') as InjectionKey<ReturnType<typeof useModelPreviewEditor>>
 
 export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
   const { formData: model, registerReset, registerSubmit } = formInstance
-
-  const typeOptions = ref(['default', 'network', 'local', 'none'])
-  const currentType = ref('default')
 
   /**
    * Default images (the saved gallery). A ref (not a computed) so the editor
@@ -793,68 +790,22 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
     defaultContentPage.value = Math.min(defaultContentPage.value, Math.max(0, list.length - 1))
   }
 
-  /**
-   * Network picture url
-   */
-  const networkContent = ref<string>()
-
-  /**
-   * Local file url
-   */
-  const localContent = ref<string>()
-  const localContentType = ref<string>()
-  const updateLocalContent = async (event: SelectEvent) => {
-    const { files } = event
-    localContent.value = files[0].objectURL
-    localContentType.value = files[0].type
-  }
-
-  /**
-   * No preview
-   */
   /** Default artwork shown for models without a preview (and as the
    * ResponseImage error image). */
   const noPreviewContent = computed(() => NO_PREVIEW_URL)
 
-  const preview = computed(() => {
-    let content: string | undefined
-
-    switch (currentType.value) {
-      case 'default':
-        content = defaultContent.value[defaultContentPage.value]
-        break
-      case 'network':
-        content = networkContent.value
-        break
-      case 'local':
-        content = localContent.value
-        break
-      default:
-        content = undefined
-        break
-    }
-
-    return content
-  })
+  /** What the preview area shows right now: the current gallery page. */
+  const preview = computed(() => defaultContent.value[defaultContentPage.value])
 
   onMounted(() => {
     registerReset(() => {
-      currentType.value = 'default'
       defaultContent.value = model.value.preview ? castArray(model.value.preview) : []
       defaultContentPage.value = 0
-      networkContent.value = undefined
-      localContent.value = undefined
-      localContentType.value = undefined
     })
 
     registerSubmit(data => {
-      // Keeping the "default" source means keeping the WHOLE saved gallery -
-      // dropping to a single URL here is what used to silently delete every
-      // extra preview on save.
-      if (currentType.value !== 'default') {
-        data.preview = preview.value
-        return
-      }
+      // The saved gallery is kept WHOLE - dropping to a single URL here is
+      // what used to silently delete every extra preview on save.
       const gallery = [...defaultContent.value]
       // FEATURE: the image the user left selected (the page the gallery is
       // showing) becomes the model card's PRIMARY preview - the first entry
@@ -871,20 +822,12 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
 
   const result = {
     preview,
-    typeOptions,
-    currentType,
     // default value
     defaultContent,
     defaultContentPage,
     // gallery management
     movePreview,
     removePreview,
-    // network picture
-    networkContent,
-    // local file
-    localContent,
-    localContentType,
-    updateLocalContent,
     // no preview
     noPreviewContent,
   }

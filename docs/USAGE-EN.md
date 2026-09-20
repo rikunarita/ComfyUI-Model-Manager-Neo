@@ -223,15 +223,16 @@ Press the **pencil** to enter edit mode (the window turns into a form):
   `subfolder/my-model` files the model into `…/models/unet/subfolder/` on save
   (missing folders are created). `\ : * ? " < > |` and empty / `.` / `..`
   segments are rejected, and the backend re‑checks path traversal server‑side.
-- **Preview** — `Default` (carousel) / `Network` (paste an image or video URL) /
-  `Local` (drag & drop or pick a file; images are converted to WebP, videos keep
-  their format) / `None` (removes every preview file). The source switcher lives
-  in the model detail editor only; the download dialog uses the gallery resolved
-  from the model page as its single preview source. In edit mode a
-  thumbnail **grid** below the preview manages the gallery: pick the primary,
-  move entries left / right, or remove single images; the dashed tile at the
-  end of the grid adds local image file(s) as new previews. The page left open
-  on save becomes the card's **primary** preview.
+- **Preview** — managed as a single gallery (the historical `Default` /
+  `Network` / `Local` / `None` source switcher is gone). In edit mode an
+  **inline-scrolling thumbnail strip** beside / below the main preview manages
+  it: pick the primary, move entries left / right, or remove single images;
+  the dashed tile at the end of the strip adds local image file(s) as new
+  previews (images are converted to WebP, videos keep their format), and
+  removing every entry leaves the model without a preview. In edit mode the
+  main preview draws at 4/5 of the card width, hugging the left edge while the
+  strip takes the remaining width. The page left open on save becomes the
+  card's **primary** preview.
 - **Description** — press the **Edit (pencil) icon** next to the hint text to
   open the Markdown textarea; it saves when the textarea loses focus:
 
@@ -264,7 +265,7 @@ Open **Download List** from the header, then:
    ![resolved result](screenshots/download-resolved.png)
 
    The editor below the version row places the **preview on the left and the
-   gallery grid on the right**, with file pick + download, metadata editor and
+   gallery strip on the right**, with file pick + download, metadata editor and
    the description / information tabs beneath, so nothing can be squeezed out
    of sight no matter how narrow the window is.
 

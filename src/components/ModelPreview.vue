@@ -3,24 +3,20 @@
     <!--
       GALLERY + PREVIEW ARRANGEMENT.
 
-      The edit-mode gallery used to be a single horizontally scrolling strip
-      parked BELOW the preview. That strip was a scroll container, so two
-      things broke in the download dialog:
-
-      1. its min-content width was the SUM of every non-shrinking thumbnail,
-         which inflated this whole column far beyond the dialog body; the
-         centred column then bled out of both dialog edges (left edge and the
-         per-thumbnail controls clipped, only the right side recoverable by
-         scrolling) - the "panel area and visible area are offset" defect;
-      2. `overflow-x-auto` also clips vertically, so the little move/remove
-         buttons that sit `-top-1.5` on each thumbnail were cut off.
-
-      The gallery is now a WRAPPING GRID (no scroll container, padded so the
-      per-thumbnail controls are never clipped) and, in the stacked layout
-      used by the download dialog, it sits RIGHT of the single preview image
-      (preview left, gallery right; below the `md` container breakpoint the
-      row folds into a column, preview first). The preview block comes first
-      in the DOM so the visual and tab order agree in both directions.
+      The edit-mode gallery is a single horizontally scrolling strip (inline
+      scroll): fixed-size thumbnails in one row, so a long gallery never
+      grows the column past the dialog and never wraps into a tall block.
+      The strip is a scroll container with `min-w-0` plus an explicit width
+      ceiling (the card width in the detail row, the free row space in the
+      stacked download layout), and its padding keeps the per-thumbnail
+      move/remove buttons (which sit `-top-1.5` on each tile) unclipped.
+      In the stacked layout used by the download dialog the strip sits
+      RIGHT of the single preview image (preview left, gallery right; below
+      the `md` container breakpoint the row folds into a column, preview
+      first). In the detail window's edit mode the preview shrinks to 4/5 of
+      the card width and hugs the left edge while the strip runs beside /
+      below it. The preview block comes first in the DOM so the visual and
+      tab order agree in both directions.
     -->
     <div
       :class="[
@@ -36,10 +32,7 @@
           single media element.
         -->
         <div
-          v-if="
-            currentPreview &&
-            isVideoUrl(currentPreview, currentType === 'local' ? localContentType : undefined)
-          "
+          v-if="currentPreview && isVideoUrl(currentPreview)"
           class="size-full cursor-zoom-in p-1 hover:p-0"
           @click="openLightbox"
         >
@@ -84,12 +77,12 @@
 
       <!-- Gallery management (edit mode): pick the primary preview, reorder
            entries and drop single images. The page left open on save becomes
-           the card's primary preview. -->
+           the card's primary preview. The strip scrolls INLINE (horizontal)
+           so a long gallery never grows the column past the dialog. -->
       <div
         v-if="showGallery"
         :class="[
-          'grid content-start gap-2 p-1.5',
-          'grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))]',
+          'flex min-w-0 gap-2 overflow-x-auto p-2',
           stackedEditable ? $md('min-w-0 flex-1', 'w-full') : 'w-full',
         ]"
         :style="layout === 'auto' ? { maxWidth: `${cardWidth}px` } : undefined"
@@ -97,7 +90,7 @@
         <div
           v-for="(url, index) in defaultContent"
           :key="`${url}-${index}`"
-          class="relative"
+          class="relative w-16 shrink-0"
           :class="index === defaultContentPage && 'ring-2 ring-mm-accent'"
         >
           <img
@@ -156,41 +149,6 @@
       </div>
     </div>
 
-    <div v-if="sourceControlsVisible" class="flex flex-col gap-4 whitespace-nowrap">
-      <!--
-        LAYOUT FIX: the source-type switcher / network input / local upload
-        used to be `position: absolute` overlays parked over empty spacer divs
-        (`h-10` / `h-24`), anchored to whichever positioned ancestor happened
-        to exist. Inside the download dialog that anchor was the content row,
-        so the controls could land anywhere (or nowhere). Everything is plain
-        flow content now - the block always sits directly under the gallery.
-      -->
-      <div class="flex min-h-9 flex-wrap items-center gap-4">
-        <Button
-          v-for="type in typeOptions"
-          :key="type"
-          :variant="currentType === type ? 'default' : 'secondary'"
-          @click="currentType = type"
-        >
-          {{ $t(type) }}
-        </Button>
-      </div>
-
-      <ResponseInput
-        v-show="currentType === 'network'"
-        v-model="networkContent"
-        prefix-icon="pi pi-globe"
-        :allow-clear="true"
-      ></ResponseInput>
-
-      <ResponseFileUpload
-        v-show="currentType === 'local'"
-        class="h-24 w-full"
-        @select="updateLocalContent"
-      >
-      </ResponseFileUpload>
-    </div>
-
     <PreviewLightbox
       v-model:open="lightboxOpen"
       v-model:index="lightboxIndex"
@@ -205,10 +163,7 @@ import { ChevronLeft, ChevronRight, Plus, X } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import PreviewLightbox from 'components/PreviewLightbox.vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
-import ResponseFileUpload from 'components/ResponseFileUpload.vue'
 import ResponseImage from 'components/ResponseImage.vue'
-import ResponseInput from 'components/ResponseInput.vue'
-import { Button } from 'components/ui/button'
 import { useConfig } from 'hooks/config'
 import { useContainerQueries } from 'hooks/container'
 import { useModelBaseInfo, useModelPreview } from 'hooks/model'
@@ -234,16 +189,11 @@ const { cardWidth } = useConfig()
 
 const {
   preview,
-  typeOptions,
-  currentType,
   defaultContent,
   defaultContentPage,
   movePreview,
   removePreview,
-  networkContent,
-  updateLocalContent,
   noPreviewContent,
-  localContentType,
 } = useModelPreview()
 
 const { $sm, $md } = useContainerQueries()
@@ -251,34 +201,30 @@ const { $sm, $md } = useContainerQueries()
 /** Edit mode of the stacked (download dialog) layout: preview left, gallery right. */
 const stackedEditable = computed(() => props.layout === 'stacked' && Boolean(editable.value))
 
-/**
- * The stacked (download task) layout no longer offers the preview source
- * switcher (default / network / local / none) nor the local add-tile: the
- * gallery resolved from the model page is the single preview source there.
- * The model detail editor keeps the full controls.
- */
-const sourceControlsVisible = computed(() => Boolean(editable.value) && props.layout !== 'stacked')
+/** Edit mode of the detail window: the preview shrinks to 4/5 of the card
+ *  width and hugs the left edge while the gallery strip scrolls inline. */
+const editAuto = computed(() => props.layout === 'auto' && Boolean(editable.value))
+const editPreviewWidth = computed(() => Math.round((cardWidth * 4) / 5))
+
+/** The gallery is the single preview source everywhere; the historical
+ *  default / network / local / none switcher no longer exists. */
 const canAddLocal = computed(() => props.layout !== 'stacked')
 
-/** The gallery editor is meaningful for the saved ("default") source; the
- *  grid also renders (with just the add-tile) when no preview exists yet. */
-const showGallery = computed(() => Boolean(editable.value) && currentType.value === 'default')
+/** The gallery editor is the preview editor (there is one source). */
+const showGallery = computed(() => Boolean(editable.value))
 
-/** The gallery the `<` / `>` buttons page through (default source only). */
-const canPage = computed(() => currentType.value === 'default' && defaultContent.value.length > 1)
+/** The gallery the `<` / `>` buttons page through. */
+const canPage = computed(() => defaultContent.value.length > 1)
 
-/** What the preview area shows right now. */
-const currentPreview = computed(() => {
-  if (currentType.value === 'default') {
-    return defaultContent.value[defaultContentPage.value]
-  }
-  return preview.value
-})
+/** What the preview area shows right now: the current gallery page. */
+const currentPreview = computed(() => preview.value)
 
 /**
  * Preview frame classes: in the stacked edit row the frame is the fixed-width
  * left-hand side of the row (and the first block when the row folds into a
- * column); everywhere else it stays a centred, card-width block.
+ * column); in the detail window's EDIT mode the (smaller) frame hugs the
+ * left edge so the gallery strip beside/below it owns the remaining width;
+ * everywhere else it stays a centred, card-width block.
  */
 const previewClass = computed(() => [
   'preview-aspect',
@@ -287,12 +233,18 @@ const previewClass = computed(() => [
   'rounded-lg',
   stackedEditable.value
     ? $md(showGallery.value ? 'shrink-0' : 'mx-auto shrink-0', 'w-full')
-    : ['mx-auto', 'w-full'],
+    : editAuto.value
+      ? ['mr-auto', 'w-full']
+      : ['mx-auto', 'w-full'],
 ])
 
 const previewStyle = computed(() => {
   if (stackedEditable.value) {
     return $md({ width: `${cardWidth}px` }, { width: '100%' })
+  }
+  if (editAuto.value) {
+    // Edit mode: 4/5 of the card width (the gallery strip keeps the rest).
+    return $sm({ width: `${editPreviewWidth.value}px` })
   }
   return $sm({ width: `${cardWidth}px` })
 })

@@ -74,15 +74,6 @@ export interface SelectOptions {
   command: () => void
 }
 
-export interface SelectFile extends File {
-  objectURL: string
-}
-
-export interface SelectEvent {
-  files: SelectFile[]
-  originalEvent: Event
-}
-
 export interface DownloadTaskOptions {
   taskId: string
   type: string
