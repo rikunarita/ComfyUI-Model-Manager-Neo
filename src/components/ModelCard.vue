@@ -82,7 +82,7 @@
     </button>
 
     <CardCornerControls :model="model" />
-    <CardBadges :model="model" :scale="badgeScale" />
+    <CardBadges :model="model" :scale="badgeScale" :selectable="selectable" />
 
     <slot name="extra"></slot>
   </div>

@@ -8,8 +8,12 @@ interface Props {
   model: BaseModel
   /** Badges scale with the card; 1 at the 200 px reference width. */
   scale: number
+  /** Selection mode parks its checkbox at top-left; step below it then. */
+  selectable?: boolean
 }
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  selectable: false,
+})
 
 /** Type-root folder cards double as the per-type capacity read-out. */
 const isTypeRoot = computed(
@@ -26,15 +30,18 @@ const shownSize = computed(() =>
 
 <template>
   <!--
-    Glassmorphism type/size chips at the preview's bottom-right (the ZipNN
-    corner button owns the top-right corner).
+    Glassmorphism type/size chips at the preview's TOP-left (the star / ZipNN
+    corner buttons own the top-right corner; the selection checkbox only
+    appears at top-left while selection mode is on, so the chips step below
+    it then).
   -->
   <div
     v-if="!model.isFolder || isTypeRoot"
-    class="pointer-events-none absolute right-2 bottom-8 flex flex-col items-end gap-1"
+    class="pointer-events-none absolute left-2 flex flex-col items-start gap-1"
+    :class="props.selectable ? 'top-10' : 'top-2'"
     :style="{
       transform: `scale(${scale})`,
-      transformOrigin: 'right bottom',
+      transformOrigin: 'left top',
     }"
   >
     <div
