@@ -146,7 +146,7 @@ const exitEditMode = () => {
     'Noto Color Emoji';
   font-size: 1rem;
   line-height: 1.625;
-  word-break: break-word;
+  overflow-wrap: break-word;
   margin: 0;
 
   &::before {
@@ -247,7 +247,7 @@ const exitEditMode = () => {
   }
 
   blockquote {
-    padding: 0px 1em;
+    padding: 0 1em;
     border-left: 0.25em solid var(--mm-muted-fg);
     color: var(--mm-muted-fg);
     margin: 1em 0;
@@ -277,7 +277,7 @@ const exitEditMode = () => {
     margin: 0;
     overflow: visible;
     line-height: inherit;
-    word-wrap: normal;
+    overflow-wrap: normal;
     background-color: transparent;
     border: 0;
   }

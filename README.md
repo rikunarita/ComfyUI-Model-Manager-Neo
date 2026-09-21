@@ -597,7 +597,9 @@ The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
 ### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="22" height="22" align="middle" alt=""> Toolchain
 
 The lint / format pipeline is a conventional, fully‑configured
-**ESLint 10 flat config** + **Prettier** setup, complemented by
+**ESLint 10 flat config** + **Prettier** + **Stylelint 17** setup for the
+frontend and **Ruff** + **mypy** for the Python backend, complemented by
+**dependency‑cruiser** (import‑graph gate) and
 [Fallow](https://fallow.tools) for dead‑code and duplication analysis (see
 [Development](#development)).
 
@@ -673,7 +675,12 @@ pnpm install
 | `pnpm rebuild`                          | Remove `node_modules/` **and** `web/`, reinstall, then rebuild          |
 | `pnpm typecheck`                        | `vue-tsc --noEmit` type checking                                        |
 | `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                    |
+| `pnpm lint:css` / `pnpm lint:css:fix`   | Stylelint 17 (CSS + Vue SFC style blocks, Tailwind v4 aware)            |
+| `pnpm deps`                             | dependency-cruiser: import-graph gate (needs Node ≥ 22)                 |
+| `pnpm deps:graph`                       | write `dependency_graph.svg` of the module graph                        |
 | `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                     |
+| `pnpm py:lint` (`:fix`)                 | Ruff lint for the backend (`py/`, `__init__.py`)                        |
+| `pnpm py:format` (`:check`)             | Ruff format for the backend                                             |
 | `python -m mypy --config-file mypy.ini` | Backend static types, clean                                             |
 | `pnpm fallow`                           | Fallow full pipeline: dead code + duplication + health                  |
 | `pnpm fallow:dead` (`:type-aware`)      | unused files/exports/types/deps, cycles — optional TS semantic pass     |
@@ -690,8 +697,8 @@ pnpm install
 > would ship an extension whose UI no longer loads. Always run `pnpm build`
 > before committing, and never commit a tree where `web/manager.js` is missing.
 
-A **husky** `pre-commit` hook runs **lint-staged** (ESLint `--fix` + Prettier) on
-staged files.
+A **husky** `pre-commit` hook runs **lint-staged** on staged files: ESLint +
+Stylelint + Prettier for the frontend, Ruff (lint + format) for the backend.
 
 ### Fallow (codebase intelligence)
 
@@ -714,6 +721,27 @@ ESLint 10 flat config wiring together `typescript-eslint`, `eslint-plugin-vue`
 ordering), `eslint-plugin-tailwindcss` (class hygiene) and `eslint-config-prettier`
 (must stay last). Prettier handles formatting and Tailwind class sorting via
 `prettier-plugin-tailwindcss`.
+
+**Stylelint 17** (`stylelint-config-standard`) lints `src/style.css` and every
+SFC style block (through `postcss-html` / `postcss-less`). Tailwind v4's
+at-rules (`@theme`, `@source`, `@custom-variant`, …) are allow-listed, and the
+`-webkit-` prefixes Safari still needs for `backdrop-filter` / `appearance` are
+kept deliberately. `@import`s stay in the string notation
+(`@import 'tailwindcss/theme.css'`): that is the form
+`prettier-plugin-tailwindcss` resolves for class sorting — the `url()` form
+silently degrades it to a default order — and oklch colors use the standard
+percentage/degree notations.
+
+**dependency-cruiser 18** (`pnpm deps`, Node ≥ 22) gates the _import graph_ of
+`src/`: no cycles, no orphans, nothing unresolvable, no devDependency or Node
+core imports from shipped code. `pnpm deps:graph` renders the graph as SVG.
+
+**Ruff** (`pyproject.toml [tool.ruff]`) is the backend's linter and formatter
+(target `py310`, line length 120, curated rule set: pyflakes, bugbear,
+pyupgrade, comprehensions, returns, Ruff's async/dict checks, import sorting;
+`E402` and `SIM105` are deliberately ignored — ComfyUI's entry order is
+semantic and defensive `try/except: pass` guards read clearer than
+`contextlib.suppress`). `mypy` still checks static types on top.
 
 ### Project structure
 

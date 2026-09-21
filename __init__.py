@@ -10,15 +10,15 @@ folder_paths.supported_pt_extensions.add(".gguf")
 folder_paths.supported_pt_extensions.add(".znn")
 
 import os
-from .py import config
-from .py import utils
+
+from .py import config, utils
 
 extension_uri = utils.normalize_path(os.path.dirname(__file__))
 
 # Install requirements
 requirements_path = utils.join_path(extension_uri, "requirements.txt")
 
-with open(requirements_path, "r", encoding="utf-8") as f:
+with open(requirements_path, encoding="utf-8") as f:
     requirements = f.readlines()
 
 requirements = [x.strip() for x in requirements]
@@ -39,15 +39,7 @@ version = utils.get_current_version()
 utils.download_web_distribution(version)
 
 # Add api routes
-from .py import manager
-from .py import download
-from .py import information
-from .py import upload
-from .py import upload_hf
-from .py import upload_modelscope
-from .py import compress
-from .py import search
-from .py import identify
+from .py import compress, download, identify, information, manager, search, upload, upload_hf, upload_modelscope
 
 routes = config.routes
 
@@ -65,4 +57,4 @@ identify.IdentifyRoutes().add_routes(routes)
 
 WEB_DIRECTORY = "web"
 NODE_CLASS_MAPPINGS = {}
-__all__ = ["WEB_DIRECTORY", "NODE_CLASS_MAPPINGS"]
+__all__ = ["NODE_CLASS_MAPPINGS", "WEB_DIRECTORY"]

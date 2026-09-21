@@ -224,3 +224,6 @@ node.zip
 !third_party/zipnn-core/include/FiniteStateEntropy/
 !third_party/zipnn-core/include/FiniteStateEntropy/lib/
 !third_party/zipnn-core/include/FiniteStateEntropy/lib/**
+
+# dependency-cruiser graph output (pnpm deps:graph)
+dependency_graph.svg

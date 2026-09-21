@@ -14,6 +14,14 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "lint:css": "stylelint \"src/**/*.{css,vue}\"",
+    "lint:css:fix": "stylelint \"src/**/*.{css,vue}\" --fix",
+    "deps": "depcruise src",
+    "deps:graph": "depcruise src --output-type dot --output-to dependency_graph.svg",
+    "py:lint": "ruff check py __init__.py",
+    "py:lint:fix": "ruff check --fix py __init__.py",
+    "py:format": "ruff format py __init__.py",
+    "py:format:check": "ruff format --check py __init__.py",
     "fallow": "fallow",
     "fallow:dead": "fallow dead-code",
     "fallow:dead:type-aware": "fallow dead-code --type-aware",
@@ -32,6 +40,7 @@
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.20.1",
     "@vitejs/plugin-vue": "^6.0.8",
+    "dependency-cruiser": "18.4.0",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import-x": "^4.17.1",
@@ -43,8 +52,12 @@
     "less": "^4.9.0",
     "lint-staged": "^17.4.1",
     "postcss": "^8.5.26",
+    "postcss-html": "^2.0.0",
+    "postcss-less": "^6.0.0",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
+    "stylelint": "17.15.0",
+    "stylelint-config-standard": "40.0.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.69.0",
@@ -69,12 +82,25 @@
     "yaml": "^2.9.0"
   },
   "lint-staged": {
-    "*.{js,mjs,cjs,ts,mts,cts,tsx,vue}": [
+    "*.vue": [
+      "eslint --fix",
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "*.{js,mjs,cjs,ts,mts,cts,tsx}": [
       "eslint --fix",
       "prettier --write"
     ],
-    "*.{css,json,md,yaml,yml,html}": [
+    "*.css": [
+      "stylelint --fix",
       "prettier --write"
+    ],
+    "*.{json,md,yaml,yml,html}": [
+      "prettier --write"
+    ],
+    "*.py": [
+      "ruff check --fix --force-exclude",
+      "ruff format --force-exclude"
     ]
   }
 }

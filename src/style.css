@@ -26,8 +26,8 @@
  * imported: host element styling stays untouched.
  */
 @import 'tailwindcss/theme.css' layer(theme);
-
 @import 'tailwindcss/utilities' layer(mm-utilities) source(none);
+
 /*
  * ENTER / EXIT ANIMATIONS (optimization B-7).
  *
@@ -81,18 +81,19 @@
  * ------------------------------------------------------------------------- */
 :root {
   /* Light-mode fallbacks (overridden in dark below) */
-  --mm-fb-bg: oklch(0.985 0.002 260);
-  --mm-fb-surface: oklch(1 0 0);
-  --mm-fb-fg: oklch(0.2 0.01 260);
-  --mm-fb-muted-fg: oklch(0.45 0.01 260);
-  --mm-fb-border: oklch(0.2 0.01 260 / 0.12);
-  --mm-fb-border-strong: oklch(0.55 0.01 260);
-  --mm-fb-accent: oklch(0.55 0.16 235);
-  --mm-fb-accent-fg: oklch(0.98 0 0);
+  --mm-fb-bg: oklch(98.5% 0.002 260deg);
+  --mm-fb-surface: oklch(100% 0 0deg);
+  --mm-fb-fg: oklch(20% 0.01 260deg);
+  --mm-fb-muted-fg: oklch(45% 0.01 260deg);
+  --mm-fb-border: oklch(20% 0.01 260deg / 12%);
+  --mm-fb-border-strong: oklch(55% 0.01 260deg);
+  --mm-fb-accent: oklch(55% 0.16 235deg);
+  --mm-fb-accent-fg: oklch(98% 0 0deg);
 
   /* Layer 1: host borrow with fallback */
   --mm-bg: var(--comfy-menu-bg, var(--mm-fb-bg));
   --mm-surface: var(--comfy-input-bg, var(--mm-fb-surface));
+
   /*
    * GLASS FIX: hover/selected tints used to be mixed over the OPAQUE
    * `--mm-surface`, which painted solid grey patches over the blurred glass.
@@ -107,9 +108,9 @@
   --mm-border-strong: var(--border-color, var(--mm-fb-border-strong));
   --mm-accent: var(--color-accent-primary, var(--mm-fb-accent));
   --mm-accent-fg: var(--primary-fg, var(--mm-fb-accent-fg));
-  --mm-danger: var(--color-error, oklch(0.65 0.2 25));
-  --mm-success: var(--color-green-500, oklch(0.6 0.17 155));
-  --mm-warning: var(--color-yellow-500, oklch(0.68 0.16 75));
+  --mm-danger: var(--color-error, oklch(65% 0.2 25deg));
+  --mm-success: var(--color-green-500, oklch(60% 0.17 155deg));
+  --mm-warning: var(--color-yellow-500, oklch(68% 0.16 75deg));
   --mm-ring: var(--p-highlight-color, color-mix(in oklab, var(--mm-accent) 60%, transparent));
 
   /*
@@ -118,16 +119,16 @@
    * deeper black shadows. Before this pass every shadow was hard-coded for
    * dark mode, so the light theme rendered controls with heavy black halos.
    */
-  --mm-shadow-1: 0 1px 2px 0 rgb(15 23 42 / 0.08), 0 2px 8px -2px rgb(15 23 42 / 0.1);
-  --mm-shadow-2: 2px 6px 12px -4px rgb(15 23 42 / 0.12), 4px 12px 24px -8px rgb(15 23 42 / 0.1);
-  --mm-shadow-3: 4px 12px 24px -8px rgb(15 23 42 / 0.16), 8px 24px 48px -16px rgb(15 23 42 / 0.12);
+  --mm-shadow-1: 0 1px 2px 0 rgb(15 23 42 / 8%), 0 2px 8px -2px rgb(15 23 42 / 10%);
+  --mm-shadow-2: 2px 6px 12px -4px rgb(15 23 42 / 12%), 4px 12px 24px -8px rgb(15 23 42 / 10%);
+  --mm-shadow-3: 4px 12px 24px -8px rgb(15 23 42 / 16%), 8px 24px 48px -16px rgb(15 23 42 / 12%);
 
   /*
    * Glass control elevation — the "optimal density" shadow for translucent
    * (skeleton) push buttons: barely there at rest, one step deeper on hover.
    */
-  --mm-shadow-glass-1: 0 1px 2px 0 rgb(15 23 42 / 0.06), 0 3px 10px -3px rgb(15 23 42 / 0.1);
-  --mm-shadow-glass-2: 0 2px 6px -1px rgb(15 23 42 / 0.1), 0 6px 18px -6px rgb(15 23 42 / 0.14);
+  --mm-shadow-glass-1: 0 1px 2px 0 rgb(15 23 42 / 6%), 0 3px 10px -3px rgb(15 23 42 / 10%);
+  --mm-shadow-glass-2: 0 2px 6px -1px rgb(15 23 42 / 10%), 0 6px 18px -6px rgb(15 23 42 / 14%);
 
   /*
    * Tinted control elevation — coloured push buttons cast a shadow of their
@@ -187,21 +188,21 @@
 
 /* Dark-mode fallbacks (.dark-theme is on <html>; host vars switch on their own) */
 .dark-theme {
-  --mm-fb-bg: oklch(0.16 0.01 260);
-  --mm-fb-surface: oklch(0.19 0.01 260);
-  --mm-fb-fg: oklch(0.98 0 0);
-  --mm-fb-muted-fg: oklch(0.7 0.01 260);
-  --mm-fb-border: oklch(1 0 0 / 0.08);
-  --mm-fb-border-strong: oklch(0.55 0.01 260);
-  --mm-fb-accent: oklch(0.74 0.12 225);
-  --mm-fb-accent-fg: oklch(0.18 0.02 230);
+  --mm-fb-bg: oklch(16% 0.01 260deg);
+  --mm-fb-surface: oklch(19% 0.01 260deg);
+  --mm-fb-fg: oklch(98% 0 0deg);
+  --mm-fb-muted-fg: oklch(70% 0.01 260deg);
+  --mm-fb-border: oklch(100% 0 0deg / 8%);
+  --mm-fb-border-strong: oklch(55% 0.01 260deg);
+  --mm-fb-accent: oklch(74% 0.12 225deg);
+  --mm-fb-accent-fg: oklch(18% 0.02 230deg);
 
   /* Dark-mode elevation: deeper, near-black shadows (glass + dialog levels) */
-  --mm-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 2px 8px -2px rgb(0 0 0 / 0.3);
-  --mm-shadow-2: 2px 6px 12px -4px rgb(0 0 0 / 0.4), 4px 12px 24px -8px rgb(0 0 0 / 0.35);
-  --mm-shadow-3: 4px 12px 24px -8px rgb(0 0 0 / 0.45), 8px 24px 48px -16px rgb(0 0 0 / 0.4);
-  --mm-shadow-glass-1: 0 1px 2px 0 rgb(0 0 0 / 0.28), 0 3px 10px -3px rgb(0 0 0 / 0.32);
-  --mm-shadow-glass-2: 0 2px 6px -1px rgb(0 0 0 / 0.32), 0 6px 18px -6px rgb(0 0 0 / 0.4);
+  --mm-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 35%), 0 2px 8px -2px rgb(0 0 0 / 30%);
+  --mm-shadow-2: 2px 6px 12px -4px rgb(0 0 0 / 40%), 4px 12px 24px -8px rgb(0 0 0 / 35%);
+  --mm-shadow-3: 4px 12px 24px -8px rgb(0 0 0 / 45%), 8px 24px 48px -16px rgb(0 0 0 / 40%);
+  --mm-shadow-glass-1: 0 1px 2px 0 rgb(0 0 0 / 28%), 0 3px 10px -3px rgb(0 0 0 / 32%);
+  --mm-shadow-glass-2: 0 2px 6px -1px rgb(0 0 0 / 32%), 0 6px 18px -6px rgb(0 0 0 / 40%);
 }
 
 /* ---------------------------------------------------------------------------
@@ -223,11 +224,9 @@
   --color-mm-success: var(--mm-success);
   --color-mm-warning: var(--mm-warning);
   --color-mm-ring: var(--mm-ring);
-
   --radius-mm-ctl: var(--mm-radius-ctl);
   --radius-mm-card: var(--mm-radius-card);
   --radius-mm-dlg: var(--mm-radius-dlg);
-
   --shadow-mm-1: var(--mm-shadow-1);
   --shadow-mm-2: var(--mm-shadow-2);
   --shadow-mm-3: var(--mm-shadow-3);
@@ -237,7 +236,6 @@
   --shadow-mm-accent-2: var(--mm-shadow-accent-2);
   --shadow-mm-danger-1: var(--mm-shadow-danger-1);
   --shadow-mm-danger-2: var(--mm-shadow-danger-2);
-
   --ease-mm: var(--mm-ease);
 }
 
@@ -340,17 +338,17 @@
 /* Custom helper classes live in our own layer. */
 @layer mm-components {
   .text-shadow {
-    text-shadow: 2px 2px 4px rgb(0 0 0 / 0.5);
+    text-shadow: 2px 2px 4px rgb(0 0 0 / 50%);
   }
 
   /* Soft, wide drop shadow: the caption floats above the artwork with a
      diffuse glass-friendly glow instead of a hard per-glyph outline. */
   .text-shadow-strong {
     text-shadow:
-      0 1px 2px rgb(0 0 0 / 0.4),
-      0 2px 6px rgb(0 0 0 / 0.32),
-      0 4px 14px rgb(0 0 0 / 0.28),
-      0 8px 28px rgb(0 0 0 / 0.22);
+      0 1px 2px rgb(0 0 0 / 40%),
+      0 2px 6px rgb(0 0 0 / 32%),
+      0 4px 14px rgb(0 0 0 / 28%),
+      0 8px 28px rgb(0 0 0 / 22%);
   }
 
   .scrollbar-none {
@@ -436,6 +434,7 @@
     margin: 0;
     padding: 0;
     list-style: none;
+
     /* The container must never swallow clicks meant for the panel below it;
        individual toasts opt back in (see `pointer-events-auto` in Sonner.vue). */
     pointer-events: none;
@@ -475,6 +474,7 @@
    * ---------------------------------------------------------------------- */
   .mm-toast {
     --mm-toast-glow: transparent;
+
     background: color-mix(in oklab, var(--mm-bg) 76%, transparent);
     backdrop-filter: blur(22px) saturate(1.6);
     -webkit-backdrop-filter: blur(22px) saturate(1.6);
@@ -506,6 +506,7 @@
 
   /* ZipNN call-to-action: a gentle lift + brighten on hover, a press-in on
      click, and a focus ring that matches the rest of the glass controls. */
+
   /* The ZipNN artwork itself is the control: a bare, transparent button whose
      only content is the SVG. The artwork already draws its own glass plate and
      dark-mode variant, so nothing is painted here except the interaction. */
@@ -576,6 +577,7 @@
        needs; they only have to stay clickable. */
     position: relative;
     pointer-events: auto;
+
     /* The library's own sheet sets this, and this project ships no preflight,
        so the UA default (content-box) applied: with `w-full` + `p-4` + a
        hairline border every toast came out 37px wider than its 356px slot and
@@ -705,6 +707,10 @@
 @keyframes mm-menu-in {
   from {
     opacity: 0;
+
+    /* The 0px fallbacks MUST keep their unit: a unitless 0 is invalid inside
+       translate*() and would void the whole transform when the vars are unset. */
+    /* stylelint-disable-next-line length-zero-no-unit */
     transform: translateX(var(--mm-menu-from-x, 0px)) translateY(var(--mm-menu-from-y, 0px));
   }
 
@@ -809,6 +815,7 @@
   0% {
     transform: translateX(-100%);
   }
+
   100% {
     transform: translateX(400%);
   }

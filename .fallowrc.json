@@ -9,8 +9,10 @@
   // assets/ carry no module graph.
   "ignorePatterns": ["web/**", "third_party/**", "docs/**", "downloads/**", "assets/**"],
   // `less` is consumed by vite through `<style lang="less">` SFC blocks, which
-  // no import graph can see.
-  "ignoreDependencies": ["less"],
+  // no import graph can see. `postcss-html` / `postcss-less` are loaded by
+  // stylelint at runtime through `.stylelintrc.json` (`customSyntax`) for the
+  // same SFC style blocks - also invisible to the import graph.
+  "ignoreDependencies": ["less", "postcss-html", "postcss-less"],
   "rules": {
     "unused-files": "error",
     "unused-exports": "error",

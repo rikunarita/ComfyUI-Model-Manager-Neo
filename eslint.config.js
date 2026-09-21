@@ -118,6 +118,11 @@ export default tseslint.config(
   {
     name: 'mm-neo/rules',
     files: ['**/*.{js,mjs,cjs,ts,mts,cts,tsx,vue}'],
+    // Re-register the plugin here: `tailwindcss.configs.recommended` scopes
+    // itself to ts/tsx/js/jsx/svelte/vue, while the rules below also apply to
+    // .mjs/.cjs/.mts/.cts files (e.g. .dependency-cruiser.mjs) - without this,
+    // ESLint rejects the config ("could not find plugin tailwindcss").
+    plugins: { tailwindcss },
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

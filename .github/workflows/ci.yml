@@ -31,7 +31,7 @@ jobs:
       - name: Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt mypy
+          pip install -r requirements.txt mypy ruff==0.16.8
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
@@ -42,6 +42,12 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Lint CSS (Stylelint)
+        run: pnpm lint:css
+
+      - name: Dependency graph (dependency-cruiser)
+        run: pnpm deps
+
       - name: Format
         run: pnpm format:check
 
@@ -50,3 +56,9 @@ jobs:
 
       - name: Static types (mypy)
         run: python -m mypy --config-file mypy.ini
+
+      - name: Python lint (ruff)
+        run: ruff check py __init__.py
+
+      - name: Python format (ruff)
+        run: ruff format --check py __init__.py
