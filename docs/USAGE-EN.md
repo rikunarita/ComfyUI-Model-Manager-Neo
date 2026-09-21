@@ -487,7 +487,7 @@ partial output.
 
 **No installation step.** ZipNN is _vendored_ inside the extension
 ([`third_party/`](../third_party/)), together with **prebuilt `zipnn_core`
-binaries** for Linux x86_64 (CPython 3.10–3.14). On those platforms the first
+binaries** for Linux x86_64 (CPython 3.10–3.15). On those platforms the first
 compression simply puts the bundled package and the matching binary on the
 import path — **no `pip install`, no C compiler, no network, no waiting**. Only
 where no prebuilt binary matches the platform/Python (macOS, Windows, an

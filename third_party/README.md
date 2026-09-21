@@ -23,7 +23,8 @@ third_party/
 │     ├─ zipnn_core.cpython-311-x86_64-linux-gnu.so
 │     ├─ zipnn_core.cpython-312-x86_64-linux-gnu.so
 │     ├─ zipnn_core.cpython-313-x86_64-linux-gnu.so
-│     └─ zipnn_core.cpython-314-x86_64-linux-gnu.so
+│     ├─ zipnn_core.cpython-314-x86_64-linux-gnu.so
+│     └─ zipnn_core.cpython-315-x86_64-linux-gnu.so
 ├─ zipnn-core/                # C sources, used ONLY to build on platforms with
 │  ├─ csrc/                   #   no prebuilt binary (macOS / Windows / other arch)
 │  ├─ include/FiniteStateEntropy/lib/
@@ -81,6 +82,13 @@ strip --strip-unneeded ../zipnn-core-bin/linux-x86_64/zipnn_core.cpython-3XX-x86
 
 Binaries for other platforms (e.g. `macos-arm64/`, `windows-x86_64/`) can be
 added the same way; until then those platforms use the source build.
+
+Provenance of the shipped Linux binaries: each `cpython-3XX` core is built with
+the recipe above against that interpreter's headers (the `cpython-315` core
+against **CPython 3.15.0rc2**) and verified to load and produce byte-identical
+compressed output as its siblings (float32 / float16 / byte paths through the
+vendored ZipNN wrapper). Every core exports only long-stable glibc symbols, so
+the whole directory shares the single **glibc ≥ 2.34** floor documented above.
 
 ## Licenses & attribution
 

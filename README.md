@@ -512,7 +512,7 @@ directory: 'x86_64-pc-linux-gnu-gcc'`).
 
 Neo therefore **vendors the whole library** under [`third_party/`](third_party/)
 and ships **prebuilt `zipnn_core` binaries** for Linux x86_64 (CPython 3.10 –
-3.14). On those platforms the first compression simply puts the bundled package
+3.15). On those platforms the first compression simply puts the bundled package
 and the matching binary on `sys.path` — **no compiler, no pip, no network, no
 waiting**. Only where no prebuilt binary matches (macOS, Windows, an uncommon
 architecture, or a brand-new CPython) does Neo fall back to a **single** clean
