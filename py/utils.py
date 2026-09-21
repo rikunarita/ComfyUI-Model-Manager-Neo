@@ -351,19 +351,28 @@ def get_model_tensors(filename: str):
 # Preview file naming scheme (ordered by display priority):
 #   1. `<basename>.<ext>`          the primary preview
 #   2. `<basename>.preview.<ext>`  the second preview (historic name)
-#   3. `<basename>.preview<N>.<ext>`  N = 2..9, further previews
+#   3. `<basename>.preview<N>.<ext>`  N = 2..19, further previews
 # The whole scheme is resolved against a *set of directory names*, so a model
 # list walk costs zero extra stat() calls (optimization A-2) and every preview
 # of a model can be enumerated (feature: keep all previews).
-_PREVIEW_SUFFIXES = ("", ".preview") + tuple(f".preview{n}" for n in range(2, 10))
+_PREVIEW_SUFFIXES = ("", ".preview") + tuple(f".preview{n}" for n in range(2, 20))
 
 
 def preview_candidates(basename: str) -> list[str]:
-    """Every file name that could hold a preview of `basename`, in priority order."""
+    """Every file name that could hold a preview of `basename`, in slot order.
+
+    The slot suffix MUST be the outer loop: this order is the listing order
+    (manager.scan_models) and it has to agree with the positional slot writes
+    of save_model_previews()/replace_model_previews() (item 0 -> `<base>.<ext>`,
+    item 1 -> `<base>.preview.<ext>`, ...). The old extension-major order
+    listed e.g. `m.preview2.mp4` BEFORE the primary `m.webp`, so any gallery
+    holding a video kept re-sorting the primary away from slot 1 on every
+    rescan - a saved primary swap never stuck for exactly those models.
+    """
     return [
         f"{basename}{suffix}{ext}"
-        for ext in PREVIEW_EXTENSIONS
         for suffix in _PREVIEW_SUFFIXES
+        for ext in PREVIEW_EXTENSIONS
     ]
 
 
@@ -586,15 +595,17 @@ def replace_model_previews(model_path: str, items: list[Any]) -> int:
         raise RuntimeError(
             "Failed to resolve preview entries: " + "; ".join(resolve_failures or ["no entries"])
         )
+    if len(staged) > len(_PREVIEW_SUFFIXES):
+        # Writing past the scheme would create files no listing ever shows
+        # (and no cleanup ever removes): refuse loudly instead.
+        raise RuntimeError(
+            f"Too many preview entries: {len(staged)} (max {len(_PREVIEW_SUFFIXES)})"
+        )
     remove_model_preview(model_path)
     failures: list[str] = []
     written = 0
     for index, (name, content_type, content) in enumerate(staged):
-        suffix = (
-            _PREVIEW_SUFFIXES[index]
-            if index < len(_PREVIEW_SUFFIXES)
-            else f".preview{index}"
-        )
+        suffix = _PREVIEW_SUFFIXES[index]
         try:
             _write_preview_content(model_path, content, content_type, name, suffix)
             written += 1
@@ -631,11 +642,15 @@ def save_model_previews(
     for index, item in enumerate(items):
         if item is None or item == "":
             continue
-        suffix = (
-            _PREVIEW_SUFFIXES[index]
-            if index < len(_PREVIEW_SUFFIXES)
-            else f".preview{index}"
-        )
+        if index >= len(_PREVIEW_SUFFIXES):
+            # Past the naming scheme: such a file would never be listed (and
+            # never cleaned up) again - drop it with a warning instead of
+            # writing an invisible preview.
+            print_warning(
+                f"Ignoring preview #{index}: gallery exceeds {len(_PREVIEW_SUFFIXES)} slots"
+            )
+            continue
+        suffix = _PREVIEW_SUFFIXES[index]
         try:
             save_model_preview(model_path, item, platform, headers, suffix=suffix)
             written += 1
