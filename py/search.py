@@ -36,8 +36,7 @@ from urllib.parse import quote, urlparse
 import requests
 from aiohttp import web
 
-from . import auth
-from . import utils
+from . import auth, utils
 from .information import MODELSCOPE_INTL_ENDPOINT
 
 SEARCH_TIMEOUT = 12.0
@@ -168,9 +167,7 @@ def _hf_avatar(owner: str) -> str | None:
     return _cache_avatar(owner, None)
 
 
-def _search_huggingface(
-    query: str, limit: int, cursor: str | None, sort: str
-) -> tuple[list[dict], str | None]:
+def _search_huggingface(query: str, limit: int, cursor: str | None, sort: str) -> tuple[list[dict], str | None]:
     from huggingface_hub import HfApi
 
     items: list[dict] = []
@@ -306,16 +303,12 @@ def _ms_owner_info(owner: str, name: str) -> tuple[str | None, str | None, str |
         return _cache_ms_owner(owner, (None, None, None))
 
 
-def _search_modelscope(
-    query: str, limit: int, cursor: str | None, sort: str
-) -> tuple[list[dict], str | None]:
+def _search_modelscope(query: str, limit: int, cursor: str | None, sort: str) -> tuple[list[dict], str | None]:
     from modelscope_hub import HubApi
 
     api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT)
     page_number = max(1, int(cursor or 1))
-    page = api.list_repos(
-        "model", search=query, sort=sort, page_number=page_number, page_size=limit
-    )
+    page = api.list_repos("model", search=query, sort=sort, page_number=page_number, page_size=limit)
     items: list[dict] = []
     for r in page.items:
         owner = getattr(r, "owner", None)
@@ -343,9 +336,7 @@ def _search_modelscope(
     return items, next_cursor
 
 
-def _search_civitai(
-    query: str, limit: int, cursor: str | None, sort: str
-) -> tuple[list[dict], str | None]:
+def _search_civitai(query: str, limit: int, cursor: str | None, sort: str) -> tuple[list[dict], str | None]:
     token = auth.get_civitai_token()
     headers = dict(_UA)
     if token:
@@ -401,7 +392,7 @@ def _search_civitai(
     # and Recently Added: the search payload carries neither collected /
     # image counts nor version dates) keep the API order instead of a
     # guessed one.
-    paired = list(zip(items, sort_keys))
+    paired = list(zip(items, sort_keys, strict=True))
     if sort == "Most Downloaded":
         paired.sort(key=lambda p: -p[0]["downloads"])
     elif sort == "Most Liked":
@@ -488,10 +479,7 @@ class SearchRoutes:
                 data: dict[str, dict] = {}
                 pool = ThreadPoolExecutor(max_workers=len(_PROVIDERS))
                 try:
-                    futs = {
-                        name: pool.submit(run, name, None, sort_map[name])
-                        for name in _PROVIDERS
-                    }
+                    futs = {name: pool.submit(run, name, None, sort_map[name]) for name in _PROVIDERS}
                     try:
                         for fut in as_completed(futs.values(), timeout=SEARCH_TIMEOUT + 5):
                             name, res = fut.result()
@@ -523,8 +511,8 @@ class SearchRoutes:
             url = (request.query.get("url") or "").strip()
             try:
                 parsed = urlparse(url)
-            except Exception:
-                raise web.HTTPNotFound()
+            except Exception as exc:
+                raise web.HTTPNotFound() from exc
             host = parsed.hostname or ""
             if parsed.scheme != "https" or not _is_allowed_avatar_host(host):
                 raise web.HTTPNotFound()
@@ -602,14 +590,11 @@ class SearchRoutes:
             except Exception as e:
                 status = getattr(getattr(e, "response", None), "status_code", None)
                 hint = (
-                    " The key was rejected (401): check its scopes/validity at "
-                    "https://civitai.com/user/account."
+                    " The key was rejected (401): check its scopes/validity at https://civitai.com/user/account."
                     if status == 401
                     else ""
                 )
-                return web.json_response(
-                    {"success": False, "error": f"Civitai whoami failed: {e}.{hint}"}
-                )
+                return web.json_response({"success": False, "error": f"Civitai whoami failed: {e}.{hint}"})
 
         @routes.get("/model-manager/civitai/image-meta")
         async def civitai_image_meta(request):
@@ -654,7 +639,5 @@ class SearchRoutes:
                 item_url = (it.get("url") or "").split("?")[0]
                 if str(it.get("id")) == want_id or item_url == want_url:
                     meta = it.get("meta")
-                    return web.json_response(
-                        {"success": True, "data": meta if isinstance(meta, dict) else None}
-                    )
+                    return web.json_response({"success": True, "data": meta if isinstance(meta, dict) else None})
             return web.json_response({"success": True, "data": None})

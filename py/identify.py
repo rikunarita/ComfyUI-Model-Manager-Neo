@@ -27,8 +27,7 @@ import requests
 import yaml
 from aiohttp import web
 
-from . import auth
-from . import utils
+from . import auth, utils
 
 _AUTOV1_OFFSET = 0x100000  # 1 MiB
 _AUTOV1_WINDOW = 0x10000  # 64 KiB
@@ -90,7 +89,7 @@ def recorded_hashes(model_path: str) -> dict[str, str]:
     if not os.path.isfile(path):
         return {}
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             text = f.read()
         if not text.startswith("---"):
             return {}
@@ -101,11 +100,7 @@ def recorded_hashes(model_path: str) -> dict[str, str]:
         hashes = front.get("hashes") if isinstance(front, dict) else None
         if not isinstance(hashes, dict):
             return {}
-        return {
-            str(key): str(value).strip().upper()
-            for key, value in hashes.items()
-            if str(value).strip()
-        }
+        return {str(key): str(value).strip().upper() for key, value in hashes.items() if str(value).strip()}
     except Exception:
         return {}
 
@@ -126,9 +121,7 @@ def _shape_match(version: dict, kind: str, value: str) -> dict:
         "baseModel": version.get("baseModel"),
         "trainedWords": version.get("trainedWords") or [],
         "images": [
-            image.get("url")
-            for image in version.get("images") or []
-            if isinstance(image, dict) and image.get("url")
+            image.get("url") for image in version.get("images") or [] if isinstance(image, dict) and image.get("url")
         ],
         "files": [
             {
@@ -141,15 +134,9 @@ def _shape_match(version: dict, kind: str, value: str) -> dict:
             if isinstance(f, dict)
         ],
         "modelPage": (
-            f"https://civitai.com/models/{model_id}?modelVersionId={version_id}"
-            if model_id and version_id
-            else None
+            f"https://civitai.com/models/{model_id}?modelVersionId={version_id}" if model_id and version_id else None
         ),
-        "downloadCommand": (
-            f"civitai download --version {version_id} --layout comfyui"
-            if version_id
-            else None
-        ),
+        "downloadCommand": (f"civitai download --version {version_id} --layout comfyui" if version_id else None),
         "createdAt": version.get("createdAt"),
         "updatedAt": version.get("updatedAt"),
     }
@@ -191,17 +178,13 @@ class IdentifyRoutes:
             index = (request.query.get("index") or "").strip()
             filename = (request.query.get("filename") or "").strip()
             if not model_type or not index or not filename:
-                return web.json_response(
-                    {"success": False, "error": "type, index and filename are required."}
-                )
+                return web.json_response({"success": False, "error": "type, index and filename are required."})
             try:
                 full_path = utils.get_full_path(model_type, int(index), filename)
             except Exception as e:
                 return web.json_response({"success": False, "error": str(e)})
             if not os.path.isfile(full_path):
-                return web.json_response(
-                    {"success": False, "error": f"File not found: {filename}"}
-                )
+                return web.json_response({"success": False, "error": f"File not found: {filename}"})
 
             loop = asyncio.get_running_loop()
 
@@ -210,9 +193,7 @@ class IdentifyRoutes:
                 match = lookup_by_hashes(hashes)
                 hashed_file = False
                 if match is None:
-                    computed = (
-                        utils.cpu_executor().submit(compute_hashes, full_path).result()
-                    )
+                    computed = utils.cpu_executor().submit(compute_hashes, full_path).result()
                     hashed_file = True
                     # Recorded values win where both exist; the computed set
                     # fills every notation the sidecar did not carry.

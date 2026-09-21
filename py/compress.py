@@ -38,12 +38,12 @@ import os
 import platform
 import re
 import uuid
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from aiohttp import web
 
-from . import config
-from . import utils
+from . import config, utils
 
 ZNN_SUFFIX = ".znn.safetensors"
 SAFE_SUFFIX = ".safetensors"
@@ -58,6 +58,19 @@ ZNN_ORIGINAL_SIZE_KEY = "znn_neo_original_bytes"
 
 # task_id -> bookkeeping, same shape as the HF upload tasks
 ZIPNN_TASKS: dict[str, dict] = {}
+
+# Strong references to the in-flight background workers. asyncio keeps only
+# WEAK references to tasks, so a `create_task` result nobody stores can be
+# garbage-collected mid-run - a multi-gigabyte compression could silently
+# vanish. Each task discards itself from the set when it finishes.
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
+
+
+def _spawn_background(loop: asyncio.AbstractEventLoop, coro) -> None:
+    task = loop.create_task(coro)
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+
 
 ProgressCb = Callable[[int, int, str], None]
 
@@ -82,10 +95,7 @@ def zipnn_installed() -> bool:
 
     importlib.invalidate_caches()
     try:
-        return (
-            importlib.util.find_spec("zipnn") is not None
-            and importlib.util.find_spec("zipnn_core") is not None
-        )
+        return importlib.util.find_spec("zipnn") is not None and importlib.util.find_spec("zipnn_core") is not None
     except Exception:
         return False
 
@@ -134,9 +144,7 @@ _ZIPNN_BUILD_CFLAGS = (
 
 # Compiler binary names worth picking up as a substitute when the one CPython
 # recorded in `sysconfig` (e.g. Gentoo's `x86_64-pc-linux-gnu-gcc`) is absent.
-_CC_NAME_RE = re.compile(
-    r"^(?:cc|clang(?:-\d+)?|gcc(?:-\d+(?:\.\d+)*)?|(?:[A-Za-z0-9_.]+-)+gcc(?:-\d+)?)$"
-)
+_CC_NAME_RE = re.compile(r"^(?:cc|clang(?:-\d+)?|gcc(?:-\d+(?:\.\d+)*)?|(?:[A-Za-z0-9_.]+-)+gcc(?:-\d+)?)$")
 
 # Values for these keys are *appended* to whatever the environment already has
 # (they are flag lists); every other key passed to `_run_pip` replaces it.
@@ -265,11 +273,8 @@ def _cc_env_patch() -> tuple[dict[str, str], str | None]:
     env = {"CC": alt}
     ldshared = sysconfig.get_config_var("LDSHARED") or ""
     if ldshared.startswith(recorded):
-        env["LDSHARED"] = alt + ldshared[len(recorded):]
-    note = (
-        f"the compiler this Python expects (`{recorded}`) was not found; "
-        f"building with CC={alt} instead"
-    )
+        env["LDSHARED"] = alt + ldshared[len(recorded) :]
+    note = f"the compiler this Python expects (`{recorded}`) was not found; building with CC={alt} instead"
     return env, note
 
 
@@ -286,9 +291,7 @@ def _python_headers_missing() -> bool:
         os.path.join(base, "include", f"python{short}"),
         os.path.join(base, "include", f"python{short}m"),
     ]
-    return not any(
-        c and os.path.exists(os.path.join(c, "Python.h")) for c in candidates
-    )
+    return not any(c and os.path.exists(os.path.join(c, "Python.h")) for c in candidates)
 
 
 def _build_prereq_hint() -> str | None:
@@ -313,9 +316,7 @@ def _build_prereq_hint() -> str | None:
             f"`{recorded}`, and no cc/gcc/clang substitute was found)"
         )
     if _python_headers_missing():
-        missing.append(
-            f"no Python headers (Python.h not found for {sysconfig.get_paths().get('include')})"
-        )
+        missing.append(f"no Python headers (Python.h not found for {sysconfig.get_paths().get('include')})")
     if not missing:
         return None
 
@@ -328,9 +329,8 @@ def _build_prereq_hint() -> str | None:
             if fix:
                 break
     if os.environ.get("CONDA_PREFIX"):
-        fix = (fix + "  |  conda: ").strip("  |  ") + (
-            "conda install -y -c conda-forge cxx-compiler"
-        )
+        conda_cmd = "conda install -y -c conda-forge cxx-compiler"
+        fix = f"{fix}  |  conda: {conda_cmd}" if fix else f"conda: {conda_cmd}"
     if not fix:
         fix = (
             "install a C compiler (gcc or clang) and the Python development "
@@ -389,8 +389,7 @@ def _run_pip(args: list[str], extra_env: dict[str, str] | None = None) -> str:
     output = (proc.stdout or "") + (proc.stderr or "")
     if proc.returncode != 0:
         raise RuntimeError(
-            f"`pip {' '.join(args)}` failed (exit {proc.returncode}):\n"
-            + "\n".join(output.strip().splitlines()[-25:])
+            f"`pip {' '.join(args)}` failed (exit {proc.returncode}):\n" + "\n".join(output.strip().splitlines()[-25:])
         )
     return output
 
@@ -448,19 +447,21 @@ def _prebuilt_core_dir() -> str:
 def _has_loadable_prebuilt(bin_dir: str) -> bool:
     """True when ``bin_dir`` holds a ``zipnn_core`` this interpreter can load.
 
-    Matches against ``importlib.machinery.EXTENSION_SUFFIXES`` (e.g.
-    ``.cpython-313-x86_64-linux-gnu.so``), so a directory of cores for *other*
-    Python versions correctly counts as "no prebuilt here".
+    Matches the exact file names the import machinery binds to
+    ``import zipnn_core``: ``zipnn_core`` + one of this interpreter's
+    ``EXTENSION_SUFFIXES`` (e.g. ``.cpython-315-x86_64-linux-gnu.so``,
+    ``.abi3.so``, ``.pyd`` on Windows). A directory of cores for *other*
+    Python versions correctly counts as "no prebuilt here" - those files end
+    in ``.so`` too, but FileFinder only binds whole ``zipnn_core<suffix>``
+    names, so a loose ``endswith`` test used to promise a core this
+    interpreter could never import.
     """
     import importlib.machinery
 
     if not os.path.isdir(bin_dir):
         return False
-    suffixes = tuple(importlib.machinery.EXTENSION_SUFFIXES)
-    return any(
-        f.startswith("zipnn_core") and f.endswith(suffixes)
-        for f in os.listdir(bin_dir)
-    )
+    names = set(os.listdir(bin_dir))
+    return any(f"zipnn_core{suffix}" in names for suffix in importlib.machinery.EXTENSION_SUFFIXES)
 
 
 def _add_sys_path(path: str) -> None:
@@ -528,9 +529,7 @@ def _build_core_from_source() -> str | None:
         return str(e)
 
 
-def _compose_failure_message(
-    had_prebuilt: bool, prebuilt_error: str | None, build_error: str | None
-) -> str:
+def _compose_failure_message(had_prebuilt: bool, prebuilt_error: str | None, build_error: str | None) -> str:
     """A single, honest, actionable message when neither path produced a core."""
     lines = [
         "ZipNN could not be made available on this machine.",
@@ -555,8 +554,7 @@ def _compose_failure_message(
         lines += ["", "Source build output:", build_error]
     lines += [
         "",
-        "Fix the toolchain (or run on a platform that has a prebuilt core), "
-        "then use the toast's retry action.",
+        "Fix the toolchain (or run on a platform that has a prebuilt core), then use the toast's retry action.",
     ]
     return "\n".join(lines)
 
@@ -628,7 +626,6 @@ def ensure_zipnn(force: bool = False) -> None:
     raise ZipNNInstallError(message)
 
 
-
 def _sidecar_move(old_model: str, new_model: str) -> None:
     """Move previews + notes from one model file to another (same directory)."""
     directory = os.path.dirname(old_model)
@@ -636,7 +633,7 @@ def _sidecar_move(old_model: str, new_model: str) -> None:
     old_base = os.path.splitext(os.path.basename(old_model))[0]
     new_base = os.path.splitext(os.path.basename(new_model))[0]
     for preview in utils.previews_in_names(names, old_base):
-        ext = preview[len(old_base):]
+        ext = preview[len(old_base) :]
         src = utils.join_path(directory, preview)
         dst = utils.join_path(directory, f"{new_base}{ext}")
         if os.path.exists(src) and not os.path.exists(dst):
@@ -650,19 +647,18 @@ def _sidecar_move(old_model: str, new_model: str) -> None:
 
 def compress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str, Any]:
     """Compress `src` (.safetensors) into `dst` (.znn.safetensors)."""
+    import torch
     from safetensors import safe_open
     from safetensors.torch import save_file
     from zipnn import ZipNN
     from zipnn.util_header import EnumFormat
     from zipnn.util_safetensors import (
-        COMPRESSION_METHOD,
         COMPRESSED_DTYPE,
+        COMPRESSION_METHOD,
         build_compressed_tensor_info,
         set_compressed_tensors_metadata,
     )
     from zipnn.util_torch import zipnn_is_floating_point
-
-    import torch
 
     tensors: dict[str, Any] = {}
     infos: dict[str, Any] = {}
@@ -708,9 +704,7 @@ def compress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str, 
                 # UserWarning into the ComfyUI console. The one-time copy into a
                 # writable `bytearray` silences it and is cheap next to the
                 # compression itself.
-                tensors[name] = torch.frombuffer(
-                    bytearray(compressed_buf), dtype=COMPRESSED_DTYPE
-                )
+                tensors[name] = torch.frombuffer(bytearray(compressed_buf), dtype=COMPRESSED_DTYPE)
                 infos[name] = build_compressed_tensor_info(tensor)
                 compressed_bytes += len(compressed_buf)
             progress(index + 1, total, "tensors")
@@ -746,8 +740,8 @@ def decompress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str
     from safetensors.torch import save_file
     from zipnn import ZipNN
     from zipnn.util_safetensors import (
-        COMPRESSION_METHOD,
         COMPRESSED_DTYPE,
+        COMPRESSION_METHOD,
         METADATA_KEY,
         get_compressed_tensors_metadata,
     )
@@ -832,9 +826,7 @@ def _walk_decompress_files(folder: str) -> list[str]:
     for root, _dirs, names in os.walk(folder):
         in_delta_folder = os.path.basename(root).endswith(utils.DELTA_FOLDER_SUFFIX)
         for name in names:
-            if name.endswith(ZNN_SUFFIX):
-                found.append(os.path.join(root, name))
-            elif in_delta_folder and name.endswith(".znn") and "_delta_" in name:
+            if name.endswith(ZNN_SUFFIX) or (in_delta_folder and name.endswith(".znn") and "_delta_" in name):
                 found.append(os.path.join(root, name))
     return sorted(found)
 
@@ -855,9 +847,13 @@ def _batch_invariants_blockers(folder: str) -> list[str]:
         dirs[:] = [d for d in dirs if not _is_bundle_dir_name(d)]
         for name in names:
             extension = os.path.splitext(name)[1]
-            if extension in folder_paths.supported_pt_extensions and ".znn." not in name:
-                if not name.endswith(SAFE_SUFFIX) and not name.endswith(".znn"):
-                    blockers.append(os.path.join(root, name))
+            if (
+                extension in folder_paths.supported_pt_extensions
+                and ".znn." not in name
+                and not name.endswith(SAFE_SUFFIX)
+                and not name.endswith(".znn")
+            ):
+                blockers.append(os.path.join(root, name))
     return sorted(blockers)
 
 
@@ -891,7 +887,7 @@ def _locate_bundle(path: str, walk_root: str) -> tuple[str, list[str]] | None:
     for index in range(len(dir_parts) - 1, -1, -1):
         if _is_bundle_dir_name(dir_parts[index]):
             bundle = os.path.join(walk_root, *dir_parts[: index + 1])
-            return bundle, dir_parts[index + 1:]
+            return bundle, dir_parts[index + 1 :]
     return None
 
 
@@ -931,18 +927,10 @@ def _decompress_target(path: str, walk_root: str, out_name: str, is_delta: bool)
     dir_parts = rel.split(os.sep)[:-1]
     if located is not None:
         bundle, inner = located
-        root = (
-            os.path.dirname(bundle.rstrip(os.sep))
-            if is_delta
-            else _batch_restore_root(bundle)
-        )
+        root = os.path.dirname(bundle.rstrip(os.sep)) if is_delta else _batch_restore_root(bundle)
         return os.path.join(root, *inner, out_name)
     if _is_bundle_dir_name(os.path.basename(walk_root.rstrip(os.sep))):
-        root = (
-            os.path.dirname(walk_root.rstrip(os.sep))
-            if is_delta
-            else _batch_restore_root(walk_root)
-        )
+        root = os.path.dirname(walk_root.rstrip(os.sep)) if is_delta else _batch_restore_root(walk_root)
         return os.path.join(root, *dir_parts, out_name)
     return os.path.join(os.path.dirname(path), out_name)
 
@@ -971,9 +959,7 @@ def _prune_empty_dirs(folder: str, remove_root: bool) -> None:
             pass
 
 
-def batch_process_folder(
-    folder: str, mode: str, is_type_root: bool, progress: ProgressCb
-) -> dict[str, Any]:
+def batch_process_folder(folder: str, mode: str, is_type_root: bool, progress: ProgressCb) -> dict[str, Any]:
     """Batch-compress / batch-decompress every eligible file under `folder`.
 
     compress: every plain `.safetensors` becomes `.znn.safetensors` and MOVES
@@ -1033,11 +1019,7 @@ def batch_process_folder(
                 continue
             ft_base = name[: -len(suffix)]
             located = _locate_bundle(path, folder)
-            base_dir = (
-                os.path.dirname(located[0].rstrip(os.sep))
-                if located is not None
-                else os.path.dirname(delta_dir)
-            )
+            base_dir = os.path.dirname(located[0].rstrip(os.sep)) if located is not None else os.path.dirname(delta_dir)
             base_path = os.path.join(base_dir, f"{base_base}{SAFE_SUFFIX}")
             if not os.path.isfile(base_path):
                 raise RuntimeError(f"base model not found for {name}: {base_base}")
@@ -1097,12 +1079,7 @@ def _delta_aligned_bytes(base_path: str, ft_path: str) -> tuple[bytes, bytes, di
         )
     pad_base = max(0, ft_len - base_len)
     pad_ft = max(0, base_len - ft_len)
-    base_bytes = (
-        struct.pack("<Q", base_len + pad_base)
-        + base_header
-        + b" " * pad_base
-        + base_data
-    )
+    base_bytes = struct.pack("<Q", base_len + pad_base) + base_header + b" " * pad_base + base_data
     ft_bytes = struct.pack("<Q", ft_len + pad_ft) + ft_header + b" " * pad_ft + ft_data
     return base_bytes, ft_bytes, {"basePad": pad_base, "ftPad": pad_ft}
 
@@ -1140,7 +1117,7 @@ def _delta_sidecar_move(src_model: str, dst_model: str) -> None:
     dst_base = os.path.splitext(os.path.basename(dst_model))[0]
     names = utils.get_dir_names(src_dir)
     for preview in utils.previews_in_names(names, src_base):
-        ext = preview[len(src_base):]
+        ext = preview[len(src_base) :]
         src = utils.join_path(src_dir, preview)
         dst = utils.join_path(dst_dir, f"{dst_base}{ext}")
         if os.path.exists(src) and not os.path.exists(dst):
@@ -1154,9 +1131,7 @@ def _delta_sidecar_move(src_model: str, dst_model: str) -> None:
             os.rename(src, dst)
 
 
-def delta_compress_files(
-    base_path: str, ft_path: str, out_path: str, progress: ProgressCb
-) -> dict[str, Any]:
+def delta_compress_files(base_path: str, ft_path: str, out_path: str, progress: ProgressCb) -> dict[str, Any]:
     """Delta-compress `ft_path` against `base_path` (official file-level API).
 
     `ZipNN(delta_compressed_type="byte").compress(ft_bytes, delta_second_data=
@@ -1191,9 +1166,7 @@ def delta_compress_files(
     return {"originalBytes": len(ft_bytes), "compressedBytes": len(compressed)}
 
 
-def delta_decompress_file(
-    base_path: str, delta_path: str, out_path: str, progress: ProgressCb
-) -> dict[str, Any]:
+def delta_decompress_file(base_path: str, delta_path: str, out_path: str, progress: ProgressCb) -> dict[str, Any]:
     """Restore the exact fine-tuned bytes from a delta file + its base model."""
     import json
 
@@ -1201,7 +1174,7 @@ def delta_decompress_file(
 
     meta: dict[str, int] = {}
     try:
-        with open(_delta_meta_path(delta_path), "r", encoding="utf-8") as f:
+        with open(_delta_meta_path(delta_path), encoding="utf-8") as f:
             meta = json.load(f)
     except Exception:
         meta = {}
@@ -1210,12 +1183,7 @@ def delta_decompress_file(
 
     base_len, base_header, base_data = _safetensors_split(base_path)
     pad_base = int(meta.get("basePad", 0))
-    base_bytes = (
-        struct.pack("<Q", base_len + pad_base)
-        + base_header
-        + b" " * pad_base
-        + base_data
-    )
+    base_bytes = struct.pack("<Q", base_len + pad_base) + base_header + b" " * pad_base + base_data
     zpn = ZipNN(is_streaming=True, delta_compressed_type="byte")
     with open(delta_path, "rb") as f:
         delta_bytes = f.read()
@@ -1235,9 +1203,7 @@ class ZipNNRoutes:
     def add_routes(self, routes):
         @routes.get("/model-manager/zipnn/available")
         async def zipnn_status(request):
-            return web.json_response(
-                {"success": True, "data": {"available": zipnn_available()}}
-            )
+            return web.json_response({"success": True, "data": {"available": zipnn_available()}})
 
         @routes.post("/model-manager/zipnn/compress")
         async def zipnn_compress(request):
@@ -1265,9 +1231,7 @@ class ZipNNRoutes:
         path_index = int(data.get("pathIndex") or 0)
         fullname = data.get("fullname")
         if not model_type or not fullname:
-            return web.json_response(
-                {"success": False, "error": "type and fullname are required"}
-            )
+            return web.json_response({"success": False, "error": "type and fullname are required"})
         if not is_safetensors(fullname):
             return web.json_response(
                 {
@@ -1284,22 +1248,16 @@ class ZipNNRoutes:
 
         if mode == "compress":
             if is_compressed_name(fullname):
-                return web.json_response(
-                    {"success": False, "error": "model is already compressed"}
-                )
+                return web.json_response({"success": False, "error": "model is already compressed"})
             base = src[: -len(SAFE_SUFFIX)]
             dst = f"{base}{ZNN_SUFFIX}"
         else:
             if not is_compressed_name(fullname):
-                return web.json_response(
-                    {"success": False, "error": "model is not ZipNN compressed"}
-                )
+                return web.json_response({"success": False, "error": "model is not ZipNN compressed"})
             base = src[: -len(ZNN_SUFFIX)]
             dst = f"{base}{SAFE_SUFFIX}"
         if os.path.exists(dst):
-            return web.json_response(
-                {"success": False, "error": f"target already exists: {os.path.basename(dst)}"}
-            )
+            return web.json_response({"success": False, "error": f"target already exists: {os.path.basename(dst)}"})
 
         force = bool(data.get("force"))
         task_id = uuid.uuid4().hex
@@ -1339,9 +1297,7 @@ class ZipNNRoutes:
 
             fn = compress_safetensors if mode == "compress" else decompress_safetensors
             try:
-                stats = await loop.run_in_executor(
-                    utils.cpu_executor(), fn, src, dst, progress
-                )
+                stats = await loop.run_in_executor(utils.cpu_executor(), fn, src, dst, progress)
             except Exception as e:
                 # never leave a half-written target behind
                 for candidate in (dst, f"{dst}.tmp"):
@@ -1377,7 +1333,7 @@ class ZipNNRoutes:
                 },
             )
 
-        loop.create_task(self._schedule(worker()))
+        _spawn_background(loop, self._schedule(worker()))
         return web.json_response({"success": True, "data": {"taskId": task_id}})
 
     async def _run_batch(self, request):
@@ -1405,14 +1361,9 @@ class ZipNNRoutes:
         model_type = data.get("type")
         path_index = int(data.get("pathIndex") or 0)
         rel_folder = str(data.get("folder") or data.get("fullname") or "").strip("/")
-        if (
-            mode not in ("compress", "decompress", "auto")
-            or not model_type
-            or not rel_folder
-        ):
+        if mode not in ("compress", "decompress", "auto") or not model_type or not rel_folder:
             utils.print_warning(
-                f"batch-folder request rejected; received keys: "
-                f"{sorted(data.keys()) if data else '<empty body>'}"
+                f"batch-folder request rejected; received keys: {sorted(data.keys()) if data else '<empty body>'}"
             )
             return web.json_response(
                 {
@@ -1433,9 +1384,9 @@ class ZipNNRoutes:
         if not os.path.isdir(folder):
             return web.json_response({"success": False, "error": "folder not found"})
         bases = utils.resolve_model_base_paths().get(model_type, [])
-        is_type_root = path_index < len(bases) and utils.normalize_path(
-            folder
-        ) == utils.normalize_path(bases[path_index])
+        is_type_root = path_index < len(bases) and utils.normalize_path(folder) == utils.normalize_path(
+            bases[path_index]
+        )
 
         folder_name = os.path.basename(folder.rstrip("/"))
         if mode == "auto":
@@ -1476,9 +1427,7 @@ class ZipNNRoutes:
                 )
             files = _walk_model_files(folder, "compress", skip_bundles=True)
             if not files:
-                return web.json_response(
-                    {"success": False, "error": "no .safetensors files to compress"}
-                )
+                return web.json_response({"success": False, "error": "no .safetensors files to compress"})
             # Every compressed file MOVES into `<name>_DeltaZNN`; model-type
             # roots get the bundle inside themselves (a sibling of a type root
             # would fall outside every ComfyUI-mapped path).
@@ -1572,7 +1521,7 @@ class ZipNNRoutes:
                 },
             )
 
-        loop.create_task(self._schedule(worker()))
+        _spawn_background(loop, self._schedule(worker()))
         return web.json_response({"success": True, "data": {"taskId": task_id}})
 
     async def _run_delta(self, request, mode: str):
@@ -1592,22 +1541,16 @@ class ZipNNRoutes:
             base_full = data.get("baseFullname")
             ft_full = data.get("fullname")
             if not base_full or not ft_full:
-                return web.json_response(
-                    {"success": False, "error": "baseFullname and fullname are required"}
-                )
+                return web.json_response({"success": False, "error": "baseFullname and fullname are required"})
             try:
                 base_path = utils.get_valid_full_path(model_type, path_index, base_full)
                 ft_path = utils.get_valid_full_path(model_type, path_index, ft_full)
             except Exception as e:
                 return web.json_response({"success": False, "error": str(e)})
             if not base_path or not ft_path:
-                return web.json_response(
-                    {"success": False, "error": "base or fine-tuned model not found"}
-                )
+                return web.json_response({"success": False, "error": "base or fine-tuned model not found"})
             if base_path == ft_path:
-                return web.json_response(
-                    {"success": False, "error": "base and fine-tuned model must differ"}
-                )
+                return web.json_response({"success": False, "error": "base and fine-tuned model must differ"})
             for candidate in (base_path, ft_path):
                 if not is_safetensors(candidate) or is_compressed_name(candidate):
                     return web.json_response(
@@ -1618,9 +1561,7 @@ class ZipNNRoutes:
                     )
             base_base = os.path.basename(base_path)[: -len(SAFE_SUFFIX)]
             ft_base = os.path.basename(ft_path)[: -len(SAFE_SUFFIX)]
-            delta_dir = utils.join_path(
-                os.path.dirname(base_path), f"{base_base}{utils.DELTA_FOLDER_SUFFIX}"
-            )
+            delta_dir = utils.join_path(os.path.dirname(base_path), f"{base_base}{utils.DELTA_FOLDER_SUFFIX}")
             out_path = utils.join_path(delta_dir, f"{ft_base}_delta_{base_base}.znn")
             if os.path.exists(out_path):
                 return web.json_response(
@@ -1633,41 +1574,27 @@ class ZipNNRoutes:
         else:
             delta_full = data.get("fullname")
             if not delta_full:
-                return web.json_response(
-                    {"success": False, "error": "fullname is required"}
-                )
+                return web.json_response({"success": False, "error": "fullname is required"})
             try:
                 delta_path = utils.get_valid_full_path(model_type, path_index, delta_full)
             except Exception as e:
                 return web.json_response({"success": False, "error": str(e)})
             if not delta_path:
-                return web.json_response(
-                    {"success": False, "error": "delta file not found"}
-                )
+                return web.json_response({"success": False, "error": "delta file not found"})
             delta_dir = os.path.dirname(delta_path)
             delta_folder = os.path.basename(delta_dir)
             if not delta_folder.endswith(utils.DELTA_FOLDER_SUFFIX):
-                return web.json_response(
-                    {"success": False, "error": "not inside a *_DeltaZNN folder"}
-                )
+                return web.json_response({"success": False, "error": "not inside a *_DeltaZNN folder"})
             base_base = delta_folder[: -len(utils.DELTA_FOLDER_SUFFIX)]
             delta_name = os.path.basename(delta_path)
             suffix = f"_delta_{base_base}.znn"
             if not delta_name.endswith(suffix):
-                return web.json_response(
-                    {"success": False, "error": "unexpected delta file name"}
-                )
+                return web.json_response({"success": False, "error": "unexpected delta file name"})
             ft_base = delta_name[: -len(suffix)]
-            base_path = utils.join_path(
-                os.path.dirname(delta_dir), f"{base_base}{SAFE_SUFFIX}"
-            )
+            base_path = utils.join_path(os.path.dirname(delta_dir), f"{base_base}{SAFE_SUFFIX}")
             if not os.path.isfile(base_path):
-                return web.json_response(
-                    {"success": False, "error": f"base model not found: {base_base}"}
-                )
-            out_path = utils.join_path(
-                os.path.dirname(delta_dir), f"{ft_base}{SAFE_SUFFIX}"
-            )
+                return web.json_response({"success": False, "error": f"base model not found: {base_base}"})
+            out_path = utils.join_path(os.path.dirname(delta_dir), f"{ft_base}{SAFE_SUFFIX}")
             if os.path.exists(out_path):
                 return web.json_response(
                     {
@@ -1718,9 +1645,7 @@ class ZipNNRoutes:
 
             fn = delta_compress_files if mode == "compress" else delta_decompress_file
             try:
-                stats = await loop.run_in_executor(
-                    utils.cpu_executor(), fn, src, second, dst, progress
-                )
+                stats = await loop.run_in_executor(utils.cpu_executor(), fn, src, second, dst, progress)
             except Exception as e:
                 for candidate in (dst, f"{dst}.tmp"):
                     if os.path.exists(candidate):
@@ -1772,7 +1697,7 @@ class ZipNNRoutes:
                 },
             )
 
-        loop.create_task(self._schedule(worker()))
+        _spawn_background(loop, self._schedule(worker()))
         return web.json_response({"success": True, "data": {"taskId": task_id}})
 
     async def _schedule(self, coro):
@@ -1781,9 +1706,7 @@ class ZipNNRoutes:
         except Exception as e:  # pragma: no cover - defensive
             utils.print_error(f"zipnn worker crashed: {e}")
 
-    async def _fail(
-        self, task_id: str, src: str, error: str, install_failed: bool = False
-    ):
+    async def _fail(self, task_id: str, src: str, error: str, install_failed: bool = False):
         ZIPNN_TASKS[task_id]["status"] = "error"
         utils.print_error(f"zipnn failed for {src}: {error}")
         await utils.send_json(

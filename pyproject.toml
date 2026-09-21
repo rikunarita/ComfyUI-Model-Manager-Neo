@@ -18,3 +18,29 @@ Repository = "https://github.com/rikunarita/ComfyUI-Model-Manager-Neo"
 PublisherId = "rikunarita7669"
 DisplayName = "ComfyUI-Model-Manager-Neo"
 Icon = ""
+
+# ---------------------------------------------------------------------------
+# Ruff: lint + format for the Python backend (`py/`, `__init__.py`).
+# The rule set is curated, not maximal: correctness families (pyflakes,
+# bugbear, pyupgrade, comprehensions, returns, Ruff's own async/dict checks)
+# plus import sorting; two families are consciously ignored (see below).
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py310" # oldest runtime with prebuilt zipnn_core binaries
+line-length = 120
+extend-exclude = ["third_party", "web", "downloads", "demo"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "C4", "SIM", "RET", "RUF", "PIE"]
+ignore = [
+    # The ComfyUI entry point mutates `folder_paths.supported_pt_extensions`
+    # BEFORE importing the extension modules, and heavy deps (PIL, zipnn)
+    # are deliberately imported mid-file / lazily: import order is semantic.
+    "E402",
+    # The defensive `try: ... except Exception: pass` guards around optional
+    # reporting read clearer here than contextlib.suppress blocks.
+    "SIM105",
+]
+
+[tool.ruff.format]
+docstring-code-format = false

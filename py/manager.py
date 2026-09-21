@@ -1,13 +1,12 @@
 import asyncio
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote
 
-import yaml
 import folder_paths
+import yaml
 from aiohttp import web
-from concurrent.futures import ThreadPoolExecutor
-
 
 from . import utils
 
@@ -18,8 +17,8 @@ def _preview_field_keys(model_data: dict) -> list[str]:
     for key in model_data:
         if key == "previewFile":
             keys.append((0, key))
-        elif key.startswith("previewFile") and key[len("previewFile"):].isdigit():
-            keys.append((int(key[len("previewFile"):]), key))
+        elif key.startswith("previewFile") and key[len("previewFile") :].isdigit():
+            keys.append((int(key[len("previewFile") :]), key))
     return [key for _, key in sorted(keys)]
 
 
@@ -57,7 +56,7 @@ def _model_site_info_of(
     if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
         return hit[2], hit[3], hit[4], hit[5]
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             head = f.read(4096)
     except OSError:
         return None, None, None, None
@@ -88,7 +87,6 @@ def _model_site_info_of(
 
 
 class ModelManager:
-
     def add_routes(self, routes):
 
         @routes.get("/model-manager/base-folders")
@@ -109,7 +107,7 @@ class ModelManager:
                 result = utils.resolve_model_base_paths()
                 return web.json_response({"success": True, "data": result})
             except Exception as e:
-                error_msg = f"Read models failed: {str(e)}"
+                error_msg = f"Read models failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -129,7 +127,7 @@ class ModelManager:
                 )
                 return web.json_response({"success": True, "data": results})
             except Exception as e:
-                error_msg = f"Read models failed: {str(e)}"
+                error_msg = f"Read models failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -155,7 +153,7 @@ class ModelManager:
                 result = self.get_model_info(model_path)
                 return web.json_response({"success": True, "data": result})
             except Exception as e:
-                error_msg = f"Read model info failed: {str(e)}"
+                error_msg = f"Read model info failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -179,14 +177,11 @@ class ModelManager:
                     raise web.HTTPNotFound()
             except web.HTTPNotFound:
                 raise
-            except Exception:
-                raise web.HTTPNotFound()
+            except Exception as exc:
+                raise web.HTTPNotFound() from exc
             base = os.path.basename(model_path)
             ascii_name = base.encode("ascii", "replace").decode("ascii")
-            disposition = (
-                f"attachment; filename=\"{ascii_name}\"; "
-                f"filename*=UTF-8''{quote(base, safe='._-')}"
-            )
+            disposition = f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(base, safe='._-')}"
             return web.FileResponse(model_path, headers={"Content-Disposition": disposition})
 
         @routes.get("/model-manager/hygiene")
@@ -253,12 +248,10 @@ class ModelManager:
                 # URL points back at ComfyUI itself). Same treatment as the
                 # other blocking handlers: run in the executor.
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(
-                    utils.io_executor(), self.update_model, model_path, model_data
-                )
+                await loop.run_in_executor(utils.io_executor(), self.update_model, model_path, model_data)
                 return web.json_response({"success": True})
             except Exception as e:
-                error_msg = f"Update model failed: {str(e)}"
+                error_msg = f"Update model failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -281,9 +274,9 @@ class ModelManager:
                     # inside the model-type root (get_full_path guarantees
                     # containment; the type root itself is refused).
                     base = utils.resolve_model_base_paths().get(model_type, [])
-                    if path_index < len(base) and utils.normalize_path(
-                        full_path
-                    ) == utils.normalize_path(base[path_index]):
+                    if path_index < len(base) and utils.normalize_path(full_path) == utils.normalize_path(
+                        base[path_index]
+                    ):
                         raise RuntimeError("The model-type root folder cannot be deleted")
                     self.remove_folder(full_path)
                     return web.json_response({"success": True})
@@ -293,7 +286,7 @@ class ModelManager:
                 self.remove_model(model_path)
                 return web.json_response({"success": True})
             except Exception as e:
-                error_msg = f"Delete model failed: {str(e)}"
+                error_msg = f"Delete model failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -306,19 +299,11 @@ class ModelManager:
             sub_folder = (data.get("subFolder") or "").strip("/")
             name = (data.get("name") or "").strip().strip("/")
             if not model_type or not name:
-                return web.json_response(
-                    {"success": False, "error": "type and name are required"}
-                )
+                return web.json_response({"success": False, "error": "type and name are required"})
             segments = name.split("/")
-            if any(segment in ("", ".", "..") for segment in segments) or any(
-                ch in name for ch in '\\:*?"<>|'
-            ):
-                return web.json_response(
-                    {"success": False, "error": f"Invalid folder name: {name}"}
-                )
-            if segments[-1].endswith(utils.ZNN_FOLDER_SUFFIX) or segments[-1].endswith(
-                utils.DELTA_FOLDER_SUFFIX
-            ):
+            if any(segment in ("", ".", "..") for segment in segments) or any(ch in name for ch in '\\:*?"<>|'):
+                return web.json_response({"success": False, "error": f"Invalid folder name: {name}"})
+            if segments[-1].endswith(utils.ZNN_FOLDER_SUFFIX) or segments[-1].endswith(utils.DELTA_FOLDER_SUFFIX):
                 return web.json_response(
                     {
                         "success": False,
@@ -334,9 +319,7 @@ class ModelManager:
             except Exception as e:
                 return web.json_response({"success": False, "error": str(e)})
             if os.path.exists(target):
-                return web.json_response(
-                    {"success": False, "error": f"Already exists: {name}"}
-                )
+                return web.json_response({"success": False, "error": f"Already exists: {name}"})
             try:
                 os.makedirs(target)
             except Exception as e:
@@ -346,7 +329,7 @@ class ModelManager:
     def scan_models(self, folder: str, include_hidden_files: bool = False):
         result = []
 
-        folders, *others = folder_paths.folder_names_and_paths[folder]
+        folders, *_ = folder_paths.folder_names_and_paths[folder]
 
         def get_file_info(
             entry: os.DirEntry[str],
@@ -387,12 +370,8 @@ class ModelManager:
                         # path (a gallery collapsed into N copies of one URL).
                         # The preview file's own name, joined onto the model's
                         # directory, is the correct relative path.
-                        preview_relative = (
-                            f"{sub_folder}/{preview_name}" if sub_folder else preview_name
-                        )
-                        urls.append(
-                            f"/model-manager/preview/{folder}/{path_index}/{preview_relative}"
-                        )
+                        preview_relative = f"{sub_folder}/{preview_name}" if sub_folder else preview_name
+                        urls.append(f"/model-manager/preview/{folder}/{path_index}/{preview_relative}")
                     # One preview stays a plain string (the historic shape every
                     # consumer compares with ===); a gallery becomes a list so
                     # the carousel / lightbox can page through all of it.
@@ -461,7 +440,7 @@ class ModelManager:
 
         BATCH_SIZE = 200
         MAX_WORKERS = min(4, os.cpu_count() or 1)
-        
+
         for path_index, base_path in enumerate(folders):
             if not os.path.exists(base_path):
                 continue
@@ -469,11 +448,10 @@ class ModelManager:
             file_entries = get_all_files_entry(base_path, dir_names)
 
             for i in range(0, len(file_entries), BATCH_SIZE):
-                batch = file_entries[i:i + BATCH_SIZE]
+                batch = file_entries[i : i + BATCH_SIZE]
                 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
                     futures = [
-                        executor.submit(get_file_info, entry, base_path, path_index, dir_names)
-                        for entry in batch
+                        executor.submit(get_file_info, entry, base_path, path_index, dir_names) for entry in batch
                     ]
                     # Collect in SUBMISSION order (not as_completed): the walk
                     # order is stable, so the listing the client receives does
@@ -512,9 +490,7 @@ class ModelManager:
                         if name.startswith("."):
                             continue
                         ext = os.path.splitext(name)[1]
-                        sidecar = ext in utils.PREVIEW_EXTENSIONS or name.endswith(
-                            (".md", ".txt")
-                        )
+                        sidecar = ext in utils.PREVIEW_EXTENSIONS or name.endswith((".md", ".txt"))
                         if sidecar and name not in candidates and name not in model_files:
                             fullname = f"{rel}/{name}" if rel else name
                             try:
@@ -550,7 +526,7 @@ class ModelManager:
         description_file = utils.join_path(directory, description_file)
         description = None
         if os.path.isfile(description_file):
-            with open(description_file, "r", encoding="utf-8", newline="") as f:
+            with open(description_file, encoding="utf-8", newline="") as f:
                 description = f.read()
 
         return {
@@ -586,9 +562,9 @@ class ModelManager:
             utils.save_model_description(model_path, description)
 
         if "type" in model_data and "pathIndex" in model_data and "fullname" in model_data:
-            model_type = model_data.get("type", None)
-            raw_index = model_data.get("pathIndex", None)
-            fullname = model_data.get("fullname", None)
+            model_type = model_data.get("type")
+            raw_index = model_data.get("pathIndex")
+            fullname = model_data.get("fullname")
             if model_type is None or raw_index is None or fullname is None:
                 raise RuntimeError("Invalid type or pathIndex or fullname")
             path_index = int(raw_index)

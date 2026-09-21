@@ -3,15 +3,14 @@ import time
 import uuid
 
 import folder_paths
-
 from aiohttp import web
 
-from . import download
-from . import utils
+from . import download, utils
+
 
 class LocalUploadCancelled(Exception):
     """Raised when a local upload task is cancelled while streaming."""
-    pass
+
 
 class ModelUploader:
     def add_routes(self, routes):
@@ -25,7 +24,7 @@ class ModelUploader:
                 supported_extensions = list(folder_paths.supported_pt_extensions)
                 return web.json_response({"success": True, "data": supported_extensions})
             except Exception as e:
-                error_msg = f"Get model supported extension failed: {str(e)}"
+                error_msg = f"Get model supported extension failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -46,7 +45,7 @@ class ModelUploader:
                 utils.print_info("Upload model cancelled")
                 return web.json_response({"success": True, "data": None})
             except Exception as e:
-                error_msg = f"Upload model failed: {str(e)}"
+                error_msg = f"Upload model failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -89,10 +88,11 @@ class ModelUploader:
         for model_type, folders in base_paths.items():
             for index, base in enumerate(folders):
                 base_n = utils.normalize_path(base)
-                if norm == base_n or norm.startswith(base_n.rstrip("/") + "/"):
-                    if best is None or len(base_n) > len(best[2]):
-                        relative_dir = norm[len(base_n):].strip("/")
-                        best = (model_type, index, relative_dir)
+                if (norm == base_n or norm.startswith(base_n.rstrip("/") + "/")) and (
+                    best is None or len(base_n) > len(best[2])
+                ):
+                    relative_dir = norm[len(base_n) :].strip("/")
+                    best = (model_type, index, relative_dir)
         return best
 
     def create_local_task(self, file_folder: str, filename: str, total_size: int = 0):
@@ -194,9 +194,7 @@ class ModelUploader:
                     filepath = utils.join_path(file_folder, filename)
                     tmp_filepath = f"{filepath}.tmp"
 
-                    task_id, task_status = self.create_local_task(
-                        file_folder, filename, file_total_size
-                    )
+                    task_id, task_status = self.create_local_task(file_folder, filename, file_total_size)
                     if task_id is not None:
                         await utils.send_json("create_download_task", task_status.to_dict())
 
@@ -212,9 +210,7 @@ class ModelUploader:
                                 task_status.downloadedSize = uploaded_size
                                 if file_total_size > 0:
                                     task_status.totalSize = file_total_size
-                                    task_status.progress = min(
-                                        100.0, uploaded_size / file_total_size * 100
-                                    )
+                                    task_status.progress = min(100.0, uploaded_size / file_total_size * 100)
                                 else:
                                     task_status.totalSize = uploaded_size
 

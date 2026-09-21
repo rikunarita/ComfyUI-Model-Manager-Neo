@@ -1,23 +1,23 @@
-import os
-import json
-import shutil
-import logging
-import requests
-import traceback
 import functools
+import json
+import logging
 import mimetypes
+import os
+import shutil
+import traceback
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 import comfy.utils
 import folder_paths
-
+import requests
 from aiohttp import web
-from typing import Any, Optional
+
 from . import config
 
 # Media file extensions
-VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.m4v', '.ogv']
-IMAGE_EXTENSIONS = ['.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp']
+VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".avi", ".mkv", ".flv", ".wmv", ".m4v", ".ogv"]
+IMAGE_EXTENSIONS = [".webp", ".png", ".jpg", ".jpeg", ".gif", ".bmp"]
 
 # The default preview artwork: models without a preview point straight at
 # this URL (there is no fallback chain any more - see py/information.py).
@@ -33,18 +33,18 @@ NO_PREVIEW_URL = "/model-manager/no-preview.svg"
 NO_PREVIEW_SENTINEL = "no-preview.png"
 
 # Preview extensions in priority order (videos first, then images)
-PREVIEW_EXTENSIONS = ['.webm', '.mp4', '.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp']
+PREVIEW_EXTENSIONS = [".webm", ".mp4", ".webp", ".png", ".jpg", ".jpeg", ".gif", ".bmp"]
 
 # Content type mappings
 VIDEO_CONTENT_TYPE_MAP = {
-    'video/mp4': '.mp4',
-    'video/webm': '.webm',
-    'video/quicktime': '.mov',
-    'video/x-msvideo': '.avi',
-    'video/x-matroska': '.mkv',
-    'video/x-flv': '.flv',
-    'video/x-ms-wmv': '.wmv',
-    'video/ogg': '.ogv',
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "video/quicktime": ".mov",
+    "video/x-msvideo": ".avi",
+    "video/x-matroska": ".mkv",
+    "video/x-flv": ".flv",
+    "video/x-ms-wmv": ".wmv",
+    "video/ogg": ".ogv",
 }
 
 # Own extension -> content-type cache: ComfyUI v0.34.0 removed
@@ -62,9 +62,7 @@ _extension_mimetypes_cache: dict[str, str] = {}
 # small - the point is isolation, not parallelism.
 # ---------------------------------------------------------------------------
 _IO_EXECUTOR = ThreadPoolExecutor(max_workers=8, thread_name_prefix="mm-io")
-_CPU_EXECUTOR = ThreadPoolExecutor(
-    max_workers=max(2, (os.cpu_count() or 2) // 2), thread_name_prefix="mm-cpu"
-)
+_CPU_EXECUTOR = ThreadPoolExecutor(max_workers=max(2, (os.cpu_count() or 2) // 2), thread_name_prefix="mm-cpu")
 
 
 def io_executor() -> ThreadPoolExecutor:
@@ -76,18 +74,23 @@ def cpu_executor() -> ThreadPoolExecutor:
     """Pool for CPU-bound work: WebP encoding, sha256 passes."""
     return _CPU_EXECUTOR
 
+
 def print_info(msg, *args, **kwargs):
     logging.info(f"[{config.extension_tag}] {msg}", *args, **kwargs)
 
+
 def print_warning(msg, *args, **kwargs):
     logging.warning(f"[{config.extension_tag}][WARNING] {msg}", *args, **kwargs)
+
 
 def print_error(msg, *args, **kwargs):
     logging.error(f"[{config.extension_tag}][ERROR] {msg}", *args, **kwargs)
     logging.debug(traceback.format_exc())
 
+
 def print_debug(msg, *args, **kwargs):
     logging.debug(f"[{config.extension_tag}] {msg}", *args, **kwargs)
+
 
 def deprecated(reason: str):
     def decorator(func):
@@ -100,11 +103,13 @@ def deprecated(reason: str):
 
     return decorator
 
+
 def _matches(predicate: dict):
     def _filter(obj: dict):
-        return all(obj.get(key, None) == value for key, value in predicate.items())
+        return all(obj.get(key) == value for key, value in predicate.items())
 
     return _filter
+
 
 def filter_with(list: list, predicate):
     if isinstance(predicate, dict):
@@ -112,28 +117,34 @@ def filter_with(list: list, predicate):
 
     return [item for item in list if predicate(item)]
 
+
 async def get_request_body(request) -> dict:
     try:
         return await request.json()
-    except:
+    except Exception:
         return {}
+
 
 def normalize_path(path: str):
     normpath = os.path.normpath(path)
     return normpath.replace(os.path.sep, "/")
 
+
 def join_path(path: str, *paths: str) -> str:
     return normalize_path(os.path.join(path, *paths))
+
 
 def get_current_version():
     try:
         import tomllib
+
         pyproject_path = join_path(config.extension_uri, "pyproject.toml")
         with open(pyproject_path, "rb") as f:
             data = tomllib.load(f)
         return data.get("project", {}).get("version", "0.0.0")
     except Exception:
         return "0.0.0"
+
 
 def download_web_distribution(version: str):
     """
@@ -153,6 +164,7 @@ def download_web_distribution(version: str):
         return
 
     print_info(f"Web distribution loaded from local repository (version {version}).")
+
 
 # Optimization A-3: the folder table is static for the life of the process,
 # yet nearly every request rebuilt and re-normalised it. The raw structure is
@@ -188,6 +200,7 @@ def resolve_model_base_paths() -> dict[str, list[str]]:
     _base_paths_cache = model_base_paths
     return model_base_paths
 
+
 def resolve_file_content_type(filename: str):
     extension = filename.split(".")[-1].lower()
     if extension not in _extension_mimetypes_cache:
@@ -203,6 +216,7 @@ def resolve_file_content_type(filename: str):
     else:
         content_type = _extension_mimetypes_cache[extension]
     return content_type
+
 
 def get_full_path(model_type: str, path_index: int, filename: str):
     """
@@ -274,6 +288,7 @@ def enforce_znn_folder_rule(full_path: str) -> None:
             f"models (*.znn.* / *.znn) only, cannot place: {filename}"
         )
 
+
 def get_valid_full_path(model_type: str, path_index: int, filename: str):
     """
     Like get_full_path but it will check whether the file is valid.
@@ -281,8 +296,10 @@ def get_valid_full_path(model_type: str, path_index: int, filename: str):
     full_path = get_full_path(model_type, path_index, filename)
     if os.path.isfile(full_path):
         return full_path
-    elif os.path.islink(full_path):
+    if os.path.islink(full_path):
         raise RuntimeError(f"WARNING path {full_path} exists but doesn't link anywhere, skipping.")
+    return None
+
 
 def get_download_path():
     download_path = join_path(config.extension_uri, "downloads")
@@ -290,10 +307,11 @@ def get_download_path():
         os.makedirs(download_path)
     return download_path
 
+
 def search_files(directory: str):
     entries = os.listdir(directory)
-    files = [f for f in entries if os.path.isfile(join_path(directory, f))]
-    return files
+    return [f for f in entries if os.path.isfile(join_path(directory, f))]
+
 
 def file_list_to_name_dict(files: list[str]):
     file_dict: dict[str, str] = {}
@@ -301,6 +319,7 @@ def file_list_to_name_dict(files: list[str]):
         filename = os.path.splitext(file)[0]
         file_dict[filename] = file
     return file_dict
+
 
 def get_model_metadata(filename: str):
     if not filename.endswith(".safetensors"):
@@ -310,11 +329,12 @@ def get_model_metadata(filename: str):
         if out is None:
             return {}
         dt = json.loads(out)
-        if not "__metadata__" in dt:
+        if "__metadata__" not in dt:
             return {}
         return dt["__metadata__"]
-    except:
+    except Exception:
         return {}
+
 
 def get_model_tensors(filename: str):
     """Exact tensor layout of a safetensors file: [{name, dtype, shape}].
@@ -355,7 +375,7 @@ def get_model_tensors(filename: str):
 # The whole scheme is resolved against a *set of directory names*, so a model
 # list walk costs zero extra stat() calls (optimization A-2) and every preview
 # of a model can be enumerated (feature: keep all previews).
-_PREVIEW_SUFFIXES = ("", ".preview") + tuple(f".preview{n}" for n in range(2, 20))
+_PREVIEW_SUFFIXES = ("", ".preview", *(f".preview{n}" for n in range(2, 20)))
 
 
 def preview_candidates(basename: str) -> list[str]:
@@ -369,11 +389,7 @@ def preview_candidates(basename: str) -> list[str]:
     holding a video kept re-sorting the primary away from slot 1 on every
     rescan - a saved primary swap never stuck for exactly those models.
     """
-    return [
-        f"{basename}{suffix}{ext}"
-        for suffix in _PREVIEW_SUFFIXES
-        for ext in PREVIEW_EXTENSIONS
-    ]
+    return [f"{basename}{suffix}{ext}" for suffix in _PREVIEW_SUFFIXES for ext in PREVIEW_EXTENSIONS]
 
 
 def get_dir_names(directory: str) -> set[str]:
@@ -389,6 +405,7 @@ def previews_in_names(names: set[str], basename: str) -> list[str]:
     """The preview file names present in `names`, in display priority order."""
     return [c for c in preview_candidates(basename) if c in names]
 
+
 def _get_preview_path(model_path: str, extension: str, suffix: str = "") -> str:
     """Generate preview file path with given extension and scheme suffix.
 
@@ -398,6 +415,7 @@ def _get_preview_path(model_path: str, extension: str, suffix: str = "") -> str:
     basename = os.path.splitext(model_path)[0]
     return f"{basename}{suffix}{extension}"
 
+
 def get_model_all_previews(model_path: str, names: set[str] | None = None) -> list[str]:
     """Get all preview files for a model (primary first, then extras)."""
     base_dirname = os.path.dirname(model_path)
@@ -406,13 +424,17 @@ def get_model_all_previews(model_path: str, names: set[str] | None = None) -> li
         names = get_dir_names(base_dirname)
     return previews_in_names(names, basename)
 
+
 def get_model_preview_name(model_path: str, names: set[str] | None = None) -> str:
     """Get the first available preview file, or NO_PREVIEW_SENTINEL if none."""
     all_previews = get_model_all_previews(model_path, names)
     return all_previews[0] if all_previews else NO_PREVIEW_SENTINEL
 
-from PIL import Image
+
 from io import BytesIO
+
+from PIL import Image
+
 
 def remove_model_preview(model_path: str):
     """Remove all preview files for a model"""
@@ -424,7 +446,8 @@ def remove_model_preview(model_path: str):
         if os.path.exists(preview_path):
             os.remove(preview_path)
 
-def _sniff_kind(head: bytes) -> Optional[str]:
+
+def _sniff_kind(head: bytes) -> str | None:
     """Magic-byte kind of preview content, when MIME labels cannot be trusted
     (multipart uploads and proxied responses routinely arrive as
     application/octet-stream or with an empty content-type)."""
@@ -441,7 +464,7 @@ def _sniff_kind(head: bytes) -> Optional[str]:
     return None
 
 
-def _resolve_local_preview(url: str) -> Optional[str]:
+def _resolve_local_preview(url: str) -> str | None:
     """Absolute path of one of our own preview URLs (relative by design)."""
     parts = [part for part in url.split("?")[0].split("/") if part]
     # ['model-manager', 'preview', <type>, <index>, <filename...>]
@@ -470,9 +493,9 @@ def _write_preview_content(
     else:
         kind = _sniff_kind(content[:12])
     if kind == "video":
-        ext = _get_video_extension_from_url(source_name) or _get_extension_from_content_type(content_type) or '.mp4'
+        ext = _get_video_extension_from_url(source_name) or _get_extension_from_content_type(content_type) or ".mp4"
         preview_path = _get_preview_path(model_path, ext, suffix)
-        with open(preview_path, 'wb') as f:
+        with open(preview_path, "wb") as f:
             f.write(content)
     elif kind == "image":
         preview_path = _get_preview_path(model_path, ".webp", suffix)
@@ -483,21 +506,16 @@ def _write_preview_content(
             # PIL cannot decode everything labelled image/* (SVG most
             # notably): say what happened instead of leaking the raw
             # "cannot identify image file" traceback at the user.
-            raise RuntimeError(
-                f"Unsupported or corrupt preview image "
-                f"({content_type or 'unknown format'}): {e}"
-            ) from e
+            raise RuntimeError(f"Unsupported or corrupt preview image ({content_type or 'unknown format'}): {e}") from e
     else:
-        raise RuntimeError(
-            f"FileTypeError: expected image or video, got {content_type or 'unknown'}"
-        )
+        raise RuntimeError(f"FileTypeError: expected image or video, got {content_type or 'unknown'}")
 
 
 def save_model_preview(
     model_path: str,
     file_or_url: Any,
-    platform: Optional[str] = None,
-    headers: Optional[dict] = None,
+    platform: str | None = None,
+    headers: dict | None = None,
     suffix: str = "",
 ):
     """Save one preview file for a model. Images -> WebP, videos -> original format"""
@@ -522,7 +540,7 @@ def save_model_preview(
             print_warning(f"Ignoring browser-local preview URL: {url[:48]}...")
             return
 
-        content: Optional[bytes] = None
+        content: bytes | None = None
         content_type = ""
         # Our own preview URLs are relative: read the stored file server-side
         # instead of round-tripping HTTP (the browser fetch that produced the
@@ -541,9 +559,9 @@ def save_model_preview(
             response = requests.get(url, headers=headers or {}, timeout=(15, 120))
             response.raise_for_status()
             content = response.content
-            content_type = response.headers.get('content-type', '')
+            content_type = response.headers.get("content-type", "")
             if not content_type:
-                content_type = resolve_file_content_type(url) or ''
+                content_type = resolve_file_content_type(url) or ""
         _write_preview_content(model_path, content, content_type, url, suffix)
 
     # Handle uploaded file
@@ -554,10 +572,11 @@ def save_model_preview(
             raise RuntimeError("Invalid file")
 
         content_type = file_obj.content_type or ""
-        filename: str = getattr(file_obj, 'filename', '')
+        filename: str = getattr(file_obj, "filename", "")
         file_obj.file.seek(0)
         content = file_obj.file.read()
         _write_preview_content(model_path, content, content_type, filename or content_type, suffix)
+
 
 def replace_model_previews(model_path: str, items: list[Any]) -> int:
     """Rewrite the whole preview set in the supplied order (edit-save path).
@@ -578,7 +597,7 @@ def replace_model_previews(model_path: str, items: list[Any]) -> int:
     for index, item in enumerate(items):
         if item is None or item == "":
             continue
-        content: Optional[bytes] = None
+        content: bytes | None = None
         content_type = ""
         name = ""
         try:
@@ -597,10 +616,7 @@ def replace_model_previews(model_path: str, items: list[Any]) -> int:
                         # Browser-local object URLs cannot be resolved
                         # server-side; the client must upload the bytes as a
                         # multipart file (as the editor now does).
-                        raise RuntimeError(
-                            "browser-local preview url cannot be resolved server-side: "
-                            f"{url[:48]}..."
-                        )
+                        raise RuntimeError(f"browser-local preview url cannot be resolved server-side: {url[:48]}...")
                     if not url.startswith("http"):
                         raise RuntimeError(f"invalid preview url: {url}")
                     response = requests.get(url, timeout=(15, 120))
@@ -619,15 +635,11 @@ def replace_model_previews(model_path: str, items: list[Any]) -> int:
         except Exception as e:
             resolve_failures.append(f"#{index}: {e}")
     if resolve_failures or not staged:
-        raise RuntimeError(
-            "Failed to resolve preview entries: " + "; ".join(resolve_failures or ["no entries"])
-        )
+        raise RuntimeError("Failed to resolve preview entries: " + "; ".join(resolve_failures or ["no entries"]))
     if len(staged) > len(_PREVIEW_SUFFIXES):
         # Writing past the scheme would create files no listing ever shows
         # (and no cleanup ever removes): refuse loudly instead.
-        raise RuntimeError(
-            f"Too many preview entries: {len(staged)} (max {len(_PREVIEW_SUFFIXES)})"
-        )
+        raise RuntimeError(f"Too many preview entries: {len(staged)} (max {len(_PREVIEW_SUFFIXES)})")
     remove_model_preview(model_path)
     failures: list[str] = []
     written = 0
@@ -646,8 +658,8 @@ def replace_model_previews(model_path: str, items: list[Any]) -> int:
 def save_model_previews(
     model_path: str,
     items: list[Any],
-    platform: Optional[str] = None,
-    headers: Optional[dict] = None,
+    platform: str | None = None,
+    headers: dict | None = None,
     strict: bool = False,
 ) -> int:
     """Save every supplied preview, in order, under the naming scheme.
@@ -673,9 +685,7 @@ def save_model_previews(
             # Past the naming scheme: such a file would never be listed (and
             # never cleaned up) again - drop it with a warning instead of
             # writing an invisible preview.
-            print_warning(
-                f"Ignoring preview #{index}: gallery exceeds {len(_PREVIEW_SUFFIXES)} slots"
-            )
+            print_warning(f"Ignoring preview #{index}: gallery exceeds {len(_PREVIEW_SUFFIXES)} slots")
             continue
         suffix = _PREVIEW_SUFFIXES[index]
         try:
@@ -690,18 +700,21 @@ def save_model_previews(
     return written
 
 
-def _get_video_extension_from_url(url: str) -> Optional[str]:
+def _get_video_extension_from_url(url: str) -> str | None:
     """Extract video extension from URL."""
     from urllib.parse import urlparse
+
     path = urlparse(url).path.lower()
     for ext in VIDEO_EXTENSIONS:
         if path.endswith(ext):
             return ext
     return None
 
-def _get_extension_from_content_type(content_type: str) -> Optional[str]:
+
+def _get_extension_from_content_type(content_type: str) -> str | None:
     """Map content-type to file extension."""
     return VIDEO_CONTENT_TYPE_MAP.get(content_type.lower())
+
 
 def get_model_all_descriptions(model_path: str):
     base_dirname = os.path.dirname(model_path)
@@ -716,10 +729,12 @@ def get_model_all_descriptions(model_path: str):
             output.append(file)
     return output
 
+
 def get_model_description_name(model_path: str):
     descriptions = get_model_all_descriptions(model_path)
     basename = os.path.splitext(os.path.basename(model_path))[0]
     return descriptions[0] if len(descriptions) > 0 else f"{basename}.md"
+
 
 def save_model_description(model_path: str, content: Any):
     if not isinstance(content, str):
@@ -734,6 +749,7 @@ def save_model_description(model_path: str, content: Any):
 
     with open(new_desc_path, "w", encoding="utf-8", newline="") as f:
         f.write(content)
+
 
 def rename_model(model_path: str, new_model_path: str):
     if model_path == new_model_path:
@@ -766,7 +782,7 @@ def rename_model(model_path: str, new_model_path: str):
         # overwrote the first, and the `.preview2…` slots were lost entirely).
         # The scheme suffix of each preview ("" / ".preview" / ".preview<N>")
         # is carried over verbatim, keeping the gallery order intact.
-        suffix = preview_stem[len(model_name):] if preview_stem.startswith(model_name) else ""
+        suffix = preview_stem[len(model_name) :] if preview_stem.startswith(model_name) else ""
         if suffix not in _PREVIEW_SUFFIXES:
             suffix = ".preview"
         new_preview_path = join_path(new_model_dirname, f"{new_model_name}{suffix}{preview_ext}")
@@ -779,16 +795,19 @@ def rename_model(model_path: str, new_model_path: str):
         new_description_path = join_path(new_model_dirname, f"{new_model_name}.md")
         shutil.move(description_path, new_description_path)
 
+
 import pickle
+
 
 def save_dict_pickle_file(filename: str, data: Any) -> None:
     with open(filename, "wb") as f:
         pickle.dump(data, f)
 
+
 def load_dict_pickle_file(filename: str) -> dict:
     with open(filename, "rb") as f:
-        data = pickle.load(f)
-    return data
+        return pickle.load(f)
+
 
 def resolve_setting_key(key: str) -> str:
     key_paths = key.split(".")
@@ -796,12 +815,13 @@ def resolve_setting_key(key: str) -> str:
     try:
         for key_path in key_paths:
             setting_id = setting_id[key_path]
-    except:
+    except Exception:
         pass
     if not isinstance(setting_id, str):
         raise RuntimeError(f"Invalid key: {key}")
 
     return setting_id
+
 
 def set_setting_value(request: web.Request, key: str, value: Any):
     try:
@@ -812,6 +832,7 @@ def set_setting_value(request: web.Request, key: str, value: Any):
     except Exception as e:
         print_debug(f"Failed to save setting {key}: {e}")
 
+
 def get_setting_value(request: web.Request, key: str, default: Any = None) -> Any:
     try:
         setting_id = resolve_setting_key(key)
@@ -821,13 +842,16 @@ def get_setting_value(request: web.Request, key: str, default: Any = None) -> An
         print_debug(f"Failed to load setting {key}: {e}")
         return default
 
+
 async def send_json(event: str, data: Any, sid: str | None = None):
     await config.serverInstance.send_json(event, data, sid)
 
-import sys
-import subprocess
-import importlib.util
+
 import importlib.metadata
+import importlib.util
+import subprocess
+import sys
+
 
 def _requirement_name(requirement: str) -> str:
     """
@@ -908,6 +932,7 @@ def is_installed(package_name: str):
     # must count as missing so pip_install() corrects it on startup instead
     # of the pin being nominal.
     return requirement_satisfied(package_name)
+
 
 def pip_install(package_name: str):
     subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)

@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import functools
 import hashlib
 import os
 import pathlib
@@ -8,47 +7,45 @@ import shutil
 import threading
 import time
 import uuid
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine, Literal, Optional, Union
+from typing import Any, ClassVar, Literal
 from urllib.parse import urlparse
 
 import aiohttp
 import folder_paths
-import requests
 from aiohttp import web
 
-from . import auth
-from . import config
-from . import thread
-from . import utils
+from . import auth, config, thread, utils
+
 
 @dataclass
 class TaskStatus:
     taskId: str
     type: str
     fullname: str
-    preview: Optional[str]
+    preview: str | None
     status: Literal["pause", "waiting", "doing"] = "pause"
-    platform: Union[str, None] = None
+    platform: str | None = None
     downloadedSize: float = 0
     totalSize: float = 0
     progress: float = 0
     bps: float = 0
-    error: Optional[str] = None
+    error: str | None = None
     source: str = "remote"
 
     def __init__(self, **kwargs: Any):
         self.taskId = kwargs.get("taskId") or ""
         self.type = kwargs.get("type") or ""
         self.fullname = kwargs.get("fullname") or ""
-        self.preview = kwargs.get("preview", None)
+        self.preview = kwargs.get("preview")
         self.status = kwargs.get("status", "pause")
-        self.platform = kwargs.get("platform", None)
+        self.platform = kwargs.get("platform")
         self.downloadedSize = kwargs.get("downloadedSize", 0)
         self.totalSize = kwargs.get("totalSize", 0)
         self.progress = kwargs.get("progress", 0)
         self.bps = kwargs.get("bps", 0)
-        self.error = kwargs.get("error", None)
+        self.error = kwargs.get("error")
         self.source = kwargs.get("source", "remote")
 
     def to_dict(self):
@@ -67,6 +64,7 @@ class TaskStatus:
             "source": self.source,
         }
 
+
 @dataclass
 class TaskContent:
     type: str
@@ -74,14 +72,14 @@ class TaskContent:
     fullname: str
     description: str
     downloadPlatform: str
-    downloadUrl: Optional[str]
+    downloadUrl: str | None
     sizeBytes: float
-    hashes: Optional[dict[str, str]] = None
-    revision: Optional[str] = None
+    hashes: dict[str, str] | None = None
+    revision: str | None = None
     source: str = "remote"
-    subFolder: Optional[str] = None
-    msRepoId: Optional[str] = None
-    msFilePath: Optional[str] = None
+    subFolder: str | None = None
+    msRepoId: str | None = None
+    msFilePath: str | None = None
 
     def __init__(self, **kwargs: Any):
         self.type = kwargs.get("type") or ""
@@ -89,14 +87,14 @@ class TaskContent:
         self.fullname = kwargs.get("fullname") or ""
         self.description = kwargs.get("description") or ""
         self.downloadPlatform = kwargs.get("downloadPlatform") or ""
-        self.downloadUrl = kwargs.get("downloadUrl", None)
+        self.downloadUrl = kwargs.get("downloadUrl")
         self.sizeBytes = float(kwargs.get("sizeBytes", 0))
-        self.hashes = kwargs.get("hashes", None)
-        self.revision = kwargs.get("revision", None)
+        self.hashes = kwargs.get("hashes")
+        self.revision = kwargs.get("revision")
         self.source = kwargs.get("source", "remote")
-        self.subFolder = kwargs.get("subFolder", None)
-        self.msRepoId = kwargs.get("msRepoId", None)
-        self.msFilePath = kwargs.get("msFilePath", None)
+        self.subFolder = kwargs.get("subFolder")
+        self.msRepoId = kwargs.get("msRepoId")
+        self.msFilePath = kwargs.get("msFilePath")
         # The client submits multipart FormData, so nested objects arrive as
         # JSON *strings*; normalise `hashes` back to a dict once, here, so
         # every consumer (ModelScope sha verification, ...) can rely on it.
@@ -126,6 +124,7 @@ class TaskContent:
             "msRepoId": self.msRepoId,
             "msFilePath": self.msFilePath,
         }
+
 
 def _sha256_of(path: str) -> str | None:
     """Lower-case hex SHA256 of a file (None when it vanished)."""
@@ -186,7 +185,7 @@ class ModelDownload:
 
                 return web.json_response({"success": True})
             except Exception as e:
-                error_msg = f"Resume download task failed: {str(e)}"
+                error_msg = f"Resume download task failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -197,7 +196,7 @@ class ModelDownload:
                 await self.delete_model_download_task(task_id)
                 return web.json_response({"success": True})
             except Exception as e:
-                error_msg = f"Delete download task failed: {str(e)}"
+                error_msg = f"Delete download task failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -209,15 +208,17 @@ class ModelDownload:
                 task_id = await self.create_model_download_task(task_data, request)
                 return web.json_response({"success": True, "data": {"taskId": task_id}})
             except Exception as e:
-                error_msg = f"Create model download task failed: {str(e)}"
+                error_msg = f"Create model download task failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
-    download_model_task_status: dict[str, TaskStatus] = {}
+    # Deliberately class-level: py/upload.py registers local upload tasks
+    # into the SAME status table and thread pool through the singleton.
+    download_model_task_status: ClassVar[dict[str, TaskStatus]] = {}
 
-    download_thread_pool = thread.DownloadThreadPool()
+    download_thread_pool: ClassVar[thread.DownloadThreadPool] = thread.DownloadThreadPool()
 
-    def set_task_content(self, task_id: str, task_content: Union[TaskContent, dict]):
+    def set_task_content(self, task_id: str, task_content: TaskContent | dict):
         download_path = utils.get_download_path()
         task_file_path = utils.join_path(download_path, f"{task_id}.task")
         utils.save_dict_pickle_file(task_file_path, task_content)
@@ -281,7 +282,7 @@ class ModelDownload:
         return task_list
 
     async def create_model_download_task(self, task_data: dict, request):
-        model_type = task_data.get("type", None)
+        model_type = task_data.get("type")
         # `int(None)` raised TypeError instead of the intended validation
         # error when a client omitted pathIndex. Defaulting to 0 would silently
         # file such a download into the wrong folder, so reject it explicitly.
@@ -289,8 +290,8 @@ class ModelDownload:
         if raw_index is None:
             raise RuntimeError("pathIndex is required")
         path_index = int(raw_index)
-        fullname = task_data.get("fullname", None)
-        sub_folder = task_data.get("subFolder", None)
+        fullname = task_data.get("fullname")
+        sub_folder = task_data.get("subFolder")
         if model_type is None or fullname is None:
             raise RuntimeError("type and fullname are required")
 
@@ -325,7 +326,7 @@ class ModelDownload:
             if needed > free:
                 raise RuntimeError(
                     f"Not enough free disk space: the file needs "
-                    f"{needed / 2 ** 30:.2f} GiB but only {free / 2 ** 30:.2f} GiB "
+                    f"{needed / 2**30:.2f} GiB but only {free / 2**30:.2f} GiB "
                     f"are free on the target volume"
                 )
         # ZipNN bundle folders (*_ZNN) must never receive a non-compressed
@@ -338,20 +339,17 @@ class ModelDownload:
         task_path = utils.join_path(download_path, f"{task_id}.task")
         if os.path.exists(task_path):
             raise RuntimeError(f"Task {task_id} already exists")
-        download_platform = task_data.get("downloadPlatform", None)
+        download_platform = task_data.get("downloadPlatform")
 
         try:
             # The gallery arrives as previewFile / previewFile2 / ... in order.
             preview_items = []
             for key in list(task_data):
-                if key == "previewFile" or (
-                    key.startswith("previewFile") and key[len("previewFile"):].isdigit()
-                ):
-                    preview_items.append((0 if key == "previewFile" else int(key[len("previewFile"):]), task_data.pop(key)))
+                if key == "previewFile" or (key.startswith("previewFile") and key[len("previewFile") :].isdigit()):
+                    order = 0 if key == "previewFile" else int(key[len("previewFile") :])
+                    preview_items.append((order, task_data.pop(key)))
             preview_items = [v for _, v in sorted(preview_items)]
-            preview_items = [
-                v for v in preview_items if not (type(v) is str and v in ("", "undefined"))
-            ]
+            preview_items = [v for v in preview_items if not (type(v) is str and v in ("", "undefined"))]
             if preview_items:
                 utils.save_model_previews(task_path, preview_items, download_platform)
             self.set_task_content(task_id, task_data)
@@ -424,7 +422,7 @@ class ModelDownload:
 
             try:
                 task_status = self.get_task_status(task_id)
-            except:
+            except Exception:
                 return
 
             task_status.status = "doing"
@@ -515,9 +513,7 @@ class ModelDownload:
         expected_sha = (task_content.hashes or {}).get("SHA256")
         if task_content.downloadPlatform == "civitai" and expected_sha:
             loop = asyncio.get_running_loop()
-            actual_sha = await loop.run_in_executor(
-                utils.cpu_executor(), _sha256_of, download_tmp_file
-            )
+            actual_sha = await loop.run_in_executor(utils.cpu_executor(), _sha256_of, download_tmp_file)
             if actual_sha and actual_sha.casefold() != str(expected_sha).casefold():
                 if os.path.isfile(download_tmp_file):
                     os.remove(download_tmp_file)
@@ -602,9 +598,7 @@ class ModelDownload:
             # failing the task outright.
             attempts = 2 if downloaded_size > 0 else 1
             for attempt in range(attempts):
-                async with session.get(
-                    model_url, headers=headers, allow_redirects=True
-                ) as response:
+                async with session.get(model_url, headers=headers, allow_redirects=True) as response:
                     if response.status == 416 and attempt + 1 < attempts:
                         utils.print_warning(
                             f"Resume range rejected (416) for {task_content.fullname}; "
@@ -612,9 +606,7 @@ class ModelDownload:
                         )
                         downloaded_size = 0
                         last_downloaded_size = 0
-                        headers = {
-                            k: v for k, v in headers.items() if k.lower() != "range"
-                        }
+                        headers = {k: v for k, v in headers.items() if k.lower() != "range"}
                         try:
                             os.remove(download_tmp_file)
                         except OSError:
@@ -622,10 +614,7 @@ class ModelDownload:
                         continue
 
                     if response.status not in (200, 206):
-                        if (
-                            response.status == 401
-                            and task_content.downloadPlatform == "civitai"
-                        ):
+                        if response.status == 401 and task_content.downloadPlatform == "civitai":
                             # Scope-aware guidance: gated Civitai files answer 401
                             # without a token - say exactly where to get one and
                             # how to retry instead of a bare status code.
@@ -781,10 +770,10 @@ class ModelDownload:
     ):
         try:
             from huggingface_hub import hf_hub_download
-        except ImportError:
+        except ImportError as exc:
             raise RuntimeError(
                 "huggingface_hub is not installed. Please install it with: pip install huggingface_hub hf_xet"
-            )
+            ) from exc
 
         try:
             from tqdm.auto import tqdm as base_tqdm
@@ -807,9 +796,7 @@ class ModelDownload:
 
         if len(path_parts) < 3:
             utils.print_warning(f"HF URL format unexpected, falling back to HTTP: {model_url}")
-            await self.download_model_file_http(
-                task_id, fallback_headers, progress_callback, interval
-            )
+            await self.download_model_file_http(task_id, fallback_headers, progress_callback, interval)
             return
 
         space = path_parts[0]
@@ -824,15 +811,13 @@ class ModelDownload:
             if resolve_idx + 1 < len(path_parts):
                 revision = path_parts[resolve_idx + 1]
                 if resolve_idx + 2 < len(path_parts):
-                    filename = "/".join(path_parts[resolve_idx + 2:])
+                    filename = "/".join(path_parts[resolve_idx + 2 :])
         except (ValueError, IndexError):
             if len(path_parts) > 2:
                 filename = "/".join(path_parts[2:])
             if not filename:
                 utils.print_warning(f"Could not parse HF filename, falling back to HTTP: {model_url}")
-                await self.download_model_file_http(
-                    task_id, fallback_headers, progress_callback, interval
-                )
+                await self.download_model_file_http(task_id, fallback_headers, progress_callback, interval)
                 return
 
         download_path = utils.get_download_path()
@@ -914,9 +899,7 @@ class ModelDownload:
                     if size > 0:
                         report(size, expected_total, bps)
 
-            poller = threading.Thread(
-                target=_poll, daemon=True, name=f"mm-hf-progress-{task_id[:8]}"
-            )
+            poller = threading.Thread(target=_poll, daemon=True, name=f"mm-hf-progress-{task_id[:8]}")
             poller.start()
             try:
                 result_path = hf_hub_download(
@@ -1001,7 +984,9 @@ class ModelDownload:
 
         await self._hub_transfer(task_id, progress_callback, interval, fetch)
 
+
 _model_download_instance = None
+
 
 def get_model_download():
     """Get the global ModelDownload singleton instance."""

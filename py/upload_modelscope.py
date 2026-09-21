@@ -2,12 +2,11 @@ import asyncio
 
 from aiohttp import web
 
-from . import auth
-from . import utils
+from . import auth, utils
 from .information import MODELSCOPE_INTL_ENDPOINT
 from .upload_hf import (
-    HubUploadBackend,
     PHASE_UPLOAD,
+    HubUploadBackend,
     _ProgressFile,
     _start_hub_upload,
     parse_upload_payload,
@@ -117,7 +116,7 @@ class MsUploader:
                     }
                 )
             except Exception as e:
-                error_msg = f"ModelScope whoami failed: {str(e)}"
+                error_msg = f"ModelScope whoami failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -129,17 +128,13 @@ class MsUploader:
                 task_id = await self.start_upload(json_data)
                 return web.json_response({"success": True, "data": {"taskId": task_id}})
             except Exception as e:
-                error_msg = f"ModelScope upload failed: {str(e)}"
+                error_msg = f"ModelScope upload failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
     async def start_upload(self, data: dict) -> str:
         token = auth.get_modelscope_token()
         if not token:
-            raise RuntimeError(
-                "ModelScope token not set. Please set it in Settings > API Key."
-            )
+            raise RuntimeError("ModelScope token not set. Please set it in Settings > API Key.")
         files, repo_id, path_in_repo, private = parse_upload_payload(data)
-        return await _start_hub_upload(
-            data, token, files, repo_id, path_in_repo, private, MsBackend(token, repo_id)
-        )
+        return await _start_hub_upload(data, token, files, repo_id, path_in_repo, private, MsBackend(token, repo_id))

@@ -1,9 +1,10 @@
 import json
 import os
 import pickle
+from typing import ClassVar
 
-from . import config
-from . import utils
+from . import config, utils
+
 
 class ApiKey:
     """
@@ -16,11 +17,15 @@ class ApiKey:
     3. None
     Existing settings are never overwritten by lower-priority sources.
     """
-    _store: dict[str, str] = {}
+
+    _store: dict[str, str]
     _cache_file: str = ""
 
     def __init__(self):
         self._cache_file = os.path.join(config.extension_uri, "private.key")
+        # Fresh per-instance store: a mutable CLASS-level default would be
+        # shared (and mutated) across instances before init() reassigns it.
+        self._store = {}
 
     def init(self, request):
         """
@@ -60,7 +65,7 @@ class ApiKey:
         return result
 
     # Environment variables that can seed the store, per provider.
-    ENV_KEYS = {
+    ENV_KEYS: ClassVar[dict[str, str]] = {
         "civitai": "CIVITAI_API_KEY",
         "huggingface": "HF_TOKEN",
         "modelscope": "MODELSCOPE_API_TOKEN",
@@ -91,10 +96,7 @@ class ApiKey:
                 seeded.append(key)
         if seeded:
             self._update()
-            utils.print_info(
-                "Seeded API key(s) from environment into private.key: "
-                + ", ".join(seeded)
-            )
+            utils.print_info("Seeded API key(s) from environment into private.key: " + ", ".join(seeded))
         return seeded
 
     def get_value(self, key: str):
@@ -179,8 +181,10 @@ class ApiKey:
         except OSError:
             pass
 
+
 # Singleton instance
 _api_key_instance = None
+
 
 def get_api_key():
     """Get the global ApiKey singleton instance."""
@@ -189,13 +193,16 @@ def get_api_key():
         _api_key_instance = ApiKey()
     return _api_key_instance
 
+
 def get_hf_token():
     """Get Hugging Face API token."""
     return get_api_key().get_value("huggingface")
 
+
 def get_civitai_token():
     """Get Civitai API token."""
     return get_api_key().get_value("civitai")
+
 
 def get_hf_headers():
     """
@@ -207,6 +214,7 @@ def get_hf_headers():
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
+
 
 def get_modelscope_token():
     """Get ModelScope API token."""

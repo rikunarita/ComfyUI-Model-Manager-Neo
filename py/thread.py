@@ -1,5 +1,7 @@
 import asyncio
+
 from . import utils
+
 
 class DownloadThreadPool:
     """
@@ -7,6 +9,7 @@ class DownloadThreadPool:
     Runs tasks on the main event loop to ensure WebSocket notifications
     (send_json) work correctly without thread-safety issues or deadlocks.
     """
+
     def __init__(self):
         # Optimization A-9: bookkeeping used to be split across a `set` of
         # "running" ids and a dict of tasks, which could disagree (an id still

@@ -1,24 +1,21 @@
 import asyncio
 import hashlib
+import math
 import os
 import re
-import math
-import yaml
-import requests
-import markdownify
+from abc import ABC, abstractmethod
+from io import BytesIO
+from typing import Any, ClassVar
+from urllib.parse import parse_qs, urlparse
 
 import folder_paths
-
+import markdownify
+import requests
+import yaml
 from aiohttp import web
-from abc import ABC, abstractmethod
-from typing import Any
-from urllib.parse import urlparse, parse_qs
 from PIL import Image
-from io import BytesIO
 
-from . import utils
-from . import config
-from . import auth
+from . import auth, config, utils
 
 # ---------------------------------------------------------------------------
 # Browser-cacheable SVG artwork (optimization B-2).
@@ -56,7 +53,8 @@ def _svg_payload(name: str) -> tuple[str, bytes]:
     hit = _SVG_CACHE.get(name)
     if hit is not None and hit[0] == mtime:
         return hit[1], hit[2]
-    body = open(path, "rb").read()
+    with open(path, "rb") as f:
+        body = f.read()
     etag = f'"svg-{hashlib.sha256(body).hexdigest()[:16]}"'
     _SVG_CACHE[name] = (mtime, etag, body)
     return etag, body
@@ -111,10 +109,7 @@ class ModelSearcher(ABC):
 
 class UnknownWebsiteSearcher(ModelSearcher):
     def search_by_url(self, url: str):
-        raise RuntimeError(
-            "Unknown Website, please input a URL from huggingface.co, civitai.com "
-            "or modelscope.ai."
-        )
+        raise RuntimeError("Unknown Website, please input a URL from huggingface.co, civitai.com or modelscope.ai.")
 
 
 class CivitaiModelSearcher(ModelSearcher):
@@ -125,11 +120,7 @@ class CivitaiModelSearcher(ModelSearcher):
         # and echoed into the stored model page, otherwise looking up a
         # mirror URL hit the canonical API and silently re-pointed the model
         # at civitai.com.
-        host = (
-            parsed_url.hostname
-            if parsed_url.hostname in CIVITAI_HOSTS
-            else CIVITAI_HOSTS[0]
-        )
+        host = parsed_url.hostname if parsed_url.hostname in CIVITAI_HOSTS else CIVITAI_HOSTS[0]
 
         pathname = parsed_url.path
         match = re.match(r"^/models/(\d*)", pathname)
@@ -144,9 +135,7 @@ class CivitaiModelSearcher(ModelSearcher):
         headers = auth.get_civitai_headers()
         # Timeouts everywhere: a hung API must not pin an io-executor worker
         # (and the dialog spinner) forever. (connect, read-between-bytes).
-        response = requests.get(
-            f"https://{host}/api/v1/models/{model_id}", headers=headers, timeout=(10, 60)
-        )
+        response = requests.get(f"https://{host}/api/v1/models/{model_id}", headers=headers, timeout=(10, 60))
         response.raise_for_status()
         res_data: dict = response.json()
 
@@ -235,7 +224,7 @@ class CivitaiModelSearcher(ModelSearcher):
     # only used when ComfyUI actually has a matching model folder, so Civitai
     # categories with no local counterpart ("Wildcards", "Poses", ...) degrade
     # to "" exactly as before instead of producing an unusable type.
-    CIVITAI_TYPE_MAP = {
+    CIVITAI_TYPE_MAP: ClassVar[dict[str, str]] = {
         "TextualInversion": "embeddings",
         "LoCon": "loras",
         "DoRA": "loras",
@@ -278,9 +267,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
         headers = auth.get_hf_headers()
 
         # Fetch model info from HF API
-        response = requests.get(
-            f"https://huggingface.co/api/models/{model_id}", headers=headers, timeout=(10, 60)
-        )
+        response = requests.get(f"https://huggingface.co/api/models/{model_id}", headers=headers, timeout=(10, 60))
         response.raise_for_status()
         res_data: dict = response.json()
 
@@ -298,9 +285,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
         except Exception as e:
             utils.print_warning(f"Failed to fetch file tree for size info: {e}")
 
-        sibling_files: list[str] = [
-            x.get("rfilename") or "" for x in res_data.get("siblings", [])
-        ]
+        sibling_files: list[str] = [x.get("rfilename") or "" for x in res_data.get("siblings", [])]
 
         model_files = utils.filter_with(
             utils.filter_with(sibling_files, self._match_model_files()),
@@ -324,7 +309,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             metadata_info = {
                 "website": "Hugging Face",
                 "modelPage": f"https://huggingface.co/{model_id}",
-                "author": res_data.get("author", None),
+                "author": res_data.get("author"),
                 "preview": image_files,
             }
 
@@ -529,12 +514,10 @@ class Information:
                 # same defect already fixed for hashing, the Civitai hash
                 # lookup, the preview download and the model-library walks.
                 loop = asyncio.get_running_loop()
-                result = await loop.run_in_executor(
-                    utils.io_executor(), self.fetch_model_info, model_page
-                )
+                result = await loop.run_in_executor(utils.io_executor(), self.fetch_model_info, model_page)
                 return web.json_response({"success": True, "data": result})
             except Exception as e:
-                error_msg = f"Fetch model info failed: {str(e)}"
+                error_msg = f"Fetch model info failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -594,8 +577,8 @@ class Information:
                     raise web.HTTPNotFound()
             except web.HTTPNotFound:
                 raise
-            except Exception:
-                raise web.HTTPNotFound()
+            except Exception as exc:
+                raise web.HTTPNotFound() from exc
 
             if not os.path.isfile(abs_path):
                 raise web.HTTPNotFound()
@@ -612,19 +595,16 @@ class Information:
             if content_type == "video":
                 # Serve video files directly
                 return web.FileResponse(abs_path, headers=cache_headers)
-            else:
-                # Serve image files (WebP or fallback images). The encode is
-                # CPU-bound, so it lives on the cpu pool (optimization A-4)
-                # and is memoised (optimization A-1).
-                loop = asyncio.get_running_loop()
-                encoded = await loop.run_in_executor(
-                    utils.cpu_executor(), self.get_image_preview_data, abs_path
-                )
-                return web.Response(
-                    body=encoded.getvalue(),
-                    content_type="image/webp",
-                    headers=cache_headers,
-                )
+            # Serve image files (WebP or fallback images). The encode is
+            # CPU-bound, so it lives on the cpu pool (optimization A-4)
+            # and is memoised (optimization A-1).
+            loop = asyncio.get_running_loop()
+            encoded = await loop.run_in_executor(utils.cpu_executor(), self.get_image_preview_data, abs_path)
+            return web.Response(
+                body=encoded.getvalue(),
+                content_type="image/webp",
+                headers=cache_headers,
+            )
 
         @routes.get("/model-manager/preview/download/{filename}")
         async def read_download_preview(request):
@@ -718,18 +698,15 @@ class Information:
             return []
 
         model_searcher = self.get_model_searcher_by_url(model_page)
-        result = model_searcher.search_by_url(model_page)
-        return result
+        return model_searcher.search_by_url(model_page)
 
     def get_model_searcher_by_url(self, url: str) -> ModelSearcher:
         parsed_url = urlparse(url)
         host_name = parsed_url.hostname
         if host_name in CIVITAI_HOSTS:
             return CivitaiModelSearcher()
-        elif host_name == "huggingface.co":
+        if host_name == "huggingface.co":
             return HuggingfaceModelSearcher()
-        elif host_name in ("modelscope.ai", "modelscope.cn") or (
-            host_name or ""
-        ).endswith(".modelscope.ai"):
+        if host_name in ("modelscope.ai", "modelscope.cn") or (host_name or "").endswith(".modelscope.ai"):
             return ModelScopeModelSearcher()
         return UnknownWebsiteSearcher()

@@ -4,13 +4,12 @@ import io
 import os
 import time
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from aiohttp import web
 
-from . import auth
-from . import download
-from . import utils
+from . import auth, download, utils
 
 # In-flight hub uploads (Hugging Face AND ModelScope), keyed by task id.
 #
@@ -66,7 +65,8 @@ class _ProgressFile(io.BufferedIOBase):
 
     def __init__(self, path: str, on_progress) -> None:
         super().__init__()
-        self._file = open(path, "rb")
+        # The handle is owned by this wrapper and released in close().
+        self._file = open(path, "rb")  # noqa: SIM115
         self._size = os.path.getsize(path)
         self._on_progress = on_progress
         self._saw_eof = False
@@ -162,7 +162,7 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
         if include_assets:
             names += utils.get_model_all_previews(local)
         if include_assets or rename_notes:
-            names += [n for n in utils.get_model_all_descriptions(local)]
+            names += list(utils.get_model_all_descriptions(local))
         readme_done = False
         for name in names:
             asset_local = utils.join_path(local_dir, name)
@@ -184,7 +184,7 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
         try:
             parsed = _json.loads(raw_files) if isinstance(raw_files, str) else raw_files
         except Exception as e:
-            raise RuntimeError(f"Invalid files payload: {e}")
+            raise RuntimeError(f"Invalid files payload: {e}") from e
         if not isinstance(parsed, list) or not parsed:
             raise RuntimeError("files must be a non-empty list")
         base = path_in_repo.rstrip("/")
@@ -201,9 +201,9 @@ def parse_upload_payload(data: dict) -> tuple[list[dict], str, str, bool]:
             if include_assets or rename_notes:
                 append_related_assets(local, f"{base}/{fname}")
     else:
-        model_type = data.get("type", None)
+        model_type = data.get("type")
         path_index = int(data.get("pathIndex", 0))
-        fullname = data.get("fullname", None)
+        fullname = data.get("fullname")
         if model_type is None or fullname is None:
             raise RuntimeError("type and fullname are required")
         local_path = utils.get_valid_full_path(model_type, path_index, fullname)
@@ -237,7 +237,7 @@ class HubUploadBackend:
 
     def preflight(self, api, repo_id: str, in_repo: str, file_size: int, hash_fn):
         """Optional duplicate check before paying for a transfer; None = go."""
-        return None
+        return
 
     def upload_one(self, api, payload: "_ProgressFile", in_repo: str):
         """Upload the payload; returns (transferred_bytes|None, oid_skipped)."""
@@ -315,8 +315,12 @@ async def run_hub_upload(
         in_repo = item["path_in_repo"]
         file_size = os.path.getsize(local_path)
 
-        def hash_local_file() -> str:
-            """sha256 of the local file, with the hashing pass reported."""
+        def hash_local_file(local_path: str = local_path, file_size: int = file_size) -> str:
+            """sha256 of the local file, with the hashing pass reported.
+
+            Loop variables are bound as defaults: the executor may run this
+            closure after the `for item in files` loop moved on (B023).
+            """
             digest = hashlib.sha256()
             read_bytes = 0
             with open(local_path, "rb") as handle:
@@ -326,10 +330,14 @@ async def run_hub_upload(
                     report_progress(read_bytes, file_size, PHASE_HASH)
             return digest.hexdigest()
 
-        preflight = await loop.run_in_executor(
-            utils.io_executor(),
-            lambda: backend.preflight(ensure(), repo_id, in_repo, file_size, hash_local_file),
-        )
+        def _preflight(
+            in_repo: str = in_repo,
+            file_size: int = file_size,
+            hash_fn: Callable[[], str] = hash_local_file,
+        ):
+            return backend.preflight(ensure(), repo_id, in_repo, file_size, hash_fn)
+
+        preflight = await loop.run_in_executor(utils.io_executor(), _preflight)
         if preflight and preflight.get("status") == "duplicate":
             dup_count += 1
             first_url = first_url or preflight.get("url") or backend.file_url(repo_id, in_repo)
@@ -355,15 +363,13 @@ async def run_hub_upload(
         if not backend.streams_upload_progress:
             await loop.run_in_executor(utils.io_executor(), hash_local_file)
 
-        def _transfer():
+        def _transfer(local_path: str = local_path, in_repo: str = in_repo):
             api = ensure()
             with _ProgressFile(local_path, report_progress) as payload:
                 return backend.upload_one(api, payload, in_repo)
 
         try:
-            transferred, oid_skipped = await loop.run_in_executor(
-                utils.io_executor(), _transfer
-            )
+            transferred, oid_skipped = await loop.run_in_executor(utils.io_executor(), _transfer)
         except Exception as e:
             _set_task_field(task_id, status="error")
             await utils.send_json(
@@ -498,9 +504,7 @@ class HfBackend(HubUploadBackend):
             # storage". Retry once from the plain file path (xet route).
             if "NoneType" not in str(exc) or "has no attribute" not in str(exc):
                 raise
-            utils.print_warning(
-                "LFS batch answered with a null action set; retrying through the file path."
-            )
+            utils.print_warning("LFS batch answered with a null action set; retrying through the file path.")
             result = api.upload_file(
                 path_or_fileobj=payload._file.name,
                 path_in_repo=in_repo,
@@ -510,9 +514,7 @@ class HfBackend(HubUploadBackend):
             )
             return None, False
         result_oid = getattr(result, "oid", None)
-        oid_skipped = (
-            head_sha is not None and result_oid is not None and str(result_oid) == str(head_sha)
-        )
+        oid_skipped = head_sha is not None and result_oid is not None and str(result_oid) == str(head_sha)
         return payload.transferred_bytes, oid_skipped
 
     def file_url(self, repo_id: str, in_repo: str) -> str:
@@ -545,9 +547,7 @@ class HfUploader:
                 from huggingface_hub import HfApi
 
                 loop = asyncio.get_running_loop()
-                info = await loop.run_in_executor(
-                    utils.io_executor(), lambda: HfApi(token=token).whoami()
-                )
+                info = await loop.run_in_executor(utils.io_executor(), lambda: HfApi(token=token).whoami())
                 return web.json_response(
                     {
                         "success": True,
@@ -558,7 +558,7 @@ class HfUploader:
                     }
                 )
             except Exception as e:
-                error_msg = f"Hugging Face whoami failed: {str(e)}"
+                error_msg = f"Hugging Face whoami failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
@@ -570,20 +570,16 @@ class HfUploader:
                 task_id = await self.start_upload(json_data)
                 return web.json_response({"success": True, "data": {"taskId": task_id}})
             except Exception as e:
-                error_msg = f"Hugging Face upload failed: {str(e)}"
+                error_msg = f"Hugging Face upload failed: {e!s}"
                 utils.print_error(error_msg)
                 return web.json_response({"success": False, "error": error_msg})
 
     async def start_upload(self, data: dict) -> str:
         token = auth.get_hf_token()
         if not token:
-            raise RuntimeError(
-                "Hugging Face token not set. Please set it in Settings > API Key."
-            )
+            raise RuntimeError("Hugging Face token not set. Please set it in Settings > API Key.")
         files, repo_id, path_in_repo, private = parse_upload_payload(data)
-        return await _start_hub_upload(
-            data, token, files, repo_id, path_in_repo, private, HfBackend(token, repo_id)
-        )
+        return await _start_hub_upload(data, token, files, repo_id, path_in_repo, private, HfBackend(token, repo_id))
 
 
 async def _start_hub_upload(
