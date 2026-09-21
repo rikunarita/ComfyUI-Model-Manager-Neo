@@ -409,9 +409,14 @@ watch(modelUrl, value => {
   clearTimeout(searchTimer)
   if (!value || value.startsWith('https://')) {
     // Invalidate any in-flight name search: its results must not resurface
-    // after the field flipped to URL mode.
+    // after the field flipped to URL mode. The invalidated run's `finally`
+    // skips its state writes, so clear the spinner / result-query here -
+    // a stale `searchLoading` would otherwise flash "Searching..." the moment
+    // the field returns to name mode, before the debounced search starts.
     searchSeq += 1
     searchResults.value = null
+    searchLoading.value = false
+    searchedQuery.value = null
     return
   }
   searchTimer = setTimeout(() => void runModelSearch(value), 400)
