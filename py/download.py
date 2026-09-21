@@ -5,6 +5,7 @@ import hashlib
 import os
 import pathlib
 import shutil
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -78,7 +79,7 @@ class TaskContent:
     hashes: Optional[dict[str, str]] = None
     revision: Optional[str] = None
     source: str = "remote"
-    subFolder: Optional[str] = None  # ← 追加
+    subFolder: Optional[str] = None
     msRepoId: Optional[str] = None
     msFilePath: Optional[str] = None
 
@@ -93,7 +94,7 @@ class TaskContent:
         self.hashes = kwargs.get("hashes", None)
         self.revision = kwargs.get("revision", None)
         self.source = kwargs.get("source", "remote")
-        self.subFolder = kwargs.get("subFolder", None)  # ← 追加
+        self.subFolder = kwargs.get("subFolder", None)
         self.msRepoId = kwargs.get("msRepoId", None)
         self.msFilePath = kwargs.get("msFilePath", None)
         # The client submits multipart FormData, so nested objects arrive as
@@ -121,7 +122,7 @@ class TaskContent:
             "hashes": self.hashes,
             "revision": self.revision,
             "source": self.source,
-            "subFolder": self.subFolder,  # ← 追加
+            "subFolder": self.subFolder,
             "msRepoId": self.msRepoId,
             "msFilePath": self.msFilePath,
         }
@@ -289,13 +290,13 @@ class ModelDownload:
             raise RuntimeError("pathIndex is required")
         path_index = int(raw_index)
         fullname = task_data.get("fullname", None)
-        sub_folder = task_data.get("subFolder", None)  # ← 追加
+        sub_folder = task_data.get("subFolder", None)
         if model_type is None or fullname is None:
             raise RuntimeError("type and fullname are required")
 
-        # サブフォルダを fullname に結合
+        # The chosen sub-folder becomes part of the task's fullname.
         if sub_folder:
-            fullname = utils.join_path(sub_folder, fullname)  # ← 追加
+            fullname = utils.join_path(sub_folder, fullname)
             # BUG FIX: the joined fullname must be written back into task_data
             # before it is persisted. Otherwise TaskContent.fullname stayed the
             # bare file name and `_download_complete` moved the finished file to
@@ -463,7 +464,6 @@ class ModelDownload:
                 utils.print_error(str(e))
 
         try:
-            # 【修正】関数オブジェクトではなく、実行したコルーチンオブジェクトを渡す
             status = self.download_thread_pool.submit(download_task(task_id), task_id)
             if status == "Waiting":
                 task_status = self.get_task_status(task_id)
@@ -676,22 +676,42 @@ class ModelDownload:
         task_status = self.get_task_status(task_id)
         task_content = self.get_task_content(task_id)
         total_size = task_content.sizeBytes
-        state = {"last": 0.0}
+        state = {"last": 0.0, "peak": 0.0}
 
         async def _push(sent: float, total: float, bps: float) -> None:
             task_status.downloadedSize = sent
             if total:
                 task_status.totalSize = total
-                task_status.progress = sent / total * 100
+                # Transfers can legitimately move a few bytes more than the
+                # announced size (retries, xet re-fetches): cap the bar at
+                # 100% instead of letting it overshoot.
+                task_status.progress = min(100.0, sent / total * 100)
             task_status.bps = bps
             await progress_callback(task_status)
 
         def report(sent: float, total: float, bps: float = 0.0) -> None:
+            # Progress must never go backwards. A hub transfer can be fed by
+            # several interleaved sources at once - xet-backed Hugging Face
+            # downloads drive TWO tqdm bars (network transfer + on-disk
+            # reconstruction) through the same callback, and the disk poller
+            # observes buffered flushes - and a lagging source would otherwise
+            # yank the bar back down (the "progress jumps around / one task
+            # sits at 0" defect when downloads run in parallel). A sample
+            # below the running peak is a stale reading: drop it whole, its
+            # speed estimate included.
+            if sent < state["peak"]:
+                return
+            state["peak"] = sent
+            # The size resolved at task creation is the authoritative total;
+            # bar-reported totals can be dynamically inflated display values
+            # (the xet transfer bar grows its own total past the file size)
+            # and must not rewrite the task's real size.
+            effective_total = total_size if total_size > 0 else total
             now = time.time()
             if now - state["last"] < interval:
                 return
             state["last"] = now
-            asyncio.run_coroutine_threadsafe(_push(sent, total, bps), loop)
+            asyncio.run_coroutine_threadsafe(_push(sent, effective_total, bps), loop)
 
         path, cleanup = await loop.run_in_executor(utils.io_executor(), fetch, report)
         try:
@@ -775,12 +795,29 @@ class ModelDownload:
         os.makedirs(task_hf_dir, exist_ok=True)
 
         def fetch(report):
+            expected_total = float(task_content.sizeBytes or 0)
+
             class ModelManagerTqdm(base_tqdm if base_tqdm else object):  # type: ignore[misc]
+                """Counting tqdm shim: feeds the task reporter, prints nothing.
+
+                huggingface_hub instantiates ``tqdm_class`` for its console
+                bars. The bars are suppressed (the UI has its own progress
+                row) but the accounting stays enabled - a disabled tqdm skips
+                ``update()`` entirely, which is why ``disable`` is forced off
+                while ``display``/``refresh`` render nothing.
+                """
+
                 def __init__(self, *args, **kwargs):
                     kwargs.pop("name", None)
                     kwargs["disable"] = False
                     if base_tqdm:
                         super().__init__(*args, **kwargs)
+
+                def display(self, *args, **kwargs):
+                    pass
+
+                def refresh(self, *args, **kwargs):
+                    pass
 
                 def update(self, n=1):
                     if base_tqdm:
@@ -795,17 +832,62 @@ class ModelDownload:
                     except Exception:
                         pass
 
-            result_path = hf_hub_download(
-                repo_id=repo_id,
-                filename=filename,
-                revision=revision,
-                token=token,
-                local_dir=task_hf_dir,
-                force_download=False,
-                tqdm_class=ModelManagerTqdm if base_tqdm else None,
-                user_agent=config.user_agent,
+            # Version-independent progress source. The tqdm hook above only
+            # works when huggingface_hub routes the transfer through its own
+            # bars: on xet-backed files (hf_xet, the default transport) older
+            # releases bypass `tqdm_class` entirely - the task then sat at 0%
+            # until it jumped to 100% - and current ones create TWO bars
+            # (network transfer + on-disk reconstruction) whose interleaved
+            # readings made progress bounce. Whatever the internal transport
+            # is, the partial file always lands as `*.incomplete` under the
+            # task-local `local_dir`, so polling its size reports honest,
+            # monotonic progress on every release. The shared reporter in
+            # _hub_transfer merges this with any tqdm readings, keeping the
+            # highest watermark.
+            stop = threading.Event()
+
+            def _incomplete_bytes() -> float:
+                total = 0.0
+                for root, _dirs, files in os.walk(task_hf_dir):
+                    for name in files:
+                        if name.endswith(".incomplete"):
+                            try:
+                                total += os.path.getsize(os.path.join(root, name))
+                            except OSError:
+                                pass
+                return total
+
+            def _poll() -> None:
+                last = _incomplete_bytes()
+                last_at = time.time()
+                while not stop.wait(0.5):
+                    size = _incomplete_bytes()
+                    now = time.time()
+                    dt = now - last_at
+                    bps = (size - last) / dt if dt > 0 and size >= last else 0.0
+                    last, last_at = size, now
+                    if size > 0:
+                        report(size, expected_total, bps)
+
+            poller = threading.Thread(
+                target=_poll, daemon=True, name=f"mm-hf-progress-{task_id[:8]}"
             )
-            return result_path, lambda: shutil.rmtree(task_hf_dir, ignore_errors=True)
+            poller.start()
+            try:
+                result_path = hf_hub_download(
+                    repo_id=repo_id,
+                    filename=filename,
+                    revision=revision,
+                    token=token,
+                    local_dir=task_hf_dir,
+                    force_download=False,
+                    tqdm_class=ModelManagerTqdm if base_tqdm else None,
+                    user_agent=config.user_agent,
+                )
+                return result_path, lambda: shutil.rmtree(task_hf_dir, ignore_errors=True)
+            finally:
+                stop.set()
+                poller.join(timeout=2.0)
 
         await self._hub_transfer(task_id, progress_callback, interval, fetch)
 

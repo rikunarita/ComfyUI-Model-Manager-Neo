@@ -87,6 +87,7 @@
   "failedToCreateDownloadTask": "创建下载任务失败",
   "failedToProcessDirectUrl": "处理直接文件链接失败：{message}",
   "previewFetchFallback": "浏览器无法获取预览图，服务器将直接下载。",
+  "previewLocalReadFailed": "无法读取所选的预览图文件，请重新选择。",
   "downloadTaskCompleted": "{name}：下载完成",
   "uploadTaskCompleted": "{name}：上传完成",
   "sort": {

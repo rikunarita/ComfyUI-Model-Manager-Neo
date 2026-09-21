@@ -47,7 +47,9 @@ VIDEO_CONTENT_TYPE_MAP = {
     'video/ogg': '.ogv',
 }
 
-# 【修正】folder_paths.extension_mimetype_cache が ComfyUI v0.34.0 で削除されたため、独自のキャッシュを用意
+# Own extension -> content-type cache: ComfyUI v0.34.0 removed
+# folder_paths.extension_mimetype_cache, and guessing a MIME type per call is
+# wasteful on the preview routes.
 _extension_mimetypes_cache: dict[str, str] = {}
 
 # ---------------------------------------------------------------------------
@@ -174,7 +176,6 @@ def resolve_model_base_paths() -> dict[str, list[str]]:
     if signature == _base_paths_signature:
         return _base_paths_cache
 
-    # 【修正】ループ変数 'folders' を上書きするシャドウイングバグを修正
     folder_keys = list(raw.keys())
     model_base_paths = {}
     folder_black_list = ["configs", "custom_nodes"]
@@ -188,7 +189,6 @@ def resolve_model_base_paths() -> dict[str, list[str]]:
     return model_base_paths
 
 def resolve_file_content_type(filename: str):
-    # 【修正】folder_paths.extension_mimetype_cache が削除されたため、独自のキャッシュを使用
     extension = filename.split(".")[-1].lower()
     if extension not in _extension_mimetypes_cache:
         # NOTE: the `strict` keyword was deprecated in Python 3.11 and
@@ -476,8 +476,17 @@ def _write_preview_content(
             f.write(content)
     elif kind == "image":
         preview_path = _get_preview_path(model_path, ".webp", suffix)
-        image = Image.open(BytesIO(content))
-        image.save(preview_path, "WEBP")
+        try:
+            image = Image.open(BytesIO(content))
+            image.save(preview_path, "WEBP")
+        except Exception as e:
+            # PIL cannot decode everything labelled image/* (SVG most
+            # notably): say what happened instead of leaking the raw
+            # "cannot identify image file" traceback at the user.
+            raise RuntimeError(
+                f"Unsupported or corrupt preview image "
+                f"({content_type or 'unknown format'}): {e}"
+            ) from e
     else:
         raise RuntimeError(
             f"FileTypeError: expected image or video, got {content_type or 'unknown'}"
@@ -497,12 +506,20 @@ def save_model_preview(
     if type(file_or_url) is str:
         url = file_or_url
 
-        # 【修正】フロントエンドから "undefined" や不正なURLが送られてきた場合は早期リターン
+        # The download-completion path is tolerant: an unusable preview must
+        # never fail an otherwise finished download, so bad entries are
+        # skipped with a warning instead of raising.
         if not url:
             # "no preview" - the normal case, nothing to warn about
             return
         if url == "undefined":
             print_warning(f"Ignoring invalid preview URL: {url}")
+            return
+        if url.startswith(("blob:", "data:")):
+            # Browser-local object URLs only exist inside the page that
+            # created them; the server can never fetch them. The client is
+            # expected to upload such files as multipart bytes instead.
+            print_warning(f"Ignoring browser-local preview URL: {url[:48]}...")
             return
 
         content: Optional[bytes] = None
@@ -574,6 +591,14 @@ def replace_model_previews(model_path: str, items: list[Any]) -> int:
                             content = f.read()
                         name = url
                 if content is None:
+                    if url.startswith(("blob:", "data:")):
+                        # Browser-local object URLs cannot be resolved
+                        # server-side; the client must upload the bytes as a
+                        # multipart file (as the editor now does).
+                        raise RuntimeError(
+                            "browser-local preview url cannot be resolved server-side: "
+                            f"{url[:48]}..."
+                        )
                     if not url.startswith("http"):
                         raise RuntimeError(f"invalid preview url: {url}")
                     response = requests.get(url)

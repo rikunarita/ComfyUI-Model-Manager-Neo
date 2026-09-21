@@ -7,7 +7,7 @@ export const request = async (url: string, options?: RequestInit) => {
   return api
     .fetchApi(`/model-manager${url}`, options)
     .then(async (response: Response) => {
-      // 【修正】HTTPエラーステータス（401や403など）のハンドリング
+      // Surface HTTP error statuses (401/403/413, ...) as readable messages.
       if (!response.ok) {
         let errorMessage = `HTTP Error: ${response.status} ${response.statusText}`
         // Optimization A-7 (frontend half): a multipart upload larger than

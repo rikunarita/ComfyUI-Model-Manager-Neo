@@ -87,6 +87,7 @@
   "failedToCreateDownloadTask": "Failed to create download task",
   "failedToProcessDirectUrl": "Failed to process the direct file URL: {message}",
   "previewFetchFallback": "The preview could not be fetched in the browser; the server will download it directly.",
+  "previewLocalReadFailed": "Could not read the selected preview file; please pick it again.",
   "downloadTaskCompleted": "{name}: download completed",
   "uploadTaskCompleted": "{name}: upload completed",
   "sort": {

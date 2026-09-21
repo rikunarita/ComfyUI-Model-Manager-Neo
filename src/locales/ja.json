@@ -87,6 +87,7 @@
   "failedToCreateDownloadTask": "ダウンロードタスクの作成に失敗しました",
   "failedToProcessDirectUrl": "直接ファイルリンクを処理できませんでした: {message}",
   "previewFetchFallback": "ブラウザー側でプレビュー画像を取得できなかったため、サーバー側で直接ダウンロードします。",
+  "previewLocalReadFailed": "選択したプレビュー画像を読み込めませんでした。もう一度選択してください。",
   "downloadTaskCompleted": "{name}: ダウンロードが完了しました",
   "uploadTaskCompleted": "{name}: アップロードが完了しました",
   "sort": {

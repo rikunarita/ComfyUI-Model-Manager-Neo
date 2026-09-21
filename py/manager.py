@@ -551,19 +551,25 @@ class ModelManager:
 
     def update_model(self, model_path: str, model_data: dict):
 
-        if _preview_field_keys(model_data):
+        preview_keys = _preview_field_keys(model_data)
+        if preview_keys:
             # The client sends the whole gallery as previewFile, previewFile2,
             # previewFile3, ... (feature: keep every preview). replace_model_
             # previews resolves every source BEFORE removing the old set, so
             # reorders never read a slot an earlier step already destroyed.
-            items = [model_data[k] for k in _preview_field_keys(model_data)]
-            items = [i for i in items if not (type(i) is str and i in ("undefined", ""))]
-            if items:
+            items = [model_data[k] for k in preview_keys]
+            entries = [i for i in items if not (type(i) is str and i in ("undefined", ""))]
+            if entries:
                 # Same mechanics as the download-completion path: resolve all
                 # sources server-side, then rewrite the set in order. A partial
                 # write would silently reorder the primary, so failures raise
                 # and surface to the client.
-                utils.replace_model_previews(model_path, items)
+                utils.replace_model_previews(model_path, entries)
+            elif any(i == "undefined" for i in items if type(i) is str):
+                # "undefined" is the client's sentinel for an empty gallery:
+                # an editor save that removed every preview must delete the
+                # stored files instead of silently keeping them.
+                utils.remove_model_preview(model_path)
 
         if "description" in model_data:
             description = model_data["description"]

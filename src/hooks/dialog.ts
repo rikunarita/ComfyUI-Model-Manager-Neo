@@ -30,7 +30,8 @@ export interface DialogItem {
   minHeight?: number
   maxHeight?: number
   modal?: boolean
-  visible?: boolean // ← 追加
+  /** Open state of the window; the stack keeps closed-but-alive dialogs at `false`. */
+  visible?: boolean
 }
 
 export const useDialog = defineStore('dialog', () => {

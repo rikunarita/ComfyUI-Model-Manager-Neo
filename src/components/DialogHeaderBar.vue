@@ -55,7 +55,7 @@ const { t } = useI18n()
       >
         <component
           :is="resolveIcon(action.icon) || Info"
-          class="size-4"
+          class="size-[19.2px]"
           :class="{ 'animate-spin': action.icon === 'pi pi-spinner pi-spin' }"
         />
       </Button>
@@ -67,8 +67,8 @@ const { t } = useI18n()
         :aria-label="maximized ? t('restore') : t('maximize')"
         @click="emits('maximize')"
       >
-        <Maximize2 v-if="!maximized" class="size-4" />
-        <Minimize2 v-else class="size-4" />
+        <Maximize2 v-if="!maximized" class="size-[19.2px]" />
+        <Minimize2 v-else class="size-[19.2px]" />
       </Button>
       <Button
         variant="ghost"
@@ -77,7 +77,7 @@ const { t } = useI18n()
         :aria-label="t('close')"
         @click="emits('close')"
       >
-        <X class="size-4" />
+        <X class="size-[19.2px]" />
       </Button>
     </div>
   </DialogHeader>

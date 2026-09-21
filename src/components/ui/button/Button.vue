@@ -49,16 +49,15 @@ export const buttonVariants = cva(
         'icon-sm': 'size-8',
         'icon-lg': 'size-10',
         /*
-         * UNIFIED CONTROL SIZE: every chrome icon button - dialog top bar
-         * (layout / hidden-files / refresh / download / upload, maximize,
-         * close), model-detail action row (open model page, add / copy node,
-         * load workflow, edit, delete), toolbars, bulk bar - is the same
-         * 36 px (size-9) square as `icon`. The rows used to ship three
-         * different heights (32 / 38.4 / 48 px) side by side with the 36 px
-         * inputs, which read as a broken, mismatched UI; the aliases stay so
-         * call sites keep their semantic names.
+         * CHROME ICON BUTTONS: the dialog top bar (layout / hidden-files /
+         * refresh / download / upload, maximize, close) renders deliberately
+         * larger than the rest of the chrome - 43.2 px (1.2× the 36 px
+         * `icon` square, icons at 19.2 px) - so the primary window controls
+         * are easy to hit. Model-detail action row (`icon-action`), toolbars
+         * and the bulk bar stay on the shared 36 px square that matches the
+         * 36 px inputs; the aliases keep call sites semantic.
          */
-        'icon-header': 'size-9',
+        'icon-header': 'size-[43.2px]',
         'icon-action': 'size-9',
       },
     },

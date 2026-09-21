@@ -39,8 +39,9 @@ class ApiKey:
                 utils.set_setting_value(request, "api_key.civitai", None)
                 utils.set_setting_value(request, "api_key.huggingface", None)
             except Exception as e:
-                # 【修正】ComfyUI のセキュリティチェックが 401 Unauthorized を返した場合、
-                # マイグレーションをスキップし、空の設定から開始する
+                # Reading the user settings can fail (e.g. ComfyUI's security
+                # check answers 401): skip the migration and start from an
+                # empty store instead of failing the whole init.
                 utils.print_warning(f"Failed to migrate API keys from user settings: {e}")
                 self._store = self._empty_store()
                 self._update()
