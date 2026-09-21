@@ -272,9 +272,12 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - Read, edit and save Markdown notes stored beside the model; the Information
   table itself is editable behind an explicit warning (it rewrites the notes'
   front‑matter on save).
-- Change or remove a model's preview image — the gallery page left open on
-  save becomes the card's primary preview; the dashed tile at the end of the
-  edit-mode gallery strip adds local image files.
+- Change or remove a model's preview image — in edit mode the thumbnail
+  wearing the blue ring is the one save promotes to the card's primary
+  preview: tile clicks and the ‹ / › arrows move the ring, and entering edit
+  always starts from the current primary no matter which page read mode was
+  viewing (paging in read mode never re-designates the primary). The dashed
+  tile at the end of the gallery strip adds local image files.
 - The **Open model page** action wears the logo of the model's source hub
   (Civitai, Hugging Face or ModelScope) as its button background, so a model's
   origin is recognisable at a glance.

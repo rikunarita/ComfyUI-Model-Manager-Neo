@@ -231,12 +231,15 @@ Press the **pencil** to enter edit mode (the window turns into a form):
   `Network` / `Local` / `None` source switcher is gone). In edit mode an
   **inline-scrolling thumbnail strip** beside / below the main preview manages
   it: pick the primary, move entries left / right, or remove single images;
-  the dashed tile at the end of the strip adds local image file(s) as new
+  the thumbnail wearing the **blue ring** is the one save promotes to the
+  card's **primary** preview (tile clicks and the ‹ / › arrows move the ring).
+  The dashed tile at the end of the strip adds local image file(s) as new
   previews (images are converted to WebP, videos keep their format), and
   removing every entry leaves the model without a preview. In edit mode the
   main preview draws at 4/5 of the card width, hugging the left edge while the
-  strip takes the remaining width. The page left open on save becomes the
-  card's **primary** preview.
+  strip takes the remaining width. Entering edit always puts the ring on the
+  current primary, whatever page read mode was viewing; paging in read mode
+  never re-designates the primary.
 - **Description** — press the **Edit (pencil) icon** next to the hint text to
   open the Markdown textarea; it saves when the textarea loses focus:
 

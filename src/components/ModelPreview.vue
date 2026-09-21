@@ -91,14 +91,14 @@
           v-for="(url, index) in defaultContent"
           :key="`${url}-${index}`"
           class="relative w-16 shrink-0"
-          :class="index === defaultContentPage && 'ring-2 ring-mm-accent'"
+          :class="index === displayPage && 'ring-2 ring-mm-accent'"
         >
           <img
             :src="withPreviewBust(url, previewBust)"
             class="aspect-square w-full cursor-pointer rounded-mm-ctl object-cover"
             alt=""
             :title="$t('previewPickPrimary')"
-            @click="defaultContentPage = index"
+            @click="pickPage(index)"
           />
           <div class="absolute -top-1.5 -right-1.5 flex gap-0.5">
             <button
@@ -160,7 +160,7 @@
 
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight, Plus, X } from '@lucide/vue'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import PreviewLightbox from 'components/PreviewLightbox.vue'
 import PreviewVideo from 'components/PreviewVideo.vue'
 import ResponseImage from 'components/ResponseImage.vue'
@@ -191,10 +191,27 @@ const {
   preview,
   defaultContent,
   defaultContentPage,
+  selectedPrimary,
   movePreview,
   removePreview,
   noPreviewContent,
 } = useModelPreview()
+
+/**
+ * Entering edit mode always starts from the CURRENT primary (gallery head):
+ * the read-mode viewing page must never leak into the ring / save selection
+ * (the "I was looking at B and B wore the primary ring" defect).
+ */
+watch(
+  editable,
+  v => {
+    if (v) {
+      selectedPrimary.value = 0
+      defaultContentPage.value = 0
+    }
+  },
+  { immediate: true },
+)
 
 const { $sm, $md } = useContainerQueries()
 
@@ -216,8 +233,18 @@ const showGallery = computed(() => Boolean(editable.value))
 /** The gallery the `<` / `>` buttons page through. */
 const canPage = computed(() => defaultContent.value.length > 1)
 
-/** What the preview area shows right now: the current gallery page. */
-const currentPreview = computed(() => preview.value)
+/**
+ * The entry the main preview area shows AND the ring marks: in edit mode the
+ * selected primary (tile clicks / arrows move it), in read mode the viewing
+ * page. Keeping both on one index per mode makes "what you see is what save
+ * will promote" hold inside the editor.
+ */
+const displayPage = computed(() =>
+  editable.value ? selectedPrimary.value : defaultContentPage.value,
+)
+
+/** What the preview area shows right now. */
+const currentPreview = computed(() => defaultContent.value[displayPage.value] ?? preview.value)
 /** Cache-busted source: a save rewrites bytes behind unchanged preview URLs. */
 const currentPreviewSrc = computed(() => withPreviewBust(currentPreview.value, previewBust.value))
 
@@ -251,10 +278,19 @@ const previewStyle = computed(() => {
   return $sm({ width: `${cardWidth}px` })
 })
 
-const prevPage = () => {
-  defaultContentPage.value =
-    (defaultContentPage.value - 1 + defaultContent.value.length) % defaultContent.value.length
+const stepPage = (delta: number) => {
+  const len = defaultContent.value.length
+  if (!len) return
+  const next = (displayPage.value + delta + len) % len
+  if (editable.value) {
+    // In edit mode paging doubles as primary selection, so the ring, the
+    // main preview and the eventual save all agree.
+    selectedPrimary.value = next
+  }
+  defaultContentPage.value = next
 }
+
+const prevPage = () => stepPage(-1)
 
 /**
  * The gallery's add-tile: appends local image file(s) to the gallery. The
@@ -276,8 +312,12 @@ const pickPreviewFiles = () => {
   input.click()
 }
 
-const nextPage = () => {
-  defaultContentPage.value = (defaultContentPage.value + 1) % defaultContent.value.length
+const nextPage = () => stepPage(1)
+
+/** Tile click: pick the primary (edit mode) / page to it (read mode). */
+const pickPage = (index: number) => {
+  if (editable.value) selectedPrimary.value = index
+  defaultContentPage.value = index
 }
 
 /* ---- lightbox ---------------------------------------------------------- */
@@ -314,7 +354,7 @@ const lightboxItems = computed(() => {
 
 const openLightbox = () => {
   if (!currentPreview.value) return
-  lightboxIndex.value = canPage.value ? defaultContentPage.value : 0
+  lightboxIndex.value = canPage.value ? displayPage.value : 0
   lightboxOpen.value = true
 }
 </script>

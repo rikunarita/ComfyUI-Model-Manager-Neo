@@ -21,15 +21,9 @@ import { resolveIcon } from 'utils/iconMap'
  * endpoints and the huggingface_hub docstring): offering exactly these keeps
  * the settings combos exhaustive *and* unable to send an invalid key.
  */
-export const HF_SORTS = [
-  'trending_score',
-  'downloads',
-  'likes',
-  'last_modified',
-  'created_at',
-] as const
-export const MODELSCOPE_SORTS = ['likes', 'downloads', 'last_modified', 'default'] as const
-export const CIVITAI_SORTS = [
+const HF_SORTS = ['trending_score', 'downloads', 'likes', 'last_modified', 'created_at'] as const
+const MODELSCOPE_SORTS = ['likes', 'downloads', 'last_modified', 'default'] as const
+const CIVITAI_SORTS = [
   'Highest Rated',
   'Most Downloaded',
   'Most Liked',
@@ -42,7 +36,7 @@ export const CIVITAI_SORTS = [
 ] as const
 
 /** i18n keys (flat, under the root) for every sort option label. */
-export const SORT_LABEL_KEYS: Record<'hf' | 'modelscope' | 'civitai', Record<string, string>> = {
+const SORT_LABEL_KEYS: Record<'hf' | 'modelscope' | 'civitai', Record<string, string>> = {
   hf: {
     trending_score: 'sortHfTrending',
     downloads: 'sortHfDownloads',

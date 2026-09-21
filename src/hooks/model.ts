@@ -803,7 +803,14 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
    * can reorder / remove single previews; reset() restores it from the model.
    */
   const defaultContent = ref<string[]>(model.value.preview ? castArray(model.value.preview) : [])
+  /** The page the read-only carousel / lightbox is looking at. */
   const defaultContentPage = ref(0)
+  /**
+   * The gallery entry the editor will promote to PRIMARY on save (the blue
+   * ring). Deliberately NOT the viewing page: paging through the read-mode
+   * carousel must never re-designate the primary preview.
+   */
+  const selectedPrimary = ref(0)
 
   /** Move one gallery entry left/right (clamped, no wrap). */
   const movePreview = (index: number, direction: -1 | 1) => {
@@ -814,14 +821,25 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
     list.splice(target, 0, entry)
     defaultContent.value = list
     defaultContentPage.value = target
+    // The ring stays glued to the SAME image through a reorder.
+    if (selectedPrimary.value === index) {
+      selectedPrimary.value = target
+    } else if (selectedPrimary.value === target) {
+      selectedPrimary.value = index
+    }
   }
 
-  /** Remove one gallery entry; the page index follows the neighbourhood. */
+  /** Remove one gallery entry; page & selection follow the neighbourhood. */
   const removePreview = (index: number) => {
     const list = [...defaultContent.value]
     list.splice(index, 1)
     defaultContent.value = list
     defaultContentPage.value = Math.min(defaultContentPage.value, Math.max(0, list.length - 1))
+    if (selectedPrimary.value > index) {
+      selectedPrimary.value -= 1
+    } else if (selectedPrimary.value >= list.length) {
+      selectedPrimary.value = Math.max(0, list.length - 1)
+    }
   }
 
   /** Default artwork shown for models without a preview (and as the
@@ -835,18 +853,17 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
     registerReset(() => {
       defaultContent.value = model.value.preview ? castArray(model.value.preview) : []
       defaultContentPage.value = 0
+      selectedPrimary.value = 0
     })
 
     registerSubmit(data => {
       // The saved gallery is kept WHOLE - dropping to a single URL here is
       // what used to silently delete every extra preview on save.
       const gallery = [...defaultContent.value]
-      // FEATURE: the image the user left selected (the page the gallery is
-      // showing) becomes the model card's PRIMARY preview - the first entry
-      // of the gallery, which is what the grid and the detail dialog show.
-      // Paging to another image and saving again re-picks it, in the download
-      // dialog (the image selected at download time) and in edit mode alike.
-      const selected = defaultContentPage.value
+      // The entry carrying the blue ring (selectedPrimary) becomes the model
+      // card's PRIMARY preview - the first entry of the gallery, which is
+      // what the grid and the detail dialog show.
+      const selected = selectedPrimary.value
       if (selected > 0 && selected < gallery.length) {
         gallery.unshift(...gallery.splice(selected, 1))
       }
@@ -859,6 +876,7 @@ export const useModelPreviewEditor = (formInstance: ModelFormInstance) => {
     // default value
     defaultContent,
     defaultContentPage,
+    selectedPrimary,
     // gallery management
     movePreview,
     removePreview,
