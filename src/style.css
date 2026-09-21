@@ -343,19 +343,14 @@
     text-shadow: 2px 2px 4px rgb(0 0 0 / 0.5);
   }
 
-  /* Outline shadow: eight directions + a soft drop, so caption text keeps a
-     dark rim over any artwork without dimming the image behind it. */
+  /* Soft, wide drop shadow: the caption floats above the artwork with a
+     diffuse glass-friendly glow instead of a hard per-glyph outline. */
   .text-shadow-strong {
     text-shadow:
-      0 1px 2px rgb(0 0 0 / 0.95),
-      1px 0 2px rgb(0 0 0 / 0.95),
-      -1px 0 2px rgb(0 0 0 / 0.95),
-      0 -1px 2px rgb(0 0 0 / 0.95),
-      1px 1px 2px rgb(0 0 0 / 0.95),
-      -1px -1px 2px rgb(0 0 0 / 0.95),
-      1px -1px 2px rgb(0 0 0 / 0.95),
-      -1px 1px 2px rgb(0 0 0 / 0.95),
-      2px 2px 6px rgb(0 0 0 / 0.85);
+      0 1px 2px rgb(0 0 0 / 0.4),
+      0 2px 6px rgb(0 0 0 / 0.32),
+      0 4px 14px rgb(0 0 0 / 0.28),
+      0 8px 28px rgb(0 0 0 / 0.22);
   }
 
   .scrollbar-none {

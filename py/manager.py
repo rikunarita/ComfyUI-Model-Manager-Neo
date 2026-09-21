@@ -553,15 +553,17 @@ class ModelManager:
 
         if _preview_field_keys(model_data):
             # The client sends the whole gallery as previewFile, previewFile2,
-            # previewFile3, ... (feature: keep every preview). Remove the old
-            # set first - extensions may change - then store the new one.
-            utils.remove_model_preview(model_path)
+            # previewFile3, ... (feature: keep every preview). replace_model_
+            # previews resolves every source BEFORE removing the old set, so
+            # reorders never read a slot an earlier step already destroyed.
             items = [model_data[k] for k in _preview_field_keys(model_data)]
             items = [i for i in items if not (type(i) is str and i in ("undefined", ""))]
             if items:
-                # strict: a partially written gallery would silently reorder
-                # the primary preview - surface the failure to the client.
-                utils.save_model_previews(model_path, items, strict=True)
+                # Same mechanics as the download-completion path: resolve all
+                # sources server-side, then rewrite the set in order. A partial
+                # write would silently reorder the primary, so failures raise
+                # and surface to the client.
+                utils.replace_model_previews(model_path, items)
 
         if "description" in model_data:
             description = model_data["description"]

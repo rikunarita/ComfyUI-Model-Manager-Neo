@@ -22,7 +22,7 @@ import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
 import { api, app } from 'scripts/comfyAPI'
 import { type BaseModel, type Model, type WithResolved } from 'types/typings'
-import { bytesToSize, formatDate, previewUrlToFile } from 'utils/common'
+import { bytesToSize, formatDate } from 'utils/common'
 import { NO_PREVIEW_SENTINEL, NO_PREVIEW_URL } from 'utils/media'
 import { genModelKey, resolveModelTypeLoader } from 'utils/model'
 import { dragAddModel } from 'utils/modelGrid'
@@ -254,10 +254,11 @@ export const useModels = defineStore('models', store => {
         for (const item of dataPreviews) {
           index += 1
           const field = index === 1 ? 'previewFile' : `previewFile${index}`
-          const file = await previewUrlToFile(item).catch(() => null)
-          // Hand the raw URL over when the browser-side fetch fails: the
-          // backend downloads it server-side.
-          updateData.set(field, file ?? item)
+          // The backend resolves preview bytes server-side (local file read
+          // or HTTP download), exactly like the download-completion path:
+          // no browser fetch lag before the loading overlay appears, and no
+          // multipart MIME mislabeling of the uploaded bytes.
+          updateData.set(field, item)
         }
       }
       needUpdate = true

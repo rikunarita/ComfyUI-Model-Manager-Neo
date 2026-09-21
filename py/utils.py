@@ -531,6 +531,80 @@ def save_model_preview(
         content = file_obj.file.read()
         _write_preview_content(model_path, content, content_type, filename or content_type, suffix)
 
+def replace_model_previews(model_path: str, items: list[Any]) -> int:
+    """Rewrite the whole preview set in the supplied order (edit-save path).
+
+    Mirrors the download-completion path: every source is resolved to bytes
+    FIRST (local preview file read, HTTP download, or uploaded multipart
+    bytes), then the old set is removed and the bytes are written into the
+    suffix slots. Reading everything up front makes reorders collision-free
+    (an earlier slot write can never destroy a later entry's source), and
+    keeping the resolution server-side removes every browser-side failure
+    mode (fetch errors, MIME mislabeling, cache staleness).
+
+    Raises when any entry cannot be resolved or written: a partially written
+    gallery would silently reorder the primary preview.
+    """
+    staged: list[tuple[str, str, bytes]] = []
+    resolve_failures: list[str] = []
+    for index, item in enumerate(items):
+        if item is None or item == "":
+            continue
+        content: Optional[bytes] = None
+        content_type = ""
+        name = ""
+        try:
+            if type(item) is str:
+                url = item
+                if url == "undefined":
+                    continue
+                if url.startswith("/model-manager/preview/"):
+                    local = _resolve_local_preview(url)
+                    if local:
+                        with open(local, "rb") as f:
+                            content = f.read()
+                        name = url
+                if content is None:
+                    if not url.startswith("http"):
+                        raise RuntimeError(f"invalid preview url: {url}")
+                    response = requests.get(url)
+                    response.raise_for_status()
+                    content = response.content
+                    content_type = response.headers.get("content-type", "") or ""
+                    name = url
+            else:
+                if not isinstance(item, web.FileField):
+                    raise RuntimeError("Invalid file")
+                item.file.seek(0)
+                content = item.file.read()
+                content_type = item.content_type or ""
+                name = getattr(item, "filename", "")
+            staged.append((name, content_type, content))
+        except Exception as e:
+            resolve_failures.append(f"#{index}: {e}")
+    if resolve_failures or not staged:
+        raise RuntimeError(
+            "Failed to resolve preview entries: " + "; ".join(resolve_failures or ["no entries"])
+        )
+    remove_model_preview(model_path)
+    failures: list[str] = []
+    written = 0
+    for index, (name, content_type, content) in enumerate(staged):
+        suffix = (
+            _PREVIEW_SUFFIXES[index]
+            if index < len(_PREVIEW_SUFFIXES)
+            else f".preview{index}"
+        )
+        try:
+            _write_preview_content(model_path, content, content_type, name, suffix)
+            written += 1
+        except Exception as e:
+            failures.append(f"#{index}: {e}")
+    if failures:
+        raise RuntimeError("Failed to save preview entries: " + "; ".join(failures))
+    return written
+
+
 def save_model_previews(
     model_path: str,
     items: list[Any],
