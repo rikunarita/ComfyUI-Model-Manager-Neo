@@ -415,6 +415,66 @@ def remove_model_preview(model_path: str):
         if os.path.exists(preview_path):
             os.remove(preview_path)
 
+def _sniff_kind(head: bytes) -> Optional[str]:
+    """Magic-byte kind of preview content, when MIME labels cannot be trusted
+    (multipart uploads and proxied responses routinely arrive as
+    application/octet-stream or with an empty content-type)."""
+    if head[:8] == b"\x89PNG\r\n\x1a\n" or head[:3] == b"\xff\xd8\xff":
+        return "image"
+    if head[:6] in (b"GIF87a", b"GIF89a"):
+        return "image"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image"
+    if head[:2] == b"BM":
+        return "image"
+    if head[4:8] == b"ftyp" or head[:4] == b"\x1aE\xdf\xa3":
+        return "video"
+    return None
+
+
+def _resolve_local_preview(url: str) -> Optional[str]:
+    """Absolute path of one of our own preview URLs (relative by design)."""
+    parts = [part for part in url.split("?")[0].split("/") if part]
+    # ['model-manager', 'preview', <type>, <index>, <filename...>]
+    if len(parts) < 5 or parts[0:2] != ["model-manager", "preview"]:
+        return None
+    try:
+        folders = folder_paths.get_folder_paths(parts[2])
+        local = join_path(folders[int(parts[3])], "/".join(parts[4:]))
+    except Exception:
+        return None
+    return local if os.path.isfile(local) else None
+
+
+def _write_preview_content(
+    model_path: str,
+    content: bytes,
+    content_type: str,
+    source_name: str,
+    suffix: str,
+) -> None:
+    kind = None
+    if content_type.startswith("video/"):
+        kind = "video"
+    elif content_type.startswith("image/"):
+        kind = "image"
+    else:
+        kind = _sniff_kind(content[:12])
+    if kind == "video":
+        ext = _get_video_extension_from_url(source_name) or _get_extension_from_content_type(content_type) or '.mp4'
+        preview_path = _get_preview_path(model_path, ext, suffix)
+        with open(preview_path, 'wb') as f:
+            f.write(content)
+    elif kind == "image":
+        preview_path = _get_preview_path(model_path, ".webp", suffix)
+        image = Image.open(BytesIO(content))
+        image.save(preview_path, "WEBP")
+    else:
+        raise RuntimeError(
+            f"FileTypeError: expected image or video, got {content_type or 'unknown'}"
+        )
+
+
 def save_model_preview(
     model_path: str,
     file_or_url: Any,
@@ -423,7 +483,7 @@ def save_model_preview(
     suffix: str = "",
 ):
     """Save one preview file for a model. Images -> WebP, videos -> original format"""
-    
+
     # Download file if it is a URL
     if type(file_or_url) is str:
         url = file_or_url
@@ -432,36 +492,31 @@ def save_model_preview(
         if not url:
             # "no preview" - the normal case, nothing to warn about
             return
-        if url == "undefined" or not url.startswith("http"):
+        if url == "undefined":
             print_warning(f"Ignoring invalid preview URL: {url}")
             return
 
-        try:
+        content: Optional[bytes] = None
+        content_type = ""
+        # Our own preview URLs are relative: read the stored file server-side
+        # instead of round-tripping HTTP (the browser fetch that produced the
+        # upload can fail or mislabel the MIME type).
+        if url.startswith("/model-manager/preview/"):
+            local = _resolve_local_preview(url)
+            if local:
+                with open(local, "rb") as f:
+                    content = f.read()
+        if content is None:
+            if not url.startswith("http"):
+                print_warning(f"Ignoring invalid preview URL: {url}")
+                return
             response = requests.get(url, headers=headers or {})
             response.raise_for_status()
-            
-            # Determine content type from response headers or URL extension
+            content = response.content
             content_type = response.headers.get('content-type', '')
             if not content_type:
-                # Fallback to URL extension detection
                 content_type = resolve_file_content_type(url) or ''
-            
-            content = response.content
-            
-            if content_type.startswith("video/"):
-                # Save video in original format
-                ext = _get_video_extension_from_url(url) or _get_extension_from_content_type(content_type) or '.mp4'
-                preview_path = _get_preview_path(model_path, ext, suffix)
-                with open(preview_path, 'wb') as f:
-                    f.write(content)
-            else:
-                # Default to image processing for unknown or image types
-                preview_path = _get_preview_path(model_path, ".webp", suffix)
-                image = Image.open(BytesIO(content))
-                image.save(preview_path, "WEBP")
-
-        except Exception as e:
-            print_error(f"Failed to download preview: {e}")
+        _write_preview_content(model_path, content, content_type, url, suffix)
 
     # Handle uploaded file
     else:
@@ -470,28 +525,18 @@ def save_model_preview(
         if not isinstance(file_obj, web.FileField):
             raise RuntimeError("Invalid file")
 
-        content_type = file_obj.content_type
+        content_type = file_obj.content_type or ""
         filename: str = getattr(file_obj, 'filename', '')
-        
-        if content_type.startswith("video/"):
-            ext = os.path.splitext(filename.lower())[1] or '.mp4'
-            preview_path = _get_preview_path(model_path, ext, suffix)
-            file_obj.file.seek(0)
-            content = file_obj.file.read()
-            with open(preview_path, 'wb') as f:
-                f.write(content)
-        elif content_type.startswith("image/"):
-            preview_path = _get_preview_path(model_path, ".webp", suffix)
-            image = Image.open(file_obj.file)
-            image.save(preview_path, "WEBP")
-        else:
-            raise RuntimeError(f"FileTypeError: expected image or video, got {content_type}")
+        file_obj.file.seek(0)
+        content = file_obj.file.read()
+        _write_preview_content(model_path, content, content_type, filename or content_type, suffix)
 
 def save_model_previews(
     model_path: str,
     items: list[Any],
     platform: Optional[str] = None,
     headers: Optional[dict] = None,
+    strict: bool = False,
 ) -> int:
     """Save every supplied preview, in order, under the naming scheme.
 
@@ -501,9 +546,14 @@ def save_model_previews(
     `<basename>.preview.<ext>`, `<basename>.preview2.<ext>`, ... - so the
     carousel and the lightbox can page through all of them.
 
+    With ``strict`` a single unwritable entry fails the whole call instead of
+    being dropped: a partially written gallery would otherwise reorder the
+    primary behind the caller's back (the "primary swap reverted" defect).
+
     Returns the number of previews actually written.
     """
     written = 0
+    failures: list[str] = []
     for index, item in enumerate(items):
         if item is None or item == "":
             continue
@@ -518,6 +568,9 @@ def save_model_previews(
         except Exception as e:
             # One bad gallery entry must not lose the whole preview set.
             print_warning(f"Failed to save preview #{index}: {e}")
+            failures.append(f"#{index}: {e}")
+    if strict and failures:
+        raise RuntimeError("Failed to save preview entries: " + "; ".join(failures))
     return written
 
 

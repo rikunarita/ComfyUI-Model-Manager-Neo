@@ -40,19 +40,14 @@
               at a glance.
             -->
             <!--
-              Readability plate: backdrop-filter blurs and dims ONLY the box
-              behind the text lines (w-fit hugs the caption), so captions
-              stay legible over busy artwork in both layouts.
+              Caption legibility: a strong multi-directional outline shadow
+              (no backdrop plate) keeps sub-directory and name readable over
+              busy artwork in both layouts.
             -->
-            <div
-              v-if="model.subFolder"
-              class="text-shadow w-fit max-w-full truncate rounded-mm-ctl bg-mm-bg/45 px-1.5 py-0.5 text-sm font-medium backdrop-blur-[3px]"
-            >
+            <div v-if="model.subFolder" class="text-shadow-strong truncate text-sm font-medium">
               {{ model.subFolder }} /
             </div>
-            <div
-              class="text-shadow line-clamp-3 w-fit max-w-full rounded-mm-ctl bg-mm-bg/45 px-1.5 py-0.5 font-bold break-all backdrop-blur-[3px]"
-            >
+            <div class="text-shadow-strong line-clamp-3 font-bold break-all">
               {{ model.basename }}
             </div>
           </div>

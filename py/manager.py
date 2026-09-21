@@ -559,7 +559,9 @@ class ModelManager:
             items = [model_data[k] for k in _preview_field_keys(model_data)]
             items = [i for i in items if not (type(i) is str and i in ("undefined", ""))]
             if items:
-                utils.save_model_previews(model_path, items)
+                # strict: a partially written gallery would silently reorder
+                # the primary preview - surface the failure to the client.
+                utils.save_model_previews(model_path, items, strict=True)
 
         if "description" in model_data:
             description = model_data["description"]

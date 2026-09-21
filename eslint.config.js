@@ -166,7 +166,7 @@ export default tseslint.config(
             // Design-system helpers defined in src/style.css (@layer mm-components)
             '^mm(-.+)?$',
             // Misc project-scoped classes
-            '^(preview-aspect|scrollbar-none|text-shadow|icon|dark-theme|markdown-body)$',
+            '^(preview-aspect|scrollbar-none|text-shadow|text-shadow-strong|icon|dark-theme|markdown-body)$',
           ],
         },
       ],
