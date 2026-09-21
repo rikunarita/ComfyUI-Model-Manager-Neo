@@ -474,11 +474,9 @@ class ModelDownload:
                 utils.print_error(str(e))
 
         try:
-            status = self.download_thread_pool.submit(download_task(task_id), task_id)
-            if status == "Waiting":
-                task_status = self.get_task_status(task_id)
-                task_status.status = "waiting"
-                await utils.send_json("update_download_task", task_status.to_dict())
+            # submit() starts the transfer as a task on the running loop and
+            # dedupes by task id ("Existing" while one is already alive).
+            self.download_thread_pool.submit(download_task(task_id), task_id)
         except Exception as e:
             task_status = self.get_task_status(task_id)
             task_status.status = "pause"
