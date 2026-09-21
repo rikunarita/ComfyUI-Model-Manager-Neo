@@ -142,7 +142,11 @@ class CivitaiModelSearcher(ModelSearcher):
             return []
 
         headers = auth.get_civitai_headers()
-        response = requests.get(f"https://{host}/api/v1/models/{model_id}", headers=headers)
+        # Timeouts everywhere: a hung API must not pin an io-executor worker
+        # (and the dialog spinner) forever. (connect, read-between-bytes).
+        response = requests.get(
+            f"https://{host}/api/v1/models/{model_id}", headers=headers, timeout=(10, 60)
+        )
         response.raise_for_status()
         res_data: dict = response.json()
 
@@ -274,7 +278,9 @@ class HuggingfaceModelSearcher(ModelSearcher):
         headers = auth.get_hf_headers()
 
         # Fetch model info from HF API
-        response = requests.get(f"https://huggingface.co/api/models/{model_id}", headers=headers)
+        response = requests.get(
+            f"https://huggingface.co/api/models/{model_id}", headers=headers, timeout=(10, 60)
+        )
         response.raise_for_status()
         res_data: dict = response.json()
 
@@ -285,7 +291,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             # repository root, so files inside sub-directories never got a
             # size (shown as 0 B until the download corrected it).
             tree_url = f"https://huggingface.co/api/models/{model_id}/tree/{revision}?recursive=true"
-            tree_response = requests.get(tree_url, headers=headers)
+            tree_response = requests.get(tree_url, headers=headers, timeout=(10, 60))
             if tree_response.status_code == 200:
                 tree_data = tree_response.json()
                 file_sizes = self._build_file_sizes(tree_data)

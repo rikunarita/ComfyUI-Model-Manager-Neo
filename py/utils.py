@@ -536,7 +536,9 @@ def save_model_preview(
             if not url.startswith("http"):
                 print_warning(f"Ignoring invalid preview URL: {url}")
                 return
-            response = requests.get(url, headers=headers or {})
+            # (connect, read) timeouts: a stalled CDN must not hang the
+            # download-completion path (which runs in the io pool) forever.
+            response = requests.get(url, headers=headers or {}, timeout=(15, 120))
             response.raise_for_status()
             content = response.content
             content_type = response.headers.get('content-type', '')
@@ -601,7 +603,7 @@ def replace_model_previews(model_path: str, items: list[Any]) -> int:
                         )
                     if not url.startswith("http"):
                         raise RuntimeError(f"invalid preview url: {url}")
-                    response = requests.get(url)
+                    response = requests.get(url, timeout=(15, 120))
                     response.raise_for_status()
                     content = response.content
                     content_type = response.headers.get("content-type", "") or ""
