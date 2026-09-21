@@ -405,6 +405,16 @@ class ModelDownload:
                 self.delete_task_status(task_id)
                 os.remove(utils.join_path(download_dir, task_file))
 
+        # The hub working directories (`<task_id>_hf` / `<task_id>_ms`) carry
+        # no dotted extension, so the scan above never matches them. Remove
+        # them explicitly: an already-abandoned hub transfer thread (cancelling
+        # a task cannot kill its executor thread) then fails fast on its next
+        # write instead of quietly leaving orphaned partial files behind.
+        for hub_suffix in ("_hf", "_ms"):
+            hub_dir = utils.join_path(download_dir, f"{task_id}{hub_suffix}")
+            if os.path.isdir(hub_dir):
+                shutil.rmtree(hub_dir, ignore_errors=True)
+
         await utils.send_json("delete_download_task", task_id)
 
     async def download_model(self, task_id: str, request):
