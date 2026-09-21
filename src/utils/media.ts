@@ -39,9 +39,41 @@ const PLATFORM_LOGO: Record<string, string> = {
   modelscope: assetUrl('modelscope-icon'),
 }
 
+/**
+ * Folded spelling (`www.` stripped, case / spaces / separators removed) →
+ * logo key. The notes keep the human-readable platform name — the resolver
+ * writes `Hugging Face` (two words), which a single-word lookup missed, so
+ * Hugging Face models showed no logo — and hand-written front-matter may use
+ * the short or domain form (`hf`, `huggingface.co`, `www.modelscope.ai`,
+ * `civitai.red`). Every spelling of a hub resolves to the same logo.
+ */
+const PLATFORM_ALIASES: Record<string, string> = {
+  civitai: 'civitai',
+  civitaicom: 'civitai',
+  civitaired: 'civitai',
+  hf: 'huggingface',
+  huggingface: 'huggingface',
+  huggingfaceco: 'huggingface',
+  modelscope: 'modelscope',
+  modelscopeai: 'modelscope',
+  modelscopecn: 'modelscope',
+}
+
+const normalizePlatform = (platform: string): string | undefined => {
+  const folded = platform
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, '')
+    .replace(/[\s_.\-]+/g, '')
+  return PLATFORM_ALIASES[folded]
+}
+
 /** The logo URL of a model platform, if Neo ships one for it. */
-export const platformLogo = (platform: string | undefined): string | undefined =>
-  platform ? PLATFORM_LOGO[platform.trim().toLowerCase()] : undefined
+export const platformLogo = (platform: string | undefined): string | undefined => {
+  if (!platform) return undefined
+  const key = normalizePlatform(platform)
+  return key ? PLATFORM_LOGO[key] : undefined
+}
 
 /**
  * Background style putting the platform logo behind the "open model page"

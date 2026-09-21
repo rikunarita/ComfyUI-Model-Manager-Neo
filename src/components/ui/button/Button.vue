@@ -50,15 +50,13 @@ export const buttonVariants = cva(
         'icon-lg': 'size-10',
         /*
          * CHROME ICON BUTTONS: the dialog top bar (layout / hidden-files /
-         * refresh / download / upload, maximize, close) renders deliberately
-         * larger than the rest of the chrome - 43.2 px (1.2× the 36 px
-         * `icon` square, icons at 19.2 px) - so the primary window controls
-         * are easy to hit. Toolbars and the bulk bar stay on the shared
-         * 36 px square that matches the 36 px inputs; the model-detail
-         * action row sizes its buttons explicitly (2.7rem) so every button
-         * of that row matches the ZipNN artwork's glass plate.
+         * refresh / download / upload, maximize, close) renders at the exact
+         * size of the model-detail action row - a 2.7rem square with size-5
+         * icons, matching the ZipNN artwork's glass plate - so the two rows
+         * of primary controls read as one family. Toolbars and the bulk bar
+         * stay on the shared 36 px square that matches the 36 px inputs.
          */
-        'icon-header': 'size-[43.2px]',
+        'icon-header': 'size-[2.7rem]',
       },
     },
     defaultVariants: {
