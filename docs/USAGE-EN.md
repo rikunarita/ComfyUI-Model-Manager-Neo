@@ -19,7 +19,7 @@ single bundled Vue 3 app injected into the page.
 4. [Model cards](#4-model-cards)
 5. [Model detail & editing](#5-model-detail--editing)
 6. [Downloading models](#6-downloading-models)
-7. [Uploading to Hugging Face](#7-uploading-to-hugging-face)
+7. [Uploading to Hugging Face / ModelScope](#7-uploading-to-hugging-face--modelscope)
 8. [Upload from a local file](#8-upload-from-a-local-file)
 9. [Feedback, galleries and the lightbox](#9-feedback-galleries-and-the-lightbox)
 10. [Multi-select and ZipNN compression](#10-multi-select-and-zipnn-compression)
@@ -37,7 +37,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 ```
 
 Restart ComfyUI. The Python dependencies (`huggingface_hub`, `hf_xet`,
-`markdownify`) are installed automatically on first launch, and the prebuilt web
+`modelscope_hub`, `markdownify`) are installed automatically on first launch, and the prebuilt web
 bundle ships inside the repository, so **Node.js is not required to run it**.
 
 Manual install: download the repository archive, extract it into
@@ -119,7 +119,7 @@ folders whose name starts with `.`).
 
 - **Preview** — image or looping video; models without a preview show the glass
   **NO PREVIEW** artwork.
-- **Chips** (bottom right) — model type and file size, scaled with the card.
+- **Chips** (top left) — model type and file size, scaled with the card.
 - **Star toggle** (top right, on every card) — an outline star when unstarred,
   a filled yellow star when starred; clicking toggles it, and starred
   models/folders always sort first.
@@ -134,13 +134,11 @@ folders whose name starts with `.`).
 - **Smart collections** (flat view) — save the current search + type filter as
   a named collection (persisted per user) and re‑apply it from the collections
   menu; the active collection shows as a chip with clear / delete buttons.
-  The **save (floppy) and collections controls are merged into one button**:
-  the floppy icon sits inside the collections button, a hair's width of slack
-  before the label, so the two former neighbours read as one pill
-  `[💾 Collections ▾]` — the floppy keeps its own click / keyboard target (it
-  opens the save dialog) while the rest of the button opens the menu that
-  applies / switches saved collections.
-- **Hygiene scan** (both toolbars) — a local‑only sweep (no network, no
+  Save and apply live in a single pill button `[💾 Collections ▾]`: the floppy
+  segment keeps its own click / keyboard target and opens the save dialog,
+  while the rest of the button opens the menu that applies or switches saved
+  collections.
+- **Hygiene scan** (header button, both layouts) — a local‑only sweep (no network, no
   hashing) listing orphaned preview / notes files, models without any preview
   (with a shortcut into their editor) and empty folders; selected entries are
   removed through the usual Danger confirmation.
@@ -227,8 +225,7 @@ Press the **pencil** to enter edit mode (the window turns into a form):
   `subfolder/my-model` files the model into `…/models/unet/subfolder/` on save
   (missing folders are created). `\ : * ? " < > |` and empty / `.` / `..`
   segments are rejected, and the backend re‑checks path traversal server‑side.
-- **Preview** — managed as a single gallery (the historical `Default` /
-  `Network` / `Local` / `None` source switcher is gone). In edit mode an
+- **Preview** — managed as a single gallery. In edit mode an
   **inline-scrolling thumbnail strip** beside / below the main preview manages
   it: pick the primary, move entries left / right, or remove single images;
   the thumbnail wearing the **blue ring** is the one save promotes to the
@@ -282,8 +279,7 @@ Open **Download List** from the header, then:
    model page offers is kept, and the image left selected in the carousel
    becomes the card's primary preview — and a Markdown description (Civitai/HF
    descriptions are pre‑filled, including trigger words and YAML metadata).
-   The download dialog keeps that resolved gallery as its single preview
-   source (no source switching).
+   The download dialog keeps that resolved gallery as its preview.
 5. **Download** starts a background task. The previews are fetched in the
    browser when possible and server‑side otherwise; if both fail the model
    still downloads, just without a preview. The dialog shows the **free space**
@@ -344,7 +340,7 @@ task bookkeeping. Paused downloads resume with an HTTP `Range` request.
 > Progress, pause and completion survive closing the window: tasks live in the
 > backend and are pushed over the websocket.
 
-## 7. Uploading to Hugging Face
+## 7. Uploading to Hugging Face / ModelScope
 
 The wizard asks for the **upload platform** first (Hugging Face or ModelScope),
 then continues through type / model selection into the upload form. ModelScope
@@ -392,12 +388,12 @@ the current phase:
 
 ### Messages you may see on completion
 
-| Toast                                                               | Meaning                                                                                                                                                                                                      |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Success** — `path -> repo`                                        | a new commit was created and bytes were transferred                                                                                                                                                          |
-| **Already stored on Hugging Face**                                  | the identical bytes already existed in the repository’s object store, so Hugging Face transferred nothing (`Upload 0 LFS files`) but a new commit pointing at them **was** created; the toast links the file |
-| **Skipped** — “An identical file already exists in 'repo': <url> …” | the very same file already sits at that exact path; Hugging Face refuses empty commits, so nothing was done. Pick another destination path to create a new commit                                            |
-| **Error**                                                           | the transfer failed; the message carries the backend reason                                                                                                                                                  |
+| Toast                                                               | Meaning                                                                                                                                                                                                 |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Success** — `path -> repo`                                        | a new commit was created and bytes were transferred                                                                                                                                                     |
+| **Already stored on Hugging Face** (or **on ModelScope**)           | the identical bytes already existed in the repository’s object store, so the hub transferred nothing (`Upload 0 LFS files`) but a new commit pointing at them **was** created; the toast links the file |
+| **Skipped** — “An identical file already exists in 'repo': <url> …” | the very same file already sits at that exact path; Hugging Face refuses empty commits, so nothing was done. Pick another destination path to create a new commit                                       |
+| **Error**                                                           | the transfer failed; the message carries the backend reason                                                                                                                                             |
 
 ## 8. Upload from a local file
 
@@ -450,7 +446,7 @@ selected a bulk bar appears at the bottom of the window:
   compress / decompress the selected folders (see below);
 - **ZipNN delta compress** (exactly two plain models selected) — opens the
   base/fine-tune picker (see below);
-- **Upload to Hugging Face** (folders selected) — batch‑uploads every model
+- **Upload to Hugging Face / ModelScope** (folders selected) — batch‑uploads every model
   inside the selected folders (sub‑folders preserved) through the same upload
   dialog;
 - **Star** (folders selected, icon only) — yellow when every selected folder

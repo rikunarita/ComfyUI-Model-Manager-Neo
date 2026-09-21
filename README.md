@@ -159,7 +159,7 @@ If the fork is published to the registry, search for
 **“ComfyUI‑Model‑Manager‑Neo”** in [ComfyUI-Manager] and install it from there.
 
 Then **restart ComfyUI**. Python dependencies (`huggingface_hub`, `hf_xet`,
-`markdownify`) are installed automatically on first launch. The prebuilt web
+`modelscope_hub`, `markdownify`) are installed automatically on first launch. The prebuilt web
 bundle ships in [`web/`](web), so no Node.js is required to _run_ the extension.
 
 Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or the
@@ -194,13 +194,10 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
 - Model cards filed below the type root show their **sub-directory** above the
   name (flat and folder view alike).
 - **Smart collections** — save the flat view's current search + type filter as
-  a named, per‑user collection and re‑apply it with one click. The **save**
-  (floppy) and **collections** controls are merged into a single button: the
-  floppy icon sits inside the collections button, a hair's width of slack
-  before the label, so the two former neighbours read as one pill `[💾 Collections ▾]`.
-  The floppy keeps its own click / keyboard target (it opens the save dialog)
-  while the rest of the button opens the menu that applies / switches saved
-  collections.
+  a named, per‑user collection and re‑apply it with one click. Save and apply
+  live in a single pill button `[💾 Collections ▾]`: the floppy segment opens
+  the save dialog (with its own click / keyboard target), the rest opens the
+  menu that applies or switches saved collections.
 - **Hygiene scan** — a local‑only sweep (no network, no hashing) for orphaned
   previews / notes, models without previews and empty folders, with bulk
   cleanup behind the usual confirmation.
@@ -559,19 +556,18 @@ PrimeVue dependency itself, and the batch‑scan feature — see
 
 - **Removed:** `primevue`, `@primevue/themes`, `lodash`, `dayjs`, `js-yaml`.
 - **Added / replaced:** `reka-ui`, `@lucide/vue`, `es-toolkit` (← lodash),
-  `date-fns` (← dayjs), `yaml` (← js-yaml), `valibot` (runtime schema
-  validation), `vue-sonner` (toasts), `class-variance-authority`, `clsx`,
-  `tailwind-merge`, `tw-animate-css`.
+  `date-fns` (← dayjs), `yaml` (← js-yaml), `vue-sonner` (toasts),
+  `class-variance-authority`, `clsx`, `tailwind-merge`.
 - **Upgraded:** Vite 5 → **8** (Rolldown), TypeScript 5 → **6**, Vue i18n 9 →
   **11**, markdown‑it 14 → **15**, `@vueuse/core` 11 → **14**.
-- **Python:** added `huggingface_hub` + `hf_xet`; asyncio task pool replacing the
-  old thread pool.
+- **Python:** added `huggingface_hub` + `hf_xet` + `modelscope_hub`; asyncio
+  task pool replacing the old thread pool.
 
 ### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="22" height="22" align="middle" alt=""> Toolbar / button roles
 
 The manager header was redesigned into explicit, icon‑driven actions:
-**flat ⇄ folder layout toggle**, **show/hide hidden files**, **refresh**,
-**download list**, and **upload to Hugging Face**.
+**flat ⇄ folder layout toggle**, **hygiene scan**, **show/hide hidden files**,
+**refresh**, **download list**, and **upload to Hugging Face / ModelScope**.
 
 ### <img src="https://api.iconify.design/lucide/folder-open.svg?color=%23f59e0b" width="22" height="22" align="middle" alt=""> Glass asset pack (folder icons & no‑preview art)
 
@@ -589,11 +585,10 @@ The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
   `close-folder_all-fit.svg` glyph (14 px) — the variant that reads best at
   small sizes.
 - **Models without a preview** use the glass `NOPREVIEW-Icon/NO-PREVIEW.svg`
-  as their **default** artwork: the model list points straight at
-  `GET /model-manager/no-preview.svg` (served verbatim as `image/svg+xml`,
-  vector art is never rasterised). The preview routes themselves carry **no
-  fallback chain any more** — they serve real preview files or answer 404 —
-  and the old flat `no-preview.png` raster is gone.
+  as their default artwork: the model list points straight at
+  `GET /model-manager/no-preview.svg` (served verbatim as `image/svg+xml` —
+  vector art is never rasterised), and the preview routes serve real preview
+  files or answer 404.
 - **Model‑hub logos** live in `AIModelHub-Logos/` (`civitai-icon.svg`,
   `hf-icon.svg`): the **Open model page** button wears the logo of the
   platform recorded in the model's notes (`website`) as its background, in the
@@ -612,31 +607,21 @@ The lint / format pipeline is a conventional, fully‑configured
 
 ## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="28" height="28" align="middle" alt=""> Removed feature: batch scan
 
-The **“Batch scan model information”** feature has been **removed entirely**. It
-was redundant: the model detail
-window requests that model's `__metadata__` (read straight from the safetensors
-header) and the Markdown notes stored beside the file, and the preview route
-resolves whichever preview file exists — a model without one carries the
-bundled glass `NO-PREVIEW.svg` URL straight in the model list.
+The **“Batch scan model information”** feature has been removed. It was
+redundant: the model detail window reads that model's `__metadata__` straight
+from the safetensors header together with the Markdown notes stored beside the
+file, and a model without a preview carries the bundled glass `NO-PREVIEW.svg`
+artwork right in the grid. A library‑wide walk that hashed every model and
+queried Civitai by hash was a second, far slower route to the same information
+— plus a modal dialog, a global store, websocket events, a task file on disk
+and its own settings, all of which had to be maintained.
 
-A library‑wide walk that hashed every model and queried Civitai by hash was a
-second, far slower route to the same information — plus a modal dialog, a global
-store, websocket events, a task file on disk and its own settings, all of which
-had to be maintained. All of it is gone, frontend and backend alike (scan
-dialog, scan hooks, scan routes and task bookkeeping, hash‑by‑search, and the
-recursive‑walk / sha256 helpers that only the scan used).
-
-Two scan‑era setting IDs — `ModelManager.Scan.excludeScanTypes` and
-`ModelManager.Scan.IncludeHiddenFiles` — **keep their ID strings on purpose**:
-they now drive the **model list** (which types are loaded into the grid, and
-whether `.`‑prefixed files are shown), and the ID is the key ComfyUI persists
-the user's value under, so renaming it would silently orphan every existing
-installation's saved setting. Everything around them was renamed to match the
-new role (settings category **Model List**, label **“Exclude model types
-(separate with commas)”**). Other identifiers that merely contain “scan”
-(`scan_models()`, which enumerates folders, and
-`scan_model_download_task_list()`, which lists download tasks) are upstream
-naming for unrelated behaviour and were left as‑is.
+The two settings that outlived the scan drive the **model list** today (which
+types are loaded into the grid, and whether `.`‑prefixed files are shown),
+under the settings category **Model List**. They keep their historical
+`ModelManager.Scan.*` ID strings because that ID is the key ComfyUI persists
+each user's value under — renaming it would orphan every existing
+installation's saved setting.
 
 > [!NOTE]
 > **What this gives up:** the only way to _bulk backfill_ previews and
@@ -645,7 +630,9 @@ naming for unrelated behaviour and were left as‑is.
 > (the model editor's gallery strip: add local image files through its dashed
 > tile, or reorder / remove entries), or until it is re‑downloaded
 > through _Create Download Task_, which does carry a preview. Reading a model's
-> information is unaffected — that always came from disk, on demand.
+> information is unaffected — that always comes from disk, on demand. Individual
+> models can still be identified against the Civitai catalog on demand with the
+> hash reverse-lookup button of the detail window.
 
 <a id="documentation"></a>
 
@@ -657,12 +644,11 @@ Step‑by‑step usage guides, each complete and self‑contained:
 - [`docs/USAGE-JA.md`](docs/USAGE-JA.md) — 日本語
 - [`docs/USAGE-ZN.md`](docs/USAGE-ZN.md) — 中文
 
-A Japanese version of this front page lives in [`README-ja.md`](README-ja.md).
-
 They cover installation, both layouts, card interactions and drag‑to‑graph, the
 model editor (folder picker, folder‑prefixed names, previews, descriptions),
-downloads and the task list, the Hugging Face upload phases and completion
-messages, ZipNN compression, settings and locales, plus a troubleshooting table.
+downloads and the task list, the hub upload (Hugging Face / ModelScope) phases
+and completion messages, ZipNN compression, settings and locales, plus a
+troubleshooting table.
 The screenshots they embed live in [`docs/screenshots/`](docs/screenshots/) with
 a per‑file manifest in
 [`docs/screenshots/README.md`](docs/screenshots/README.md).
@@ -735,11 +721,14 @@ ordering), `eslint-plugin-tailwindcss` (class hygiene) and `eslint-config-pretti
 ├─ __init__.py            # ComfyUI entry: installs deps, registers routes
 ├─ py/                    # Python backend (aiohttp routes, HF/Civitai, tasks)
 │  ├─ manager.py          #   model CRUD + folder listing
-│  ├─ download.py         #   download tasks (http + huggingface_hub)
+│  ├─ download.py         #   download tasks (http + huggingface_hub + modelscope_hub)
 │  ├─ upload.py           #   local file upload (path-validated)
-│  ├─ upload_hf.py        #   upload to Hugging Face
+│  ├─ upload_hf.py        #   upload to Hugging Face (shared hub pipeline)
+│  ├─ upload_modelscope.py#   upload to ModelScope
 │  ├─ compress.py         #   ZipNN compress / decompress (vendored core)
-│  ├─ information.py      #   Civitai/HF search by URL, preview serving
+│  ├─ information.py      #   Civitai/HF/ModelScope page resolution, preview serving
+│  ├─ search.py           #   multi-platform model-name search + avatar proxy
+│  ├─ identify.py         #   Civitai hash reverse-lookup
 │  ├─ auth.py · config.py · thread.py · utils.py
 ├─ third_party/           # vendored ZipNN (Python pkg + prebuilt zipnn_core + C src)
 ├─ src/                   # Vue 3 frontend
@@ -791,8 +780,8 @@ If this fork is useful to you, the upstream repository deserves the star: the
 work standing on its shoulders is what makes any of the above possible.
 
 Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
-[VueUse], [es-toolkit], [valibot], [vue-sonner], [huggingface_hub], [hf_xet],
-and [ZipNN].
+[VueUse], [es-toolkit], [vue-sonner], [huggingface_hub], [hf_xet],
+[modelscope_hub], and [ZipNN].
 
 ---
 
@@ -816,10 +805,10 @@ and [ZipNN].
 [Lucide]: https://lucide.dev
 [VueUse]: https://vueuse.org
 [es-toolkit]: https://es-toolkit.dev
-[valibot]: https://valibot.dev
 [vue-sonner]: https://vue-sonner.vercel.app
 [huggingface_hub]: https://github.com/huggingface/huggingface_hub
 [hf_xet]: https://github.com/huggingface/xet-core
+[modelscope_hub]: https://github.com/modelscope/modelscope_hub
 [ZipNN]: https://github.com/zipnn/zipnn
 [Qwen Studio]: https://chat.qwen.ai/
 [ComfyUI-Manager]: https://github.com/ltdrdata/ComfyUI-Manager
