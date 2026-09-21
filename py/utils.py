@@ -904,7 +904,7 @@ def is_installed(package_name: str):
         return spec is not None
 
     # RANGE ENFORCEMENT: an installed but out-of-range distribution (e.g. a
-    # huggingface_hub newer than the `<1.32.0` ceiling in requirements.txt)
+    # huggingface_hub older than the `>=1.32.0` floor in requirements.txt)
     # must count as missing so pip_install() corrects it on startup instead
     # of the pin being nominal.
     return requirement_satisfied(package_name)

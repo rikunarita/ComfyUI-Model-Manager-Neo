@@ -766,6 +766,10 @@ class ModelDownload:
                 cleanup()
         task_status.progress = 100.0
         task_status.bps = 0.0
+        if task_status.totalSize:
+            # The transfer is over: report the full size instead of leaving
+            # the last reconstruction-lagged sample next to a 100% bar.
+            task_status.downloadedSize = task_status.totalSize
         await progress_callback(task_status)
         await self._download_complete(task_id)
 

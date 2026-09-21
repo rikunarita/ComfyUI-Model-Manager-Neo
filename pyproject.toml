@@ -3,10 +3,12 @@ name = "comfyui-model-manager-neo"
 description = "Manage models: browsing, download and delete. Fork of ComfyUI-Model-Manager with improved HF/Civitai auth, huggingface_hub integration, and bug fixes."
 version = "0.1.5"
 license = { file = "LICENSE" }
+requires-python = ">=3.10"
 dependencies = [
     "markdownify>=0.14.0",
-    "huggingface_hub>=0.34.0,<1.32.0",
-    "hf_xet>=1.1.0"
+    "huggingface_hub>=1.32.0",
+    "hf_xet>=1.5.2,<2.0.0",
+    "modelscope_hub>=0.4.3",
 ]
 
 [project.urls]
@@ -16,6 +18,3 @@ Repository = "https://github.com/rikunarita/ComfyUI-Model-Manager-Neo"
 PublisherId = "rikunarita7669"
 DisplayName = "ComfyUI-Model-Manager-Neo"
 Icon = ""
-
-[tool.black]
-line-length = 160
