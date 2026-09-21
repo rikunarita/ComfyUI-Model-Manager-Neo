@@ -308,7 +308,20 @@ export const useModels = defineStore('models', store => {
   }
 
   const updateModel = async (model: BaseModel, data: WithResolved<BaseModel>) => {
-    const payload = await buildUpdatePayload(model, data)
+    // Building the payload reads locally picked previews (blob: URLs) in the
+    // browser; a failure there must surface the same toast as a failed PUT
+    // instead of dying silently inside the caller's catch.
+    const payload = await buildUpdatePayload(model, data).catch((err: unknown) => {
+      toast.add({
+        severity: 'error',
+        summary: t('error'),
+        detail: t('failedToUpdateModel', {
+          message: err instanceof Error ? err.message : String(err),
+        }),
+        life: 15000,
+      })
+      throw err
+    })
     if (!payload) return
 
     loading.show()

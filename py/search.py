@@ -30,6 +30,7 @@ import asyncio
 import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from urllib.parse import quote, urlparse
 
 import requests
@@ -66,6 +67,20 @@ def _cache_avatar(key: str, value: str | None) -> str | None:
 _AVATAR_PROXY_HOSTS = ("modelscope.ai", "modelscope.cn", "huggingface.co", "civitai.com")
 _AVATAR_PROXY_CACHE: dict[str, tuple[str, str, bytes]] = {}
 _AVATAR_PROXY_LIMIT = 96
+# Avatars are tiny; refuse anything larger so a hostile (or misbehaving) CDN
+# object cannot balloon the in-memory cache.
+_AVATAR_PROXY_MAX_BYTES = 5 * 1024 * 1024
+
+
+def _is_allowed_avatar_host(host: str) -> bool:
+    """Exact host or subdomain of an allowed hub.
+
+    A plain ``endswith`` suffix test also matched look-alike domains
+    (``evil-civitai.com``), turning the proxy into a limited SSRF relay;
+    the dot-boundary check closes that without touching legitimate avatars
+    (``resources.modelscope.ai`` and friends keep matching).
+    """
+    return any(host == domain or host.endswith("." + domain) for domain in _AVATAR_PROXY_HOSTS)
 
 
 def _sniff_image_content_type(body: bytes) -> str:
@@ -86,12 +101,25 @@ def _sniff_image_content_type(body: bytes) -> str:
 
 def _fetch_avatar_bytes(url: str) -> bytes | None:
     try:
-        r = requests.get(url, headers=_UA, timeout=10)
+        r = requests.get(url, headers=_UA, timeout=10, stream=True)
     except Exception:
         return None
-    if r.status_code != 200 or not r.content:
-        return None
-    return r.content
+    try:
+        if r.status_code != 200:
+            return None
+        chunks: list[bytes] = []
+        received = 0
+        for chunk in r.iter_content(64 * 1024):
+            if not chunk:
+                continue
+            received += len(chunk)
+            if received > _AVATAR_PROXY_MAX_BYTES:
+                return None
+            chunks.append(chunk)
+        body = b"".join(chunks)
+        return body or None
+    finally:
+        r.close()
 
 
 def avatar_proxy_url(url: str | None) -> str | None:
@@ -105,7 +133,7 @@ def avatar_proxy_url(url: str | None) -> str | None:
     if parsed.scheme != "https":
         return None
     host = parsed.hostname or ""
-    if not host.endswith(_AVATAR_PROXY_HOSTS):
+    if not _is_allowed_avatar_host(host):
         return None
     return f"/model-manager/avatar?url={quote(url, safe='')}"
 
@@ -449,15 +477,37 @@ class SearchRoutes:
                 )
                 return web.json_response({"success": True, "data": {name: res}})
 
-            with ThreadPoolExecutor(max_workers=3) as pool:
-                futs = [
-                    pool.submit(run, name, None, _resolve_sort(request, name))
-                    for name in _PROVIDERS
-                ]
-                data = {}
-                for fut in as_completed(futs, timeout=SEARCH_TIMEOUT + 5):
-                    name, res = fut.result()
-                    data[name] = res
+            # The three-provider sweep waits on its futures, so the wait must
+            # NOT happen on the server's event loop (it froze every websocket
+            # and request for up to the full search timeout). The fan-out pool
+            # runs inside one io-executor worker; a hung provider degrades to
+            # a per-column timeout entry instead of failing the whole search.
+            sort_map = {name: _resolve_sort(request, name) for name in _PROVIDERS}
+
+            def run_all():
+                data: dict[str, dict] = {}
+                pool = ThreadPoolExecutor(max_workers=len(_PROVIDERS))
+                try:
+                    futs = {
+                        name: pool.submit(run, name, None, sort_map[name])
+                        for name in _PROVIDERS
+                    }
+                    try:
+                        for fut in as_completed(futs.values(), timeout=SEARCH_TIMEOUT + 5):
+                            name, res = fut.result()
+                            data[name] = res
+                    except FuturesTimeoutError:
+                        utils.print_warning("search: provider timed out, returning partial results")
+                    for name in _PROVIDERS:
+                        data.setdefault(
+                            name,
+                            {"items": [], "error": "search timed out", "nextCursor": None},
+                        )
+                finally:
+                    pool.shutdown(wait=False, cancel_futures=True)
+                return data
+
+            data = await loop.run_in_executor(utils.io_executor(), run_all)
             return web.json_response({"success": True, "data": data})
 
         @routes.get("/model-manager/avatar")
@@ -476,7 +526,7 @@ class SearchRoutes:
             except Exception:
                 raise web.HTTPNotFound()
             host = parsed.hostname or ""
-            if parsed.scheme != "https" or not host.endswith(_AVATAR_PROXY_HOSTS):
+            if parsed.scheme != "https" or not _is_allowed_avatar_host(host):
                 raise web.HTTPNotFound()
 
             hit = _AVATAR_PROXY_CACHE.get(url)

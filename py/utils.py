@@ -901,10 +901,10 @@ def is_installed(package_name: str):
 
         return spec is not None
 
-    # RANGE ENFORCEMENT: an installed but out-of-range distribution (e.g.
-    # huggingface_hub 1.31.x against the `>=0.34.0,<1.31.0` pin that keeps the
-    # version-paired `hf` CLI combination intact) must count as missing so
-    # pip_install() corrects it on startup instead of the pin being nominal.
+    # RANGE ENFORCEMENT: an installed but out-of-range distribution (e.g. a
+    # huggingface_hub newer than the `<1.32.0` ceiling in requirements.txt)
+    # must count as missing so pip_install() corrects it on startup instead
+    # of the pin being nominal.
     return requirement_satisfied(package_name)
 
 def pip_install(package_name: str):

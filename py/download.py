@@ -588,67 +588,100 @@ class ModelDownload:
         last_downloaded_size = downloaded_size
 
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(
-                model_url, headers=headers, allow_redirects=True
-            ) as response:
-                if response.status not in (200, 206):
-                    if (
-                        response.status == 401
-                        and task_content.downloadPlatform == "civitai"
-                    ):
-                        # Scope-aware guidance: gated Civitai files answer 401
-                        # without a token - say exactly where to get one and
-                        # how to retry instead of a bare status code.
-                        raise RuntimeError(
-                            f"Civitai rejected the download of {task_content.fullname} "
-                            "(401 Unauthorized): this file requires authentication. "
-                            "Create an API key at https://civitai.com/user/account, "
-                            "store it in Settings > Model Manager Neo > API Key > "
-                            "Civitai, then resume this task."
+            # One extra attempt when resuming: a 416 (the partial file no
+            # longer matches the remote object, e.g. it was replaced upstream)
+            # discards the partial and re-requests the full body instead of
+            # failing the task outright.
+            attempts = 2 if downloaded_size > 0 else 1
+            for attempt in range(attempts):
+                async with session.get(
+                    model_url, headers=headers, allow_redirects=True
+                ) as response:
+                    if response.status == 416 and attempt + 1 < attempts:
+                        utils.print_warning(
+                            f"Resume range rejected (416) for {task_content.fullname}; "
+                            "discarding the partial file and restarting from zero"
                         )
-                    raise RuntimeError(
-                        f"Failed to download {task_content.fullname}, status code: {response.status}"
-                    )
+                        downloaded_size = 0
+                        last_downloaded_size = 0
+                        headers = {
+                            k: v for k, v in headers.items() if k.lower() != "range"
+                        }
+                        try:
+                            os.remove(download_tmp_file)
+                        except OSError:
+                            pass
+                        continue
 
-                content_type = response.headers.get("content-type")
-                if content_type and content_type.startswith("text/html"):
-                    raise RuntimeError(
-                        f"{task_content.fullname} needs to be logged in to download. Please set the API-Key first."
-                    )
+                    if response.status not in (200, 206):
+                        if (
+                            response.status == 401
+                            and task_content.downloadPlatform == "civitai"
+                        ):
+                            # Scope-aware guidance: gated Civitai files answer 401
+                            # without a token - say exactly where to get one and
+                            # how to retry instead of a bare status code.
+                            raise RuntimeError(
+                                f"Civitai rejected the download of {task_content.fullname} "
+                                "(401 Unauthorized): this file requires authentication. "
+                                "Create an API key at https://civitai.com/user/account, "
+                                "store it in Settings > Model Manager Neo > API Key > "
+                                "Civitai, then resume this task."
+                            )
+                        raise RuntimeError(
+                            f"Failed to download {task_content.fullname}, status code: {response.status}"
+                        )
 
-                response_total_size = float(response.headers.get("content-length", 0) or 0)
+                    content_type = response.headers.get("content-type")
+                    if content_type and content_type.startswith("text/html"):
+                        raise RuntimeError(
+                            f"{task_content.fullname} needs to be logged in to download. Please set the API-Key first."
+                        )
 
-                if response.status == 206:
-                    actual_total = response_total_size + downloaded_size
-                    if total_size == 0 or total_size != actual_total:
-                        total_size = actual_total
-                        task_content.sizeBytes = total_size
-                        task_status.totalSize = total_size
-                        self.set_task_content(task_id, task_content)
-                        await utils.send_json("update_download_task", task_status.to_dict())
-                else:
-                    if total_size == 0 or total_size != response_total_size:
-                        total_size = response_total_size
-                        task_content.sizeBytes = total_size
-                        task_status.totalSize = total_size
-                        self.set_task_content(task_id, task_content)
-                        await utils.send_json("update_download_task", task_status.to_dict())
+                    response_total_size = float(response.headers.get("content-length", 0) or 0)
 
-                with open(download_tmp_file, "ab") as f:
-                    async for chunk in response.content.iter_chunked(8192):
-                        # Cooperative pause, checked exactly as before.
-                        if task_status.status == "pause":
-                            break
+                    if response.status == 206:
+                        actual_total = response_total_size + downloaded_size
+                        if total_size == 0 or total_size != actual_total:
+                            total_size = actual_total
+                            task_content.sizeBytes = total_size
+                            task_status.totalSize = total_size
+                            self.set_task_content(task_id, task_content)
+                            await utils.send_json("update_download_task", task_status.to_dict())
+                        open_mode = "ab"
+                    else:
+                        # A 200 answer carries the WHOLE file: the server did
+                        # not honour the Range request (or there was nothing
+                        # to resume). Appending the full body after an old
+                        # partial would corrupt the model beyond repair, so
+                        # any stale partial is discarded and the file is
+                        # written from zero.
+                        downloaded_size = 0
+                        last_downloaded_size = 0
+                        open_mode = "wb"
+                        if total_size == 0 or total_size != response_total_size:
+                            total_size = response_total_size
+                            task_content.sizeBytes = total_size
+                            task_status.totalSize = total_size
+                            self.set_task_content(task_id, task_content)
+                            await utils.send_json("update_download_task", task_status.to_dict())
 
-                        f.write(chunk)
-                        downloaded_size += len(chunk)
+                    with open(download_tmp_file, open_mode) as f:
+                        async for chunk in response.content.iter_chunked(8192):
+                            # Cooperative pause, checked exactly as before.
+                            if task_status.status == "pause":
+                                break
 
-                        if time.time() - last_update_time >= interval:
-                            await push_progress(downloaded_size - last_downloaded_size)
-                            last_update_time = time.time()
-                            last_downloaded_size = downloaded_size
+                            f.write(chunk)
+                            downloaded_size += len(chunk)
 
-                await push_progress(downloaded_size - last_downloaded_size)
+                            if time.time() - last_update_time >= interval:
+                                await push_progress(downloaded_size - last_downloaded_size)
+                                last_update_time = time.time()
+                                last_downloaded_size = downloaded_size
+
+                    await push_progress(downloaded_size - last_downloaded_size)
+                break
 
         if total_size > 0 and downloaded_size == total_size:
             await self._download_complete(task_id)

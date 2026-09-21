@@ -6,7 +6,7 @@ from urllib.parse import quote
 import yaml
 import folder_paths
 from aiohttp import web
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 
 from . import utils
@@ -402,7 +402,13 @@ class ModelManager:
                 utils.print_error(f"{entry.path} is not file or directory.")
                 return None
 
-            stat = entry.stat()
+            try:
+                stat = entry.stat()
+            except OSError:
+                # The entry vanished between the walk and this stat (files do
+                # get moved/deleted while a scan runs): skip it instead of
+                # failing the whole listing.
+                return None
             model_page, model_platform, model_sha, model_base = (
                 _model_site_info_of(names, basename, directory=base_path, sub_folder=sub_folder)
                 if is_file
@@ -465,11 +471,15 @@ class ModelManager:
             for i in range(0, len(file_entries), BATCH_SIZE):
                 batch = file_entries[i:i + BATCH_SIZE]
                 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-                    futures = {
-                        executor.submit(get_file_info, entry, base_path, path_index, dir_names): entry
+                    futures = [
+                        executor.submit(get_file_info, entry, base_path, path_index, dir_names)
                         for entry in batch
-                    }
-                    for future in as_completed(futures):
+                    ]
+                    # Collect in SUBMISSION order (not as_completed): the walk
+                    # order is stable, so the listing the client receives does
+                    # not reshuffle between refreshes (the grid's "recently
+                    # used" sort keeps ties in listing order).
+                    for future in futures:
                         file_info = future.result()
                         if file_info is not None:
                             result.append(file_info)

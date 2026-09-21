@@ -408,6 +408,9 @@ interface SearchItem {
 watch(modelUrl, value => {
   clearTimeout(searchTimer)
   if (!value || value.startsWith('https://')) {
+    // Invalidate any in-flight name search: its results must not resurface
+    // after the field flipped to URL mode.
+    searchSeq += 1
     searchResults.value = null
     return
   }
@@ -417,6 +420,12 @@ watch(modelUrl, value => {
 const searchLoading = ref(false)
 /** The query the visible results belong to (Enter re-searches anything else). */
 const searchedQuery = ref<string | null>(null)
+/**
+ * Response sequencing: a slow search for an older query must not land on top
+ * of a newer one's results (the columns would show rows the field no longer
+ * matches and `searchedQuery` would lie to the Enter handler).
+ */
+let searchSeq = 0
 
 /** Per-platform sort orders chosen in the ComfyUI settings panel. */
 const sortParams = () =>
@@ -425,17 +434,23 @@ const sortParams = () =>
   `&sort_civitai=${encodeURIComponent(searchSortCivitai.value)}`
 
 const runModelSearch = async (query: string) => {
+  const seq = ++searchSeq
   searchLoading.value = true
   try {
-    searchResults.value = await request(
+    const results = await request(
       `/search?query=${encodeURIComponent(query)}&limit=8${sortParams()}`,
     )
+    if (seq !== searchSeq) return
+    searchResults.value = results
   } catch (error) {
+    if (seq !== searchSeq) return
     searchResults.value = null
     toast.add({ severity: 'error', detail: (error as Error).message, life: 6000 })
   } finally {
-    searchedQuery.value = query
-    searchLoading.value = false
+    if (seq === searchSeq) {
+      searchedQuery.value = query
+      searchLoading.value = false
+    }
   }
 }
 
@@ -497,7 +512,12 @@ const canLoadMore = (platform: string) =>
 const loadMore = async (platform: string) => {
   const state = searchResults.value?.[platform]
   const cursor = state?.nextCursor
-  const query = modelUrl.value
+  // Page the query the VISIBLE results belong to: the field may already hold
+  // the next keystrokes while this column's rows are from the last search.
+  const query = searchedQuery.value ?? modelUrl.value
+  // Identity guard: a fresh search replacing the result set mid-flight must
+  // not receive this page's (stale-query) rows.
+  const resultSet = searchResults.value
   if (!state || !cursor || !query || loadingMore.value[platform]) return
   loadingMore.value[platform] = true
   try {
@@ -508,7 +528,7 @@ const loadMore = async (platform: string) => {
     )
     const page = res?.[platform]
     const target = searchResults.value?.[platform]
-    if (page && target) {
+    if (page && target && searchResults.value === resultSet) {
       target.items.push(...(page.items ?? []))
       target.nextCursor = page.nextCursor ?? null
       if (page.error) target.error = page.error
