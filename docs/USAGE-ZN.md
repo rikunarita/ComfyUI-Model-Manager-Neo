@@ -1,7 +1,7 @@
 # ComfyUI‑Model‑Manager‑Neo 使用指南（中文）
 
 > 姊妹文档: [English](USAGE-EN.md) · [日本語](USAGE-JA.md)
-> 文中截图位于 [`docs/screenshots/`](screenshots/)（各文件清单见
+> 文中截图位于 [`demo-assets/`](../demo-assets/)（各文件清单见
 > [Screenshots](#screenshots截图)）。
 
 ComfyUI‑Model‑Manager‑Neo 是一个为 ComfyUI 增加模型**浏览、下载、上传、编辑**
@@ -59,8 +59,6 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 > 加载指示**只作用于所属面板**：请求进行中时只有该窗口被压暗模糊，画布、顶栏与
 > 其他窗口仍然可用。
->
-> ![面板内加载](screenshots/loading-panel.png)
 
 ## 3. 两种布局
 
@@ -78,11 +76,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 - **卡片尺寸** — 超大 / 大 / 中 / 小，或**自定义尺寸**（宽高滑块对话框，保存到
   ComfyUI 设置）。
 
-![展平布局](screenshots/view-flat-dialog.png)
-
-**自定义尺寸**对话框通过一组宽/高滑块编辑每个预设，并把结果写入 ComfyUI 设置：
-
-![自定义尺寸对话框](screenshots/card-size.png)
+![展平布局](../demo-assets/view-flat.png)
 
 ### 文件夹布局
 
@@ -92,7 +86,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 显示：窗口变窄时先省略中间层级，工具栏则与展平布局遵循同一响应式规则纵向堆叠，
 而不会裁掉任何控件。
 
-![文件夹布局](screenshots/view-folders-dialog.png)
+![文件夹布局](../demo-assets/view-folders.png)
 
 搜索框旁是**添加文件夹**按钮（文件夹加号图标）：输入任意名称即在当前浏览的
 目录中创建文件夹（以 `_ZNN` / `_DeltaZNN` 结尾的名称为 ZipNN 保留）。搜索框旁
@@ -104,7 +98,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 ## 4. 模型卡片
 
-![模型卡片](screenshots/view-flat.png)
+![模型卡片](../demo-assets/view-flat.png)
 
 - **预览** — 图片或循环视频；没有预览的模型显示玻璃质感的 **NO PREVIEW** artwork。
 - **角标**（左上） — 模型类型与文件大小，随卡片尺寸缩放。
@@ -133,9 +127,13 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 - **双击 / 单击** — 打开模型详情窗口。
 - **工具提示** — 悬停卡片显示绝对路径。
 
+卫生扫描的结果汇总在一个对话框中，各条目仍经惯用的 Danger 确认删除：
+
+![卫生扫描](../demo-assets/hygiene-scan.png)
+
 ## 5. 模型详情与编辑
 
-![模型详情](screenshots/model-info.png)
+![模型详情](../demo-assets/model-info.png)
 
 窗口显示预览（多个预览时为轮播）、基本信息表和两个标签页。
 
@@ -165,6 +163,10 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
   500 行分页，可点击"显示全部"展开。操作行中的**打开模型页**按钮与卡片悬停列中的同名按钮一样：只要笔记记录了
   来源平台，就以该 hub（Civitai / Hugging Face / ModelScope）的 logo 作为按钮背景。
 
+  Tensor 小节把 safetensors 头渲染为可折叠的文件夹树：
+
+  ![张量树](../demo-assets/tensor-tree.png)
+
 ### 按哈希识别
 
 模型详情操作行中的**哈希逆查按钮**（HashReverse 图标）向 Civitai 目录逆查"这个本地文件是哪个模型版本"
@@ -178,13 +180,13 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 点击**铅笔**进入编辑模式（窗口变为表单）：
 
-![编辑模式](screenshots/model-edit.png)
+![编辑模式](../demo-assets/model-edit.png)
 
 - **模型类型** — 下拉只列出当前 ComfyUI 实际存在文件夹的类型。
 - **目录** — 只读字段加**文件夹按钮**，后者打开一个嵌套的文件夹选择对话框，
   内含所有基础路径与子文件夹的树：
 
-  ![文件夹选择](screenshots/folder-picker.png)
+  ![文件夹选择](../demo-assets/folder-picker.png)
 
 - **文件名** — 支持**文件夹前缀**。输入 `subfolder/my-model` 后保存，模型会被放入
   `…/models/unet/subfolder/`（缺少的文件夹会自动创建）。`\ : * ? " < > |` 以及空、
@@ -199,7 +201,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 - **Description** — 点击提示文字旁的**编辑（铅笔）图标**打开 Markdown 文本框，
   文本框失焦即保存：
 
-  ![Description 编辑](screenshots/model-edit-description.png)
+  ![Description 编辑](../demo-assets/model-edit-description.png)
 
 - **保存 / 取消** — 存在未保存修改时取消会先弹出确认。保存只发一次 `PUT`，只有真正改动的字段
   （名称、类型、目录、预览、描述）会被应用。
@@ -211,7 +213,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 ### 创建下载任务
 
-![创建下载任务](screenshots/download.png)
+![创建下载任务](../demo-assets/download.png)
 
 1. 粘贴 **Civitai 模型页**、**Hugging Face 的 repo/blob/tree**、**ModelScope 模型页**
    （`www.modelscope.ai`）或**直接文件链接**
@@ -224,7 +226,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
    其下为文件选择+下载、元数据编辑、描述/信息页签的单列滚动，窗口再窄也
    不会挤丢任何控件。
 
-   ![解析结果](screenshots/download-resolved.png)
+   ![解析结果](../demo-assets/download-resolved.png)
 
 4. 编辑器中可设置目标类型/目录、文件名（可带文件夹前缀）、预览图与 Markdown 描述
    （Civitai / HF 的描述会预填，包含触发词与 YAML 元数据）。模型页提供的**整组预览图**
@@ -251,6 +253,8 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 - **排序** — 每个平台的排序可在 **设置 → Model Manager Neo → 搜索** 中选择(各 API
   接受的全部值);默认为 Hugging Face 趋势序、ModelScope Like 多顺、Civitai 高评价序。
+
+  ![多平台搜索三列结果](../demo-assets/search-columns.png)
 
 ### 下载计划与安全检查
 
@@ -290,11 +294,9 @@ ModelScope 始终连接国际域名 `www.modelscope.ai`。仓库创建（公开/
 2. **选择模型类型** — 每个类型一个按钮。
 3. **选择模型** — 该类型的网格；选中后保存路径自动填为模型的相对路径。
 
-   ![模型选择步骤](screenshots/hf-upload-step2.png)
-
 4. **上传**：
 
-   ![HF 上传表单](screenshots/hf-upload.png)
+   ![HF 上传表单](../demo-assets/hf-upload.png)
 
    - **仓库 ID** — `username/repo-name`。
    - **仓库不存在时创建为私有仓库** — *只在创建时*生效；已有仓库保持其原有可见性。
@@ -313,7 +315,7 @@ ModelScope 始终连接国际域名 `www.modelscope.ai`。仓库创建（公开/
 | `计算校验和…` | 计算本地 sha256（数 GB 的模型可能要几分钟）；**此时还没有任何字节离开本机** |
 | `上传中…`     | 真实传输，百分比实时更新                                                    |
 
-![HF 上传进度](screenshots/hf-upload-progress.png)
+![HF 上传进度](../demo-assets/hf-upload-progress.png)
 
 ### 完成时可能出现的提示
 
@@ -323,10 +325,6 @@ ModelScope 始终连接国际域名 `www.modelscope.ai`。仓库创建（公开/
 | **Hugging Face 已存储该内容**（上传到 ModelScope 时为 **ModelScope 已存储该内容**） | 相同字节已存在于仓库对象存储中，因此平台未传输任何数据（`Upload 0 LFS files`），但**已创建指向它们的新提交**；提示中附文件链接 |
 | **已跳过** — 「'repo' 中已存在完全相同的文件: <url> …」                             | 同一路径已有完全相同的文件；Hugging Face 拒绝空提交，因此什么都没做。想产生新提交请换一个目标路径                              |
 | **错误**                                                                            | 传输失败，消息中带后端原因                                                                                                     |
-
-完成报告会以吐司堆叠的形式出现在管理器窗口上方：
-
-![上传完成吐司](screenshots/hf-upload-toast.png)
 
 ## 8. 从本地文件上传
 
@@ -344,7 +342,7 @@ ModelScope 始终连接国际域名 `www.modelscope.ai`。仓库创建（公开/
 - **提示条**。所有操作都会报告结果：成功(绿)/警告(琥珀)/错误(红)/信息(强调色)。
   每条提示带严重度图标、着色左栏和右上角的**关闭按钮**，堆叠在所有对话框之上的
   右上角，并在寿命结束后自动消失。
-  ![toasts](screenshots/toast-stack.png)
+  ![toasts](../demo-assets/toast-stack.png)
 - **预览全部保存**。下载与保存会保留模型的全部预览图
   (`<name>.webp` / `<name>.preview.webp` / `<name>.preview2.webp` …)。
   保存时轮播选中的图片即为主预览（卡片的封面图）。
@@ -352,7 +350,7 @@ ModelScope 始终连接国际域名 `www.modelscope.ai`。仓库创建（公开/
   计数器（查看模式与编辑模式都有）。
 - **灯箱**。点按预览即全屏打开；＜ / ＞ 或方向键翻页，`Esc`、点击背景或关闭
   按钮退出。
-  ![lightbox](screenshots/lightbox.png)
+  ![lightbox](../demo-assets/lightbox.png)
 - **环境变量密钥**。当 `private.key` 为空且导出了 `HF_TOKEN` /
   `CIVITAI_API_KEY` / `MODELSCOPE_API_TOKEN` 时，仅把环境中实际存在的密钥
   自动写入 `private.key`。
@@ -366,7 +364,7 @@ ModelScope 始终连接国际域名 `www.modelscope.ai`。仓库创建（公开/
 两种布局的工具栏都有**选择文件**开关(列表勾选图标)。开启后每张卡片/文件夹左上
 角出现圆形复选框；点击卡片变为勾选而不是打开。选中至少一项后窗口底部出现批量栏:
 
-![选择模式](screenshots/selection-mode.png)
+![选择模式](../demo-assets/selection-mode.png)
 
 - **添加到工作流** — 为每个选中模型创建一个加载器节点；选中的_文件夹_会递归
   展开为其中的全部模型;
@@ -388,9 +386,6 @@ ZipNN 打包文件夹(`*_DeltaZNN` / 旧 `*_ZNN`)与普通文件夹不能同时�
 打开 `.safetensors` 模型时，预览与信息表之间的空隙处就是 **ZipNN 图标本身构成的按钮**
 (自带 SVG 会绘制自己的玻璃面板与深色模式版本，悬停时上浮并变亮，工具提示与 aria-label
 说明作用)。
-
-![模型详情窗口中的 ZipNN 按钮](screenshots/zipnn-button.png)
-
 点击后弹出
 **非 Danger** 的确认框，随后在后台逐张量压缩:
 
@@ -401,6 +396,8 @@ ZipNN 打包文件夹(`*_DeltaZNN` / 旧 `*_ZNN`)与普通文件夹不能同时�
 
 已压缩模型的信息表还会把单行的**文件大小**替换为三行：**原文件大小**、
 **压缩后文件大小**与**占原大小比例**（压缩前的大小在压缩时记录于文件元数据中）。
+
+![压缩后模型详情](../demo-assets/compressed-model.png)
 
 压缩文件遵循官方 ZipNN 布局(`znn_compressed_vectors` 元数据、浮点张量 Huffman
 压缩)，因此经 `zipnn_safetensors()` 补丁的加载器可透明读取。压缩是**无损且可逆**的：
@@ -440,6 +437,8 @@ C 编译器、无需联网、无需等待**。只有当没有匹配的预编译�
 冗余的微调文件。增量文件的卡片按钮（反色 artwork）会把微调模型**逐字节精确**
 恢复到基础模型旁边，并在清空后删除增量文件夹。恢复需要基础模型仍然存在。
 
+![ZipNN 增量压缩对话框](../demo-assets/zipnn-delta-dialog.png)
+
 ## 11. 设置
 
 ComfyUI **设置 → Model Manager Neo**：
@@ -470,11 +469,7 @@ ComfyUI **设置 → Model Manager Neo**：
 **中文**、**日本語** 三套完整文案。地区/文字子标签（`ja-JP`、`zh-Hant-TW` 等）会归并
 到其基础语言，其余回落到 English。
 
-![日语界面](screenshots/ja-model-info.png)
-
-网格、工具栏与对话框同样完整本地化：
-
-![日语展平布局](screenshots/ja-view-flat.png)
+![日语界面](../demo-assets/ja-model-info.png)
 
 ## 13. 故障排查
 
@@ -489,7 +484,7 @@ ComfyUI **设置 → Model Manager Neo**：
 
 ## Screenshots（截图）
 
-本指南中的图片位于 [`docs/screenshots/`](screenshots/)。完整清单以及如何替换为
-真实 ComfyUI 窗口截图，见 [`screenshots/README.md`](screenshots/README.md)。
+本指南中的图片位于 [`demo-assets/`](../demo-assets/)。完整清单以及如何替换为
+真实 ComfyUI 窗口截图，见 [`demo-assets/README.md`](../demo-assets/README.md)。
 页头导览以两种形式附带：GIF，以及由其导出的无损源录像
-[`hero.webm`](screenshots/hero.webm)。
+[`hero.webm`](../demo-assets/hero.webm)。

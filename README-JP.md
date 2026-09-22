@@ -21,13 +21,13 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 <!--
   ┌──────────────────────────────────────────────────────────────────────────┐
   │  SCREENSHOTS                                                             │
-  │  以下で参照する画像は `docs/screenshots/` に同梱されています。             │
+  │  以下で参照する画像は `demo-assets/` に同梱されています。             │
   │  ファイルごとのマニフェストと、実働 ComfyUI ウィンドウからの               │
-  │  撮り直し手順は docs/screenshots/README.md を参照してください。           │
+  │  撮り直し手順は demo-assets/README.md を参照してください。           │
   └──────────────────────────────────────────────────────────────────────────┘
 -->
 
-![Hero overview](docs/screenshots/hero.gif)
+![Hero overview](demo-assets/hero.gif)
 
 </div>
 
@@ -95,15 +95,15 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ## <img src="https://api.iconify.design/lucide/camera.svg?color=%238b5cf6" width="28" height="28" align="middle" alt=""> スクリーンショット
 
 > [!TIP]
-> 以下の画像はすべて [`docs/screenshots/`](docs/screenshots/) に同梱されています。
+> 以下の画像はすべて [`demo-assets/`](demo-assets/) に同梱されています。
 > ファイルごとのマニフェスト
-> ([`docs/screenshots/README.md`](docs/screenshots/README.md)) には、各ファイルが
+> ([`demo-assets/README.md`](demo-assets/README.md)) には、各ファイルが
 > 何を映しているかと、実働 ComfyUI ウィンドウからの撮り直し手順が
 > 正確に記されています（ダークテーマ推奨、統一感のため幅 ~1600 px）。
 
 ### フラット「モデル」ビュー — 検索・並び替え・グリッドサイズ変更
 
-![Flat models grid](docs/screenshots/view-flat.png)
+![Flat models grid](demo-assets/view-flat.png)
 
 **フラット**レイアウトのマネージャーウィンドウ: ガラス製のモデルカードのグリッド
 （プレビュー・種別とサイズのチップ付き）、検索バー、種別/並び替え/カードサイズの
@@ -111,7 +111,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 
 ### フォルダ（エクスプローラ）ビュー — ディレクトリツリーを辿る
 
-![Folder explorer view](docs/screenshots/view-folders.png)
+![Folder explorer view](demo-assets/view-folders.png)
 
 **フォルダ**レイアウトの 1 階層目。ブレッドクラム（各階層に小さなフォルダグリフ。
 ルートでは場所を取らず、パスが深くなった分だけ開きます）と、アニメーションする
@@ -121,19 +121,26 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 
 |                                                                                                                 |                                                                                                        |
 | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| ![Model info](docs/screenshots/model-info.png)                                                                  | ![Edit mode](docs/screenshots/model-edit.png)                                                          |
+| ![Model info](demo-assets/model-info.png)                                                                       | ![Edit mode](demo-assets/model-edit.png)                                                               |
 | _モデル情報: プレビュー、基本情報テーブル（**Directory** の末尾 `/` に注目）、Description / Information タブ。_ | _編集モード: 種別ドロップダウン、フォルダピッカーボタン、`folder/name` 接頭辞を受け付けるファイル名。_ |
 
 |                                                                                                |                                                                                         |
 | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| ![Hugging Face upload](docs/screenshots/hf-upload.png)                                         | ![Japanese UI](docs/screenshots/ja-model-info.png)                                      |
+| ![Hugging Face upload](demo-assets/hf-upload.png)                                              | ![Japanese UI](demo-assets/ja-model-info.png)                                           |
 | _Hugging Face へアップロード、ステップ 3: リポジトリ ID、作成時プライベート指定、保存先パス。_ | _同じウィンドウの**日本語**表示 — UI は English / 中文 / 日本語 の完全バンドルを同梱。_ |
 
+### モデル名検索と safetensors テンソルツリー
+
+|                                                                                                               |                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| ![マルチプラットフォーム検索](demo-assets/search-columns.png)                                                 | ![テンソルツリー](demo-assets/tensor-tree.png)                                                               |
+| _1 つのクエリで 3 ハブ: Hugging Face / ModelScope / Civitai の列にアバター・ダウンロード数・ディープリンク。_ | _Information タブは safetensors ヘッダを折りたたみ可能なフォルダツリーで描画（Hugging Face ビューア様式）。_ |
+
 10 秒間のツアー（開く → フォルダビュー → フォルダへホバー → 戻る → モデルを開く）は
-[`docs/screenshots/hero.gif`](docs/screenshots/hero.gif)。GIF の元になった可逆ソース
-録画も [`docs/screenshots/hero.webm`](docs/screenshots/hero.webm) として同梱されています。
+[`demo-assets/hero.gif`](demo-assets/hero.gif)。GIF の元になった可逆ソース
+録画も [`demo-assets/hero.webm`](demo-assets/hero.webm) として同梱されています。
 カードを実キャンバスへドラッグする様子は、実物の ComfyUI ウィンドウからの撮影が
-おすすめです — [`docs/screenshots/README.md`](docs/screenshots/README.md) を参照。
+おすすめです — [`demo-assets/README.md`](demo-assets/README.md) を参照。
 
 ---
 
@@ -634,8 +641,8 @@ walk は、同じ情報へ至る第二の、ずっと遅い経路でした — �
 タスク一覧、ハブアップロード（Hugging Face / ModelScope）の各フェーズと
 完了メッセージ、ZipNN 圧縮、設定とロケール、さらにトラブルシューティング表
 までを扱います。埋め込まれているスクリーンショットは
-[`docs/screenshots/`](docs/screenshots/) にあり、ファイル毎のマニフェストは
-[`docs/screenshots/README.md`](docs/screenshots/README.md) にあります。
+[`demo-assets/`](demo-assets/) にあり、ファイル毎のマニフェストは
+[`demo-assets/README.md`](demo-assets/README.md) にあります。
 
 <a id="development"></a>
 

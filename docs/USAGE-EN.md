@@ -1,7 +1,7 @@
 # ComfyUI‑Model‑Manager‑Neo — Usage Guide (English)
 
 > Sister documents: [日本語](USAGE-JA.md) · [中文](USAGE-ZN.md)
-> Screenshots referenced below live in [`docs/screenshots/`](screenshots/) (see
+> Screenshots referenced below live in [`demo-assets/`](../demo-assets/) (see
 > [Screenshots](#screenshots) for the per-file manifest).
 
 ComfyUI‑Model‑Manager‑Neo is a custom node that adds a model browser, downloader,
@@ -65,8 +65,6 @@ of the library's total model size.
 > The loading indicator is **scoped to the panel it belongs to** — while a
 > request is in flight only that window is dimmed and blurred; the canvas, the
 > top bar and every other window stay usable.
->
-> ![panel-scoped loading](screenshots/loading-panel.png)
 
 ## 3. The two layouts
 
@@ -86,12 +84,7 @@ A single grid of every model of every type, with a toolbar:
 - **Card size** — Extra Large / Large / Medium / Small, or **Custom Size**
   (a dialog with width/height sliders, persisted in ComfyUI settings).
 
-![flat layout](screenshots/view-flat-dialog.png)
-
-The **Custom Size** dialog edits every preset through a width/height slider
-pair and writes the result into the ComfyUI settings:
-
-![custom size dialog](screenshots/card-size.png)
+![flat layout](../demo-assets/view-flat.png)
 
 ### Folder layout
 
@@ -104,7 +97,7 @@ first as the window narrows, and in narrow windows the toolbar stacks
 vertically — the same responsive rule as the flat view — instead of clipping
 its controls away.
 
-![folder layout](screenshots/view-folders-dialog.png)
+![folder layout](../demo-assets/view-folders.png)
 
 The row next to the search box offers **Add Folder** (folder‑plus icon): type
 any name and the folder is created inside the directory you are browsing
@@ -120,7 +113,7 @@ folders whose name starts with `.`).
 
 ## 4. Model cards
 
-![model card anatomy](screenshots/view-flat.png)
+![model card anatomy](../demo-assets/view-flat.png)
 
 - **Preview** — image or looping video; models without a preview show the glass
   **NO PREVIEW** artwork.
@@ -158,9 +151,14 @@ folders whose name starts with `.`).
 - **Double‑click / single click** — opens the model detail window.
 - **Tooltip** — hovering a card shows its absolute path.
 
+The hygiene scan collects its findings in a single dialog, each entry
+removable through the usual Danger confirmation:
+
+![hygiene scan](../demo-assets/hygiene-scan.png)
+
 ## 5. Model detail & editing
 
-![model detail](screenshots/model-info.png)
+![model detail](../demo-assets/model-info.png)
 
 The window shows the preview (with a carousel when several previews exist), a
 base‑info table, and two tabs.
@@ -201,6 +199,11 @@ base‑info table, and two tabs.
   Hugging Face or ModelScope) as its background whenever the notes record the
   platform.
 
+  The Tensor section renders the safetensors header as a collapsible folder
+  tree:
+
+  ![tensor tree](../demo-assets/tensor-tree.png)
+
 ### Identify by hash
 
 The **hash reverse-lookup button** (the HashReverse artwork icon) in the model
@@ -218,13 +221,13 @@ per‑file and on demand — no library‑wide scan or hashing ever runs.
 
 Press the **pencil** to enter edit mode (the window turns into a form):
 
-![edit mode](screenshots/model-edit.png)
+![edit mode](../demo-assets/model-edit.png)
 
 - **Model Type** — dropdown of the types your ComfyUI actually has folders for.
 - **Directory** — read‑only field plus the **folder button**, which opens a
   nested folder‑picker dialog with a tree of every base path and sub‑folder:
 
-  ![folder picker](screenshots/folder-picker.png)
+  ![folder picker](../demo-assets/folder-picker.png)
 
 - **File name** — accepts a **folder prefix**. Typing
   `subfolder/my-model` files the model into `…/models/unet/subfolder/` on save
@@ -245,7 +248,7 @@ Press the **pencil** to enter edit mode (the window turns into a form):
 - **Description** — press the **Edit (pencil) icon** next to the hint text to
   open the Markdown textarea; it saves when the textarea loses focus:
 
-  ![description editor](screenshots/model-edit-description.png)
+  ![description editor](../demo-assets/model-edit-description.png)
 
 - **Save / Cancel** — Cancelling with unsaved changes asks for confirmation
   first. Save issues a single `PUT`; anything that changed
@@ -259,7 +262,7 @@ Open **Download List** from the header, then:
 
 ### Create Download Task
 
-![create download task](screenshots/download.png)
+![create download task](../demo-assets/download.png)
 
 1. Paste a **Civitai model page**, **Hugging Face repo/blob/tree**,
    **ModelScope model page** (`www.modelscope.ai`) or a **direct file link**
@@ -272,7 +275,7 @@ Open **Download List** from the header, then:
 3. Civitai/HF pages resolve to one or more **versions** and **files**; pick the
    version in the toolbar and the file in the editor.
 
-   ![resolved result](screenshots/download-resolved.png)
+   ![resolved result](../demo-assets/download-resolved.png)
 
    The editor below the version row places the **preview on the left and the
    gallery strip on the right**, with file pick + download, metadata editor and
@@ -315,6 +318,8 @@ page number, Civitai through the API's own cursor). Platforms can be hidden in
 - **Sort order** — each platform's sort order is selectable in **Settings →
   Model Manager Neo → Search** (every value its API accepts); the defaults are
   Hugging Face trending, ModelScope likes and Civitai highest rated.
+
+  ![multi-platform search columns](../demo-assets/search-columns.png)
 
 ### Download plan & safety checks
 
@@ -365,11 +370,9 @@ Open **Upload to Hugging Face / ModelScope** from the header:
 3. **Select model** — the grid of that type; picking one pre‑fills the
    destination path with the model’s relative path.
 
-   ![model selection step](screenshots/hf-upload-step2.png)
-
 4. **Upload**:
 
-   ![hf upload form](screenshots/hf-upload.png)
+   ![hf upload form](../demo-assets/hf-upload.png)
 
    - **Repository ID** — `username/repo-name`.
    - **Create as private if the repository does not exist** — applies _only on
@@ -392,7 +395,7 @@ the current phase:
 | `Hashing…`   | the local sha256 is computed (a multi‑GB model can take minutes); **no bytes leave your machine yet** |
 | `Uploading…` | the real transfer, with live percentages                                                              |
 
-![hf upload progress](screenshots/hf-upload-progress.png)
+![hf upload progress](../demo-assets/hf-upload-progress.png)
 
 ### Messages you may see on completion
 
@@ -402,10 +405,6 @@ the current phase:
 | **Already stored on Hugging Face** (or **on ModelScope**)           | the identical bytes already existed in the repository’s object store, so the hub transferred nothing (`Upload 0 LFS files`) but a new commit pointing at them **was** created; the toast links the file |
 | **Skipped** — “An identical file already exists in 'repo': <url> …” | the very same file already sits at that exact path; Hugging Face refuses empty commits, so nothing was done. Pick another destination path to create a new commit                                       |
 | **Error**                                                           | the transfer failed; the message carries the backend reason                                                                                                                                             |
-
-The completion report arrives as a toast stack above the manager window:
-
-![upload completion toasts](screenshots/hf-upload-toast.png)
 
 ## 8. Upload from a local file
 
@@ -425,7 +424,7 @@ server‑side (no arbitrary writes, no path traversal).
   (amber), error (red), info (accent). Each toast carries a severity icon, a
   tinted left bar, and a **close button** in its top-right corner; they stack at
   the top-right above every dialog and auto-dismiss after their lifetime.
-  ![toasts](screenshots/toast-stack.png)
+  ![toasts](../demo-assets/toast-stack.png)
 - **All previews are kept.** Downloads and saves store every preview image of a
   model (`<name>.webp`, `<name>.preview.webp`, `<name>.preview2.webp`, …).
 - **Paging.** When a model has more than one preview, the preview area shows
@@ -433,7 +432,7 @@ server‑side (no arbitrary writes, no path traversal).
 - **Lightbox.** Clicking (tapping) the preview opens it full-screen; `<` / `>`
   or the arrow keys page through the gallery, `Esc`, the backdrop or the close
   button dismiss it.
-  ![lightbox](screenshots/lightbox.png)
+  ![lightbox](../demo-assets/lightbox.png)
 - **Environment keys.** If `private.key` is empty and `HF_TOKEN` /
   `CIVITAI_API_KEY` / `MODELSCOPE_API_TOKEN` are exported, those keys are
   adopted into `private.key` automatically (only the ones actually present).
@@ -450,7 +449,7 @@ While it is on, every card and folder shows a round checkbox at its top-left;
 clicking a card ticks it instead of opening it. As soon as one item is
 selected a bulk bar appears at the bottom of the window:
 
-![selection mode](screenshots/selection-mode.png)
+![selection mode](../demo-assets/selection-mode.png)
 
 - **Add to workflow** — creates one loader node per selected model; selected
   _folders_ contribute every model inside them (recursively);
@@ -478,9 +477,6 @@ Opening a `.safetensors` model shows the **ZipNN artwork itself as the button**
 in the gap between the preview and the info table: the shipped SVG draws its own
 glass plate (including a dark-mode variant), lifts and brightens on hover, and
 explains itself in a tooltip and to screen readers.
-
-![ZipNN button in the model detail window](screenshots/zipnn-button.png)
-
 Pressing it asks for a
 confirmation that is deliberately _not_ styled as Danger, then compresses
 tensor-by-tensor in the background:
@@ -495,6 +491,8 @@ tensor-by-tensor in the background:
 For a compressed model the info table also swaps its single _File Size_ row for
 **Original File Size** / **Compressed File Size** / **% of Original Size** (the
 pre-compression size is recorded in the file's metadata at compression time).
+
+![compressed model detail](../demo-assets/compressed-model.png)
 
 Compressed files follow the official ZipNN layout (`znn_compressed_vectors`
 metadata, Huffman-compressed floating-point tensors), so loaders patched with
@@ -552,6 +550,8 @@ button (inverted artwork) restores the fine-tuned model **byte-exactly** next
 to the base and deletes the delta folder once it empties. Restoring requires
 the base model to still be present.
 
+![ZipNN delta dialog](../demo-assets/zipnn-delta-dialog.png)
+
 ## 11. Settings
 
 ComfyUI **Settings → Model Manager Neo**:
@@ -587,11 +587,7 @@ complete bundles for **English**, **中文** and **日本語**. Region/script
 subtags (`ja-JP`, `zh-Hant-TW`, …) are folded onto their base language; anything
 else falls back to English.
 
-![Japanese UI](screenshots/ja-model-info.png)
-
-Grids, toolbars and dialogs carry the same treatment:
-
-![Japanese flat layout](screenshots/ja-view-flat.png)
+![Japanese UI](../demo-assets/ja-model-info.png)
 
 ## 13. Troubleshooting
 
@@ -606,8 +602,8 @@ Grids, toolbars and dialogs carry the same treatment:
 
 ## Screenshots
 
-The images in this guide live in [`docs/screenshots/`](screenshots/). See
-[`screenshots/README.md`](screenshots/README.md) for the full per-file manifest
+The images in this guide live in [`demo-assets/`](../demo-assets/). See
+[`demo-assets/README.md`](../demo-assets/README.md) for the full per-file manifest
 and for how to (re)capture each view from a live ComfyUI window. The header
 tour ships twice: as the GIF above and as the lossless source recording
-[`hero.webm`](screenshots/hero.webm) it is derived from.
+[`hero.webm`](../demo-assets/hero.webm) it is derived from.

@@ -21,13 +21,13 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 <!--
   ┌──────────────────────────────────────────────────────────────────────────┐
   │  SCREENSHOTS                                                             │
-  │  The images referenced below ship in `docs/screenshots/`. See             │
-  │  docs/screenshots/README.md for the full per-file manifest and for how to │
+  │  The images referenced below ship in `demo-assets/`. See             │
+  │  demo-assets/README.md for the full per-file manifest and for how to │
   │  re-capture each view from a live ComfyUI window.                         │
   └──────────────────────────────────────────────────────────────────────────┘
 -->
 
-![Hero overview](docs/screenshots/hero.gif)
+![Hero overview](demo-assets/hero.gif)
 
 </div>
 
@@ -96,22 +96,22 @@ the experience from the ground up:
 ## <img src="https://api.iconify.design/lucide/camera.svg?color=%238b5cf6" width="28" height="28" align="middle" alt=""> Screenshots
 
 > [!TIP]
-> Every image below ships in [`docs/screenshots/`](docs/screenshots/). The
+> Every image below ships in [`demo-assets/`](demo-assets/). The
 > per-file manifest in
-> [`docs/screenshots/README.md`](docs/screenshots/README.md) says exactly what
+> [`demo-assets/README.md`](demo-assets/README.md) says exactly what
 > each file shows and how to (re-)capture it from a live ComfyUI window (dark
 > theme recommended, ~1600 px wide for consistency).
 
 ### Flat “Models” view — search, sort and resize the grid
 
-![Flat models grid](docs/screenshots/view-flat.png)
+![Flat models grid](demo-assets/view-flat.png)
 
 The manager window in **Flat** layout: a grid of glass model cards with preview,
 type and size chips, the search bar, and the type / sort / card‑size selectors.
 
 ### Folder (explorer) view — navigate your directory tree
 
-![Folder explorer view](docs/screenshots/view-folders.png)
+![Folder explorer view](demo-assets/view-folders.png)
 
 The **Folder** layout one level deep, with the breadcrumb trail (each crumb
 carries the tiny folder glyph; the trail takes no space at the root and opens
@@ -121,20 +121,27 @@ up only as the path gets deeper) and the animated glass folder cards.
 
 |                                                                                                                    |                                                                                                  |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| ![Model info](docs/screenshots/model-info.png)                                                                     | ![Edit mode](docs/screenshots/model-edit.png)                                                    |
+| ![Model info](demo-assets/model-info.png)                                                                          | ![Edit mode](demo-assets/model-edit.png)                                                         |
 | _Model info: preview, base‑info table (note the trailing `/` on **Directory**), Description and Information tabs._ | _Edit mode: type dropdown, folder picker button, file name that accepts a `folder/name` prefix._ |
 
 |                                                                                 |                                                                                          |
 | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| ![Hugging Face upload](docs/screenshots/hf-upload.png)                          | ![Japanese UI](docs/screenshots/ja-model-info.png)                                       |
+| ![Hugging Face upload](demo-assets/hf-upload.png)                               | ![Japanese UI](demo-assets/ja-model-info.png)                                            |
 | _Upload to Hugging Face, step 3: repo id, private‑on‑create, destination path._ | _The same window in **日本語** — the UI ships complete English / 中文 / 日本語 bundles._ |
 
+### Model-name search and the safetensors tensor tree
+
+|                                                                                                                    |                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| ![Multi-platform search](demo-assets/search-columns.png)                                                           | ![Tensor tree](demo-assets/tensor-tree.png)                                                                    |
+| _One query, three hubs: Hugging Face / ModelScope / Civitai columns with avatars, download counts and deep links._ | _The Information tab renders the safetensors header as a collapsible folder tree (Hugging Face‑viewer style)._ |
+
 A 10‑second tour (open → folder view → hover a folder → back → open a model) is
-[`docs/screenshots/hero.gif`](docs/screenshots/hero.gif); the lossless source
+[`demo-assets/hero.gif`](demo-assets/hero.gif); the lossless source
 recording the GIF is derived from ships beside it as
-[`docs/screenshots/hero.webm`](docs/screenshots/hero.webm). Dragging a card onto a
+[`demo-assets/hero.webm`](demo-assets/hero.webm). Dragging a card onto a
 live canvas is best captured from a real ComfyUI window — see
-[`docs/screenshots/README.md`](docs/screenshots/README.md).
+[`demo-assets/README.md`](demo-assets/README.md).
 
 ---
 
@@ -656,9 +663,9 @@ model editor (folder picker, folder‑prefixed names, previews, descriptions),
 downloads and the task list, the hub upload (Hugging Face / ModelScope) phases
 and completion messages, ZipNN compression, settings and locales, plus a
 troubleshooting table.
-The screenshots they embed live in [`docs/screenshots/`](docs/screenshots/) with
+The screenshots they embed live in [`demo-assets/`](demo-assets/) with
 a per‑file manifest in
-[`docs/screenshots/README.md`](docs/screenshots/README.md).
+[`demo-assets/README.md`](demo-assets/README.md).
 
 <a id="development"></a>
 

@@ -1,7 +1,7 @@
 # ComfyUI‑Model‑Manager‑Neo 使い方ガイド（日本語）
 
 > 姉妹ドキュメント: [English](USAGE-EN.md) · [中文](USAGE-ZN.md)
-> 本文中のスクリーンショットは [`docs/screenshots/`](screenshots/) にあります
+> 本文中のスクリーンショットは [`demo-assets/`](../demo-assets/) にあります
 > （各ファイルの一覧は[スクリーンショット](#スクリーンショット)参照）。
 
 ComfyUI‑Model‑Manager‑Neo は、ComfyUI にモデルの**閲覧・ダウンロード・
@@ -63,8 +63,6 @@ ComfyUI を再起動してください。Python 依存（`huggingface_hub`・`hf
 
 > ローディング表示は**対象パネル内に限定**されます。リクエスト中は該当ウィンドウ
 > だけがぼかされ、キャンバス・トップバー・他のウィンドウはそのまま使えます。
->
-> ![パネル限定ローディング](screenshots/loading-panel.png)
 
 ## 3. 2 つのレイアウト
 
@@ -84,12 +82,7 @@ ComfyUI を再起動してください。Python 依存（`huggingface_hub`・`hf
 - **カードサイズ** — 特大 / 大 / 中 / 小、または**カスタムサイズ**
   （幅・高さスライダーのダイアログ。ComfyUI の設定に保存されます）。
 
-![フラット表示](screenshots/view-flat-dialog.png)
-
-**カスタムサイズ**ダイアログは presets を幅・高さのスライダー組で編集し、
-結果を ComfyUI の設定へ保存します。
-
-![カスタムサイズダイアログ](screenshots/card-size.png)
+![フラット表示](../demo-assets/view-flat.png)
 
 ### フォルダ表示
 
@@ -101,7 +94,7 @@ ComfyUI を再起動してください。Python 依存（`huggingface_hub`・`hf
 幅が足りないときは途中の階層から省略表示され、ツールバーはコントロールを
 切り捨てず、フラットビューと同じ規則で縦に積まれます。
 
-![フォルダ表示](screenshots/view-folders-dialog.png)
+![フォルダ表示](../demo-assets/view-folders.png)
 
 検索欄の横には**フォルダを追加**ボタン(フォルダプラスアイコン)があります。
 任意の名前を入力すると、現在開いているディレクトリの中にフォルダを作成
@@ -117,7 +110,7 @@ ComfyUI を再起動してください。Python 依存（`huggingface_hub`・`hf
 
 ## 4. モデルカード
 
-![モデルカード](screenshots/view-flat.png)
+![モデルカード](../demo-assets/view-flat.png)
 
 - **プレビュー** — 画像またはループ動画。プレビューの無いモデルはガラス製の
   **NO PREVIEW** アートワークを表示します。
@@ -152,9 +145,14 @@ ComfyUI を再起動してください。Python 依存（`huggingface_hub`・`hf
 - **ダブルクリック / クリック** — モデル詳細ウィンドウを開きます。
 - **ツールチップ** — カードにポインタを置くと絶対パスが表示されます。
 
+衛生スキャンの結果は 1 つのダイアログにまとまり、各項目は通常の Danger
+確認で削除できます。
+
+![衛生スキャン](../demo-assets/hygiene-scan.png)
+
 ## 5. モデル詳細と編集
 
-![モデル詳細](screenshots/model-info.png)
+![モデル詳細](../demo-assets/model-info.png)
 
 プレビュー（複数あればカルーセル）、基本情報テーブル、2 つのタブを表示します。
 
@@ -194,6 +192,11 @@ ComfyUI を再起動してください。Python 依存（`huggingface_hub`・`hf
   記録されている場合そのハブのロゴ（Civitai / Hugging Face / ModelScope）を
   背景に着けます。
 
+  Tensor セクションは safetensors ヘッダを折りたたみ可能なフォルダツリー
+  として描画します:
+
+  ![テンソルツリー](../demo-assets/tensor-tree.png)
+
 ### ハッシュで識別
 
 モデル詳細のアクション行にある**ハッシュ逆引きボタン**(HashReverse アイコン)は、
@@ -211,13 +214,13 @@ Civitai カタログへ「このローカル
 
 **鉛筆アイコン**で編集モードに入ります（ウィンドウがフォームになります）。
 
-![編集モード](screenshots/model-edit.png)
+![編集モード](../demo-assets/model-edit.png)
 
 - **モデル種別** — 現在の ComfyUI に実際にフォルダが存在する種別のみを表示。
 - **ディレクトリ** — 読取専用フィールドと**フォルダボタン**。ボタンは全ベースパスと
   サブフォルダのツリーを持つネスト된フォルダ選択ダイアログを開きます。
 
-  ![フォルダ選択](screenshots/folder-picker.png)
+  ![フォルダ選択](../demo-assets/folder-picker.png)
 
 - **ファイル名** — **フォルダ指定を受け付けます**。`subfolder/my-model` と入力して
   保存すると `…/models/unet/subfolder/` に格納されます（無いフォルダは作成）。
@@ -237,7 +240,7 @@ Civitai カタログへ「このローカル
 - **Description** — ヒント文のとなりの**編集（鉛筆）アイコン**を押すと Markdown
   テキストエリアが開き、フォーカスを外すと保存されます。
 
-  ![Description 編集](screenshots/model-edit-description.png)
+  ![Description 編集](../demo-assets/model-edit-description.png)
 
 - **保存 / キャンセル** — 保存は 1 回の `PUT` を発行し、変わったもの
   （名前・種別・ディレクトリ・プレビュー・説明）だけが適用されます。
@@ -251,7 +254,7 @@ Civitai カタログへ「このローカル
 
 ### ダウンロードタスクを作成
 
-![ダウンロードタスク作成](screenshots/download.png)
+![ダウンロードタスク作成](../demo-assets/download.png)
 
 1. **Civitai のモデルページ**・**Hugging Face の repo/blob/tree**・
    **ModelScope のモデルページ**(`www.modelscope.ai`)・**直接ファイルリンク**（`.safetensors`・`.ckpt`・`.gguf` など）を貼り付け、
@@ -265,7 +268,7 @@ Civitai カタログへ「このローカル
    選択+ダウンロード・メタデータ編集・説明/情報タブを縦 1 列で積むため、窓幅が
    狭くても何も隠れません。
 
-   ![解決結果](screenshots/download-resolved.png)
+   ![解決結果](../demo-assets/download-resolved.png)
 
 4. エディタでは保存先の種別/ディレクトリ、ファイル名（フォルダ指定可）、
    プレビュー画像、Markdown 説明を設定できます（Civitai / HF の説明はトリガーワードや
@@ -294,6 +297,8 @@ Civitai カタログへ「このローカル
 - **並び順** — 各プラットフォームの並び順を **設定 → Model Manager Neo → 検索** で
   選択できます(各 API が受け付けるすべての値)。既定は Hugging Face がトレンド順、
   ModelScope が Like 多い順、Civitai が高評価順です。
+
+  ![マルチプラットフォーム検索の3列結果](../demo-assets/search-columns.png)
 
 - **Enter 一発で解決** — 検索モードの Enter は、結果内の完全一致 →
   `owner/repo` を Hugging Face リポジトリへ → 最初の非空列の先頭候補、の順で
@@ -352,11 +357,9 @@ Hugging Face API キー**（または環境変数 `HF_TOKEN`）。ModelScope へ
 3. **モデルを選択** — その種別のグリッド。選ぶと保存先パスがモデルの相対パスで
    自動入力されます。
 
-   ![モデル選択ステップ](screenshots/hf-upload-step2.png)
-
 4. **アップロード**:
 
-   ![HF アップロードフォーム](screenshots/hf-upload.png)
+   ![HF アップロードフォーム](../demo-assets/hf-upload.png)
 
    - **リポジトリ ID** — `username/repo-name`。
    - **リポジトリが存在しない場合はプライベートで作成する** — _作成時にのみ_
@@ -379,7 +382,7 @@ Hugging Face API キー**（または環境変数 `HF_TOKEN`）。ModelScope へ
 | `ハッシュ計算中…` | ローカル sha256 を計算（数 GB のモデルでは数分かかることも）。**この時点ではまだ 1 バイトも送信していません** |
 | `アップロード中…` | 実転送。割合がライブで更新されます                                                                            |
 
-![HF アップロード進捗](screenshots/hf-upload-progress.png)
+![HF アップロード進捗](../demo-assets/hf-upload-progress.png)
 
 ### 完了時に出るメッセージ
 
@@ -389,10 +392,6 @@ Hugging Face API キー**（または環境変数 `HF_TOKEN`）。ModelScope へ
 | **Hugging Face 側に既存のデータです**（ModelScope への場合は **ModelScope 側に…**） | 同一バイト列がリポジトリのオブジェクトストアに既にあったため転送は発生しません（`Upload 0 LFS files`）が、それを指す**新しいコミットは作成済み**。トーストにファイルへのリンクが付きます |
 | **スキップしました** — 「'repo' に同一のファイルが既に存在します: <url> …」         | まったく同じファイルがそのパスに既にあります。Hugging Face は空コミットを拒否するため何もしていません。新しいコミットが欲しければ別の保存先パスを指定してください                        |
 | **エラー**                                                                          | 転送失敗。メッセージにバックエンドの理由が入ります                                                                                                                                       |
-
-完了の報告はマネージャーウィンドウの上にトーストの積み重ねとして届きます。
-
-![アップロード完了トースト](screenshots/hf-upload-toast.png)
 
 ## 8. ローカルファイルからのアップロード
 
@@ -412,7 +411,7 @@ Hugging Face API キー**（または環境変数 `HF_TOKEN`）。ModelScope へ
   情報(アクセント)。各トーストには重大度アイコン、色付きの左バー、右上の
   **閉じるボタン**があり、ダイアログより常に手前で右上に積層し、時間経過で
   自動消滅します。
-  ![toasts](screenshots/toast-stack.png)
+  ![toasts](../demo-assets/toast-stack.png)
 - **プレビューは全部保存**。ダウンロードも保存も、モデルのプレビュー画像を
   すべて保存します(`<name>.webp` / `<name>.preview.webp` / `<name>.preview2.webp` …)。
   保存時にカルーセルで選択中の画像が第一プレビュー（カードの表紙）になります。
@@ -420,7 +419,7 @@ Hugging Face API キー**（または環境変数 `HF_TOKEN`）。ModelScope へ
   ボタン**と `i / n` カウンタが表示されます(閲覧モードでも編集モードでも)。
 - **ライトボックス**。プレビューをタップすると全画面表示。＜ / ＞ または
   矢印キーでページ送り、`Esc`・背景クリック・閉じるボタンで閉じます。
-  ![lightbox](screenshots/lightbox.png)
+  ![lightbox](../demo-assets/lightbox.png)
 - **環境変数のキー**。`private.key` が空で `HF_TOKEN` / `CIVITAI_API_KEY` /
   `MODELSCOPE_API_TOKEN` が _export_ されている場合、存在するキーだけを
   `private.key` へ自動取り込みます。
@@ -437,7 +436,7 @@ Hugging Face API キー**（または環境変数 `HF_TOKEN`）。ModelScope へ
 カードをクリックすると開く代わりに選択されます。1件以上選択するとウィンドウ
 下部に一括バーが表示されます:
 
-![選択モード](screenshots/selection-mode.png)
+![選択モード](../demo-assets/selection-mode.png)
 
 - **ワークフローに追加** — 選択中のモデルごとにローダーノードを作成。選択中の
   _フォルダ_は中のモデルすべて(再帰的に)が対象;
@@ -462,9 +461,6 @@ ZipNN バンドルフォルダ(`*_DeltaZNN` / 旧 `*_ZNN`)と通常のフォル�
 **ZipNN アートワークそのもののボタン**が表示されます(同梱 SVG が自前のガラス盤と
 ダークモード版を描画し、ホバーで浮き上がり+明るく、ツールチップと aria-label で
 説明)。
-
-![モデル詳細ウィンドウの ZipNN ボタン](screenshots/zipnn-button.png)
-
 押すと Danger には**しない**確認ダイアログが出て、その後バックグラウンドで
 テンソル毎に圧縮します:
 
@@ -477,6 +473,8 @@ ZipNN バンドルフォルダ(`*_DeltaZNN` / 旧 `*_ZNN`)と通常のフォル�
 圧縮済みモデルでは、情報テーブルの**ファイルサイズ**の 1 行が
 **元のファイルサイズ** / **圧縮後のファイルサイズ** / **圧縮前サイズ比**の 3 行に
 置き換わります(圧縮前のサイズは圧縮時にファイルのメタデータへ記録されます)。
+
+![圧縮済みモデルの詳細](../demo-assets/compressed-model.png)
 
 圧縮ファイルは公式 ZipNN のレイアウト(`znn_compressed_vectors` メタデータ、
 浮動小数点テンサルの Huffman 圧縮)に従うため、`zipnn_safetensors()` パッチ済みの
@@ -528,6 +526,8 @@ ZipNN バンドルフォルダ(`*_DeltaZNN` / 旧 `*_ZNN`)と通常のフォル�
 (反転アートワーク)はファインチューンをベースの隣へ**バイト完全一致**で復元し、
 空になったデルタフォルダを削除します。復元にはベースモデルの現存が必要です。
 
+![ZipNN デルタ圧縮ダイアログ](../demo-assets/zipnn-delta-dialog.png)
+
 ## 11. 設定
 
 ComfyUI の**設定 → Model Manager Neo**:
@@ -561,11 +561,7 @@ UI は ComfyUI のロケール（**設定 → ComfyUI → Locale**）に従い�
 （`ja-JP`・`zh-Hant-TW` など）は基底言語へ畳まれ、それ以外は English に
 フォールバックします。
 
-![日本語 UI](screenshots/ja-model-info.png)
-
-グリッド・ツールバー・ダイアログも同じ完成度で日本語化されます。
-
-![日本語フラット表示](screenshots/ja-view-flat.png)
+![日本語 UI](../demo-assets/ja-model-info.png)
 
 ## 13. トラブルシューティング
 
@@ -580,8 +576,8 @@ UI は ComfyUI のロケール（**設定 → ComfyUI → Locale**）に従い�
 
 ## スクリーンショット
 
-本書の画像は [`docs/screenshots/`](screenshots/) にあります。全マニフェストと、
+本書の画像は [`demo-assets/`](../demo-assets/) にあります。全マニフェストと、
 実働 ComfyUI での撮り直し手順は
-[`screenshots/README.md`](screenshots/README.md) を参照してください。ヘッダーの
+[`demo-assets/README.md`](../demo-assets/README.md) を参照してください。ヘッダーの
 ツアーは GIF と、その元になった可逆ソース録画
-[`hero.webm`](screenshots/hero.webm) の両方で同梱されています。
+[`hero.webm`](../demo-assets/hero.webm) の両方で同梱されています。

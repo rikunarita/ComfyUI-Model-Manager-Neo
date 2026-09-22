@@ -7,7 +7,14 @@
   // `web/` is the committed production bundle (loaded by ComfyUI at runtime,
   // never imported from source); third_party/ is vendored Python; docs/ and
   // assets/ carry no module graph.
-  "ignorePatterns": ["web/**", "third_party/**", "docs/**", "downloads/**", "assets/**"],
+  "ignorePatterns": [
+    "web/**",
+    "third_party/**",
+    "docs/**",
+    "downloads/**",
+    "assets/**",
+    "demo-assets/**"
+  ],
   // `less` is consumed by vite through `<style lang="less">` SFC blocks, which
   // no import graph can see. `postcss-html` / `postcss-less` are loaded by
   // stylelint at runtime through `.stylelintrc.json` (`customSyntax`) for the
