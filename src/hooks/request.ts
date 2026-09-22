@@ -21,14 +21,14 @@ export const request = async (url: string, options?: RequestInit) => {
         }
         try {
           const text = await response.text()
-          // ComfyUI-LoginなどがHTMLを返してくる場合、JSONパースを防ぐ
+          // ComfyUI-Login and friends can answer HTML; never JSON-parse that
           if (text.includes('<') && text.includes('>')) {
             errorMessage = `Server returned HTML (Status: ${response.status}). Please check your authentication or login status.`
           } else {
             errorMessage = text || errorMessage
           }
         } catch (e) {
-          // text() の取得に失敗した場合はステータスコードのみを返す
+          // When reading text() fails, report the status code alone
         }
         throw new Error(errorMessage)
       }
@@ -41,7 +41,7 @@ export const request = async (url: string, options?: RequestInit) => {
       throw new Error(resData.error || 'Unknown error from server')
     })
     .catch((err: unknown) => {
-      // JSONパースエラー（Unexpected end of JSON input など）もここでキャッチしてラップする
+      // JSON parse errors (e.g. 'Unexpected end of JSON input') are caught and wrapped here too
       if (err instanceof SyntaxError) {
         throw new Error(`Invalid JSON response from server. ${err.message}`)
       }
@@ -104,14 +104,14 @@ export const useRequest = <T = any>(url: string, options: RequestOptions<T> = {}
       .catch(err => {
         console.error(`[Request Error] ${requestUrl}:`, err)
         options.onError?.(err instanceof Error ? err : new Error(String(err)))
-        throw err // 呼び出し元でハンドリングできるよう再スロー
+        throw err // rethrow so callers can handle it
       })
       .finally(() => loading.hide())
   }
 
   onMounted(() => {
     if (!options.manual) {
-      fetch().catch(() => {}) // 初期ロードのエラーはサイレントに処理してUIフリーズを防ぐ
+      fetch().catch(() => {}) // swallow initial-load errors silently to keep the UI responsive
     }
   })
 

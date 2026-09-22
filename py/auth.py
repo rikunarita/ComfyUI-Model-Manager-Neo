@@ -141,7 +141,7 @@ class ApiKey:
     def _load_store(self) -> dict:
         """Read `private.key`, migrating the legacy pickle format once.
 
-        Optimization A-6 / hardening: the store used to be a *pickle*, i.e.
+        Hardening: the store used to be a *pickle*, i.e.
         deserialising a file an attacker can place next to the extension could
         execute arbitrary code. It is now plain JSON written with 0600
         permissions; an existing pickle (which only this extension ever wrote)

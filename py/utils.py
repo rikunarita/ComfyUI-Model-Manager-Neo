@@ -53,7 +53,7 @@ VIDEO_CONTENT_TYPE_MAP = {
 _extension_mimetypes_cache: dict[str, str] = {}
 
 # ---------------------------------------------------------------------------
-# Dedicated executors (optimization A-4 / A-8).
+# Dedicated executors.
 #
 # Everything blocking used to share asyncio's *default* executor, so a heavy
 # library walk or a multi-gigabyte sha256 pass could starve an in-flight
@@ -166,7 +166,7 @@ def download_web_distribution(version: str):
     print_info(f"Web distribution loaded from local repository (version {version}).")
 
 
-# Optimization A-3: the folder table is static for the life of the process,
+# The folder table is static for the life of the process,
 # yet nearly every request rebuilt and re-normalised it. The raw structure is
 # compared by reference-cheap tuple signature; only a real change re-runs the
 # (string-allocating) normalisation.
@@ -373,7 +373,7 @@ def get_model_tensors(filename: str):
 #   2. `<basename>.preview.<ext>`  the second preview (historic name)
 #   3. `<basename>.preview<N>.<ext>`  N = 2..19, further previews
 # The whole scheme is resolved against a *set of directory names*, so a model
-# list walk costs zero extra stat() calls (optimization A-2) and every preview
+# list walk costs zero extra stat() calls and every preview
 # of a model can be enumerated (feature: keep all previews).
 _PREVIEW_SUFFIXES = ("", ".preview", *(f".preview{n}" for n in range(2, 20)))
 

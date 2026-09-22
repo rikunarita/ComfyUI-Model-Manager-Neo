@@ -1,4 +1,4 @@
 pnpm exec lint-staged
 
-# Catch type regressions before they reach the branch (standards C-6).
+# Catch type regressions before they reach the branch.
 pnpm typecheck

@@ -792,7 +792,7 @@ watch(
 )
 
 const createDownTask = async (data: WithResolved<VersionModel>) => {
-  // type が未選択の場合は送信を拒否
+  // Refuse to submit while no model type is selected
   if (!data.type) {
     toast.add({
       severity: 'warn',

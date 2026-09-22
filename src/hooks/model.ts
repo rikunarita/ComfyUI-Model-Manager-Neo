@@ -1008,18 +1008,8 @@ export const useModelNodeAction = () => {
   }
 
   const dragToAddModelNode = wrapperToastError((model: BaseModel, event: DragEvent) => {
-    // const target = document.elementFromPoint(event.clientX, event.clientY)
-    // if (
-    //   target?.tagName.toLocaleLowerCase() === 'canvas' &&
-    //   target.id === 'graph-canvas'
-    // ) {
-    //   const pos = app.clientPosToCanvasPos([event.clientX - 20, event.clientY])
-    //   const node = createNode({ pos })
-    //   app.graph.add(node)
-    //   app.canvas.selectNode(node)
-    // }
-    //
-    // Use the legacy method instead
+    // The legacy drop handler is used on purpose: it resolves the drop target
+    // (empty canvas vs. existing node vs. text area) inside ComfyUI itself.
     const removeEmbeddingExtension = true
     const strictDragToAdd = false
     const splitter = systemStat.value?.system.os === 'nt' ? '\\' : '/'

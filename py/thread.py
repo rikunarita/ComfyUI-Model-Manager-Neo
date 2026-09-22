@@ -11,11 +11,8 @@ class DownloadThreadPool:
     """
 
     def __init__(self):
-        # Optimization A-9: bookkeeping used to be split across a `set` of
-        # "running" ids and a dict of tasks, which could disagree (an id still
-        # in the set after its task finished). A single dict of live tasks is
-        # the only source of truth now; "running" == "not done()".
-        self.running_tasks: set[str] = set()
+        # A single dict of live tasks is the only source of truth for the
+        # bookkeeping; a task counts as running while its entry is not done().
         self._tasks: dict[str, asyncio.Task] = {}
 
     def _get_lock(self) -> asyncio.Lock:
@@ -46,7 +43,6 @@ class DownloadThreadPool:
             return "Existing"
         if existing is not None:
             self._tasks.pop(task_id, None)
-            self.running_tasks.discard(task_id)
 
         try:
             loop = asyncio.get_running_loop()
@@ -62,11 +58,9 @@ class DownloadThreadPool:
                 utils.print_error(f"Task {task_id} failed: {e}")
             finally:
                 async with self._get_lock():
-                    self.running_tasks.discard(task_id)
                     self._tasks.pop(task_id, None)
 
         task = loop.create_task(wrapper())
-        self.running_tasks.add(task_id)
         self._tasks[task_id] = task
         return "Running"
 

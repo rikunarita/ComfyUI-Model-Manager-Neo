@@ -350,7 +350,7 @@ class ModelManager:
 
             model_preview: str | list[str] | None = None
             if is_file:
-                # Optimization A-2: resolve previews against the directory's
+                # Resolve previews against the directory's
                 # name set collected during the walk - zero extra stat() calls
                 # per model (the old code probed up to 16 candidate names with
                 # os.path.isfile for every single file).
@@ -417,7 +417,7 @@ class ModelManager:
 
         def get_all_files_entry(directory: str, dir_names: dict[str, set[str]]):
             """Collect model entries and, for free, every directory's name set
-            (used for zero-stat preview resolution, optimization A-2)."""
+            (used for zero-stat preview resolution)."""
             entries: list[os.DirEntry[str]] = []
             if not os.path.exists(directory):
                 return entries

@@ -22,8 +22,8 @@ export const bytesToSize = (bytes: number | string | undefined | null, decimals 
 
 export const formatDate = (date: number | string | Date) => {
   const d = new Date(date)
-  // dayjs は不正日付で 'Invalid Date' 文字列を返したが、
-  // date-fns は例外を投げるため、同様のフォールバックで防ぐ
+  // dayjs returned an 'Invalid Date' string for invalid input, while
+  // date-fns throws; keep the same fallback behaviour.
   if (Number.isNaN(d.getTime())) {
     return 'Unknown'
   }
@@ -105,4 +105,4 @@ export const getFilenameFromUrl = (url: string): string => {
   }
 }
 
-// getModelTypeFromFilename は削除済み（自動検出廃止・手動選択必須化）
+// getModelTypeFromFilename was removed (auto-detection is gone; the type is always chosen explicitly)

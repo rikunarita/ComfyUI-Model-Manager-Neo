@@ -295,7 +295,7 @@ import { genModelKey } from 'utils/model'
 
 /**
  * Auto-condense for the wizard step chips: long labels (e.g. the Japanese
- * 「アップロード先プラットフォームを選択」) used to overflow their grid cell;
+ * e.g. "Select upload platform") used to overflow their grid cell;
  * labels beyond eight characters drop one type size, and the trigger itself
  * truncates as the final guard.
  */

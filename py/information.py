@@ -18,7 +18,7 @@ from PIL import Image
 from . import auth, config, utils
 
 # ---------------------------------------------------------------------------
-# Browser-cacheable SVG artwork (optimization B-2).
+# Browser-cacheable SVG artwork.
 #
 # The glass folder icons and the NO-PREVIEW artwork used to be inlined into the
 # bundle as data: URIs, so every folder card carried its own ~10-25 KB copy in
@@ -74,7 +74,7 @@ def svg_response(request, name: str) -> web.Response:
 
 
 # ---------------------------------------------------------------------------
-# Encoded-preview cache (optimization A-1).
+# Encoded-preview cache.
 #
 # The preview route re-decoded and re-encoded every image (every frame of an
 # animated one) on *each* request, so refreshing a 1000-model grid re-ran PIL a
@@ -596,8 +596,8 @@ class Information:
                 # Serve video files directly
                 return web.FileResponse(abs_path, headers=cache_headers)
             # Serve image files (WebP or fallback images). The encode is
-            # CPU-bound, so it lives on the cpu pool (optimization A-4)
-            # and is memoised (optimization A-1).
+            # CPU-bound, so it lives on the cpu pool
+            # and is memoised against (mtime, size).
             loop = asyncio.get_running_loop()
             encoded = await loop.run_in_executor(utils.cpu_executor(), self.get_image_preview_data, abs_path)
             return web.Response(
@@ -611,6 +611,14 @@ class Information:
             """Preview of a download task; 404 when the task has none (the
             client then shows the default NO-PREVIEW.svg URL instead)."""
             filename = request.match_info.get("filename", None)
+
+            # `{filename}` is a single URL segment, but percent-encoding lets
+            # a client smuggle separators through the router; the value is
+            # joined onto the downloads directory, so anything but a
+            # separator-free base name would escape it. Legitimate names are
+            # `<task id>.<preview ext>` produced by the task system itself.
+            if not filename or filename != os.path.basename(filename):
+                raise web.HTTPNotFound()
 
             download_path = utils.get_download_path()
             preview_path = utils.join_path(download_path, filename)

@@ -119,7 +119,7 @@ export const useDownload = defineStore('download', store => {
       store.config.apiKeyInfo.value = res
     } catch (err: any) {
       console.error('Failed to init download settings:', err)
-      // 認証エラー等で失敗してもUIが固まらないよう空オブジェクトを設定
+      // Keep the UI usable even when init fails (e.g. an auth error): fall back to an empty object
       store.config.apiKeyInfo.value = {} as any
     }
   }
@@ -345,7 +345,7 @@ export const useModelSearch = () => {
       const extension = `.${parts.pop()}`
       const basename = parts.join('.') || 'model'
 
-      // 自動検出廃止・タイプ必須化
+      // No auto-detection: a direct link always needs an explicit type.
       if (!modelType) {
         throw new Error('Model type is required for direct file download')
       }
@@ -400,7 +400,7 @@ export const useModelSearch = () => {
       }
     } catch (error) {
       console.error('Error creating direct file model:', error)
-      // タイプ必須・デフォルトなし
+      // Type is mandatory; there is no default.
       if (!modelType) {
         throw new Error('Model type is required')
       }

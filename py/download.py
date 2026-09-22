@@ -137,6 +137,18 @@ def _sha256_of(path: str) -> str | None:
     return digest.hexdigest()
 
 
+def _is_task_id(task_id: str) -> bool:
+    """Reject route parameters that are not plain task ids.
+
+    ``{task_id}`` is a single URL segment, but percent-encoding lets a client
+    smuggle separators (``%2F``, ``%2E%2E``) through the router; the value is
+    joined onto the downloads directory (``<id>.task`` / ``<id>.download``), so
+    anything but a separator-free name would escape it. Legitimate ids are
+    ``uuid4().hex``; the check is a whitelist, not a blacklist.
+    """
+    return bool(task_id) and all(ch.isalnum() for ch in task_id)
+
+
 class ModelDownload:
     def __init__(self):
         self.api_key = auth.get_api_key()
@@ -168,11 +180,10 @@ class ModelDownload:
 
         @routes.put("/model-manager/download/{task_id}")
         async def resume_download_task(request):
+            task_id = request.match_info.get("task_id", None)
+            if task_id is None or not _is_task_id(task_id):
+                raise web.HTTPBadRequest(reason="Invalid task id")
             try:
-                task_id = request.match_info.get("task_id", None)
-                if task_id is None:
-                    raise web.HTTPBadRequest(reason="Invalid task id")
-
                 json_data = await request.json()
                 status = json_data.get("status", None)
 
@@ -192,6 +203,8 @@ class ModelDownload:
         @routes.delete("/model-manager/download/{task_id}")
         async def delete_model_download_task(request):
             task_id = request.match_info.get("task_id", None)
+            if task_id is None or not _is_task_id(task_id):
+                raise web.HTTPBadRequest(reason="Invalid task id")
             try:
                 await self.delete_model_download_task(task_id)
                 return web.json_response({"success": True})
@@ -541,7 +554,7 @@ class ModelDownload:
     ) -> None:
         """Stream a download to `<task>.download` with aiohttp.
 
-        Optimization A-5, implemented conservatively: the transfer used to run
+        The transfer used to run
         a *blocking* `requests` stream inside a worker thread, which is why the
         code needed pause-polling, thread-marshalled progress pushes and the
         "close the response inside the thread" workaround. On the event loop

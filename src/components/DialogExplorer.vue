@@ -196,7 +196,7 @@ const { dataTreeList, folderPaths, findFolder, openFolder, getFullPath } = useMo
 const { openModelDetail } = useModelDetail()
 const { cardSize } = useConfig()
 
-// folderPaths を BreadcrumbItem[] に変換
+// Convert folderPaths into BreadcrumbItem[]
 const breadcrumbItems = computed(() => {
   return folderPaths.value.map(folder => ({
     label: folder.name,

@@ -102,8 +102,7 @@
     "large": "大アイコン",
     "medium": "中アイコン",
     "small": "小アイコン",
-    "custom": "カスタムサイズ",
-    "customTip": "`設定 > Model Manager Neo > UI` で変更できます"
+    "custom": "カスタムサイズ"
   },
   "info": {
     "type": "モデル種別",
@@ -135,8 +134,6 @@
   },
   "setting": {
     "apiKey": "API キー",
-    "cardHeight": "カードの高さ",
-    "cardWidth": "カードの幅",
     "modelList": "モデル一覧",
     "includeHiddenFiles": "隠しファイル（. で始まる名前）を含める",
     "excludeModelTypes": "一覧から除外するモデル種別（カンマ区切り）",
@@ -145,14 +142,14 @@
     "useFlatUI": "フラット表示",
     "api_key": {
       "huggingface": "Hugging Face API キー",
-      "civitai": "Civitai API キー"
+      "civitai": "Civitai API キー",
+      "modelscope": "ModelScope API キー"
     },
     "zipnn": "ZipNN",
     "download": "ダウンロード",
     "autoCompressUnusedDays": "この日数以上未使用のモデルを自動圧縮(0=無効)",
     "autoCompressOnDownload": "ダウンロード完了後に自動圧縮する",
     "pauseDuringPrompt": "prompt 実行中はダウンロードを一時停止する",
-    "api_key.modelscope": "ModelScope API キー",
     "search": "検索",
     "hideSearchHf": "モデル検索で Hugging Face の結果を非表示",
     "hideSearchMs": "モデル検索で ModelScope の結果を非表示",

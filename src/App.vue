@@ -245,7 +245,7 @@ onMounted(() => {
 
   window.addEventListener('open-model-manager', openManagerDialog)
 
-  // レガシー UI 用コンテナへのボタン追加
+  // Add the button to the legacy UI container
   app.ui?.menuContainer?.appendChild(
     $el('button', {
       id: 'comfyui-model-manager-button',
@@ -254,7 +254,7 @@ onMounted(() => {
     }),
   )
 
-  // ComfyButton インスタンスの生成（新フロントエンド用）
+  // Create the ComfyButton instance (new frontend)
   const managerButton = new ComfyButton({
     icon: 'folder-search',
     tooltip: t('openModelManager'),

@@ -102,8 +102,7 @@
     "large": "大图标",
     "medium": "中等图标",
     "small": "小图标",
-    "custom": "自定义尺寸",
-    "customTip": "在 `设置 > 模型管理器 > 外观` 中设置"
+    "custom": "自定义尺寸"
   },
   "info": {
     "type": "类型",
@@ -135,8 +134,6 @@
   },
   "setting": {
     "apiKey": "密钥",
-    "cardHeight": "卡片高度",
-    "cardWidth": "卡片宽度",
     "modelList": "模型列表",
     "includeHiddenFiles": "包含隐藏文件（以 . 开头的文件或文件夹）",
     "excludeModelTypes": "排除模型类型（使用英文逗号隔开）",
@@ -145,14 +142,14 @@
     "useFlatUI": "展平布局",
     "api_key": {
       "huggingface": "Hugging Face API 密钥",
-      "civitai": "Civitai API 密钥"
+      "civitai": "Civitai API 密钥",
+      "modelscope": "ModelScope API 密钥"
     },
     "zipnn": "ZipNN",
     "download": "下载",
     "autoCompressUnusedDays": "自动压缩超过此天数未使用的模型(0=关闭)",
     "autoCompressOnDownload": "下载完成后自动压缩",
     "pauseDuringPrompt": "提示执行时暂停下载",
-    "api_key.modelscope": "ModelScope API 密钥",
     "search": "搜索",
     "hideSearchHf": "在模型搜索中隐藏 Hugging Face 结果",
     "hideSearchMs": "在模型搜索中隐藏 ModelScope 结果",
