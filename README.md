@@ -16,6 +16,8 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
+**English** · [日本語](README-JP.md)
+
 <!--
   ┌──────────────────────────────────────────────────────────────────────────┐
   │  SCREENSHOTS                                                             │
@@ -94,10 +96,11 @@ the experience from the ground up:
 ## <img src="https://api.iconify.design/lucide/camera.svg?color=%238b5cf6" width="28" height="28" align="middle" alt=""> Screenshots
 
 > [!TIP]
-> The images below are **placeholders**. Prepare the files listed in the
-> `docs/screenshots/` checklist at the top of this README and they will render
-> automatically. Capture them from a live ComfyUI instance running this
-> extension (dark theme recommended, ~1600 px wide for consistency).
+> Every image below ships in [`docs/screenshots/`](docs/screenshots/). The
+> per-file manifest in
+> [`docs/screenshots/README.md`](docs/screenshots/README.md) says exactly what
+> each file shows and how to (re-)capture it from a live ComfyUI window (dark
+> theme recommended, ~1600 px wide for consistency).
 
 ### Flat “Models” view — search, sort and resize the grid
 
@@ -127,7 +130,9 @@ up only as the path gets deeper) and the animated glass folder cards.
 | _Upload to Hugging Face, step 3: repo id, private‑on‑create, destination path._ | _The same window in **日本語** — the UI ships complete English / 中文 / 日本語 bundles._ |
 
 A 10‑second tour (open → folder view → hover a folder → back → open a model) is
-[`docs/screenshots/hero.gif`](docs/screenshots/hero.gif); dragging a card onto a
+[`docs/screenshots/hero.gif`](docs/screenshots/hero.gif); the lossless source
+recording the GIF is derived from ships beside it as
+[`docs/screenshots/hero.webm`](docs/screenshots/hero.webm). Dragging a card onto a
 live canvas is best captured from a real ComfyUI window — see
 [`docs/screenshots/README.md`](docs/screenshots/README.md).
 

@@ -86,6 +86,11 @@ ComfyUI を再起動してください。Python 依存（`huggingface_hub`・`hf
 
 ![フラット表示](screenshots/view-flat-dialog.png)
 
+**カスタムサイズ**ダイアログは presets を幅・高さのスライダー組で編集し、
+結果を ComfyUI の設定へ保存します。
+
+![カスタムサイズダイアログ](screenshots/card-size.png)
+
 ### フォルダ表示
 
 ブレッドクラム付きのファイルマネージャ風ツリーです（各階層に小さなフォルダ
@@ -346,6 +351,9 @@ Hugging Face API キー**（または環境変数 `HF_TOKEN`）。ModelScope へ
 2. **モデル種別を選択** — 種別ごとのボタン。
 3. **モデルを選択** — その種別のグリッド。選ぶと保存先パスがモデルの相対パスで
    自動入力されます。
+
+   ![モデル選択ステップ](screenshots/hf-upload-step2.png)
+
 4. **アップロード**:
 
    ![HF アップロードフォーム](screenshots/hf-upload.png)
@@ -381,6 +389,10 @@ Hugging Face API キー**（または環境変数 `HF_TOKEN`）。ModelScope へ
 | **Hugging Face 側に既存のデータです**（ModelScope への場合は **ModelScope 側に…**） | 同一バイト列がリポジトリのオブジェクトストアに既にあったため転送は発生しません（`Upload 0 LFS files`）が、それを指す**新しいコミットは作成済み**。トーストにファイルへのリンクが付きます |
 | **スキップしました** — 「'repo' に同一のファイルが既に存在します: <url> …」         | まったく同じファイルがそのパスに既にあります。Hugging Face は空コミットを拒否するため何もしていません。新しいコミットが欲しければ別の保存先パスを指定してください                        |
 | **エラー**                                                                          | 転送失敗。メッセージにバックエンドの理由が入ります                                                                                                                                       |
+
+完了の報告はマネージャーウィンドウの上にトーストの積み重ねとして届きます。
+
+![アップロード完了トースト](screenshots/hf-upload-toast.png)
 
 ## 8. ローカルファイルからのアップロード
 
@@ -425,6 +437,8 @@ Hugging Face API キー**（または環境変数 `HF_TOKEN`）。ModelScope へ
 カードをクリックすると開く代わりに選択されます。1件以上選択するとウィンドウ
 下部に一括バーが表示されます:
 
+![選択モード](screenshots/selection-mode.png)
+
 - **ワークフローに追加** — 選択中のモデルごとにローダーノードを作成。選択中の
   _フォルダ_は中のモデルすべて(再帰的に)が対象;
 - **削除** — Danger 確認の後、選択中のモデルを削除(プレビューとノートも含む)。
@@ -447,7 +461,11 @@ ZipNN バンドルフォルダ(`*_DeltaZNN` / 旧 `*_ZNN`)と通常のフォル�
 `.safetensors` モデルを開くと、プレビューと情報テーブルの間の隙間に
 **ZipNN アートワークそのもののボタン**が表示されます(同梱 SVG が自前のガラス盤と
 ダークモード版を描画し、ホバーで浮き上がり+明るく、ツールチップと aria-label で
-説明)。押すと Danger には**しない**確認ダイアログが出て、その後バックグラウンドで
+説明)。
+
+![モデル詳細ウィンドウの ZipNN ボタン](screenshots/zipnn-button.png)
+
+押すと Danger には**しない**確認ダイアログが出て、その後バックグラウンドで
 テンソル毎に圧縮します:
 
 - 実行中、ボタンは**進捗バー**に置き換わります;
@@ -545,6 +563,10 @@ UI は ComfyUI のロケール（**設定 → ComfyUI → Locale**）に従い�
 
 ![日本語 UI](screenshots/ja-model-info.png)
 
+グリッド・ツールバー・ダイアログも同じ完成度で日本語化されます。
+
+![日本語フラット表示](screenshots/ja-view-flat.png)
+
 ## 13. トラブルシューティング
 
 | 症状                                        | 原因 / 対処                                                                                                           |
@@ -560,4 +582,6 @@ UI は ComfyUI のロケール（**設定 → ComfyUI → Locale**）に従い�
 
 本書の画像は [`docs/screenshots/`](screenshots/) にあります。全マニフェストと、
 実働 ComfyUI での撮り直し手順は
-[`screenshots/README.md`](screenshots/README.md) を参照してください。
+[`screenshots/README.md`](screenshots/README.md) を参照してください。ヘッダーの
+ツアーは GIF と、その元になった可逆ソース録画
+[`hero.webm`](screenshots/hero.webm) の両方で同梱されています。

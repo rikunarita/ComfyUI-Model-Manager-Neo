@@ -80,6 +80,10 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 ![展平布局](screenshots/view-flat-dialog.png)
 
+**自定义尺寸**对话框通过一组宽/高滑块编辑每个预设，并把结果写入 ComfyUI 设置：
+
+![自定义尺寸对话框](screenshots/card-size.png)
+
 ### 文件夹布局
 
 带面包屑的文件管理器式树（每级带一个小文件夹图标）。面包屑在根目录不占空间，
@@ -285,6 +289,9 @@ ModelScope 始终连接国际域名 `www.modelscope.ai`。仓库创建（公开/
 1. **选择上传平台** — Hugging Face / ModelScope。
 2. **选择模型类型** — 每个类型一个按钮。
 3. **选择模型** — 该类型的网格；选中后保存路径自动填为模型的相对路径。
+
+   ![模型选择步骤](screenshots/hf-upload-step2.png)
+
 4. **上传**：
 
    ![HF 上传表单](screenshots/hf-upload.png)
@@ -316,6 +323,10 @@ ModelScope 始终连接国际域名 `www.modelscope.ai`。仓库创建（公开/
 | **Hugging Face 已存储该内容**（上传到 ModelScope 时为 **ModelScope 已存储该内容**） | 相同字节已存在于仓库对象存储中，因此平台未传输任何数据（`Upload 0 LFS files`），但**已创建指向它们的新提交**；提示中附文件链接 |
 | **已跳过** — 「'repo' 中已存在完全相同的文件: <url> …」                             | 同一路径已有完全相同的文件；Hugging Face 拒绝空提交，因此什么都没做。想产生新提交请换一个目标路径                              |
 | **错误**                                                                            | 传输失败，消息中带后端原因                                                                                                     |
+
+完成报告会以吐司堆叠的形式出现在管理器窗口上方：
+
+![上传完成吐司](screenshots/hf-upload-toast.png)
 
 ## 8. 从本地文件上传
 
@@ -355,6 +366,8 @@ ModelScope 始终连接国际域名 `www.modelscope.ai`。仓库创建（公开/
 两种布局的工具栏都有**选择文件**开关(列表勾选图标)。开启后每张卡片/文件夹左上
 角出现圆形复选框；点击卡片变为勾选而不是打开。选中至少一项后窗口底部出现批量栏:
 
+![选择模式](screenshots/selection-mode.png)
+
 - **添加到工作流** — 为每个选中模型创建一个加载器节点；选中的_文件夹_会递归
   展开为其中的全部模型;
 - **删除** — 经 Danger 确认后删除所有选中模型(含预览与说明)；选中的_文件夹_
@@ -374,7 +387,11 @@ ZipNN 打包文件夹(`*_DeltaZNN` / 旧 `*_ZNN`)与普通文件夹不能同时�
 
 打开 `.safetensors` 模型时，预览与信息表之间的空隙处就是 **ZipNN 图标本身构成的按钮**
 (自带 SVG 会绘制自己的玻璃面板与深色模式版本，悬停时上浮并变亮，工具提示与 aria-label
-说明作用)。点击后弹出
+说明作用)。
+
+![模型详情窗口中的 ZipNN 按钮](screenshots/zipnn-button.png)
+
+点击后弹出
 **非 Danger** 的确认框，随后在后台逐张量压缩:
 
 - 运行期间按钮替换为**进度条**;
@@ -453,6 +470,12 @@ ComfyUI **设置 → Model Manager Neo**：
 **中文**、**日本語** 三套完整文案。地区/文字子标签（`ja-JP`、`zh-Hant-TW` 等）会归并
 到其基础语言，其余回落到 English。
 
+![日语界面](screenshots/ja-model-info.png)
+
+网格、工具栏与对话框同样完整本地化：
+
+![日语展平布局](screenshots/ja-view-flat.png)
+
 ## 13. 故障排查
 
 | 症状                          | 原因 / 处理                                                                                 |
@@ -468,3 +491,5 @@ ComfyUI **设置 → Model Manager Neo**：
 
 本指南中的图片位于 [`docs/screenshots/`](screenshots/)。完整清单以及如何替换为
 真实 ComfyUI 窗口截图，见 [`screenshots/README.md`](screenshots/README.md)。
+页头导览以两种形式附带：GIF，以及由其导出的无损源录像
+[`hero.webm`](screenshots/hero.webm)。

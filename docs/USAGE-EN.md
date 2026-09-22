@@ -88,6 +88,11 @@ A single grid of every model of every type, with a toolbar:
 
 ![flat layout](screenshots/view-flat-dialog.png)
 
+The **Custom Size** dialog edits every preset through a width/height slider
+pair and writes the result into the ComfyUI settings:
+
+![custom size dialog](screenshots/card-size.png)
+
 ### Folder layout
 
 A file‑manager style tree with a breadcrumb trail (each crumb carries a folder
@@ -359,6 +364,9 @@ Open **Upload to Hugging Face / ModelScope** from the header:
 2. **Select model type** — a button per type.
 3. **Select model** — the grid of that type; picking one pre‑fills the
    destination path with the model’s relative path.
+
+   ![model selection step](screenshots/hf-upload-step2.png)
+
 4. **Upload**:
 
    ![hf upload form](screenshots/hf-upload.png)
@@ -394,6 +402,10 @@ the current phase:
 | **Already stored on Hugging Face** (or **on ModelScope**)           | the identical bytes already existed in the repository’s object store, so the hub transferred nothing (`Upload 0 LFS files`) but a new commit pointing at them **was** created; the toast links the file |
 | **Skipped** — “An identical file already exists in 'repo': <url> …” | the very same file already sits at that exact path; Hugging Face refuses empty commits, so nothing was done. Pick another destination path to create a new commit                                       |
 | **Error**                                                           | the transfer failed; the message carries the backend reason                                                                                                                                             |
+
+The completion report arrives as a toast stack above the manager window:
+
+![upload completion toasts](screenshots/hf-upload-toast.png)
 
 ## 8. Upload from a local file
 
@@ -438,6 +450,8 @@ While it is on, every card and folder shows a round checkbox at its top-left;
 clicking a card ticks it instead of opening it. As soon as one item is
 selected a bulk bar appears at the bottom of the window:
 
+![selection mode](screenshots/selection-mode.png)
+
 - **Add to workflow** — creates one loader node per selected model; selected
   _folders_ contribute every model inside them (recursively);
 - **Delete** — deletes every selected model after a Danger confirmation
@@ -463,7 +477,11 @@ folders and shows a warning toast.
 Opening a `.safetensors` model shows the **ZipNN artwork itself as the button**
 in the gap between the preview and the info table: the shipped SVG draws its own
 glass plate (including a dark-mode variant), lifts and brightens on hover, and
-explains itself in a tooltip and to screen readers. Pressing it asks for a
+explains itself in a tooltip and to screen readers.
+
+![ZipNN button in the model detail window](screenshots/zipnn-button.png)
+
+Pressing it asks for a
 confirmation that is deliberately _not_ styled as Danger, then compresses
 tensor-by-tensor in the background:
 
@@ -571,6 +589,10 @@ else falls back to English.
 
 ![Japanese UI](screenshots/ja-model-info.png)
 
+Grids, toolbars and dialogs carry the same treatment:
+
+![Japanese flat layout](screenshots/ja-view-flat.png)
+
 ## 13. Troubleshooting
 
 | Symptom                               | Cause / fix                                                                                                                                       |
@@ -586,4 +608,6 @@ else falls back to English.
 
 The images in this guide live in [`docs/screenshots/`](screenshots/). See
 [`screenshots/README.md`](screenshots/README.md) for the full per-file manifest
-and for how to (re)capture each view from a live ComfyUI window.
+and for how to (re)capture each view from a live ComfyUI window. The header
+tour ships twice: as the GIF above and as the lossless source recording
+[`hero.webm`](screenshots/hero.webm) it is derived from.
