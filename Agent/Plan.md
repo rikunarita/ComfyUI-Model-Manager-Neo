@@ -284,10 +284,17 @@ third_party/
 | JSON                  | **jiter**（第一候補）                                 | 0.17.0                 | simd-json 0.18.1（in‑place 変換を要し read‑only mmap と相性が悪い。Phase 0 で両者ベンチし確定）         |
 | ハッシュ              | **sha2 / blake3 / crc32fast**                         | 0.11.0 / 1.8.7 / 1.5.2 | OpenSSL バインディング（C 依存）                                                                        |
 | 並列ディレクトリ走査  | **ignore**（第一候補）                                | 0.4.33                 | jwalk 0.9.0（「Use dua-core instead」表記で事実上 maintenance）/ dua-core 4.1.0（Phase 5 でベンチ比較） |
-| インデックス永続化    | **bincode 3** スナップショット                        | 3.0.0                  | rusqlite（SQLite = C のビルド混入）/ postcard 1.1.3（代替候補）                                         |
+| インデックス永続化    | **bincode** スナップショット（下記の注記参照）        | 2.0.1                  | rusqlite（SQLite = C のビルド混入）/ postcard 1.1.3（代替候補）                                         |
 | ファイル監視（任意）  | **notify + notify-debouncer-full**                    | 8.2.0 / 0.7.0          | Python watchdog（GIL 下ポーリング）                                                                     |
 | f16/bf16              | **half**                                              | 2.7.1                  | —                                                                                                       |
 | YAML                  | **yaml-rust2**                                        | 0.13.0                 | serde_yaml（**deprecated 確認済み**）/ serde_yml（同）                                                  |
+
+> 〔Phase 0 実装注記 2026‑09‑23・bincode〕 crates.io の `max_stable_version`
+> は 3.0.0 だが、同リリースは **コンパイル不能なプレースホルダ**（lib.rs 全体が
+> `compile_error!("https://xkcd.com/2347/")`、依存ゼロ — 依存混淆攻撃対策の
+> スクワットガード。一次ソース: static.crates.io 配信の .crate 実展開で確認）。
+> 実体の安定版は **2.0.1**（2025‑03‑10）。Phase 5 のインデックス実装は
+> 2.0.1 を既定とし、postcard 1.1.3 を代替候補として再評価する。
 
 ## 3.2 Python バインディング: PyO3 0.29.2
 
@@ -350,10 +357,18 @@ third_party/
 ### 3.4.2 rustfmt / clippy
 
 - **rustfmt**: `native/rustfmt.toml` をコミット（edition 2024、
-  その他は既定 + `imports_granularity` 等の安定オプションのみ）。
+  その他は既定 + 安定オプションのみ。〔Phase 0 実装注記 2026‑09‑23〕
+  `imports_granularity` / `group_imports` は Rust 1.98 時点でも **nightly 専用**
+  のため不採用（stable の `cargo fmt --check` を正とする）。newline_style は
+  Auto のまま `.gitattributes` の `*.rs text eol=lf` で LF を保証する —
+  Windows ランナーの core.autocrlf による CRLF checkout が fmt ゲートを
+  破壊するため（CI 実走で確認・修正済み）。
   `pnpm rs:fmt` / `pnpm rs:fmt:check` を package.json に追加
   （既存の `pnpm py:lint` 等と同じ命名作法）。
-- **clippy**: `native/clippy.toml` に `msrv = "1.83"`（PyO3 の MSRV）を設定。
+- **clippy**: `native/clippy.toml` に MSRV を設定。〔Phase 0 実装注記
+  2026‑09‑23〕 PyO3 の MSRV は 1.83 だが edition 2024 が rustc ≥1.85 を
+  要求するため、実効床は **`msrv = "1.85"`**（clippy.toml に理由付きで明記。
+  低い値を二重指定すると clippy が不一致警告を出すため）。
   ワークスペースルートで `cargo clippy --all-targets --all-features -- -D warnings`
   を CI ゲート化。加えて crate 属性で `clippy::pedantic` を warn、
   選別した項目のみ deny（過度な警告による開発摩擦を避けるため allow リストを
@@ -402,20 +417,20 @@ crates.io 全件調査の結果、ZipNN が要求する**生 huff0 ブロック*
 
 ## 3.7 データ処理 crate（確定バージョン表）
 
-| 用途               | crate                                    | バージョン             | 備考                                                                                           |
-| ------------------ | ---------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------- |
-| safetensors 読取   | `memmap2` + 自前ヘッダーパーサ           | 0.9.11                 | ゼロコピー。32 MB ヘッダー上限ガード維持                                                       |
-| JSON               | `jiter`（第一候補）/ `simd-json`（比較） | 0.17.0 / 0.18.1        | jiter は非破壊解析で read‑only mmap に直接適用可。Phase 0 で 8 MB MoE ヘッダーによりベンチ確定 |
-| スキャン結果直列化 | `serde` + `serde_json`                   | 1.0.151                | —                                                                                              |
-| ハッシュ           | `sha2` / `blake3` / `crc32fast`          | 0.11.0 / 1.8.7 / 1.5.2 | blake3 は `rayon`・`mmap` フィーチャ使用（並列ツリーハッシュ）。sha2 は SHA‑NI 実行時検出      |
-| 並列 walk          | `ignore`（第一候補）/ `dua-core`（比較） | 0.4.33 / 4.1.0         | Phase 5 でベンチ比較                                                                           |
-| インデックス       | `bincode`（+ `blake3` チェックサム）     | 3.0.0                  | 純 Rust・原子入替スナップショット。SQLite（C）は不採用                                         |
-| f16/bf16           | `half`                                   | 2.7.1                  | —                                                                                              |
-| バイト cast        | `bytemuck`                               | 1.25.2                 | 平面分割の安全な reinterpret                                                                   |
-| 監視（任意機能）   | `notify` + `notify-debouncer-full`       | 8.2.0 / 0.7.0          | デバウンスは公式クレートに委譲                                                                 |
-| YAML               | `yaml-rust2`                             | 0.13.0                 | front‑matter 部分集合。serde_yaml 系は deprecated のため不使用                                 |
-| 一時ファイル       | `tempfile`                               | 3.x                    | 原子入替                                                                                       |
-| PyO3 拡張          | `pyo3`（abi3-py310, extension-module）   | 0.29.2                 | —                                                                                              |
+| 用途               | crate                                    | バージョン                                               | 備考                                                                                           |
+| ------------------ | ---------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| safetensors 読取   | `memmap2` + 自前ヘッダーパーサ           | 0.9.11                                                   | ゼロコピー。32 MB ヘッダー上限ガード維持                                                       |
+| JSON               | `jiter`（第一候補）/ `simd-json`（比較） | 0.17.0 / 0.18.1                                          | jiter は非破壊解析で read‑only mmap に直接適用可。Phase 0 で 8 MB MoE ヘッダーによりベンチ確定 |
+| スキャン結果直列化 | `serde` + `serde_json`                   | 1.0.151                                                  | —                                                                                              |
+| ハッシュ           | `sha2` / `blake3` / `crc32fast`          | 0.11.0 / 1.8.7 / 1.5.2                                   | blake3 は `rayon`・`mmap` フィーチャ使用（並列ツリーハッシュ）。sha2 は SHA‑NI 実行時検出      |
+| 並列 walk          | `ignore`（第一候補）/ `dua-core`（比較） | 0.4.33 / 4.1.0                                           | Phase 5 でベンチ比較                                                                           |
+| インデックス       | `bincode`（+ `blake3` チェックサム）     | 2.0.1（§3.1 注記: 3.0.0 はコンパイル不能プレースホルダ） | 純 Rust・原子入替スナップショット。SQLite（C）は不採用                                         |
+| f16/bf16           | `half`                                   | 2.7.1                                                    | —                                                                                              |
+| バイト cast        | `bytemuck`                               | 1.25.2                                                   | 平面分割の安全な reinterpret                                                                   |
+| 監視（任意機能）   | `notify` + `notify-debouncer-full`       | 8.2.0 / 0.7.0                                            | デバウンスは公式クレートに委譲                                                                 |
+| YAML               | `yaml-rust2`                             | 0.13.0                                                   | front‑matter 部分集合。serde_yaml 系は deprecated のため不使用                                 |
+| 一時ファイル       | `tempfile`                               | 3.x                                                      | 原子入替                                                                                       |
+| PyO3 拡張          | `pyo3`（abi3-py310, extension-module）   | 0.29.2                                                   | —                                                                                              |
 
 ## 3.8 周辺領域の選定結論（Rust 化しない判断を含む）
 
@@ -484,9 +499,16 @@ native/
 └─ native-bin/                   # リポジトリ同梱プリビルド（third_party 代替）
    ├─ linux-x86_64/mm_core.abi3.so
    ├─ linux-aarch64/mm_core.abi3.so
-   ├─ windows-x86_64/mm_core.abi3.pyd
+   ├─ windows-x86_64/mm_core.pyd      # ← .abi3.pyd ではない（下記の注記）
    └─ macos-universal2/mm_core.abi3.so
 ```
+
+> 〔Phase 0 実装注記 2026‑09‑23〕 **Windows 成果物名は `mm_core.pyd`**:
+> Windows CPython の `importlib.machinery.EXTENSION_SUFFIXES` は `['.pyd']`
+> のみで、Linux/macOS で有効な `.abi3.pyd` 名は import されない（実機検証）。
+> `scripts/build-native.sh` と `native/native-bin/README.md` はこの名前で
+> 確定済み。abi3 であること自体は wheel タグ（`cp310-abi3`）と
+> CPython 3.10/3.13 での import 疎通 CI（native.yml `abi3-import`）が担保する。
 
 ### 4.2.2 Python API 表面
 
@@ -895,7 +917,9 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 - [x] KPI 全項目のベースライン計測・`docs/BENCH.md` 記録
       （圧縮/解凍/デルタ/スキャン/ヘッダー/ハッシュ。実モデル + 合成）
-- [x] **Quick Win A1**: `get_model_info` の executor 化（Rust 化に先行、単独 PR）
+- [x] **Quick Win A1**: `get_model_info` の executor 化（Rust 化に先行、単独 PR。
+      回帰テスト `tests/test_phase0_a1_model_info_route.py` — mm-io 実行と
+      ループ生存を機械的に検証）
 - [x] `native/` cargo ワークスペース雛形（edition 2024、resolver 2）
 - [x] **mold 導入**: `native/.cargo/config.toml`（§3.4.1）+ CI への
       mold インストールステップ + ローカル導入手順の文書化
@@ -907,6 +931,8 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 - [x] JSON パーサ確定: jiter 0.17 vs simd-json 0.18 を 8 MB MoE ヘッダーで
       マイクロベンチ（非破壊借用解析の要件込み）
 - [x] `py/native.py` ローダー雛形 + `MM_NATIVE` スイッチ
+      （ハンドシェイク検証テスト `tests/test_phase0_native_loader.py`。
+      不一致モジュールを sys.modules に残さない後始末を含む）
 - [x] 完了条件: 全ターゲットで abi3 ビルド成功、import 疎通、
       clippy/fmt gate green、サイズ ≤4 MB/本、ベースライン記録完了
       （達成証跡: native.yml @ 81854f5 全ジョブ緑 = 5 ターゲットビルド +
@@ -1117,7 +1143,7 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 | walkdir                | 2.5.0                       | 直列 walk（比較用）                                                                                                                                                                                            |
 | notify                 | 8.2.0                       | 2026‑08‑30                                                                                                                                                                                                     |
 | notify-debouncer-full  | 0.7.0                       | 2026‑05‑02                                                                                                                                                                                                     |
-| bincode                | 3.0.0                       | 2025‑12‑16（3.0 安定版）                                                                                                                                                                                       |
+| bincode                | 3.0.0 → **2.0.1 採用**      | 3.0.0（2025‑12‑16）はコンパイル不能プレースホルダ（xkcd 2347 スクワットガード）と Phase 0 で一次確認 → 実体安定版 2.0.1（2025‑03‑10）を採用                                                                    |
 | postcard               | 1.1.3                       | 2025‑07‑24（bincode の代替候補）                                                                                                                                                                               |
 | rusqlite               | 0.40.2                      | 確認のみ — SQLite(C) 混入のため**不採用**                                                                                                                                                                      |
 | numpy                  | 0.29.0                      | PyO3 0.29 対応（本計画では不使用）                                                                                                                                                                             |

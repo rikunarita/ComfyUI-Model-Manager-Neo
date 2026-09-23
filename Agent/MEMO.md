@@ -169,3 +169,79 @@
   今回の CI 設計に反映。同試行の windows fmt 失敗原因も上記 autocrlf と判明。
 - ユーザーは作業中に dev@71a4ce3 までを main へマージ済み（PR #3）。
   main の Format 失敗（4a0969c）は dev の 5bfca37 で修復済み → 次回マージで解消。
+
+---
+
+## 2026-09-23（並行第 2 セッション）— 相互検証と補完コミットの記録
+
+同じタスク（Phase 0 実行）を並行して進めた第 2 セッションの記録。作業中に
+本ブランチへ上記の Phase 0 実装一式が push されたため（`99b3727`…`aa07c62`）、
+**競合する重複実装を force せず、CI 実走済みのそちらを正として採用**し、
+独立検証と欠けている補完のみを行った（保守的原則: 誤修正防止・破壊的
+履歴操作の回避）。第 2 セッションがローカルに作った同規模の実装
+（native ワークスペース・bench スイート・ローダー）は参考 branch
+`phase0-session2-local`（未 push）に保存してある。
+
+### 採用ツリーの独立検証結果（この環境で再実行・すべて green）
+
+- ruff check / format（py・scripts）、mypy（py/native.py 込み 14 ファイル）。
+- native: `cargo fmt --check` / `clippy --workspace --all-targets
+--all-features -- -D warnings` / `test --workspace --exclude mm-core` /
+  `test -p mm-core --no-default-features`（libpython3.11-dev 導入のうえ実リンク確認）。
+- `scripts/build-native.sh --target linux-x86_64 --size-gate` → 410,336 B の
+  abi3 .so（GLIBC ≤2.28・libpython 非依存）。ローダー実測: `load()` 1.78 ms、
+  `core_version() = 0.3.0-alpha.0+81854f536`（build.rs の git フォールバック動作）、
+  MM_NATIVE=0/1/auto の全経路と diagnostics を機能確認。
+- 第 2 セッションが独立に計測した KPI ベースライン（自前の bench スイート、
+  /tmp/mmneo-bench/results.json）は docs/BENCH.md の値と**同一傾向で一致**:
+  K5 SEGFAULT 8/8 再現（対照 14 ケース往復一致・逸脱 0）、K9 cold 1.70 s /
+  warm 0.50 s（BENCH: 1.33/0.50）、K11 get_model_tensors 348 ms（BENCH: 中央値
+  930 ms — 1 GiB 環境の GC バラつき。オーダー同一）、jiter 12.1 ms vs
+  simd-json 173 ms（BENCH: 10.6 vs 187.6 → **jiter 確定は双方一致**）、
+  ensure_zipnn 1.83 s、実モデル clip_l 246 MB の圧縮ピーク 705.7 MB
+  （≈2.9×・床引き 1.9× — BENCH の 2.2–2.6× と整合）、往復 SHA-256 全一致。
+
+### 補完として追加したもの（このコミット群）
+
+- **pytest スイート `tests/`**（採用ツリーに未整備だった L4 層の Phase 0 分）:
+  ComfyUI スタブ（comfyanonymous/ComfyUI master から 2026-09-23 再取得し
+  一致確認）、`mmneo_py` 合成パッケージ import（実 `__init__.py` 非実行）、
+  A1 回帰テスト（mm-io スレッド実行 + 0.4 s 解析中のイベントループ tick 生存 +
+  実ペイロード + 欠損ファイルのエラー化）、ローダー 8 テスト（タグ写像・
+  モード正規化 off/false/no・on/true/yes・auto 実ハンドシェイク・MM_NATIVE=0・
+  =1 の RuntimeError・バイナリ不在の理由・未知プラットフォーム・API 不一致の
+  拒否と **sys.modules 非汚染**）。ローカル 11/11 green（両起動形）。
+- **pytest ≥8 の Package 収集問題への二重対策**: pytest ≥8 は `__init__.py` の
+  あるディレクトリを Package 収集し setup で import するため、ComfyUI エントリ
+  ポイントを持つリポジトリ直下では全テストが CollectError になる（実測）。
+  `tests/pytest.ini`（rootdir/confcutdir を tests/ へ）+ 直下 `conftest.py` の
+  `pytest_collectstart` ガードで、`pytest tests` でも素の `pytest` でも green。
+- **py/native.py の小さな堅牢化**: ハンドシェイク（api_version 範囲）不合格の
+  モジュールを `sys.modules` から pop する（拒否したモジュールが後続の
+  `import mm_core` に漏れないように）。回帰テスト付き。
+- **CI 配線**: ci.yml の ruff 対象を `tests scripts conftest.py` へ拡張 +
+  pytest ステップ追加（依存に pytest/pytest-asyncio/aiohttp/pyyaml/requests。
+  バイナリ要のローダーテストは verify ジョブでは skip、実バイナリ検証は
+  native.yml 側が担当）。package.json: `py:test` 追加、`py:lint`/`py:format`
+  対象拡張（scripts/bench 既存分も ruff clean であることを確認済み）。
+- **Plan.md 事実注記**（Phase 0 の一次検証で確定した分。本文の意味は変えない）:
+  Windows 成果物名 `mm_core.pyd`（EXTENSION_SUFFIXES 実機検証）、
+  bincode 3.0.0 = コンパイル不能プレースホルダ（xkcd 2347）→ 2.0.1 採用、
+  rustfmt の imports_granularity 系は nightly 専用、clippy msrv 実効値 1.85、
+  A1/ローダーの回帰テスト参照。
+
+### 環境系の再確認メモ（第 1 セッション記述の裏取り）
+
+- mold 2.42.1（GitHub release）は libatomic1 必須。clang は `-fuse-ld=mold` を
+  **PATH 上の `ld.mold` 検索**で解決する（mold README 一次確認）— symlink 必須。
+  採用ツリーの native.yml にも同 symlink ステップあり（双方独立に同じ結論）。
+- cargo-zigbuild と native/.cargo/config.toml（clang+mold）は共存する
+  （zigbuild がリンカーをオーバーライド）。zig LLD の
+  「ignoring deprecated linker optimization setting '1'」warning は無害。
+- `cargo test -p mm-core --no-default-features` は libpython リンクが必要
+  （Debian: `apt-get install libpython3.11-dev`。CI: setup-python で足りる。
+  macOS は framework のみでリンク不可 → 採用ツリーの CI 除外は妥当）。
+- prettier の vue/md 正規化は **plugin（prettier-plugin-tailwindcss）込みの
+  lockfile ピン版**で行うこと。node_modules 無し環境では /tmp の npm 環境へ
+  symlink して実行（実行後削除）。plugin 無し整形は CI の Format ゲートと
+  不一致になり赤くなる（前セッションで実害確認済み）。
