@@ -1,0 +1,50 @@
+{
+  "env": {
+    "date": "2026-09-23T13:35:47+0000",
+    "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "cpus": 2,
+    "memTotal": "1083460 kB",
+    "machine": "x86_64"
+  },
+  "sizeMb": 256,
+  "measurements": [
+    {
+      "kind": "hash",
+      "what": "compute_hashes",
+      "bytes": 268435456,
+      "seconds": 0.9197913230000268,
+      "MBps": 278.32399980141207,
+      "algos": ["AutoV1", "AutoV2", "BLAKE3", "CRC32", "SHA256"],
+      "blake3Available": true,
+      "sha256": "1A80E92F8E89E27F86966AFAB61DFA4972B7A80197AD51F04131F9BC1C36EF98",
+      "peakRssMib": 47.09765625
+    },
+    {
+      "kind": "hash",
+      "what": "sha256_of",
+      "bytes": 268435456,
+      "seconds": 0.7525692089993754,
+      "MBps": 340.1680495809555,
+      "sha256": "1A80E92F8E89E27F86966AFAB61DFA4972B7A80197AD51F04131F9BC1C36EF98",
+      "peakRssMib": 45.6875
+    },
+    {
+      "kind": "hash",
+      "what": "sha256_reference",
+      "bytes": 268435456,
+      "seconds": 0.7620896939997692,
+      "MBps": 335.91846473661604,
+      "sha256": "1A80E92F8E89E27F86966AFAB61DFA4972B7A80197AD51F04131F9BC1C36EF98",
+      "peakRssMib": 17.8828125
+    }
+  ],
+  "sha256CrossCheck": {
+    "values": {
+      "compute_hashes": "1A80E92F8E89E27F86966AFAB61DFA4972B7A80197AD51F04131F9BC1C36EF98",
+      "sha256_of": "1A80E92F8E89E27F86966AFAB61DFA4972B7A80197AD51F04131F9BC1C36EF98",
+      "sha256_reference": "1A80E92F8E89E27F86966AFAB61DFA4972B7A80197AD51F04131F9BC1C36EF98"
+    },
+    "allEqual": true
+  }
+}

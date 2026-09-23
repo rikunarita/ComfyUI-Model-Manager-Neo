@@ -1,0 +1,15 @@
+# rustfmt configuration (Plan §3.4.2).
+#
+# STABLE options only, so `cargo fmt` on the stable toolchain is authoritative
+# (nightly-only knobs such as `imports_granularity` are deliberately NOT used:
+# on stable they are ignored with a warning, which would make the CI gate
+# (`cargo fmt --check`) diverge from local nightly runs).
+#
+# newline_style stays at its default (`Auto` = keep whatever the file has):
+# GitHub's Windows runners check out with core.autocrlf=true, and forcing
+# `Unix` here made `cargo fmt --check` fail there on every file ("Incorrect
+# newline style"). `.gitattributes` pins `*.rs` to LF in the repository, so
+# Auto resolves to LF everywhere in practice.
+edition = "2024"
+use_field_init_shorthand = true
+use_try_shorthand = true

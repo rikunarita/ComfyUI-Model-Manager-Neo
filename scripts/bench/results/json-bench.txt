@@ -1,0 +1,9 @@
+json-bench: /tmp/mm-bench/moe-header.safetensors.json = 8420451 bytes (8.03 MiB), 7 iterations per parser (+1 warmup)
+jiter      min  10.225ms  median  10.602ms  mean  10.676ms  (  757.5 MiB/s median)
+simd-json  min 184.840ms  median 187.588ms  mean 190.269ms  (   42.8 MiB/s median)
+serde_json min 141.873ms  median 143.634ms  mean 165.156ms  (   55.9 MiB/s median)
+
+digests: jiter=Summary { tensors: 64491, dims: 128899, checksum: 600021308 }
+         simd-json=Summary { tensors: 64491, dims: 128899, checksum: 600021308 }
+         serde_json=Summary { tensors: 64491, dims: 128899, checksum: 600021308 }
+all parsers agree ✓

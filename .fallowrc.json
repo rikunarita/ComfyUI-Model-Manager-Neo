@@ -13,7 +13,9 @@
     "docs/**",
     "downloads/**",
     "assets/**",
-    "demo-assets/**"
+    "demo-assets/**",
+    "native/**",
+    "scripts/**"
   ],
   // `less` is consumed by vite through `<style lang="less">` SFC blocks, which
   // no import graph can see. `postcss-html` / `postcss-less` are loaded by

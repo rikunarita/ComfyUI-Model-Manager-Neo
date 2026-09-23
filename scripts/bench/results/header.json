@@ -1,0 +1,98 @@
+{
+  "env": {
+    "date": "2026-09-23T13:35:21+0000",
+    "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "cpus": 2,
+    "memTotal": "1083460 kB",
+    "machine": "x86_64"
+  },
+  "model": "/tmp/mm-bench/moe-header.safetensors",
+  "fileBytes": 8420459,
+  "headerBytes": 8420451,
+  "runs": [
+    {
+      "readSec": 0.00997822699991957,
+      "jsonLoadsSec": 0.20198683200032974,
+      "listBuildSec": 0.08752696299961826,
+      "tensorCount": 64491,
+      "getModelTensorsSec": 0.45266814899969177,
+      "getModelTensorsCount": 64491,
+      "getModelMetadataSec": 0.00010151900005439529,
+      "metadataEmptyDueToGuard": true,
+      "peakRssMib": 182.6640625
+    },
+    {
+      "readSec": 0.0032530259995837696,
+      "jsonLoadsSec": 0.28660403300000326,
+      "listBuildSec": 0.043136045999744965,
+      "tensorCount": 64491,
+      "getModelTensorsSec": 0.48612752500048373,
+      "getModelTensorsCount": 64491,
+      "getModelMetadataSec": 0.00010799300071084872,
+      "metadataEmptyDueToGuard": true,
+      "peakRssMib": 215.359375
+    },
+    {
+      "readSec": 0.006193111999891698,
+      "jsonLoadsSec": 0.5133928929999456,
+      "listBuildSec": 0.04807769999933953,
+      "tensorCount": 64491,
+      "getModelTensorsSec": 0.7551216350002505,
+      "getModelTensorsCount": 64491,
+      "getModelMetadataSec": 0.00011929599986615358,
+      "metadataEmptyDueToGuard": true,
+      "peakRssMib": 217.40234375
+    },
+    {
+      "readSec": 0.005353491999812832,
+      "jsonLoadsSec": 0.8196943040002225,
+      "listBuildSec": 0.13860763599950587,
+      "tensorCount": 64491,
+      "getModelTensorsSec": 0.9356417450007939,
+      "getModelTensorsCount": 64491,
+      "getModelMetadataSec": 9.354399935546098e-5,
+      "metadataEmptyDueToGuard": true,
+      "peakRssMib": 217.40234375
+    },
+    {
+      "readSec": 0.0033276579997618683,
+      "jsonLoadsSec": 0.45479111499935243,
+      "listBuildSec": 0.37434077099987917,
+      "tensorCount": 64491,
+      "getModelTensorsSec": 0.9297496819999651,
+      "getModelTensorsCount": 64491,
+      "getModelMetadataSec": 0.0001267790003112168,
+      "metadataEmptyDueToGuard": true,
+      "peakRssMib": 217.40234375
+    },
+    {
+      "readSec": 0.0031220720002238522,
+      "jsonLoadsSec": 0.5060023619998901,
+      "listBuildSec": 0.43530257899965363,
+      "tensorCount": 64491,
+      "getModelTensorsSec": 1.0914443829997253,
+      "getModelTensorsCount": 64491,
+      "getModelMetadataSec": 0.00010814899997058092,
+      "metadataEmptyDueToGuard": true,
+      "peakRssMib": 217.40234375
+    },
+    {
+      "readSec": 0.006743421999999555,
+      "jsonLoadsSec": 0.639939830000003,
+      "listBuildSec": 0.08951511699979164,
+      "tensorCount": 64491,
+      "getModelTensorsSec": 0.9816354009999486,
+      "getModelTensorsCount": 64491,
+      "getModelMetadataSec": 0.00010144300085812574,
+      "metadataEmptyDueToGuard": true,
+      "peakRssMib": 218.20703125
+    }
+  ],
+  "median": {
+    "readSec": 0.005353491999812832,
+    "jsonLoadsSec": 0.5060023619998901,
+    "listBuildSec": 0.08951511699979164,
+    "getModelTensorsSec": 0.9297496819999651
+  }
+}

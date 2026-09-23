@@ -91,15 +91,298 @@
 
 ### Phase 0 作業手順（自分用チェックリスト）
 
-1. [ ] 環境構築: apt（build-essential / clang / mold）+ rustup + zig（cargo-zigbuild）+ pip（maturin / ruff / mypy ほか）
-2. [ ] crate バージョンの一次情報再確認（crates.io API、計画書末尾の指示）
-3. [ ] Quick Win A1（py/manager.py の executor 化）→ ruff / mypy → 単独コミット
-4. [ ] native/ ワークスペース雛形（znn-codec / mm-core / znn-cli / json-bench）+ mold / rustfmt / clippy 設定
-5. [ ] ローカルビルド疎通（x86_64-linux native → aarch64-linux / macOS×2 / windows-gnu は zig クロス）+ サイズ実測
-6. [ ] import 疎通テスト（linux x86_64、Python 3.11.2）
-7. [ ] py/native.py ローダー + MM_NATIVE スイッチ
-8. [ ] JSON パーサ確定ベンチ（jiter vs simd-json、8 MB MoE ヘッダー）
-9. [ ] scripts/bench/ 一式 + KPI ベースライン計測 → docs/BENCH.md
-10. [ ] CI（native.yml 新規 + ci.yml に dev トリガー追加）+ package.json rs:\* スクリプト
-11. [ ] Plan.md 進捗マーク更新（§6.2 と §9 を同一コミットで）+ MEMO 追記
-12. [ ] dev へコミット & プッシュ → CI 緑を確認（GitHub API でウォッチ）
+1. [x] 環境構築: apt（build-essential / clang / mold）+ rustup + zig（cargo-zigbuild）+ pip（maturin / ruff / mypy ほか）
+2. [x] crate バージョンの一次情報再確認（crates.io API、計画書末尾の指示）→ **Plan 確認値と完全一致**
+3. [x] Quick Win A1（py/manager.py の executor 化）→ ruff / mypy → 単独コミット（047568b）
+4. [x] native/ ワークスペース雛形（znn-codec / mm-core / znn-cli / json-bench）+ mold / rustfmt / clippy 設定
+5. [x] ローカルビルド疎通 + サイズ実測（linux x86_64/aarch64 = zigbuild glibc2.28 verified、windows-msvc/macos = CI 検証）
+6. [x] import 疎通テスト（linux x86_64、Python 3.11.2 + CI で 3.10/3.13 の abi3 疎通）
+7. [x] py/native.py ローダー + MM_NATIVE スイッチ（4 モード機能確認済み）
+8. [x] JSON パーサ確定ベンチ（**jiter 10.6ms vs simd-json 187.6ms vs serde_json 143.6ms → jiter 確定**）
+9. [x] scripts/bench/ 一式 + KPI ベースライン計測 → docs/BENCH.md
+10. [x] CI（native.yml 新規 + ci.yml に dev トリガー追加）+ package.json rs:\* スクリプト
+11. [x] Plan.md 進捗マーク更新（§6.2 と §9 を同一コミットで）+ MEMO 追記
+12. [x] dev へコミット & プッシュ → CI 緑を確認（GitHub API でウォッチ）
+
+### Phase 0 完了記録（2026‑09‑23）
+
+- **CI 全緑**（native.yml @ dev 81854f5）: native-test（ubuntu/windows/macos:
+  fmt・clippy `-D warnings`・test）、native-build-linux（zigbuild ×2 + glibc 2.28
+  ゲート + import 疎通）、native-build-macos（universal2 + lipo + import）、
+  native-build-windows（MSVC + import）、abi3-import（**CPython 3.10 と 3.13** で
+  同一 .so 疎通 = abi3 主張の機械的検証）、size-budget（4 本計 1,624,112 B ≤ 20 MB）。
+  既存 ci.yml も dev@81854f5 で緑（Format 修復完了）。
+- 成果物サイズ（CI 実測）: linux-x86_64 410,416 B / linux-aarch64 383,824 B /
+  windows-x86_64 163,840 B / macos-universal2 666,032 B — 全て予算 4 MB の 1/6 以下。
+- コミット構成（dev）: 047568b（A1 単独）→ 71a4ce3（prettier 正規化 + dev トリガー +
+  進捗マーク）→ 99b3727（native ワークスペース + CI + ローダー）→ 16cb759（bench +
+  BENCH.md）→ 5bfca37（tailwind クラス順正規化）→ 81854f5（CI 3 件修復）→
+  最終（Plan [x] + BENCH §5 CI 実測反映）。
+- **Phase 1 着手時の申し送り**: BENCH.md §6 の観察（特に get_model_metadata の
+  1 MiB ガード問題、e2e 律速の内訳、デルタ倍率 5.4x）と、本 MEMO の
+  クロスビルド/ツールチェーン知見を参照のこと。
+
+### Phase 0 実施中に得た知見・教訓（重要）
+
+- **prettier は完全な依存ツリーで実行すること**: prettier-plugin-tailwindcss の
+  クラス順は tailwindcss 本体 + `tailwindStylesheet`（src/style.css のカスタム
+  ユーティリティ）の解決に依存する。prettier 単体インストールでは
+  ResponseScroll/Select.vue のクラス順が CI と食い違った（`scrollbar-none` は
+  カスタムユーティリティで、完全解決時は `size-full` の**後**が正）。
+  → `pnpm install --frozen-lockfile` 後の `pnpm format:check` が唯一の正。
+- **GH Windows ランナーは core.autocrlf=true でチェックアウト**する → rustfmt.toml の
+  `newline_style = "Unix"` は全 .rs で fmt ゲートを破壊する。既定（Auto）+
+  `.gitattributes: *.rs text eol=lf` の組み合わせが正解（旧 native.yml 試行の
+  windows fmt 失敗も同じ原因だったと判明）。
+- **maturin の universal2 ターゲット名は `universal2-apple-darwin`**
+  （`universal2` ではない。maturin 1.15.0 バイナリの文字列テーブルで確認）。
+- **macOS の setup-python（python.org ビルド）はリンク可能な libpython を持たない**
+  （フレームワークのみ）→ `cargo test -p mm-core --no-default-features` は
+  macOS でリンク不能（未定義 __Py_IncRef 等）。Linux/Windows のみで実行し、
+  macOS は clippy --all-targets + ビルド&import 疎通で担保する構成にした。
+- **Apple ターゲットへの Linux からのクロスビルドは pyo3 0.29 では不可**（実測）:
+  rustc/pyo3 が出す `-Wl,-exported_symbols_list`（2 引数形）と
+  `-undefined dynamic_lookup` を zig cc が誤変換（zig 0.15.2/0.16.0 双方で確認。
+  pyo3-build-config ソースで出力形式を確認済み）。Plan §3.3 の正规経路
+  （macOS ホストでビルド + lipo）が正。
+- cargo-zigbuild + zig 0.16 の linux クロスでは
+  `warning: linker stderr: ignoring deprecated linker optimization setting '1'`
+  が出るが**無害**（成果物の glibc 上限 2.28 は readelf で確認済み）。
+  .cargo/config.toml の mold 設定は zigbuild のリンカー選択に影響しない
+  （CARGO_TARGET_*_LINKER 環境変数が優先）ことも実測で確認。
+- PyO3 0.29 では**宣言的 #[pymodule] mod 構文**が正（関数形は deprecated）。
+  `use pyo3::prelude::*;` は mod の**内側**にも必要。
+- jiter 0.17 のオブジェクト反復: 開始は `next_object()`、**後続キーは
+  `next_key()`**（next_object を繰り返すと ExpectedSomeValue エラー。ソースで確認）。
+  simd-json 0.18 は `ValueAsObject/ValueObjectAccess/ValueAsScalar/ValueAsArray`
+  trait の import が必要。borrowed object のキーは `&str`。
+- **ベンチ結果の要点**（詳細は docs/BENCH.md）:
+  - K5 の SEGFAULT は生産デルタ経路（delta_compress_files）でも到達可能であることを
+    手組みペア（総長 %256KiB=1）で実証。safetensors 公式シリアライザはヘッダーを
+    8 バイト整列するため、奇数剰余は「任意ヘッダー長を持てる実ファイル」で生じる。
+  - K11 は Plan 見込み（200–400ms）より深刻（中央値 930ms、json.loads 506ms）。
+  - 副次発見: `get_model_metadata` の 1MiB ガードが大型 MoE の `__metadata__` を
+    黙って空にする（Phase 5 B4 で 32MiB へ統一する設計入力）。
+  - mm_core import 6ms / 44MiB vs ensure_zipnn 初回 1.69s / 241MiB（実体は torch import）。
+- 旧 native.yml 試行（dev@9f1e564、ユーザーがリセット）の成功実績
+  （rust-cache workspaces:native、apt mold、pipx cargo-zigbuild 等）は
+  今回の CI 設計に反映。同試行の windows fmt 失敗原因も上記 autocrlf と判明。
+- ユーザーは作業中に dev@71a4ce3 までを main へマージ済み（PR #3）。
+  main の Format 失敗（4a0969c）は dev の 5bfca37 で修復済み → 次回マージで解消。
+
+---
+
+## 2026-09-23（並行第 2 セッション）— 相互検証と補完コミットの記録
+
+同じタスク（Phase 0 実行）を並行して進めた第 2 セッションの記録。作業中に
+本ブランチへ上記の Phase 0 実装一式が push されたため（`99b3727`…`aa07c62`）、
+**競合する重複実装を force せず、CI 実走済みのそちらを正として採用**し、
+独立検証と欠けている補完のみを行った（保守的原則: 誤修正防止・破壊的
+履歴操作の回避）。第 2 セッションがローカルに作った同規模の実装
+（native ワークスペース・bench スイート・ローダー）は参考 branch
+`phase0-session2-local`（未 push）に保存してある。
+
+### 採用ツリーの独立検証結果（この環境で再実行・すべて green）
+
+- ruff check / format（py・scripts）、mypy（py/native.py 込み 14 ファイル）。
+- native: `cargo fmt --check` / `clippy --workspace --all-targets
+--all-features -- -D warnings` / `test --workspace --exclude mm-core` /
+  `test -p mm-core --no-default-features`（libpython3.11-dev 導入のうえ実リンク確認）。
+- `scripts/build-native.sh --target linux-x86_64 --size-gate` → 410,336 B の
+  abi3 .so（GLIBC ≤2.28・libpython 非依存）。ローダー実測: `load()` 1.78 ms、
+  `core_version() = 0.3.0-alpha.0+81854f536`（build.rs の git フォールバック動作）、
+  MM_NATIVE=0/1/auto の全経路と diagnostics を機能確認。
+- 第 2 セッションが独立に計測した KPI ベースライン（自前の bench スイート、
+  /tmp/mmneo-bench/results.json）は docs/BENCH.md の値と**同一傾向で一致**:
+  K5 SEGFAULT 8/8 再現（対照 14 ケース往復一致・逸脱 0）、K9 cold 1.70 s /
+  warm 0.50 s（BENCH: 1.33/0.50）、K11 get_model_tensors 348 ms（BENCH: 中央値
+  930 ms — 1 GiB 環境の GC バラつき。オーダー同一）、jiter 12.1 ms vs
+  simd-json 173 ms（BENCH: 10.6 vs 187.6 → **jiter 確定は双方一致**）、
+  ensure_zipnn 1.83 s、実モデル clip_l 246 MB の圧縮ピーク 705.7 MB
+  （≈2.9×・床引き 1.9× — BENCH の 2.2–2.6× と整合）、往復 SHA-256 全一致。
+
+### 補完として追加したもの（このコミット群）
+
+- **pytest スイート `tests/`**（採用ツリーに未整備だった L4 層の Phase 0 分）:
+  ComfyUI スタブ（comfyanonymous/ComfyUI master から 2026-09-23 再取得し
+  一致確認）、`mmneo_py` 合成パッケージ import（実 `__init__.py` 非実行）、
+  A1 回帰テスト（mm-io スレッド実行 + 0.4 s 解析中のイベントループ tick 生存 +
+  実ペイロード + 欠損ファイルのエラー化）、ローダー 8 テスト（タグ写像・
+  モード正規化 off/false/no・on/true/yes・auto 実ハンドシェイク・MM_NATIVE=0・
+  =1 の RuntimeError・バイナリ不在の理由・未知プラットフォーム・API 不一致の
+  拒否と **sys.modules 非汚染**）。ローカル 11/11 green（両起動形）。
+- **pytest ≥8 の Package 収集問題への二重対策**: pytest ≥8 は `__init__.py` の
+  あるディレクトリを Package 収集し setup で import するため、ComfyUI エントリ
+  ポイントを持つリポジトリ直下では全テストが CollectError になる（実測）。
+  `tests/pytest.ini`（rootdir/confcutdir を tests/ へ）+ 直下 `conftest.py` の
+  `pytest_collectstart` ガードで、`pytest tests` でも素の `pytest` でも green。
+- **py/native.py の小さな堅牢化**: ハンドシェイク（api_version 範囲）不合格の
+  モジュールを `sys.modules` から pop する（拒否したモジュールが後続の
+  `import mm_core` に漏れないように）。回帰テスト付き。
+- **CI 配線**: ci.yml の ruff 対象を `tests scripts conftest.py` へ拡張 +
+  pytest ステップ追加（依存に pytest/pytest-asyncio/aiohttp/pyyaml/requests。
+  バイナリ要のローダーテストは verify ジョブでは skip、実バイナリ検証は
+  native.yml 側が担当）。package.json: `py:test` 追加、`py:lint`/`py:format`
+  対象拡張（scripts/bench 既存分も ruff clean であることを確認済み）。
+- **Plan.md 事実注記**（Phase 0 の一次検証で確定した分。本文の意味は変えない）:
+  Windows 成果物名 `mm_core.pyd`（EXTENSION_SUFFIXES 実機検証）、
+  bincode 3.0.0 = コンパイル不能プレースホルダ（xkcd 2347）→ 2.0.1 採用、
+  rustfmt の imports_granularity 系は nightly 専用、clippy msrv 実効値 1.85、
+  A1/ローダーの回帰テスト参照。
+
+### 環境系の再確認メモ（第 1 セッション記述の裏取り）
+
+- mold 2.42.1（GitHub release）は libatomic1 必須。clang は `-fuse-ld=mold` を
+  **PATH 上の `ld.mold` 検索**で解決する（mold README 一次確認）— symlink 必須。
+  採用ツリーの native.yml にも同 symlink ステップあり（双方独立に同じ結論）。
+- cargo-zigbuild と native/.cargo/config.toml（clang+mold）は共存する
+  （zigbuild がリンカーをオーバーライド）。zig LLD の
+  「ignoring deprecated linker optimization setting '1'」warning は無害。
+- `cargo test -p mm-core --no-default-features` は libpython リンクが必要
+  （Debian: `apt-get install libpython3.11-dev`。CI: setup-python で足りる。
+  macOS は framework のみでリンク不可 → 採用ツリーの CI 除外は妥当）。
+- prettier の vue/md 正規化は **plugin（prettier-plugin-tailwindcss）込みの
+  lockfile ピン版**で行うこと。node_modules 無し環境では /tmp の npm 環境へ
+  symlink して実行（実行後削除）。plugin 無し整形は CI の Format ゲートと
+  不一致になり赤くなる（前セッションで実害確認済み）。
+
+### Phase 0 精密監査（2026-09-23、dev tip 088e72e に対して実施）
+
+ユーザー指示「Phase 0 のバグが潜んでいないか精密に確認」への対応記録。
+**検証方法**: 全ソース精読 + 一次実証（cargo metadata / C ソース読解 +
+実バイト比較 / CI ログ突合 / コミット済み results/*.json の再現実行）。
+
+**問題なしを確認した項目（抜粋）**:
+
+- BENCH.md の全数値が scripts/bench/results/*.json と一致。CI ログ
+  （size-budget / abi3-import）とも一致（410,416 / 383,824 / 163,840 /
+  666,032 B、計 1,624,112 B。CPython 3.10.21 / 3.13.15 import 実測）。
+- **再現実行**: scan（cold 1.358s / warm 0.516s / 5,016 エントリ ←
+  コミット値 1.332 / 0.501 / 5,016）、header（中央値 738ms ← コミット値
+  930ms、彼らの観測レンジ 453–1,091ms 内。テンソル数 64,491 完全一致）、
+  hash（280.4 / 338.4 MB/s ← 278.3 / 340.2、ダイジェスト 3 者一致）、
+  delta（ratio 0.6891 完全一致・byteExact=True・+173MiB 再現）、
+  **生産デルタ経路の SEGFAULT(signal 11) 再実証**。
+- znn-codec 定数は vendored huf.h の**行番号レベル**で一致（L72/L117/L118）。
+- json-bench: simd-json の可変コピーは計測領域内（公平）、3 パーサの
+  ダイジェスト一致検証付き。build-native.sh: 厳密な wheel 抽出（候補 1 件
+  強制）・サイズゲート・Windows 名 mm_core.pyd。native.yml: glibc 床検査の
+  sort -Vu 論理、artifact パス構造、abi3-import の PYTHONPATH すべて正しい。
+- 81854f5 の CI 修復 3 件はすべて妥当（universal2-apple-darwin 名・
+  .gitattributes *.rs eol=lf・macOS テスト除外と代替担保）。
+- Phase 0 全レンジ（82adaf9..HEAD）で web/・demo-assets/・src/ の実質変更は
+  ゼロ（vue 2 件はクラス順往復で正味 0）・**init**.py 無変更・
+  実行時コードから py.native を import する箇所なし（Phase 2 まで不活性）。
+
+**発見して修正したバグ（4 件）**:
+
+1. **【中】extension-module トグルが無効化されていた** —
+   `native/Cargo.toml` の workspace.dependencies.pyo3 が
+   `features = ["extension-module", "abi3-py310"]` を無条件指定 →
+   `pyo3 = { workspace = true }` 継承により crate 側
+   `--no-default-features` でも **extension-module が常に ON**
+   （cargo metadata の resolve で実証: 修正前 全モード ON / 修正後
+   default=ON・no-default=OFF）。現 CI が緑だったのは dev プロファイルの
+   リンク単位粒度（Linux）と python3.lib インポート（Windows）による
+   **偶然**で、Phase 2 で #[pyfunction] を触るテストが追加された瞬間に
+   Linux のテストリンクが壊れる潜在バグ。修正: workspace 指定から除去
+   （crate の default feature が唯一のスイッチに）+ native.yml に
+   cargo metadata ベースの**トグル回帰ガード**を追加（cargo tree -e features
+   は crate 由来の feature エッジを描画しない表示癖があるため不使用）。
+   修正後も配布バイナリは**バイト同一**（sha256 一致で証明 —
+   既定 features は不変のため）。
+2. **【小】core_version() のコミットスタンプ陳腐化** — build.rs が
+   `.git/HEAD` のみ watch するため、同一ブランチへの新コミットを検知せず
+   古いハッシュが焼き込まれる（実証: HEAD=088e72e なのに +81854f536）。
+   修正: build-native.sh が `MM_CORE_COMMIT`（git short=9、呼び出し側の
+   明示指定を尊重）を export + build.rs に rerun-if-env-changed 追加。
+   修正後: explicit99 / 088e72e56 の双方が正しく反映されることを実測。
+3. **【小】bench の fp8 パラメータが生産経路と不一致** —
+   `_DTYPE_PARAMS["fp8e4m3"]` の bit_reorder=0 に対し、生産経路
+   （zipnn.py compress の TORCH dispatch）は **1** を書く（実ヘッダー
+   ダンプで確認）。ただし C コアは num_buf=1 で bits_mode を
+   **一切消費しない**（split_bytearray_dtype8 は引数に取らず、combine は
+   memcpy — ソース解析 + 32MB 実証: bits=0/1 でペイロード**バイト同一**・
+   相互復号可能）ため**コミット済み計測値はそのまま有効**。パラメータを
+   1 へ修正し、証明をコメントに記録。
+4. **【小】bench スイートの移植性・忠実性** —
+   (a) `from py import ...` が site-packages の top-level `py.py`
+   （旧 pytest 系の `py` ライブラリ等）に **shadow される**
+   （regular module は namespace package に sys.path 順に関係なく勝つ）。
+   この環境で実際に ImportError を再現 → common.import_extension() が
+   `py` 名をリポジトリの py/ へ明示ピン留めするよう修正（再生成した
+   フィクスチャで scan/header/hash/delta 全再実行成功）。
+   (b) `SUPPORTED_PT_EXTENSIONS` が ComfyUI master 実物と不一致
+   （.pt2/.sft 欠落、.pickle 過剰）→ master 準拠へ修正
+   （計測値への影響なし: ライブラリは .safetensors のみ）。
+   (c) bench_zipnn e2e の `"originalSha256" in spec` ガードが
+   None 値でも真になり、>512MB モデルで byteExact 誤検出する潜在バグ →
+   `spec.get(...)` の truthy 検査へ修正。
+
+**監査後の全ゲート再実行**: cargo fmt / clippy -D warnings / test（default・
+--no-default-features 両方）/ ruff / mypy / pytest 11/11 / スモーク /
+prettier --check . / Cargo.lock 無変更 — すべて green。
+
+### 実装差分クロス監査（2026-09-23、dev vs phase0-session2-local）
+
+ユーザー指示により、採用実装（dev）と並行セッションの別実装
+（local branch `phase0-session2-local`、未 push）を全面差分比較した。
+**同一仕様の独立実装 2 本の差分はバグの探し合いに最適**で、実際に
+dev 側の潜在バグ 1 件・CI カバレッジ欠落 1 件を発見、有用ツール 2 件を移植した。
+
+**発見（dev 側）と対処**:
+
+1. **【潜在バグ】ローダーの出自未検証** — `py/native.py load()` は
+   `sys.path.append(bin_dir)` + `importlib.import_module("mm_core")` だが、
+   `import_module` は **sys.modules 命中時にパス探索を短路**する。他所
+   （別拡張の同名思様物・迷入 pip パッケージ）の `mm_core` が先に
+   import 済みだと、native-bin を一切読まずにそれが採用され、
+   `api_version()==1` を返す協調的な偽物ならハンドシェイクも通過する。
+   別実装は spec_from_file_location + `__file__` 一致検査でこの穴が
+   無かった。→ **origin guard を追加**（realpath prefix 検査、
+   normcase で Windows 大文字小文字吸収。他所のモジュールは
+   所有権がないので sys.modules から**追い出さない**）。回帰テスト
+   `test_foreign_sys_modules_mm_core_is_rejected` で固定（12/12 green）。
+2. **【CI 欠落】実成果物に対するローダーテストが未実行** — ci.yml の
+   pytest は native-bin 不在のため auto ロード + ハンドシェイクのテストが
+   **skip**、native.yml の import 疎通は素の `import mm_core`（PYTHONPATH）で
+   **ローダー経由ではない**。別実装の integration ジョブ（build → pytest）が
+   埋めていた穴。→ native-build-linux に「Loader regression tests against
+   the built artifact」ステップを追加（zigbuild 実バイナリに対して
+   tests/ 全 12 件を実行）。
+
+**移植（別実装 → dev、監査で価値を確認した分）**:
+
+3. `scripts/bench/bench_c_defects.py` — **Plan 付録 C.3 の全 22 ケース行列**
+   （dtype32 クラッシュ 8: 262145/6/7・524289/90/91・低エントロピー 2、
+   対照 9: 262144・262148・64・67・1000000–1000003、dtype16 5: 262144・
+   262146・1000002・65・262145）。dev 既存の 3 ケース + 生産経路デモを
+   補完し、付録の表を 1 コマンドで機械再検証できる。実行済み:
+   **SEGFAULT 8/8・対照往復一致 14/14・逸脱 0**（results/c_defects.json
+   としてコミット。BENCH §4.3 に追記）。Phase 1 の Rust 回帰テストは
+   この行列をそのまま固定化する。
+4. `scripts/verify_native_binary.py` — 純 Python の ELF/Mach‑O/PE 検証
+   （e_machine・GLIBC 上限・libpython 非依存・universal2 スライス・
+   python3.dll 以外 の Python DLL 参照検出）。readelf/lipo の無い
+   サンドボックスや任意ホストでのローカル検証用（CI の readelf ゲートの
+   補完）。legacy .so ×6 の GLIBC_2.34 もこれで独立再証した。
+
+**差分比較で「バグなし」と判定した主な設計差**（記録のみ）:
+
+- json-bench: dev 版は fs::read + ダイジェスト 3 者一致検証（正しさ優位）、
+  別版は mmap 借用（Phase 5 のアクセスパターン実証）。jiter の計測値は
+  どちらも同一結論（10.6ms vs 12.1ms、 simd-json に 15–17×勝）。
+- build-native.sh: dev 版は wheel 抽出を「候補ちょうど 1 件」で強制
+  （より厳密）。別版の --check-cross（非リンク ターゲットの cargo check）は
+  CI が実ビルドで上位互換するため不移植。
+- ローダー API: dev 版（load()->bool + diagnostics）は min/max API 範囲と
+  MM_NATIVE の off/false/no 別名まで持つ。別版の MM_NATIVE_PATH は dev では
+  PYTHONPATH + origin guard が同等機能を果たす。
+- Cargo: dev 版の workspace.lints 一元化と clippy.toml doc-valid-idents は
+  別版（crate 属性 + 個別 allow）より保守性が上。bincode 3.0.0
+  プレースホルダ警告は dev では Plan.md 注記が担う（等価）。
+- e2e スループットのセッション間差（dev 記録 141–172 MiB/s vs 別実装計測
+  237 MiB/s 級）はフィクスチャ形状（テンソル数/サイズ）と単発計測ノイズの
+  範囲。**KPI ゲートは「同一ハーネス・同一フィクスチャでの新旧比」で
+  判定する**という BENCH.md 冒頭の方法論がこれを吸収する（Phase 2 では
+  ベースライン再計測を同一 run で実施すること）。

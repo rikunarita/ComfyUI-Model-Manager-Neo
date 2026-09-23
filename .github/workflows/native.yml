@@ -1,0 +1,305 @@
+# Native core CI (Agent/Plan.md §5.3) — Phase 0 scope:
+#
+#   native-test    cargo fmt / clippy -D warnings / tests on the three OSes
+#                  (mold installed on Linux, Plan §3.4.1)
+#   native-build-* abi3 artifacts for every platform tag (5 rust targets:
+#                  linux x86_64 + aarch64 via cargo-zigbuild glibc 2.28,
+#                  windows x86_64 MSVC, macOS universal2 = both darwin archs),
+#                  per-binary size-budget gate + import smoke on each OS
+#   abi3-import    the linux artifact imported by CPython 3.10 AND 3.13
+#                  (proves the abi3-py310 single-binary claim, Plan §3.2)
+#   size-budget    <= 4 MB per binary and <= 20 MB total across all artifacts
+#                  (Plan §3.3 / R6)
+#
+# The transition-period gates (L2 differential tests vs the bundled C core,
+# L3 fuzz smoke, L4/L5 pytest + official-zipnn cross-validation) join this
+# workflow in Phase 1+ as the codec lands. Artifacts are verification only:
+# `native-bin/` commits are generated on main/release tags (Plan §5.3), never
+# from PR/dev runs.
+name: native
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  native-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      # pyo3's build script wants a Python interpreter present.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Plan §3.4.1: mold for Linux native (ELF) builds only; macOS/Windows
+      # keep their platform linkers. The symlink makes `-fuse-ld=mold`
+      # resolvable by clang regardless of how the distro packages mold.
+      - name: Install mold + clang (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang mold
+          sudo ln -sf "$(command -v mold)" /usr/local/bin/ld.mold
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy (-D warnings)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: cargo test (pure-Rust crates)
+        run: cargo test --workspace --exclude mm-core
+
+      # Guard the feature toggle itself: `--no-default-features` must really
+      # drop pyo3/extension-module (a workspace-level `features = [...]` on
+      # the pyo3 dependency would silently pin it on and break the test link
+      # the moment mm-core gains tests that touch #[pyfunction] items).
+      # cargo tree -e features does not render crate-level feature edges
+      # reliably, so the resolved feature set is read from cargo metadata.
+      - name: Verify the extension-module toggle toggles
+        if: runner.os == 'Linux'
+        run: |
+          python3 - <<'PY'
+          import json, subprocess, sys
+
+          def pyo3_features(extra):
+              out = subprocess.run(
+                  ["cargo", "metadata", "--format-version", "1", *extra],
+                  capture_output=True, text=True, check=True,
+              ).stdout
+              meta = json.loads(out)
+              names = {p["id"]: p["name"] for p in meta["packages"]}
+              for node in meta["resolve"]["nodes"]:
+                  if names.get(node["id"]) == "pyo3":
+                      return set(node["features"])
+              sys.exit("BUG: pyo3 missing from the resolve graph")
+
+          default = pyo3_features([])
+          tests = pyo3_features(["--no-default-features"])
+          if "extension-module" not in default:
+              sys.exit("BUG: pyo3/extension-module missing from default features")
+          if "extension-module" in tests:
+              sys.exit("BUG: pyo3/extension-module leaks into --no-default-features")
+          if not {"abi3-py310"} <= tests:
+              sys.exit("BUG: abi3-py310 must stay enabled in every mode")
+          print("extension-module toggle verified (on by default, off for tests, abi3 always on)")
+          PY
+
+      # mm-core's test harness must link libpython, so it is tested without
+      # the extension-module feature (see native/README.md). macOS is
+      # excluded: the python.org macOS builds behind setup-python ship no
+      # linkable libpython (framework only), so a pyo3 test harness cannot
+      # link there — mm-core is covered on macOS by clippy --all-targets
+      # plus the abi3 build & import smoke job instead.
+      - name: cargo test (mm-core, no extension-module)
+        if: runner.os != 'macOS'
+        run: cargo test -p mm-core --no-default-features
+
+      - name: cargo test (release)
+        run: cargo test --workspace --release --exclude mm-core
+
+  native-build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install cross toolchain (pinned, Plan §3.3)
+        run: python -m pip install cargo-zigbuild==0.23.4 ziglang==0.16.0 maturin==1.15.0
+
+      - name: Build linux-x86_64 (glibc 2.28 floor)
+        run: ./scripts/build-native.sh --target linux-x86_64 --size-gate
+
+      - name: Build linux-aarch64 (glibc 2.28 floor)
+        run: ./scripts/build-native.sh --target linux-aarch64 --size-gate
+
+      - name: Verify the glibc floor (max referenced GLIBC <= 2.28)
+        run: |
+          for f in native/native-bin/linux-x86_64/mm_core.abi3.so native/native-bin/linux-aarch64/mm_core.abi3.so; do
+            max=$(readelf -V "$f" | grep -oE 'GLIBC_2\.[0-9]+' | sort -Vu | tail -1)
+            echo "$f -> ${max:-none}"
+            highest=$(printf '%s\nGLIBC_2.28\n' "${max:-GLIBC_2.0}" | sort -Vu | tail -1)
+            if [ "$highest" != "GLIBC_2.28" ]; then
+              echo "glibc floor violated by $f: $max"; exit 1
+            fi
+          done
+
+      - name: Import smoke (linux-x86_64 artifact, CPython 3.11)
+        run: |
+          PYTHONPATH=native/native-bin/linux-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
+
+      # The verify job (ci.yml) runs the same suite WITHOUT a built artifact,
+      # where the handshake test skips; here it runs against the real
+      # zigbuild binary — the loader's auto path (platform tag -> native-bin
+      # -> import -> api_version handshake) is covered end to end.
+      - name: Loader regression tests against the built artifact
+        run: |
+          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow
+          python -m pytest tests -q
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-bin-linux
+          path: |
+            native/native-bin/linux-x86_64/mm_core.abi3.so
+            native/native-bin/linux-aarch64/mm_core.abi3.so
+
+  native-build-macos:
+    runs-on: macos-latest # arm64; universal2 covers x86_64 as well
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install maturin (pinned, Plan §3.3)
+        run: python -m pip install maturin==1.15.0
+
+      - name: Build macos-universal2 (maturin = both archs + lipo)
+        run: ./scripts/build-native.sh --target macos-universal2 --size-gate
+
+      - name: Verify universal2 fat binary
+        run: lipo -info native/native-bin/macos-universal2/mm_core.abi3.so
+
+      - name: Import smoke (CPython 3.11 arm64)
+        run: |
+          PYTHONPATH=native/native-bin/macos-universal2 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-bin-macos
+          path: native/native-bin/macos-universal2/mm_core.abi3.so
+
+  native-build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install maturin (pinned, Plan §3.3)
+        run: python -m pip install maturin==1.15.0
+
+      - name: Build windows-x86_64 (MSVC)
+        run: ./scripts/build-native.sh --target windows-x86_64 --size-gate
+
+      - name: Import smoke (CPython 3.11)
+        run: |
+          PYTHONPATH=native/native-bin/windows-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-bin-windows
+          path: native/native-bin/windows-x86_64/mm_core.pyd
+
+  abi3-import:
+    # One binary, every CPython >= 3.10: prove it on the oldest and a current
+    # interpreter (Plan §3.2 abi3-py310 claim).
+    runs-on: ubuntu-latest
+    needs: native-build-linux
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-bin-linux
+          path: native-bin
+
+      - name: Import the abi3 artifact
+        run: |
+          PYTHONPATH=native-bin/linux-x86_64 python - <<'PY'
+          import sys
+          import mm_core
+
+          assert mm_core.api_version() == 1, mm_core.api_version()
+          print(f"abi3 import OK on CPython {sys.version.split()[0]}: {mm_core.core_version()}")
+          PY
+
+  size-budget:
+    # Plan §3.3 / R6: <= 4 MB per binary, <= 20 MB for the whole native-bin.
+    runs-on: ubuntu-latest
+    needs: [native-build-linux, native-build-macos, native-build-windows]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-bin-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Enforce the size budget
+        run: |
+          total=0
+          found=0
+          while IFS= read -r f; do
+            size=$(stat -c %s "$f")
+            echo "$f: $size bytes"
+            if [ "$size" -gt 4194304 ]; then echo "OVER BUDGET (>4 MB): $f"; exit 1; fi
+            total=$((total + size))
+            found=$((found + 1))
+          done < <(find artifacts -type f \( -name '*.so' -o -name '*.pyd' \) | sort)
+          echo "binaries: $found, total: $total bytes"
+          if [ "$found" -lt 4 ]; then echo "expected 4 platform binaries, found $found"; exit 1; fi
+          if [ "$total" -gt 20971520 ]; then echo "TOTAL OVER BUDGET (>20 MB)"; exit 1; fi
