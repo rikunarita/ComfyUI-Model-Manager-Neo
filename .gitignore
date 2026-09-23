@@ -227,3 +227,6 @@ node.zip
 
 # dependency-cruiser graph output (pnpm deps:graph)
 dependency_graph.svg
+
+# cargo-fuzz crash artifacts (regression seeds are copied into corpus/ and committed)
+native/crates/znn-codec/fuzz/artifacts/

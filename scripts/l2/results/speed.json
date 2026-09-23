@@ -1,0 +1,107 @@
+{
+  "env": {
+    "date": "2026-09-23T22:07:15+0000",
+    "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "cli": "/tmp/arena/tenants/6acc009e-668a-4d2f-9f51-3f7ed5839ee4/sessions/949539ee-5da1-4138-b4be-9b3e26fb049e/workspace/ComfyUI-Model-Manager-Neo/native/target/release/znn-cli",
+    "c_so": "/tmp/arena/tenants/6acc009e-668a-4d2f-9f51-3f7ed5839ee4/sessions/949539ee-5da1-4138-b4be-9b3e26fb049e/workspace/ComfyUI-Model-Manager-Neo/third_party/zipnn-core-bin/linux-x86_64/zipnn_core.cpython-311-x86_64-linux-gnu.so"
+  },
+  "seed": 20260923,
+  "speed": {
+    "gate": false,
+    "dtypes": {
+      "f32": {
+        "bytes": 33554432,
+        "threads": 2,
+        "clean_samples": {
+          "c_comp": 5,
+          "c_dec": 5,
+          "r_comp": 5,
+          "r_dec": 5
+        },
+        "byte_identical": true,
+        "rust_roundtrip_ok": true,
+        "ratio_c": 0.83127,
+        "ratio_rust": 0.83127,
+        "ratio_delta_pct": 0.0,
+        "compress_mbs_c": 495.9,
+        "compress_mbs_rust": 842.2,
+        "compress_speedup": 1.698,
+        "decompress_mbs_c": 671.8,
+        "decompress_mbs_rust": 1250.3,
+        "decompress_speedup": 1.861,
+        "gate": true
+      },
+      "bf16": {
+        "bytes": 33554432,
+        "threads": 2,
+        "clean_samples": {
+          "c_comp": 5,
+          "c_dec": 5,
+          "r_comp": 5,
+          "r_dec": 5
+        },
+        "byte_identical": true,
+        "rust_roundtrip_ok": true,
+        "ratio_c": 0.662295,
+        "ratio_rust": 0.662295,
+        "ratio_delta_pct": 0.0,
+        "compress_mbs_c": 1013.1,
+        "compress_mbs_rust": 789.5,
+        "compress_speedup": 0.779,
+        "decompress_mbs_c": 795.3,
+        "decompress_mbs_rust": 964.4,
+        "decompress_speedup": 1.213,
+        "gate": false
+      },
+      "f16": {
+        "bytes": 33554432,
+        "threads": 2,
+        "clean_samples": {
+          "c_comp": 5,
+          "c_dec": 5,
+          "r_comp": 5,
+          "r_dec": 5
+        },
+        "byte_identical": true,
+        "rust_roundtrip_ok": true,
+        "ratio_c": 0.843431,
+        "ratio_rust": 0.843431,
+        "ratio_delta_pct": 0.0,
+        "compress_mbs_c": 1020.3,
+        "compress_mbs_rust": 734.3,
+        "compress_speedup": 0.72,
+        "decompress_mbs_c": 793.5,
+        "decompress_mbs_rust": 1041.0,
+        "decompress_speedup": 1.312,
+        "gate": false
+      },
+      "fp8": {
+        "bytes": 33554432,
+        "threads": 2,
+        "clean_samples": {
+          "c_comp": 5,
+          "c_dec": 5,
+          "r_comp": 5,
+          "r_dec": 5
+        },
+        "byte_identical": true,
+        "rust_roundtrip_ok": true,
+        "ratio_c": 0.669737,
+        "ratio_rust": 0.669737,
+        "ratio_delta_pct": 0.0,
+        "compress_mbs_c": 516.8,
+        "compress_mbs_rust": 701.5,
+        "compress_speedup": 1.357,
+        "decompress_mbs_c": 548.9,
+        "decompress_mbs_rust": 708.5,
+        "decompress_speedup": 1.291,
+        "gate": true
+      }
+    },
+    "threads": 2,
+    "fixture_mb": 32,
+    "seconds": 48.9
+  },
+  "gate": false
+}
