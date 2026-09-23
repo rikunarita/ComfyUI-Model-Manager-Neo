@@ -32,6 +32,7 @@ FIXTURES=/tmp/mm-bench REAL_MODEL=/path/model.safetensors ./scripts/bench/run_al
 | `gen_synthetic.py`    | —               | フィクスチャ生成: 8 MB 級 MoE ヘッダー / Gaussian テンソルバイト / モデル / ペア / 5,000 モデルツリー                 |
 | `bench_zipnn.py`      | K1/K2/K3/K5/K13 | C コア直呼び（dtype 別スループット・ピーク RAM）、Neo e2e（圧縮→解凍→SHA‑256 一致）、付録 C SEGFAULT 再現、起動系計測 |
 | `bench_delta.py`      | K4/K5           | デルタ圧縮/解凍（ピーク RAM・byte‑exact 検証）+ **生産経路での SEGFAULT 到達性実証**                                  |
+| `bench_c_defects.py`  | K5              | Plan 付録 C.3 の**全 22 ケース行列**（dtype32 クラッシュ 8・対照 9・dtype16 境界/奇数長 5）を一括再実行               |
 | `bench_scan.py`       | K9/K10          | `scan_models` 冷間/暖間（現行は毎回全面走査）+ `scan_hygiene`                                                         |
 | `bench_header.py`     | K11/K12         | `get_model_tensors` / `get_model_metadata`（8 MB MoE ヘッダー、内訳: read / json.loads / list 構築）                  |
 | `bench_hash.py`       | K7/K8           | `compute_hashes` 5 算法 1 パス / `_sha256_of` フル再読込 / 素の sha256 参照（相互検証付き）                           |

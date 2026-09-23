@@ -120,6 +120,11 @@ scripts/build-native.sh --target macos-universal2 --size-gate   # macOS ホス�
 scripts/build-native.sh --target windows-x86_64 --size-gate     # Windows ホスト
 ```
 
+ビルド成果物の検査（arch / glibc 下限 / libpython 非依存 / Mach‑O fat / PE）は、
+readelf・lipo 等の無い環境でも
+`python3 scripts/verify_native_binary.py <tag> <file> [--glibc-floor 2.28]`
+（純 Python の ELF/Mach‑O/PE パーサ — CI の glibc ゲートと同一判定）で可能です。
+
 ### 検証状況（Phase 0 完了、2026‑09‑23、native.yml @ 81854f5 全ジョブ緑）
 
 | ターゲット            | ビルド経路                          | 検証結果                                                                   |

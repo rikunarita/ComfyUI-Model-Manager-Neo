@@ -1,0 +1,219 @@
+{
+  "env": {
+    "date": "2026-09-23T15:48:31+0000",
+    "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "cpus": 2,
+    "memTotal": "1083460 kB",
+    "machine": "x86_64"
+  },
+  "coreSo": "/tmp/arena/tenants/6acc009e-668a-4d2f-9f51-3f7ed5839ee4/sessions/949539ee-5da1-4138-b4be-9b3e26fb049e/workspace/ComfyUI-Model-Manager-Neo/third_party/zipnn-core-bin/linux-x86_64",
+  "cases": [
+    {
+      "length": 262145,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "segv",
+      "result": "segv",
+      "roundtrip": "",
+      "asDocumented": true
+    },
+    {
+      "length": 262146,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "segv",
+      "result": "segv",
+      "roundtrip": "",
+      "asDocumented": true
+    },
+    {
+      "length": 262147,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "segv",
+      "result": "segv",
+      "roundtrip": "",
+      "asDocumented": true
+    },
+    {
+      "length": 524289,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "segv",
+      "result": "segv",
+      "roundtrip": "",
+      "asDocumented": true
+    },
+    {
+      "length": 524290,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "segv",
+      "result": "segv",
+      "roundtrip": "",
+      "asDocumented": true
+    },
+    {
+      "length": 524291,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "segv",
+      "result": "segv",
+      "roundtrip": "",
+      "asDocumented": true
+    },
+    {
+      "length": 262145,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "low",
+      "expected": "segv",
+      "result": "segv",
+      "roundtrip": "",
+      "asDocumented": true
+    },
+    {
+      "length": 262146,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "low",
+      "expected": "segv",
+      "result": "segv",
+      "roundtrip": "",
+      "asDocumented": true
+    },
+    {
+      "length": 262144,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 262148,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 262148,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 1000000,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 1000001,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 1000002,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 1000003,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 64,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 67,
+      "path": "num_buf=4,bits=1,mode=220",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 262144,
+      "path": "num_buf=2,bits=1,mode=10",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 262146,
+      "path": "num_buf=2,bits=1,mode=10",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 1000002,
+      "path": "num_buf=2,bits=1,mode=10",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 65,
+      "path": "num_buf=2,bits=1,mode=10",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    },
+    {
+      "length": 262145,
+      "path": "num_buf=2,bits=1,mode=10",
+      "entropy": "rand",
+      "expected": "ok",
+      "result": "ok",
+      "roundtrip": "ROUNDTRIP OK",
+      "asDocumented": true
+    }
+  ],
+  "summary": {
+    "cases": 22,
+    "segv": 8,
+    "okRoundtrip": 14,
+    "other": 0,
+    "unexpected": 0,
+    "appendixCReproduced": true
+  }
+}

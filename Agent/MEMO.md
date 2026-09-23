@@ -322,3 +322,67 @@
 **監査後の全ゲート再実行**: cargo fmt / clippy -D warnings / test（default・
 --no-default-features 両方）/ ruff / mypy / pytest 11/11 / スモーク /
 prettier --check . / Cargo.lock 無変更 — すべて green。
+
+### 実装差分クロス監査（2026-09-23、dev vs phase0-session2-local）
+
+ユーザー指示により、採用実装（dev）と並行セッションの別実装
+（local branch `phase0-session2-local`、未 push）を全面差分比較した。
+**同一仕様の独立実装 2 本の差分はバグの探し合いに最適**で、実際に
+dev 側の潜在バグ 1 件・CI カバレッジ欠落 1 件を発見、有用ツール 2 件を移植した。
+
+**発見（dev 側）と対処**:
+
+1. **【潜在バグ】ローダーの出自未検証** — `py/native.py load()` は
+   `sys.path.append(bin_dir)` + `importlib.import_module("mm_core")` だが、
+   `import_module` は **sys.modules 命中時にパス探索を短路**する。他所
+   （別拡張の同名思様物・迷入 pip パッケージ）の `mm_core` が先に
+   import 済みだと、native-bin を一切読まずにそれが採用され、
+   `api_version()==1` を返す協調的な偽物ならハンドシェイクも通過する。
+   別実装は spec_from_file_location + `__file__` 一致検査でこの穴が
+   無かった。→ **origin guard を追加**（realpath prefix 検査、
+   normcase で Windows 大文字小文字吸収。他所のモジュールは
+   所有権がないので sys.modules から**追い出さない**）。回帰テスト
+   `test_foreign_sys_modules_mm_core_is_rejected` で固定（12/12 green）。
+2. **【CI 欠落】実成果物に対するローダーテストが未実行** — ci.yml の
+   pytest は native-bin 不在のため auto ロード + ハンドシェイクのテストが
+   **skip**、native.yml の import 疎通は素の `import mm_core`（PYTHONPATH）で
+   **ローダー経由ではない**。別実装の integration ジョブ（build → pytest）が
+   埋めていた穴。→ native-build-linux に「Loader regression tests against
+   the built artifact」ステップを追加（zigbuild 実バイナリに対して
+   tests/ 全 12 件を実行）。
+
+**移植（別実装 → dev、監査で価値を確認した分）**:
+
+3. `scripts/bench/bench_c_defects.py` — **Plan 付録 C.3 の全 22 ケース行列**
+   （dtype32 クラッシュ 8: 262145/6/7・524289/90/91・低エントロピー 2、
+   対照 9: 262144・262148・64・67・1000000–1000003、dtype16 5: 262144・
+   262146・1000002・65・262145）。dev 既存の 3 ケース + 生産経路デモを
+   補完し、付録の表を 1 コマンドで機械再検証できる。実行済み:
+   **SEGFAULT 8/8・対照往復一致 14/14・逸脱 0**（results/c_defects.json
+   としてコミット。BENCH §4.3 に追記）。Phase 1 の Rust 回帰テストは
+   この行列をそのまま固定化する。
+4. `scripts/verify_native_binary.py` — 純 Python の ELF/Mach‑O/PE 検証
+   （e_machine・GLIBC 上限・libpython 非依存・universal2 スライス・
+   python3.dll 以外 の Python DLL 参照検出）。readelf/lipo の無い
+   サンドボックスや任意ホストでのローカル検証用（CI の readelf ゲートの
+   補完）。legacy .so ×6 の GLIBC_2.34 もこれで独立再証した。
+
+**差分比較で「バグなし」と判定した主な設計差**（記録のみ）:
+
+- json-bench: dev 版は fs::read + ダイジェスト 3 者一致検証（正しさ優位）、
+  別版は mmap 借用（Phase 5 のアクセスパターン実証）。jiter の計測値は
+  どちらも同一結論（10.6ms vs 12.1ms、 simd-json に 15–17×勝）。
+- build-native.sh: dev 版は wheel 抽出を「候補ちょうど 1 件」で強制
+  （より厳密）。別版の --check-cross（非リンク ターゲットの cargo check）は
+  CI が実ビルドで上位互換するため不移植。
+- ローダー API: dev 版（load()->bool + diagnostics）は min/max API 範囲と
+  MM_NATIVE の off/false/no 別名まで持つ。別版の MM_NATIVE_PATH は dev では
+  PYTHONPATH + origin guard が同等機能を果たす。
+- Cargo: dev 版の workspace.lints 一元化と clippy.toml doc-valid-idents は
+  別版（crate 属性 + 個別 allow）より保守性が上。bincode 3.0.0
+  プレースホルダ警告は dev では Plan.md 注記が担う（等価）。
+- e2e スループットのセッション間差（dev 記録 141–172 MiB/s vs 別実装計測
+  237 MiB/s 級）はフィクスチャ形状（テンソル数/サイズ）と単発計測ノイズの
+  範囲。**KPI ゲートは「同一ハーネス・同一フィクスチャでの新旧比」で
+  判定する**という BENCH.md 冒頭の方法論がこれを吸収する（Phase 2 では
+  ベースライン再計測を同一 run で実施すること）。
