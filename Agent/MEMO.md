@@ -245,3 +245,80 @@
   lockfile ピン版**で行うこと。node_modules 無し環境では /tmp の npm 環境へ
   symlink して実行（実行後削除）。plugin 無し整形は CI の Format ゲートと
   不一致になり赤くなる（前セッションで実害確認済み）。
+
+### Phase 0 精密監査（2026-09-23、dev tip 088e72e に対して実施）
+
+ユーザー指示「Phase 0 のバグが潜んでいないか精密に確認」への対応記録。
+**検証方法**: 全ソース精読 + 一次実証（cargo metadata / C ソース読解 +
+実バイト比較 / CI ログ突合 / コミット済み results/*.json の再現実行）。
+
+**問題なしを確認した項目（抜粋）**:
+
+- BENCH.md の全数値が scripts/bench/results/*.json と一致。CI ログ
+  （size-budget / abi3-import）とも一致（410,416 / 383,824 / 163,840 /
+  666,032 B、計 1,624,112 B。CPython 3.10.21 / 3.13.15 import 実測）。
+- **再現実行**: scan（cold 1.358s / warm 0.516s / 5,016 エントリ ←
+  コミット値 1.332 / 0.501 / 5,016）、header（中央値 738ms ← コミット値
+  930ms、彼らの観測レンジ 453–1,091ms 内。テンソル数 64,491 完全一致）、
+  hash（280.4 / 338.4 MB/s ← 278.3 / 340.2、ダイジェスト 3 者一致）、
+  delta（ratio 0.6891 完全一致・byteExact=True・+173MiB 再現）、
+  **生産デルタ経路の SEGFAULT(signal 11) 再実証**。
+- znn-codec 定数は vendored huf.h の**行番号レベル**で一致（L72/L117/L118）。
+- json-bench: simd-json の可変コピーは計測領域内（公平）、3 パーサの
+  ダイジェスト一致検証付き。build-native.sh: 厳密な wheel 抽出（候補 1 件
+  強制）・サイズゲート・Windows 名 mm_core.pyd。native.yml: glibc 床検査の
+  sort -Vu 論理、artifact パス構造、abi3-import の PYTHONPATH すべて正しい。
+- 81854f5 の CI 修復 3 件はすべて妥当（universal2-apple-darwin 名・
+  .gitattributes *.rs eol=lf・macOS テスト除外と代替担保）。
+- Phase 0 全レンジ（82adaf9..HEAD）で web/・demo-assets/・src/ の実質変更は
+  ゼロ（vue 2 件はクラス順往復で正味 0）・**init**.py 無変更・
+  実行時コードから py.native を import する箇所なし（Phase 2 まで不活性）。
+
+**発見して修正したバグ（4 件）**:
+
+1. **【中】extension-module トグルが無効化されていた** —
+   `native/Cargo.toml` の workspace.dependencies.pyo3 が
+   `features = ["extension-module", "abi3-py310"]` を無条件指定 →
+   `pyo3 = { workspace = true }` 継承により crate 側
+   `--no-default-features` でも **extension-module が常に ON**
+   （cargo metadata の resolve で実証: 修正前 全モード ON / 修正後
+   default=ON・no-default=OFF）。現 CI が緑だったのは dev プロファイルの
+   リンク単位粒度（Linux）と python3.lib インポート（Windows）による
+   **偶然**で、Phase 2 で #[pyfunction] を触るテストが追加された瞬間に
+   Linux のテストリンクが壊れる潜在バグ。修正: workspace 指定から除去
+   （crate の default feature が唯一のスイッチに）+ native.yml に
+   cargo metadata ベースの**トグル回帰ガード**を追加（cargo tree -e features
+   は crate 由来の feature エッジを描画しない表示癖があるため不使用）。
+   修正後も配布バイナリは**バイト同一**（sha256 一致で証明 —
+   既定 features は不変のため）。
+2. **【小】core_version() のコミットスタンプ陳腐化** — build.rs が
+   `.git/HEAD` のみ watch するため、同一ブランチへの新コミットを検知せず
+   古いハッシュが焼き込まれる（実証: HEAD=088e72e なのに +81854f536）。
+   修正: build-native.sh が `MM_CORE_COMMIT`（git short=9、呼び出し側の
+   明示指定を尊重）を export + build.rs に rerun-if-env-changed 追加。
+   修正後: explicit99 / 088e72e56 の双方が正しく反映されることを実測。
+3. **【小】bench の fp8 パラメータが生産経路と不一致** —
+   `_DTYPE_PARAMS["fp8e4m3"]` の bit_reorder=0 に対し、生産経路
+   （zipnn.py compress の TORCH dispatch）は **1** を書く（実ヘッダー
+   ダンプで確認）。ただし C コアは num_buf=1 で bits_mode を
+   **一切消費しない**（split_bytearray_dtype8 は引数に取らず、combine は
+   memcpy — ソース解析 + 32MB 実証: bits=0/1 でペイロード**バイト同一**・
+   相互復号可能）ため**コミット済み計測値はそのまま有効**。パラメータを
+   1 へ修正し、証明をコメントに記録。
+4. **【小】bench スイートの移植性・忠実性** —
+   (a) `from py import ...` が site-packages の top-level `py.py`
+   （旧 pytest 系の `py` ライブラリ等）に **shadow される**
+   （regular module は namespace package に sys.path 順に関係なく勝つ）。
+   この環境で実際に ImportError を再現 → common.import_extension() が
+   `py` 名をリポジトリの py/ へ明示ピン留めするよう修正（再生成した
+   フィクスチャで scan/header/hash/delta 全再実行成功）。
+   (b) `SUPPORTED_PT_EXTENSIONS` が ComfyUI master 実物と不一致
+   （.pt2/.sft 欠落、.pickle 過剰）→ master 準拠へ修正
+   （計測値への影響なし: ライブラリは .safetensors のみ）。
+   (c) bench_zipnn e2e の `"originalSha256" in spec` ガードが
+   None 値でも真になり、>512MB モデルで byteExact 誤検出する潜在バグ →
+   `spec.get(...)` の truthy 検査へ修正。
+
+**監査後の全ゲート再実行**: cargo fmt / clippy -D warnings / test（default・
+--no-default-features 両方）/ ruff / mypy / pytest 11/11 / スモーク /
+prettier --check . / Cargo.lock 無変更 — すべて green。
