@@ -1,0 +1,10 @@
+# rustfmt configuration (Plan §3.4.2).
+#
+# STABLE options only, so `cargo fmt` on the stable toolchain is authoritative
+# (nightly-only knobs such as `imports_granularity` are deliberately NOT used:
+# on stable they are ignored with a warning, which would make the CI gate
+# (`cargo fmt --check`) diverge from local nightly runs).
+edition = "2024"
+newline_style = "Unix"
+use_field_init_shorthand = true
+use_try_shorthand = true

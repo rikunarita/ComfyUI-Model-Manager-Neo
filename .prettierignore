@@ -22,3 +22,6 @@ package-lock.json
 # Python
 __pycache__/
 *.py[cod]
+
+# Rust build artifacts (crates can drop .md/.json files inside target/)
+native/target/

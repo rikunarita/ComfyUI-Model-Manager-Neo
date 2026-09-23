@@ -1,0 +1,40 @@
+# clippy configuration (Plan §3.4.2).
+#
+# MSRV: the Plan named PyO3's 1.83, but the workspace declares
+# `rust-version = "1.85"` because edition 2024 requires it — duplicating a
+# *lower* value here makes clippy warn about the mismatch on every run, so the
+# two are kept in sync (clippy would also pick the Cargo.toml value up
+# automatically; the explicit entry documents the intent).
+msrv = "1.85"
+
+# Proper nouns of this project's domain: keep `clippy::doc_markdown` (pedantic)
+# useful for real camelCase typos without demanding backticks around names.
+doc-valid-idents = [
+    "ZipNN",
+    "ComfyUI",
+    "PyO3",
+    "FiniteStateEntropy",
+    "CPython",
+    "GitHub",
+    "huff0",
+    "safetensors",
+    "jiter",
+    "mmap",
+    "abi3",
+    "MoE",
+    "KiB",
+    "MiB",
+    "GiB",
+    "NVMe",
+    "WebSocket",
+    "FSE",
+    "ZN",
+    "XOR",
+    "SHA-256",
+    "BLAKE3",
+    "CRC32",
+    "AutoV1",
+    "AutoV2",
+    "dtype",
+    "dtypes",
+]

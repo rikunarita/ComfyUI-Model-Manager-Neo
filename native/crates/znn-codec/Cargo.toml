@@ -1,0 +1,16 @@
+[package]
+name = "znn-codec"
+description = "Pure-Rust ZipNN codec for ComfyUI-Model-Manager-Neo (no Python dependency)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "znn_codec"
+
+[dependencies]
+
+[lints]
+workspace = true

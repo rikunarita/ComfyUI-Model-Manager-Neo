@@ -1,0 +1,14 @@
+# Linux ネイティブビルドのみ mold を使用する（Agent/Plan.md §3.4.1）。
+# クロスビルド（zig 経由）では zig 側リンカー（LLD）が使用され、本設定は影響しない
+# （cargo-zigbuild が CARGO_TARGET_*_LINKER 環境変数でこの設定を上書きする）。
+#
+# 導入手順は native/README.md を参照（clang が無い環境では
+# `-C link-arg=-B<mold>/lib/mold` 方式にフォールバック）。
+
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.aarch64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]

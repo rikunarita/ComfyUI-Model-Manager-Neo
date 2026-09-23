@@ -1,0 +1,19 @@
+# maturin build definition for the native workspace (Plan §3.3).
+#
+# This file exists so `maturin build|develop` run from `native/` resolve
+# *this* workspace instead of walking up into the repository root's
+# pyproject.toml (which describes the ComfyUI extension, not a PEP 517
+# package). The shipped distribution form of the core is NOT a wheel: the
+# prebuilt extension modules are committed under `native/native-bin/<tag>/`
+# and loaded by `py/native.py` through `sys.path` — no pip, no compiler, no
+# network (Plan §2.1-5). Wheels remain useful for local development
+# (`maturin develop`) and for CI verification of the abi3 build path.
+
+[build-system]
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+manifest-path = "crates/mm-core/Cargo.toml"
+module-name = "mm_core"
+features = ["pyo3/extension-module"]

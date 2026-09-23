@@ -1,0 +1,31 @@
+[package]
+name = "mm-core"
+description = "PyO3 native core of ComfyUI-Model-Manager-Neo (module name: mm_core, abi3-py310)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+build = "build.rs"
+
+[lib]
+# The module Python imports is `mm_core` (Plan §4.2.1): the artifact is
+# `mm_core.abi3.so` (Linux/macOS) or `mm_core.pyd` (Windows). Windows only
+# recognises the plain `.pyd` suffix in `EXTENSION_SUFFIXES` — an `.abi3.pyd`
+# file would not be importable.
+name = "mm_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { workspace = true }
+znn-codec = { path = "../znn-codec" }
+
+[features]
+# `cargo test -p mm-core` must run WITHOUT default features: linking the test
+# harness against an `extension-module` build fails (no libpython is linked by
+# design). CI: `cargo test -p mm-core --no-default-features`.
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+
+[lints]
+workspace = true

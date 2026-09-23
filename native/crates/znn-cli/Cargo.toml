@@ -1,0 +1,18 @@
+[package]
+name = "znn-cli"
+description = "Validation CLI for the znn-codec native core (never distributed)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "znn-cli"
+path = "src/main.rs"
+
+[dependencies]
+znn-codec = { path = "../znn-codec" }
+
+[lints]
+workspace = true
