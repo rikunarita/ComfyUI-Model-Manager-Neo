@@ -386,3 +386,76 @@ dev 側の潜在バグ 1 件・CI カバレッジ欠落 1 件を発見、有用�
   範囲。**KPI ゲートは「同一ハーネス・同一フィクスチャでの新旧比」で
   判定する**という BENCH.md 冒頭の方法論がこれを吸収する（Phase 2 では
   ベースライン再計測を同一 run で実施すること）。
+
+## 2026‑09‑23 — Phase 1 実装セッション（znn-codec フォーマット中核 + L2/L3）
+
+**成果**: `znn-codec` 全 8 モジュール（header/dtype/reorder/planes/bitstream/
+fse/huf{weights,tree,encode,decode}/codec）を unsafe ゼロで実装。znn-cli に
+C ABI ミラー（core-compress/core-decompress）+ batch + steal ゲート付き bench。
+L2 ハーネス（scripts/l2/golden_diff.py）で **フル 10,500 ケース GATE PASS:
+圧縮出力バイト一致 9,880/9,880（100 %）、相互解凍両方向全通過、付録 C クラス
+495/495 安全処理（クラッシュ 0）、圧縮率差 Δ0.0000 %**。L3 ファズ 3 ターゲット
+（シード 69 件コミット）+ CI 配線（native.yml: native-diff/fuzz-smoke、
+fuzz-long.yml: 週次 3h×3=9h + l2-full）。L1 = 68 テスト緑（proptest 含む）。
+
+**重要な発見・確定事実**:
+
+1. **Plan §4.6.2 の f64 並べ替え式が全単射でなかった**（`>>12`/`0x0008…`/
+   `0x0007…` = mantissa bit 51 を落とし bit 52 を死蔵 → 任意 u64 の ~50 % が
+   往復失敗、実測 100,045/200,000、1.5→1.0）。訂正式（sign→bit 52、man 52 bit
+   全保持）を Plan 表に注記済み。proptest が恒久固定。**推測でなく実証で
+   計画書のバグを捕まえた事例** — Phase 4 の f64 実装は reorder.rs の
+   proptest 済み定数をそのまま使うこと。
+2. **C コアの「静かな UB」はロングラン driver プロセスを殺す**: 端数ケースの
+   1–3B ヒープオーバーフロー書き込みが蓄積し `free(): invalid size` 等で
+   abort（L2 初期版が実測で死亡）。対策 = UB 形状のゴールデン生成を
+   **fork 隔离子プロセス**で実行（golden は self-decompress 前に fsync →
+   子が後から abort しても golden は有効。実測 125 件の信号死を吸収し
+   9,880 golden 全件で C 自己往復も検証済み）。heap-safe 形状
+   （nb=1 全長 / length%nb==0）のみ in-process 高速経路。
+3. **C のホール alphabet（ギャップ付き maxSV）挙動は経験的に決定論的**:
+   buildCTable はゼロカウント シンボルの tree[].nbBits を明示初期化しない
+   （スタック履歴依存の UB 懸念）が、dense→sparse を同一ワーカー スレッドで
+   連続圧縮しても出力は単独圧縮とバイト同一（=実効的にゼロ）。Rust 実装は
+   ホールを nb_bits=0 に確定初期化 → この条件下で C とバイト一致を L2 で確認。
+   （理論上の C 潜在バグだが実機再現せず — upstream 報告書には主欠陥のみ記載。）
+4. **huff0 ライタのフラッシュ周期は出力バイト不変**（直列ビット順序のみが
+   バイト列を決める。C の flushBits が 8B 書き pos を floor(bits/8) 進める
+   構造の帰結）。これにより 4→5 シンボル/フラッシュへの変更（huffLog≤11 で
+   5×11+7=62<64 が保証）がバイト同一を保ったまま可能 — L2 9,880 件が実証。
+5. **計測方法論（この 2vCPU 共有機では必須）**: 未ゲート計測は同一設定で
+   2–3 倍揺れる。C 自身も Phase 0 記録と当日クリーン窓で最大 2.4 倍乖離
+   （f32 解凍 1722→718、f16 圧縮 613→1020）→ **Phase 0 記録値との比較は無効、
+   同一セッション比較のみ有効**。確立したプロトコル = /proc/stat steal ゲート
+   （窓の tick 容量 ~5 % 超を棄却、C 側 Python ループと Rust 側 znn-cli bench
+   の両方に同一規則を実装）+ 交互ブロック + 側別最小値（=干渉ゼロ窓の上限）。
+6. 最適化の実測履歴（f16 32MB 圧縮 e2e、2T）: 初期 313 → 4-way hist + packed
+   CTable + デコード窓 → 372 → スクラッチ再利用（平面/ライタ/dtable）→ 720 台 →
+   nb=1 ゼロコピー + take() → fp8 ×1.37、split2 16B ブロック化（968→2,055MB/s、
+   **32B 化は逆効果 1,698** で却下）→ 並列アセンブリ + writer 5-flush →
+   最終 734–790。デコードは 4 ストリーム インターリーブ（C の ILP 構造）+
+   固定長 [DeltX2;4096] 表（境界検査消去）で f32 ×1.86–2.20。
+7. **速度ゲート現状（判断待ち）**: 8 指標中 6 が ×1.20–1.86 で C 超え。
+   bf16/f16 **圧縮**のみ ×0.72–0.84（C の当日クリーン窓 ~1,010–1,020 MB/s は
+   Phase 0 記録 337–800 の上限も 27 % 超える異常速。Phase 0 記録比では全 dtype
+   同等以上）。残差の内訳は実測で「安全 Rust の初期化税」（並列アセンブリ用
+   out 27MB zero-fill + raw 平面 clone = トラフィック +45 %）と gcc の memcpy
+   律速経路。scoped unsafe（MaybeUninit）で ×0.9–1.0 到達の見積りだが
+   workspace `unsafe_code=deny`（Plan §3.4.2）と衝突 → **ユーザ判断に委ねた**
+   （選択肢: (a) 記録ベースライン比でゲート充足として [x]、(b) scoped unsafe
+   承認、(c) 現状の文書化済み逸脱で確定）。
+8. 環境/ツールチェーン: cargo-fuzz は **0.12.0 ピン**（0.13.x は musl 既定で
+   x86_64-linux-musl-g++ を要求 → runner/サンドボックスに無い。gnu ターゲット
+   明示で ASan 動作）。nightly + rust-src 必須（--build-std 既定）。ローカル
+   1GiB では release+ASan の rayon コンパイルが OOM（SIGKILL）→ **-D（dev）で
+   スモーク**、CI（7GiB+）は release。array_chunks(_mut) は 1.98 でも
+   unstable → MSRV 1.85 維持のため chunks_exact + try_into で代替（性能差は
+   実測ノイズ内）。ディスク逼迫時は native/target/debug（1.1GB、再構築可能）
+   を削除して凌いだ。
+9. fuzz が検出した実バグ 3 件（全て修正 + 回帰シード化）: (a) byte13 の
+   下位 7bit を非ストリーミング時に保持 → encode∘decode 正規形不一致
+   （decode 側で 0 に正規化。zipnn.py も下位 bit は読まない）、
+   (b) cumSizes 平面オフセットの usize 加算オーバーフロー（release では
+   ラップして span 検査をすり抜け得た → u64 checked_add + 事前検証）、
+   (c) `orig_len + chunk - 1` が cap 検査前でオーバーフロー（cap 検査を
+   最前へ移動 + div_ceil 化）。
