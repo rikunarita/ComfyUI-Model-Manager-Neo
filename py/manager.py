@@ -150,7 +150,16 @@ class ModelManager:
                 # The PUT/DELETE routes already had this guard; the GET did not.
                 if model_path is None:
                     raise RuntimeError(f"File {filename} not found")
-                result = self.get_model_info(model_path)
+                # BUG FIX: get_model_info() parses the model's safetensors JSON
+                # header (hundreds of milliseconds on MoE models with
+                # multi-megabyte headers) and reads the notes sidecar - all
+                # blocking calls. Running them inline froze the server event
+                # loop for the whole parse, websocket progress updates
+                # included. The scan/hygiene/update routes already had this
+                # fix; the model-detail GET was the last blocking handler.
+                # Same treatment: run it in the executor.
+                loop = asyncio.get_running_loop()
+                result = await loop.run_in_executor(utils.io_executor(), self.get_model_info, model_path)
                 return web.json_response({"success": True, "data": result})
             except Exception as e:
                 error_msg = f"Read model info failed: {e!s}"

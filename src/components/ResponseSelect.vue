@@ -57,7 +57,7 @@
 
   <!-- Button mode: segmented buttons with horizontal scroll -->
   <div v-else class="relative flex-1 overflow-hidden">
-    <div ref="scrollArea" class="size-full scrollbar-none overflow-auto">
+    <div ref="scrollArea" class="scrollbar-none size-full overflow-auto">
       <div ref="contentArea" class="table max-w-full">
         <div
           v-show="showControlButton && scrollPosition !== 'left'"

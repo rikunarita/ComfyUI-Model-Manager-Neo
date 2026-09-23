@@ -1,6 +1,6 @@
 <template>
   <div class="group/scroll relative h-full overflow-hidden">
-    <div ref="viewport" class="size-full scrollbar-none overflow-auto">
+    <div ref="viewport" class="scrollbar-none size-full overflow-auto">
       <div ref="content">
         <slot name="default">
           <slot v-if="renderedItems.length === 0" name="empty">

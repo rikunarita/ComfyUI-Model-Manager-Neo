@@ -7,20 +7,20 @@
 
 ## 1. 要約（ひと目でわかる版）
 
-| 項目 | 値 |
-|---|---|
-| 仮想化 | **Kata Containers**（KVM 上の軽量 VM）+ Docker 互換レイヤ |
-| OS | Debian GNU/Linux 12 "bookworm" |
-| ホストカーネル | Linux 4.19.91-c8dfc93.al7.x86_64（Alibaba Cloud Linux 系, 2023-09-26 ビルド） |
-| アーキテクチャ | x86_64 |
-| CPU | Intel Xeon @ 2.50GHz（family 6 / model 85 = **Skylake-SP**, stepping 7）、**2 vCPU** |
-| メモリ | **1 GiB**（cgroup 制限 1073741824 bytes） |
-| ディスク | overlay rootfs **9.9 GB**（空き 9.3 GB）/ inode 655,360 |
-| 実行ユーザ | **root**（uid=0, gid=0） |
-| ネットワーク | アウトバウンド **あり**（egress IP `47.236.158.65`） |
-| 主要ランタイム | Python 3.11.2（venv）、Node.js v20.20.2、npm 10.8.2、yarn 1.22.22、git 2.39.5 |
-| クラウド | **Alibaba Cloud**（DNS 100.100.2.x、ossfs マウント、aliyun ミラー） |
-| GPU | なし |
+| 項目           | 値                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------ |
+| 仮想化         | **Kata Containers**（KVM 上の軽量 VM）+ Docker 互換レイヤ                            |
+| OS             | Debian GNU/Linux 12 "bookworm"                                                       |
+| ホストカーネル | Linux 4.19.91-c8dfc93.al7.x86_64（Alibaba Cloud Linux 系, 2023-09-26 ビルド）        |
+| アーキテクチャ | x86_64                                                                               |
+| CPU            | Intel Xeon @ 2.50GHz（family 6 / model 85 = **Skylake-SP**, stepping 7）、**2 vCPU** |
+| メモリ         | **1 GiB**（cgroup 制限 1073741824 bytes）                                            |
+| ディスク       | overlay rootfs **9.9 GB**（空き 9.3 GB）/ inode 655,360                              |
+| 実行ユーザ     | **root**（uid=0, gid=0）                                                             |
+| ネットワーク   | アウトバウンド **あり**（egress IP `47.236.158.65`）                                 |
+| 主要ランタイム | Python 3.11.2（venv）、Node.js v20.20.2、npm 10.8.2、yarn 1.22.22、git 2.39.5        |
+| クラウド       | **Alibaba Cloud**（DNS 100.100.2.x、ossfs マウント、aliyun ミラー）                  |
+| GPU            | なし                                                                                 |
 
 ---
 
@@ -73,7 +73,7 @@ NUMA node(s): 1
 主な命令セットフラグ: `avx512f avx512dq avx512cd avx512bw avx512vl avx512_vnni avx2 fma aes pclmulqdq rdrand rdseed bmi1 bmi2 f16c adx sha 系は無し`
 
 - Family 6 / Model 85 / Stepping 7 = **Skylake-SP**（AVX-512 + VNNI 対応）。Alibaba Cloud の第6世代相当インスタンス（推定）。
-- 脆弱性緩和状況: Meltdown / L1TF / MDS / TSX-AA = *Not affected*、Spectre v1/v2 = *Mitigated*（Enhanced IBRS, IBPB conditional, RSB filling）、Spec Store Bypass = *Mitigated*（prctl + seccomp）。
+- 脆弱性緩和状況: Meltdown / L1TF / MDS / TSX-AA = _Not affected_、Spectre v1/v2 = _Mitigated_（Enhanced IBRS, IBPB conditional, RSB filling）、Spec Store Bypass = _Mitigated_（prctl + seccomp）。
 
 ### メモリ
 
@@ -243,23 +243,23 @@ VIRTUAL_ENV=/opt/arena-python
 
 ### 疎通実測（Python socket / urllib）
 
-| 宛先 | 結果 |
-|---|---|
-| `pypi.org` | DNS 151.101.128.223 → **HTTPS 200**、TCP connect **8 ms** |
-| `registry.npmjs.org` | DNS 104.16.7.34 → `npm view react version` = **19.3.0**（成功） |
-| `github.com` | DNS 20.205.243.166 → TCP connect **5 ms** |
-| `deb.debian.org` | DNS 199.232.114.132 → **HTTPS 200** |
-| `www.google.com` | DNS 142.251.150.119（解決可） |
+| 宛先                 | 結果                                                                        |
+| -------------------- | --------------------------------------------------------------------------- |
+| `pypi.org`           | DNS 151.101.128.223 → **HTTPS 200**、TCP connect **8 ms**                   |
+| `registry.npmjs.org` | DNS 104.16.7.34 → `npm view react version` = **19.3.0**（成功）             |
+| `github.com`         | DNS 20.205.243.166 → TCP connect **5 ms**                                   |
+| `deb.debian.org`     | DNS 199.232.114.132 → **HTTPS 200**                                         |
+| `www.google.com`     | DNS 142.251.150.119（解決可）                                               |
 | `mirrors.aliyun.com` | DNS 43.109.150.114 → TCP 5 ms、ルートは **403 Forbidden**（apt パスは正常） |
-| `api.ipify.org` | egress IP = **47.236.158.65**、往復 **303 ms** |
+| `api.ipify.org`      | egress IP = **47.236.158.65**、往復 **303 ms**                              |
 
 ### ブロック確認（タイムアウト）
 
-| 宛先 | 結果 |
-|---|---|
+| 宛先                                       | 結果                     |
+| ------------------------------------------ | ------------------------ |
 | `100.100.100.200:80`（Alibaba メタデータ） | **TimeoutError**（遮断） |
-| `169.254.169.254:80`（クラウド IMDS） | **TimeoutError**（遮断） |
-| `10.0.0.1:22`（内部 SSH） | **TimeoutError**（遮断） |
+| `169.254.169.254:80`（クラウド IMDS）      | **TimeoutError**（遮断） |
+| `10.0.0.1:22`（内部 SSH）                  | **TimeoutError**（遮断） |
 
 → 一般インターネットは開いているが、**クラウドメタデータサービスと内部ネットワークは到達不能**（クレデンシャル窃取対策）。
 
@@ -298,23 +298,23 @@ sys.path = ['', '/usr/lib/python311.zip', '/usr/lib/python3.11',
 
 `pip list`（15 パッケージ）:
 
-| パッケージ | バージョン | 用途 |
-|---|---|---|
-| charset-normalizer | 3.5.1 | 文字コード判定 |
-| defusedxml | 0.7.1 | 安全な XML パース |
-| et_xmlfile | 2.0.0 | openpyxl 依存 |
-| fonttools | 4.64.0 | フォント操作 |
-| **fpdf2** | 2.8.8 | PDF 生成 |
-| lxml | 6.1.2 | XML/HTML |
-| **openpyxl** | 3.1.5 | .xlsx 読み書き |
-| **pillow** | 12.3.0 | 画像処理 |
-| pip | 26.2.1 | |
-| **python-docx** | 1.2.0 | .docx 生成 |
-| **python-pptx** | 1.0.2 | .pptx 生成 |
-| **reportlab** | 5.0.1 | PDF 生成 |
-| setuptools | 66.1.1 | |
-| typing_extensions | 4.16.0 | |
-| **xlsxwriter** | 3.2.9 | .xlsx 生成 |
+| パッケージ         | バージョン | 用途              |
+| ------------------ | ---------- | ----------------- |
+| charset-normalizer | 3.5.1      | 文字コード判定    |
+| defusedxml         | 0.7.1      | 安全な XML パース |
+| et_xmlfile         | 2.0.0      | openpyxl 依存     |
+| fonttools          | 4.64.0     | フォント操作      |
+| **fpdf2**          | 2.8.8      | PDF 生成          |
+| lxml               | 6.1.2      | XML/HTML          |
+| **openpyxl**       | 3.1.5      | .xlsx 読み書き    |
+| **pillow**         | 12.3.0     | 画像処理          |
+| pip                | 26.2.1     |                   |
+| **python-docx**    | 1.2.0      | .docx 生成        |
+| **python-pptx**    | 1.0.2      | .pptx 生成        |
+| **reportlab**      | 5.0.1      | PDF 生成          |
+| setuptools         | 66.1.1     |                   |
+| typing_extensions  | 4.16.0     |                   |
+| **xlsxwriter**     | 3.2.9      | .xlsx 生成        |
 
 → **Office ドキュメント生成スタックに特化**。
 
@@ -421,4 +421,4 @@ date:           Mon Sep 14 13:41:35 UTC 2026
 
 ---
 
-*本レポートはすべて実際にコマンドを実行して得た出力に基づいています。*
+_本レポートはすべて実際にコマンドを実行して得た出力に基づいています。_
