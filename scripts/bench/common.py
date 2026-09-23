@@ -33,16 +33,20 @@ from typing import Any, ClassVar
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# ComfyUI's default supported_pt_extensions (folder_paths.py) — the extension's
-# __init__.py adds ".gguf" and ".znn" on top; mirror both.
+# ComfyUI's default supported_pt_extensions — verbatim from
+# comfyanonymous/ComfyUI master folder_paths.py (re-verified 2026-09-23:
+# {'.ckpt', '.pt', '.pt2', '.bin', '.pth', '.safetensors', '.pkl', '.sft'});
+# the extension's __init__.py adds ".gguf" and ".znn" on top. Mirror both
+# exactly: the scan bench measures the real extension filter.
 SUPPORTED_PT_EXTENSIONS = {
-    ".safetensors",
-    ".pt",
-    ".pth",
     ".ckpt",
-    ".pkl",
-    ".pickle",
+    ".pt",
+    ".pt2",
     ".bin",
+    ".pth",
+    ".safetensors",
+    ".pkl",
+    ".sft",
     ".gguf",
     ".znn",
 }
@@ -136,9 +140,24 @@ def install_comfyui_stubs(
 
 
 def import_extension() -> None:
-    """Make `import py.<module>` work from anywhere (repo root on sys.path)."""
+    """Make `import py.<module>` work from anywhere (repo root on sys.path).
+
+    Robustness note: the repository's ``py/`` has no ``__init__.py`` (it is a
+    namespace package when imported as ``py``), and a regular module ALWAYS
+    beats a namespace package regardless of ``sys.path`` order — so a stray
+    top-level ``py.py`` in site-packages (the legacy ``py`` helper library
+    that older pytest ecosystems install) silently shadows the backend and
+    ``from py import manager`` dies with an ImportError. Pin the ``py`` name
+    to the repository directory before anything can claim it.
+    """
     if REPO_ROOT not in sys.path:
         sys.path.insert(0, REPO_ROOT)
+    existing = sys.modules.get("py")
+    expected_path = os.path.join(REPO_ROOT, "py")
+    if existing is None or list(getattr(existing, "__path__", [])) != [expected_path]:
+        pkg = types.ModuleType("py")
+        pkg.__path__ = [expected_path]  # type: ignore[attr-defined]
+        sys.modules["py"] = pkg
 
 
 class PeakRSS:

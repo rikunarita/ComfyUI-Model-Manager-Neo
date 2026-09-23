@@ -49,13 +49,21 @@ sys.path.insert(0, HERE)
 
 import common
 
-# dtype -> (ZipNNDtypeEnum code, num_buf, bit_reorder, byte_reorder) — values
-# read from third_party/zipnn/zipnn.py compress()/util_header.py (no guesses).
+# dtype -> (ZipNNDtypeEnum code, num_buf, bit_reorder, byte_reorder) — the
+# values the PRODUCTION path writes into the ZN header, read from
+# third_party/zipnn/zipnn.py compress()/util_header.py and confirmed by
+# dumping real headers (no guesses): f32 -> (220, bit 1), bf16 -> (10, bit 1),
+# f16 -> (10, bit 0), fp8_e4m3 -> (10, bit 1). For num_buf == 1 (FP8) the C
+# core never consumes bit_reorder — split_bytearray_dtype8() does not receive
+# it and combine is a plain memcpy — so bits 0/1 produce byte-identical
+# payloads (verified empirically on 32 MB: identical compressed bytes and
+# cross-decodable both ways). The committed results/*.json therefore hold
+# exactly for the production parameter set.
 _DTYPE_PARAMS = {
     "bf16": (6, 2, 1, 10),
     "f32": (1, 4, 1, 220),
     "f16": (4, 2, 0, 10),
-    "fp8e4m3": (29, 1, 0, 10),
+    "fp8e4m3": (29, 1, 1, 10),
 }
 
 
@@ -197,7 +205,7 @@ def _child_neo_phase(spec: dict) -> dict:
         "baselineRssMib": baseline_rss,
         "peakRssMib": _peak_rss_mib(),
     }
-    if phase == "decompress" and "originalSha256" in spec:
+    if phase == "decompress" and spec.get("originalSha256"):
         sha = hashlib.sha256()
         with open(dst, "rb") as f:
             for chunk in iter(lambda: f.read(4 * 1024 * 1024), b""):
