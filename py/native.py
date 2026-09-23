@@ -122,6 +122,20 @@ def load() -> bool:
         _reason = f"import {_MODULE_NAME} failed: {exc}"
         return _fail(mode)
 
+    # Origin guard: `import_module` short-circuits on `sys.modules` — an
+    # already-imported same-named module (another extension's bundle, a stray
+    # pip package) would be handed back WITHOUT ever consulting `bin_dir`,
+    # and a cooperative `api_version()` on it would pass the handshake below
+    # while the real native core was never loaded. Accept the module only
+    # when its file really lives inside the probed native-bin directory.
+    # (A foreign module is NOT evicted from sys.modules — it belongs to
+    # whoever imported it; we only refuse to adopt it.)
+    origin = getattr(module, "__file__", None)
+    bin_prefix = os.path.normcase(os.path.realpath(bin_dir)) + os.sep
+    if not origin or not os.path.normcase(os.path.realpath(origin)).startswith(bin_prefix):
+        _reason = f"imported {_MODULE_NAME} does not originate from {bin_dir} (got {origin!r})"
+        return _fail(mode)
+
     api_version = getattr(module, "api_version", None)
     version = api_version() if callable(api_version) else None
     if not isinstance(version, int) or not MIN_API_VERSION <= version <= MAX_API_VERSION:

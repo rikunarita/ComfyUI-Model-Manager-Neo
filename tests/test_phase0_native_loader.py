@@ -163,3 +163,34 @@ def test_api_version_mismatch_is_reported_and_not_leaked(tmp_path):
     assert "outside supported range" in reason
     # The rejected module must not be importable by accident elsewhere.
     assert "mm_core" not in sys.modules
+
+
+def test_foreign_sys_modules_mm_core_is_rejected(tmp_path):
+    """An ALREADY-IMPORTED foreign ``mm_core`` must not pass as ours.
+
+    ``importlib.import_module`` short-circuits on ``sys.modules`` and never
+    consults the appended native-bin directory in that case — without the
+    origin guard, a same-named module from anywhere (another extension, a
+    stray pip package) whose ``api_version()`` happens to match would be
+    adopted as the native core.
+    """
+    import types
+
+    native = _fresh_native()
+    tag = native.platform_tag()
+    if tag is None:
+        pytest.skip("unsupported platform")
+    bin_dir = tmp_path / "native" / "native-bin" / tag
+    bin_dir.mkdir(parents=True)  # exists, but holds no binary
+    foreign = types.ModuleType("mm_core")
+    foreign.api_version = lambda: native.MIN_API_VERSION  # would PASS the handshake
+    foreign.core_version = lambda: "foreign-not-ours"
+    foreign.__file__ = str(tmp_path / "elsewhere" / "mm_core.abi3.so")
+    sys.modules["mm_core"] = foreign
+    _point_extension_at(tmp_path)
+
+    assert native.load() is False
+    assert native.available() is False
+    assert "does not originate" in (native.reason() or "")
+    # The foreign module is not ours to evict — it must stay untouched.
+    assert sys.modules.get("mm_core") is foreign

@@ -165,6 +165,15 @@ jobs:
         run: |
           PYTHONPATH=native/native-bin/linux-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
+      # The verify job (ci.yml) runs the same suite WITHOUT a built artifact,
+      # where the handshake test skips; here it runs against the real
+      # zigbuild binary — the loader's auto path (platform tag -> native-bin
+      # -> import -> api_version handshake) is covered end to end.
+      - name: Loader regression tests against the built artifact
+        run: |
+          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow
+          python -m pytest tests -q
+
       - uses: actions/upload-artifact@v4
         with:
           name: native-bin-linux
