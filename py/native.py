@@ -128,6 +128,11 @@ def load() -> bool:
         _reason = (
             f"{_MODULE_NAME}.api_version()={version!r} outside supported range [{MIN_API_VERSION}, {MAX_API_VERSION}]"
         )
+        # A module that imported fine but FAILED the handshake must not linger
+        # in sys.modules: anything else doing `import mm_core` (or a retry
+        # against a fixed native-bin) would silently pick the rejected module
+        # back up instead of failing/reporting cleanly.
+        sys.modules.pop(_MODULE_NAME, None)
         return _fail(mode)
 
     _module = module
