@@ -1,0 +1,51 @@
+{
+  "env": {
+    "date": "2026-09-23T13:30:33+0000",
+    "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "cpus": 2,
+    "memTotal": "1083460 kB",
+    "machine": "x86_64"
+  },
+  "measurements": [
+    {
+      "kind": "delta-compress",
+      "baseBytes": 33554840,
+      "ftBytes": 33554880,
+      "seconds": 0.3494858789999853,
+      "stats": {
+        "originalBytes": 33554880,
+        "compressedBytes": 23122690
+      },
+      "baselineRssMib": 240.765625,
+      "peakRssMib": 414.46875,
+      "deltaBytes": 23122690,
+      "ratio": 0.6891006613643083,
+      "sidecarExists": true,
+      "sidecarKeys": ["basePad", "ftPad"]
+    },
+    {
+      "kind": "delta-decompress",
+      "baseBytes": 33554840,
+      "ftBytes": 33554880,
+      "seconds": 0.21425037300014083,
+      "stats": {
+        "originalBytes": 33554880,
+        "compressedBytes": 23122690
+      },
+      "baselineRssMib": 240.8984375,
+      "peakRssMib": 424.0546875,
+      "restoredBytes": 33554880,
+      "restoredByteExact": true
+    },
+    {
+      "kind": "delta-segfault-demo",
+      "base": "/tmp/mm-bench/segdemo/segdemo-base.safetensors",
+      "ft": "/tmp/mm-bench/segdemo/segdemo-ft.safetensors",
+      "out": "/tmp/mm-bench/segdemo/should-never-exist.znn",
+      "childReturncode": -11,
+      "signalDeath": 11,
+      "stderr": "OpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k\n/opt/arena-python/lib/python3.11/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.\n  warnings.warn(\n"
+    }
+  ]
+}

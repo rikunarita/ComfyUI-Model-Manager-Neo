@@ -1,0 +1,79 @@
+{
+  "env": {
+    "date": "2026-09-23T13:34:59+0000",
+    "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "cpus": 2,
+    "memTotal": "1083460 kB",
+    "machine": "x86_64"
+  },
+  "runs": [
+    {
+      "kind": "scan",
+      "library": "/tmp/mm-bench/library",
+      "entries": 5016,
+      "warmEntries": 5016,
+      "coldScanSec": 1.3318475169999147,
+      "coldNote": "drop_caches unavailable (Read-only file system); scan runs with a warm dentry cache",
+      "perTypeSec": {
+        "checkpoints": 0.4055347810008243,
+        "loras": 0.388560096999754,
+        "vae": 0.42590922100043827,
+        "controlnet": 0.11159319600028539,
+        "embeddings": 0.00021432100038509816,
+        "upscale_models": 1.4356999599840492e-5
+      },
+      "warmScanSec": 0.5018802139993568,
+      "hygieneSec": 0.23457057500036171,
+      "hygieneOrphans": 1,
+      "hygieneEmpty": 1,
+      "peakRssMib": 64.78125
+    },
+    {
+      "kind": "scan",
+      "library": "/tmp/mm-bench/library",
+      "entries": 5016,
+      "warmEntries": 5016,
+      "coldScanSec": 1.3525999650000813,
+      "coldNote": "drop_caches unavailable (Read-only file system); scan runs with a warm dentry cache",
+      "perTypeSec": {
+        "checkpoints": 0.41639527799998177,
+        "loras": 0.39420490999964386,
+        "vae": 0.4295865860003687,
+        "controlnet": 0.11214251999990665,
+        "embeddings": 0.00023235600019688718,
+        "upscale_models": 1.740300012897933e-5
+      },
+      "warmScanSec": 0.5007002089996604,
+      "hygieneSec": 0.2495000840008288,
+      "hygieneOrphans": 1,
+      "hygieneEmpty": 1,
+      "peakRssMib": 64.75
+    },
+    {
+      "kind": "scan",
+      "library": "/tmp/mm-bench/library",
+      "entries": 5016,
+      "warmEntries": 5016,
+      "coldScanSec": 1.3112183260000165,
+      "coldNote": "drop_caches unavailable (Read-only file system); scan runs with a warm dentry cache",
+      "perTypeSec": {
+        "checkpoints": 0.4025901940003678,
+        "loras": 0.38205424700026924,
+        "vae": 0.4090267009996751,
+        "controlnet": 0.11726140799964924,
+        "embeddings": 0.00024528799986001104,
+        "upscale_models": 1.5110999811440706e-5
+      },
+      "warmScanSec": 0.5014858380000078,
+      "hygieneSec": 0.24879082400002517,
+      "hygieneOrphans": 1,
+      "hygieneEmpty": 1,
+      "peakRssMib": 64.9453125
+    }
+  ],
+  "median": {
+    "coldScanSec": 1.3318475169999147,
+    "warmScanSec": 0.5014858380000078
+  }
+}

@@ -1,0 +1,409 @@
+{
+  "env": {
+    "date": "2026-09-23T13:25:07+0000",
+    "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "cpus": 2,
+    "memTotal": "1083460 kB",
+    "machine": "x86_64"
+  },
+  "measurements": [
+    {
+      "kind": "core-compress",
+      "dtype": "bf16",
+      "origBytes": 33554432,
+      "compBytes": 22223207,
+      "ratio": 0.6623031795024872,
+      "compressSec": 0.039964982999663334,
+      "compressMBps": 800.7009536390786,
+      "threads": 2,
+      "chunk": 262144,
+      "originalSha256": "b001ae53da2c1a3bcefe94ae2727eb3e31b58bc0d3c6bd4bbfbc92135fc1cd7e",
+      "compFile": "/tmp/mm-bench/core-bf16-32mb.znn",
+      "peakRssMib": 91.6328125
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "bf16",
+      "origBytes": 33554432,
+      "decompressSec": 0.03557606400045188,
+      "decompressMBps": 899.4811792443802,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 102.63671875
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "bf16",
+      "origBytes": 100663296,
+      "compBytes": 66669794,
+      "ratio": 0.6623048981030782,
+      "compressSec": 0.21125388400014344,
+      "compressMBps": 454.4295147725417,
+      "threads": 2,
+      "chunk": 262144,
+      "originalSha256": "6e9729469fe5d04376ee924285790ba1c1b2eb0bbe902d2396b7d4ed8a15a234",
+      "compFile": "/tmp/mm-bench/core-bf16-96mb.znn",
+      "peakRssMib": 233.45703125
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "bf16",
+      "origBytes": 100663296,
+      "decompressSec": 0.09144415999980993,
+      "decompressMBps": 1049.8210055207412,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 272.63671875
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "bf16",
+      "origBytes": 201326592,
+      "compBytes": 133337571,
+      "ratio": 0.6622948795557022,
+      "compressSec": 0.48550870299914095,
+      "compressMBps": 395.46150010072984,
+      "threads": 2,
+      "chunk": 262144,
+      "originalSha256": "ebbbeef4a57b859600a08529f4e5c94795a1698974ba2bbb85ab214ad54a726f",
+      "compFile": "/tmp/mm-bench/core-bf16-192mb.znn",
+      "peakRssMib": 466.15234375
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "bf16",
+      "origBytes": 201326592,
+      "decompressSec": 0.19114898999941943,
+      "decompressMBps": 1004.4520768882072,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 528.3828125
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "f32",
+      "origBytes": 33554432,
+      "compBytes": 27892468,
+      "ratio": 0.8312603235244751,
+      "compressSec": 0.05901367200021923,
+      "compressMBps": 542.2472270473378,
+      "threads": 2,
+      "chunk": 262144,
+      "originalSha256": "c362cfe0fc869c9b4ed666ba9fc0607e70a0139f859442f360c3f1d5328c3869",
+      "compFile": "/tmp/mm-bench/core-f32-32mb.znn",
+      "peakRssMib": 102.62109375
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "f32",
+      "origBytes": 33554432,
+      "decompressSec": 0.01858334200005629,
+      "decompressMBps": 1721.9722910929083,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 107.77734375
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "f32",
+      "origBytes": 100663296,
+      "compBytes": 83678584,
+      "ratio": 0.8312720457712809,
+      "compressSec": 0.2844920119996459,
+      "compressMBps": 337.44356941775743,
+      "threads": 2,
+      "chunk": 262144,
+      "originalSha256": "e008bf7caf7be53626fa6cdf35f3069c4b78e410d9f469f2cb41ef72f1fb2012",
+      "compFile": "/tmp/mm-bench/core-f32-96mb.znn",
+      "peakRssMib": 273.8828125
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "f32",
+      "origBytes": 100663296,
+      "decompressSec": 0.08118862599985732,
+      "decompressMBps": 1182.431637655362,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 288.96484375
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "f32",
+      "origBytes": 201326592,
+      "compBytes": 167359157,
+      "ratio": 0.8312819252411524,
+      "compressSec": 0.5307027360004213,
+      "compressMBps": 361.7844547909917,
+      "threads": 2,
+      "chunk": 262144,
+      "originalSha256": "af240c8b8d44d10e2e34411bda67dde65db3ecb367593f8608214892dfe5edc1",
+      "compFile": "/tmp/mm-bench/core-f32-192mb.znn",
+      "peakRssMib": 530.78515625
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "f32",
+      "origBytes": 201326592,
+      "decompressSec": 0.18289714500042464,
+      "decompressMBps": 1049.770350431409,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 560.796875
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "f16",
+      "origBytes": 33554432,
+      "compBytes": 28300362,
+      "ratio": 0.8434165120124817,
+      "compressSec": 0.052216803999726835,
+      "compressMBps": 612.8295404706769,
+      "threads": 2,
+      "chunk": 262144,
+      "originalSha256": "c67fa7353286ab014fbea6a68c8823131b2a4953ec44585b64ec77532280e5ae",
+      "compFile": "/tmp/mm-bench/core-f16-32mb.znn",
+      "peakRssMib": 103.05859375
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "f16",
+      "origBytes": 33554432,
+      "decompressSec": 0.02315980799994577,
+      "decompressMBps": 1381.7040279468176,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 108.15234375
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "f16",
+      "origBytes": 100663296,
+      "compBytes": 84901497,
+      "ratio": 0.8434205949306488,
+      "compressSec": 0.207805584000198,
+      "compressMBps": 461.9702615879106,
+      "threads": 2,
+      "chunk": 262144,
+      "originalSha256": "0d298c9ee7f0011aa5b4d8c95e97f55dca364a20c40af1b80abad5fbd82be731",
+      "compFile": "/tmp/mm-bench/core-f16-96mb.znn",
+      "peakRssMib": 274.68359375
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "f16",
+      "origBytes": 100663296,
+      "decompressSec": 0.07060572499995033,
+      "decompressMBps": 1359.6631151378665,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 289.8984375
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "f16",
+      "origBytes": 201326592,
+      "compBytes": 169800320,
+      "ratio": 0.8434073130289713,
+      "compressSec": 0.46716158500021265,
+      "compressMBps": 410.9926975265156,
+      "threads": 2,
+      "chunk": 262144,
+      "originalSha256": "4364e00f90d3cb445cba575fe858fba4d2f37c8de7d814ff68b11bd2648d42f5",
+      "compFile": "/tmp/mm-bench/core-f16-192mb.znn",
+      "peakRssMib": 534.140625
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "f16",
+      "origBytes": 201326592,
+      "decompressSec": 0.18725274999997055,
+      "decompressMBps": 1025.3520976329064,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 563.21484375
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "fp8e4m3",
+      "origBytes": 33554432,
+      "compBytes": 22471173,
+      "ratio": 0.6696931421756744,
+      "compressSec": 0.07796500099993864,
+      "compressMBps": 410.44057704847825,
+      "threads": 2,
+      "chunk": 131072,
+      "originalSha256": "8dc00019f64071ee0147b7167f39ee6e92b4258ef7f3621a49d41b63ed918411",
+      "compFile": "/tmp/mm-bench/core-fp8e4m3-32mb.znn",
+      "peakRssMib": 92.01171875
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "fp8e4m3",
+      "origBytes": 33554432,
+      "decompressSec": 0.03026325100017857,
+      "decompressMBps": 1057.3880512642604,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 102.7421875
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "fp8e4m3",
+      "origBytes": 100663296,
+      "compBytes": 67414183,
+      "ratio": 0.6696997384230295,
+      "compressSec": 0.27734699299981,
+      "compressMBps": 346.13679766870865,
+      "threads": 2,
+      "chunk": 131072,
+      "originalSha256": "3b5cda6e23062973c2edf895aeebc78b781086e2fcd0542a6b1cce70c30a18f8",
+      "compFile": "/tmp/mm-bench/core-fp8e4m3-96mb.znn",
+      "peakRssMib": 241.59765625
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "fp8e4m3",
+      "origBytes": 100663296,
+      "decompressSec": 0.13849030199980916,
+      "decompressMBps": 693.1893324929878,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 273.578125
+    },
+    {
+      "kind": "core-compress",
+      "dtype": "fp8e4m3",
+      "origBytes": 201326592,
+      "compBytes": 134828498,
+      "ratio": 0.6697003940741221,
+      "compressSec": 0.5149208490001911,
+      "compressMBps": 372.8728412780364,
+      "threads": 2,
+      "chunk": 131072,
+      "originalSha256": "c9e44cb32006463ec25287ce249cc5c951e6d4081516c8081288982069245c36",
+      "compFile": "/tmp/mm-bench/core-fp8e4m3-192mb.znn",
+      "peakRssMib": 472.34375
+    },
+    {
+      "kind": "core-decompress",
+      "dtype": "fp8e4m3",
+      "origBytes": 201326592,
+      "decompressSec": 0.2880736770002841,
+      "decompressMBps": 666.4961616739827,
+      "threads": 2,
+      "roundtripSha256Match": true,
+      "peakRssMib": 529.671875
+    },
+    {
+      "kind": "neo-compress",
+      "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
+      "srcBytes": 67109560,
+      "dstBytes": 44447583,
+      "seconds": 0.3722338799998397,
+      "MBps": 171.93669678147455,
+      "stats": {
+        "originalBytes": 67108864,
+        "compressedBytes": 44446455,
+        "tensors": 7,
+        "compressedTensors": 5
+      },
+      "baselineRssMib": 241.40234375,
+      "peakRssMib": 408.74609375
+    },
+    {
+      "kind": "neo-decompress",
+      "model": "/tmp/mm-bench/e2e-out/model-bf16-64mb.znn.safetensors",
+      "srcBytes": 44447583,
+      "dstBytes": 67109560,
+      "seconds": 0.14680406299976312,
+      "MBps": 288.742133339344,
+      "stats": {
+        "tensors": 7,
+        "decompressedTensors": 5
+      },
+      "baselineRssMib": 241.24609375,
+      "peakRssMib": 351.765625,
+      "restoredByteExact": true,
+      "ratio": 0.6623137299663416
+    },
+    {
+      "kind": "neo-compress",
+      "model": "/tmp/mm-bench/real/minilm.safetensors",
+      "srcBytes": 90868376,
+      "dstBytes": 74437934,
+      "seconds": 0.6123250720002034,
+      "MBps": 141.52423333192752,
+      "stats": {
+        "originalBytes": 90856960,
+        "compressedBytes": 74416630,
+        "tensors": 104,
+        "compressedTensors": 103
+      },
+      "baselineRssMib": 241.41796875,
+      "peakRssMib": 455.75390625
+    },
+    {
+      "kind": "neo-decompress",
+      "model": "/tmp/mm-bench/e2e-out/minilm.znn.safetensors",
+      "srcBytes": 74437934,
+      "dstBytes": 90868376,
+      "seconds": 0.34365236400026333,
+      "MBps": 206.57371593721717,
+      "stats": {
+        "tensors": 104,
+        "decompressedTensors": 103
+      },
+      "baselineRssMib": 241.421875,
+      "peakRssMib": 404.45703125,
+      "restoredByteExact": true,
+      "ratio": 0.8191841570933325
+    },
+    {
+      "kind": "segfault",
+      "length": 262145,
+      "childReturncode": -11,
+      "signalDeath": 11,
+      "stderr": ""
+    },
+    {
+      "kind": "segfault",
+      "length": 262146,
+      "childReturncode": -11,
+      "signalDeath": 11,
+      "stderr": ""
+    },
+    {
+      "kind": "segfault",
+      "length": 262147,
+      "childReturncode": -11,
+      "signalDeath": 11,
+      "stderr": ""
+    },
+    {
+      "kind": "startup",
+      "what": "ensure-full",
+      "seconds": 1.6865044139995007,
+      "peakRssMib": 241.2421875
+    },
+    {
+      "kind": "startup",
+      "what": "core-only",
+      "seconds": 0.0003245010002501658,
+      "peakRssMib": 16.546875
+    },
+    {
+      "kind": "startup",
+      "what": "zipnn-pkg",
+      "seconds": 1.4319373010002892,
+      "peakRssMib": 223.00390625
+    },
+    {
+      "kind": "startup",
+      "what": "mm-core",
+      "seconds": 0.005649284999890369,
+      "peakRssMib": 43.85546875
+    }
+  ]
+}
