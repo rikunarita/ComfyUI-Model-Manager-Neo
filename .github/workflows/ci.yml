@@ -33,7 +33,7 @@ jobs:
       - name: Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt mypy ruff==0.16.8
+          pip install -r requirements.txt mypy ruff==0.16.8 pytest pytest-asyncio aiohttp pyyaml requests
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
@@ -60,7 +60,14 @@ jobs:
         run: python -m mypy --config-file mypy.ini
 
       - name: Python lint (ruff)
-        run: ruff check py __init__.py
+        run: ruff check py __init__.py tests scripts conftest.py
 
       - name: Python format (ruff)
-        run: ruff format --check py __init__.py
+        run: ruff format --check py __init__.py tests scripts conftest.py
+
+      # Phase 0 regression suite: the Quick Win A1 route contract and the
+      # py/native.py loader (MM_NATIVE switch, platform tags, handshake).
+      # Loader tests that need a built mm_core binary skip here; the native
+      # workflow covers those against real artifacts on every OS.
+      - name: Python tests (pytest)
+        run: python -m pytest tests -q
