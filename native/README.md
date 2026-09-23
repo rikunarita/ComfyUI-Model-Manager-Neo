@@ -120,14 +120,19 @@ scripts/build-native.sh --target macos-universal2 --size-gate   # macOS ホス�
 scripts/build-native.sh --target windows-x86_64 --size-gate     # Windows ホスト
 ```
 
-### 検証状況（Phase 0、2026‑09‑23）
+### 検証状況（Phase 0 完了、2026‑09‑23、native.yml @ 81854f5 全ジョブ緑）
 
-| ターゲット            | ビルド経路                          | 検証                             |
-| --------------------- | ----------------------------------- | -------------------------------- |
-| linux-x86_64          | cargo zigbuild（glibc 2.28 下限）   | ローカル + CI（import 疎通済み） |
-| linux-aarch64         | cargo zigbuild（glibc 2.28 下限）   | ローカル（ELF/glibc 確認）+ CI   |
-| windows-x86_64 (MSVC) | maturin（Windows ホスト）           | CI（windows-latest）             |
-| macos-universal2      | maturin universal2 = 両 arch + lipo | CI（macos-latest）               |
+| ターゲット            | ビルド経路                          | 検証結果                                                                   |
+| --------------------- | ----------------------------------- | -------------------------------------------------------------------------- |
+| linux-x86_64          | cargo zigbuild（glibc 2.28 下限）   | ローカル + CI 緑。import 疎通: CPython **3.10 / 3.11 / 3.13**（410,416 B） |
+| linux-aarch64         | cargo zigbuild（glibc 2.28 下限）   | ローカル（readelf で AArch64 + GLIBC≤2.28 確認）+ CI 緑（383,824 B）       |
+| windows-x86_64 (MSVC) | maturin（windows-latest）           | CI 緑。import 疎通: CPython 3.11（163,840 B、`mm_core.pyd`）               |
+| macos-universal2      | maturin universal2 = 両 arch + lipo | CI 緑。lipo: x86_64+arm64、import 疎通: CPython 3.11 arm64（666,032 B）    |
+
+fmt / clippy `-D warnings` / test は 3 OS すべてで緑（native-test ジョブ。
+mm-core のユニットテストは libpython をリンクできる Linux / Windows で実行、
+macOS は setup-python 配布にリンク可能な libpython が無いため対象外 —
+macOS の mm-core は clippy --all-targets とビルド&import 疎通が担保する）。
 
 **Linux ホストからの Apple ターゲット クロスビルドは行いません**（実測で確認した
 構造的障害: rustc が macOS cdylib に渡す `-Wl,-exported_symbols_list` と pyo3 の

@@ -91,15 +91,81 @@
 
 ### Phase 0 作業手順（自分用チェックリスト）
 
-1. [ ] 環境構築: apt（build-essential / clang / mold）+ rustup + zig（cargo-zigbuild）+ pip（maturin / ruff / mypy ほか）
-2. [ ] crate バージョンの一次情報再確認（crates.io API、計画書末尾の指示）
-3. [ ] Quick Win A1（py/manager.py の executor 化）→ ruff / mypy → 単独コミット
-4. [ ] native/ ワークスペース雛形（znn-codec / mm-core / znn-cli / json-bench）+ mold / rustfmt / clippy 設定
-5. [ ] ローカルビルド疎通（x86_64-linux native → aarch64-linux / macOS×2 / windows-gnu は zig クロス）+ サイズ実測
-6. [ ] import 疎通テスト（linux x86_64、Python 3.11.2）
-7. [ ] py/native.py ローダー + MM_NATIVE スイッチ
-8. [ ] JSON パーサ確定ベンチ（jiter vs simd-json、8 MB MoE ヘッダー）
-9. [ ] scripts/bench/ 一式 + KPI ベースライン計測 → docs/BENCH.md
-10. [ ] CI（native.yml 新規 + ci.yml に dev トリガー追加）+ package.json rs:\* スクリプト
-11. [ ] Plan.md 進捗マーク更新（§6.2 と §9 を同一コミットで）+ MEMO 追記
-12. [ ] dev へコミット & プッシュ → CI 緑を確認（GitHub API でウォッチ）
+1. [x] 環境構築: apt（build-essential / clang / mold）+ rustup + zig（cargo-zigbuild）+ pip（maturin / ruff / mypy ほか）
+2. [x] crate バージョンの一次情報再確認（crates.io API、計画書末尾の指示）→ **Plan 確認値と完全一致**
+3. [x] Quick Win A1（py/manager.py の executor 化）→ ruff / mypy → 単独コミット（047568b）
+4. [x] native/ ワークスペース雛形（znn-codec / mm-core / znn-cli / json-bench）+ mold / rustfmt / clippy 設定
+5. [x] ローカルビルド疎通 + サイズ実測（linux x86_64/aarch64 = zigbuild glibc2.28 verified、windows-msvc/macos = CI 検証）
+6. [x] import 疎通テスト（linux x86_64、Python 3.11.2 + CI で 3.10/3.13 の abi3 疎通）
+7. [x] py/native.py ローダー + MM_NATIVE スイッチ（4 モード機能確認済み）
+8. [x] JSON パーサ確定ベンチ（**jiter 10.6ms vs simd-json 187.6ms vs serde_json 143.6ms → jiter 確定**）
+9. [x] scripts/bench/ 一式 + KPI ベースライン計測 → docs/BENCH.md
+10. [x] CI（native.yml 新規 + ci.yml に dev トリガー追加）+ package.json rs:\* スクリプト
+11. [x] Plan.md 進捗マーク更新（§6.2 と §9 を同一コミットで）+ MEMO 追記
+12. [x] dev へコミット & プッシュ → CI 緑を確認（GitHub API でウォッチ）
+
+### Phase 0 完了記録（2026‑09‑23）
+
+- **CI 全緑**（native.yml @ dev 81854f5）: native-test（ubuntu/windows/macos:
+  fmt・clippy `-D warnings`・test）、native-build-linux（zigbuild ×2 + glibc 2.28
+  ゲート + import 疎通）、native-build-macos（universal2 + lipo + import）、
+  native-build-windows（MSVC + import）、abi3-import（**CPython 3.10 と 3.13** で
+  同一 .so 疎通 = abi3 主張の機械的検証）、size-budget（4 本計 1,624,112 B ≤ 20 MB）。
+  既存 ci.yml も dev@81854f5 で緑（Format 修復完了）。
+- 成果物サイズ（CI 実測）: linux-x86_64 410,416 B / linux-aarch64 383,824 B /
+  windows-x86_64 163,840 B / macos-universal2 666,032 B — 全て予算 4 MB の 1/6 以下。
+- コミット構成（dev）: 047568b（A1 単独）→ 71a4ce3（prettier 正規化 + dev トリガー +
+  進捗マーク）→ 99b3727（native ワークスペース + CI + ローダー）→ 16cb759（bench +
+  BENCH.md）→ 5bfca37（tailwind クラス順正規化）→ 81854f5（CI 3 件修復）→
+  最終（Plan [x] + BENCH §5 CI 実測反映）。
+- **Phase 1 着手時の申し送り**: BENCH.md §6 の観察（特に get_model_metadata の
+  1 MiB ガード問題、e2e 律速の内訳、デルタ倍率 5.4x）と、本 MEMO の
+  クロスビルド/ツールチェーン知見を参照のこと。
+
+### Phase 0 実施中に得た知見・教訓（重要）
+
+- **prettier は完全な依存ツリーで実行すること**: prettier-plugin-tailwindcss の
+  クラス順は tailwindcss 本体 + `tailwindStylesheet`（src/style.css のカスタム
+  ユーティリティ）の解決に依存する。prettier 単体インストールでは
+  ResponseScroll/Select.vue のクラス順が CI と食い違った（`scrollbar-none` は
+  カスタムユーティリティで、完全解決時は `size-full` の**後**が正）。
+  → `pnpm install --frozen-lockfile` 後の `pnpm format:check` が唯一の正。
+- **GH Windows ランナーは core.autocrlf=true でチェックアウト**する → rustfmt.toml の
+  `newline_style = "Unix"` は全 .rs で fmt ゲートを破壊する。既定（Auto）+
+  `.gitattributes: *.rs text eol=lf` の組み合わせが正解（旧 native.yml 試行の
+  windows fmt 失敗も同じ原因だったと判明）。
+- **maturin の universal2 ターゲット名は `universal2-apple-darwin`**
+  （`universal2` ではない。maturin 1.15.0 バイナリの文字列テーブルで確認）。
+- **macOS の setup-python（python.org ビルド）はリンク可能な libpython を持たない**
+  （フレームワークのみ）→ `cargo test -p mm-core --no-default-features` は
+  macOS でリンク不能（未定義 __Py_IncRef 等）。Linux/Windows のみで実行し、
+  macOS は clippy --all-targets + ビルド&import 疎通で担保する構成にした。
+- **Apple ターゲットへの Linux からのクロスビルドは pyo3 0.29 では不可**（実測）:
+  rustc/pyo3 が出す `-Wl,-exported_symbols_list`（2 引数形）と
+  `-undefined dynamic_lookup` を zig cc が誤変換（zig 0.15.2/0.16.0 双方で確認。
+  pyo3-build-config ソースで出力形式を確認済み）。Plan §3.3 の正规経路
+  （macOS ホストでビルド + lipo）が正。
+- cargo-zigbuild + zig 0.16 の linux クロスでは
+  `warning: linker stderr: ignoring deprecated linker optimization setting '1'`
+  が出るが**無害**（成果物の glibc 上限 2.28 は readelf で確認済み）。
+  .cargo/config.toml の mold 設定は zigbuild のリンカー選択に影響しない
+  （CARGO_TARGET_*_LINKER 環境変数が優先）ことも実測で確認。
+- PyO3 0.29 では**宣言的 #[pymodule] mod 構文**が正（関数形は deprecated）。
+  `use pyo3::prelude::*;` は mod の**内側**にも必要。
+- jiter 0.17 のオブジェクト反復: 開始は `next_object()`、**後続キーは
+  `next_key()`**（next_object を繰り返すと ExpectedSomeValue エラー。ソースで確認）。
+  simd-json 0.18 は `ValueAsObject/ValueObjectAccess/ValueAsScalar/ValueAsArray`
+  trait の import が必要。borrowed object のキーは `&str`。
+- **ベンチ結果の要点**（詳細は docs/BENCH.md）:
+  - K5 の SEGFAULT は生産デルタ経路（delta_compress_files）でも到達可能であることを
+    手組みペア（総長 %256KiB=1）で実証。safetensors 公式シリアライザはヘッダーを
+    8 バイト整列するため、奇数剰余は「任意ヘッダー長を持てる実ファイル」で生じる。
+  - K11 は Plan 見込み（200–400ms）より深刻（中央値 930ms、json.loads 506ms）。
+  - 副次発見: `get_model_metadata` の 1MiB ガードが大型 MoE の `__metadata__` を
+    黙って空にする（Phase 5 B4 で 32MiB へ統一する設計入力）。
+  - mm_core import 6ms / 44MiB vs ensure_zipnn 初回 1.69s / 241MiB（実体は torch import）。
+- 旧 native.yml 試行（dev@9f1e564、ユーザーがリセット）の成功実績
+  （rust-cache workspaces:native、apt mold、pipx cargo-zigbuild 等）は
+  今回の CI 設計に反映。同試行の windows fmt 失敗原因も上記 autocrlf と判明。
+- ユーザーは作業中に dev@71a4ce3 までを main へマージ済み（PR #3）。
+  main の Format 失敗（4a0969c）は dev の 5bfca37 で修復済み → 次回マージで解消。

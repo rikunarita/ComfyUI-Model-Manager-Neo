@@ -2,16 +2,16 @@
 
 ## ― Rust ネイティブコア化と ZipNN 完全置き換え ―
 
-| 項目           | 内容                                                       |
-| -------------- | ---------------------------------------------------------- |
-| 文書番号       | NEO‑PLAN‑2026‑001                                          |
-| 版数           | 2.0                                                        |
-| 作成日         | 2026‑09‑22                                                 |
-| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                     |
-| 対象ブランチ   | `dev`                                                      |
-| 現行バージョン | v0.2.0（α3）                                               |
-| 目標バージョン | v0.3.0                                                     |
-| 状態           | **計画確定・実装未着手**（実装は個別指示を受けて開始する） |
+| 項目           | 内容                                                               |
+| -------------- | ------------------------------------------------------------------ |
+| 文書番号       | NEO‑PLAN‑2026‑001                                                  |
+| 版数           | 2.0                                                                |
+| 作成日         | 2026‑09‑22                                                         |
+| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                             |
+| 対象ブランチ   | `dev`                                                              |
+| 現行バージョン | v0.2.0（α3）                                                       |
+| 目標バージョン | v0.3.0                                                             |
+| 状態           | **Phase 0 完了（2026‑09‑23）**・Phase 1 以降は個別指示を受けて開始 |
 
 ### 版数履歴
 
@@ -893,22 +893,25 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ### Phase 0 — 基盤準備
 
-- [/] KPI 全項目のベースライン計測・`docs/BENCH.md` 記録
-  （圧縮/解凍/デルタ/スキャン/ヘッダー/ハッシュ。実モデル + 合成）
-- [/] **Quick Win A1**: `get_model_info` の executor 化（Rust 化に先行、単独 PR）
-- [/] `native/` cargo ワークスペース雛形（edition 2024、resolver 2）
-- [/] **mold 導入**: `native/.cargo/config.toml`（§3.4.1）+ CI への
-  mold インストールステップ + ローカル導入手順の文書化
-- [/] **rustfmt/clippy 導入**: `rustfmt.toml` / `clippy.toml` /
-  crate 属性（pedantic=warn、unsafe lint=deny）+ `pnpm rs:fmt` /
-  `pnpm rs:lint` スクリプト + CI ゲート（`-D warnings`）
-- [/] maturin + abi3-py310 ビルド疎通（hello world を 5 ターゲットで）+
-  サイズ予算の実測
-- [/] JSON パーサ確定: jiter 0.17 vs simd-json 0.18 を 8 MB MoE ヘッダーで
-  マイクロベンチ（非破壊借用解析の要件込み）
-- [/] `py/native.py` ローダー雛形 + `MM_NATIVE` スイッチ
-- [ ] 完了条件: 全ターゲットで abi3 ビルド成功、import 疎通、
+- [x] KPI 全項目のベースライン計測・`docs/BENCH.md` 記録
+      （圧縮/解凍/デルタ/スキャン/ヘッダー/ハッシュ。実モデル + 合成）
+- [x] **Quick Win A1**: `get_model_info` の executor 化（Rust 化に先行、単独 PR）
+- [x] `native/` cargo ワークスペース雛形（edition 2024、resolver 2）
+- [x] **mold 導入**: `native/.cargo/config.toml`（§3.4.1）+ CI への
+      mold インストールステップ + ローカル導入手順の文書化
+- [x] **rustfmt/clippy 導入**: `rustfmt.toml` / `clippy.toml` /
+      crate 属性（pedantic=warn、unsafe lint=deny）+ `pnpm rs:fmt` /
+      `pnpm rs:lint` スクリプト + CI ゲート（`-D warnings`）
+- [x] maturin + abi3-py310 ビルド疎通（hello world を 5 ターゲットで）+
+      サイズ予算の実測
+- [x] JSON パーサ確定: jiter 0.17 vs simd-json 0.18 を 8 MB MoE ヘッダーで
+      マイクロベンチ（非破壊借用解析の要件込み）
+- [x] `py/native.py` ローダー雛形 + `MM_NATIVE` スイッチ
+- [x] 完了条件: 全ターゲットで abi3 ビルド成功、import 疎通、
       clippy/fmt gate green、サイズ ≤4 MB/本、ベースライン記録完了
+      （達成証跡: native.yml @ 81854f5 全ジョブ緑 = 5 ターゲットビルド +
+      CPython 3.10/3.11/3.13 import 疎通 + サイズ計 1.55 MiB、
+      docs/BENCH.md = K1–K16 ベースライン + JSON パーサ選定）
 
 ### Phase 1 — znn-codec フォーマット中核
 
@@ -1073,7 +1076,8 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
       C ソース読解）、技術調査（PyO3・maturin・mold・rayon・huff0 実装状況・
       safetensors 0.8・PyTorch 2.14 dtype・依存最新性監査）、
       **C コア欠陥の実機実証（付録 C）**、本計画書 v2.0 の策定
-- [/] **Phase 0** — 基盤準備（ベンチ基盤・mold/rustfmt/clippy・abi3 疎通・Quick Win A1）
+- [x] **Phase 0** — 基盤準備（ベンチ基盤・mold/rustfmt/clippy・abi3 疎通・Quick Win A1）
+      完了 2026‑09‑23（`docs/BENCH.md`・`native/`・`py/native.py`・native.yml 全緑）
 - [ ] **Phase 1** — znn-codec フォーマット中核（ヘッダー/平面/huff0・FSE + L2/L3）
 - [ ] **Phase 2** — safetensors 圧縮/解凍 + 完全性検証パイプライン + バックエンド接続
 - [ ] **Phase 3** — デルタ（SEGFAULT 解消実証込み）+ バッチプリミティブ
