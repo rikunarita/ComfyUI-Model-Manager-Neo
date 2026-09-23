@@ -35,6 +35,13 @@ PYTHON="$(command -v python3 || command -v python)"
 NATIVE_DIR="$REPO_ROOT/native"
 BIN_ROOT="$NATIVE_DIR/native-bin"
 
+# Stamp the artifact with the exact commit it is built from (mm-core's
+# build.rs picks MM_CORE_COMMIT up and re-runs when it changes — a bare
+# `git rev-parse` inside build.rs would go stale on warm incremental builds,
+# because new commits on the same branch do not touch .git/HEAD).
+MM_CORE_COMMIT="${MM_CORE_COMMIT:-$(git -C "$REPO_ROOT" rev-parse --short=9 HEAD 2>/dev/null || echo dev)}"
+export MM_CORE_COMMIT
+
 TARGET=""
 SIZE_GATE=0
 while [[ $# -gt 0 ]]; do

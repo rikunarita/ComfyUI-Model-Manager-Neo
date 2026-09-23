@@ -76,6 +76,41 @@ jobs:
       - name: cargo test (pure-Rust crates)
         run: cargo test --workspace --exclude mm-core
 
+      # Guard the feature toggle itself: `--no-default-features` must really
+      # drop pyo3/extension-module (a workspace-level `features = [...]` on
+      # the pyo3 dependency would silently pin it on and break the test link
+      # the moment mm-core gains tests that touch #[pyfunction] items).
+      # cargo tree -e features does not render crate-level feature edges
+      # reliably, so the resolved feature set is read from cargo metadata.
+      - name: Verify the extension-module toggle toggles
+        if: runner.os == 'Linux'
+        run: |
+          python3 - <<'PY'
+          import json, subprocess, sys
+
+          def pyo3_features(extra):
+              out = subprocess.run(
+                  ["cargo", "metadata", "--format-version", "1", *extra],
+                  capture_output=True, text=True, check=True,
+              ).stdout
+              meta = json.loads(out)
+              names = {p["id"]: p["name"] for p in meta["packages"]}
+              for node in meta["resolve"]["nodes"]:
+                  if names.get(node["id"]) == "pyo3":
+                      return set(node["features"])
+              sys.exit("BUG: pyo3 missing from the resolve graph")
+
+          default = pyo3_features([])
+          tests = pyo3_features(["--no-default-features"])
+          if "extension-module" not in default:
+              sys.exit("BUG: pyo3/extension-module missing from default features")
+          if "extension-module" in tests:
+              sys.exit("BUG: pyo3/extension-module leaks into --no-default-features")
+          if not {"abi3-py310"} <= tests:
+              sys.exit("BUG: abi3-py310 must stay enabled in every mode")
+          print("extension-module toggle verified (on by default, off for tests, abi3 always on)")
+          PY
+
       # mm-core's test harness must link libpython, so it is tested without
       # the extension-module feature (see native/README.md). macOS is
       # excluded: the python.org macOS builds behind setup-python ship no

@@ -9,8 +9,15 @@ use std::{process::Command, str};
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    // Re-run when HEAD moves (branch switch / commit). Path is relative to
-    // this crate: native/crates/mm-core -> repository root.
+    // Authoritative freshness channel: every artifact-producing invocation
+    // (scripts/build-native.sh, the CI workflows) exports MM_CORE_COMMIT, and
+    // this directive makes cargo re-run the script whenever that value moves.
+    println!("cargo:rerun-if-env-changed=MM_CORE_COMMIT");
+    // Best-effort fallback for bare local builds: re-run when HEAD moves
+    // (branch switch / checkout). NOTE: a NEW COMMIT ON THE SAME BRANCH does
+    // not change the .git/HEAD file, so this watch alone goes stale on
+    // incremental builds — that is fine for local development and the reason
+    // the env var above exists (all shipped artifacts set it).
     println!("cargo:rerun-if-changed=../../../.git/HEAD");
     println!("cargo:rustc-env=MM_CORE_COMMIT_HASH={}", commit_hash());
 }

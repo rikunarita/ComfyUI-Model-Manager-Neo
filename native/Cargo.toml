@@ -25,7 +25,13 @@ license = "GPL-3.0-only"
 repository = "https://github.com/rikunarita/ComfyUI-Model-Manager-Neo"
 
 [workspace.dependencies]
-pyo3 = { version = "0.29.2", features = ["extension-module", "abi3-py310"] }
+# NOTE: `extension-module` must NOT be enabled here — mm-core exposes it as
+# its own DEFAULT feature so `cargo test -p mm-core --no-default-features`
+# genuinely links the test harness against libpython (the CI/README-documented
+# behaviour). A workspace-level `features = ["extension-module", ...]` would
+# be inherited unconditionally by `pyo3 = { workspace = true }` and the crate
+# toggle could never turn it off (verified with `cargo tree -e features`).
+pyo3 = { version = "0.29.2", features = ["abi3-py310"] }
 
 # Shared lint policy (Plan §3.4.2): pedantic = warn (CI runs clippy with
 # `-D warnings`, so it is effectively deny there), unsafe lints = deny, and
