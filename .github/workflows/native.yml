@@ -77,8 +77,13 @@ jobs:
         run: cargo test --workspace --exclude mm-core
 
       # mm-core's test harness must link libpython, so it is tested without
-      # the extension-module feature (see native/README.md).
+      # the extension-module feature (see native/README.md). macOS is
+      # excluded: the python.org macOS builds behind setup-python ship no
+      # linkable libpython (framework only), so a pyo3 test harness cannot
+      # link there — mm-core is covered on macOS by clippy --all-targets
+      # plus the abi3 build & import smoke job instead.
       - name: cargo test (mm-core, no extension-module)
+        if: runner.os != 'macOS'
         run: cargo test -p mm-core --no-default-features
 
       - name: cargo test (release)

@@ -5,3 +5,8 @@
 *.pyd binary
 *.dll binary
 *.dylib binary
+
+# Rust sources are LF-normalized in the repository and checked out as LF on
+# every platform (GitHub Windows runners default to core.autocrlf=true, which
+# otherwise flips them to CRLF and breaks the `cargo fmt --check` gate).
+*.rs text eol=lf

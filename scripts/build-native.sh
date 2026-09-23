@@ -101,10 +101,10 @@ build_macos_universal2() {
     exit 1
   }
   rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null 2>&1 || true
-  log "maturin build --release --target universal2"
-  (cd "$NATIVE_DIR" && maturin build --release --target universal2 --out target/wheels)
+  log "maturin build --release --target universal2-apple-darwin"
+  (cd "$NATIVE_DIR" && maturin build --release --target universal2-apple-darwin --out target/wheels)
   local wheel
-  wheel="$(ls -t "$NATIVE_DIR"/target/wheels/mm_core-*-cp310-abi3-macosx_universal2.whl | head -1)"
+  wheel="$(ls -t "$NATIVE_DIR"/target/wheels/mm_core-*-cp310-abi3-*universal2.whl | head -1)"
   local out_dir="$BIN_ROOT/macos-universal2"
   mkdir -p "$out_dir"
   extract_from_wheel "$wheel" ".abi3.so" "$out_dir/mm_core.abi3.so"
