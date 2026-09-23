@@ -7,7 +7,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `dev` is the working branch of the Rust-native refresh (Agent/Plan.md):
+    # every push there gets the same verification a PR to main would.
+    branches: [main, dev]
   pull_request:
 
 jobs:
