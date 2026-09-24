@@ -1,308 +1,308 @@
 {
- "env": {
-  "date": "2026-09-24T16:10:13+0000",
-  "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
-  "python": "3.11.2",
-  "cpus": 2,
-  "memTotal": "1083460 kB",
-  "machine": "x86_64"
- },
- "rounds": 3,
- "measurements": [
-  {
-   "kind": "legacy-compress",
-   "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
-   "base": "model-bf16-64mb.safetensors",
-   "srcBytes": 67109560,
-   "dstBytes": 44447583,
-   "seconds": 0.4537988520005456,
-   "MBps": 141.03311076081627,
-   "stats": {
-    "originalBytes": 67108864,
-    "compressedBytes": 44446455,
-    "tensors": 7,
-    "compressedTensors": 5
-   },
-   "baselineRssMib": 240.78515625,
-   "peakRssMib": 425.984375,
-   "stealTicks": 6
+  "env": {
+    "date": "2026-09-24T16:10:13+0000",
+    "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "cpus": 2,
+    "memTotal": "1083460 kB",
+    "machine": "x86_64"
   },
-  {
-   "kind": "native-compress",
-   "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 67109560,
-   "dstBytes": 44447887,
-   "seconds": 0.6220077670004684,
-   "MBps": 102.89367296160471,
-   "result": {
-    "stats": {
-     "originalBytes": 67108864,
-     "compressedBytes": 44446455,
-     "tensors": 7,
-     "compressedTensors": 5
+  "rounds": 3,
+  "measurements": [
+    {
+      "kind": "legacy-compress",
+      "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
+      "base": "model-bf16-64mb.safetensors",
+      "srcBytes": 67109560,
+      "dstBytes": 44447583,
+      "seconds": 0.4537988520005456,
+      "MBps": 141.03311076081627,
+      "stats": {
+        "originalBytes": 67108864,
+        "compressedBytes": 44446455,
+        "tensors": 7,
+        "compressedTensors": 5
+      },
+      "baselineRssMib": 240.78515625,
+      "peakRssMib": 425.984375,
+      "stealTicks": 6
     },
-    "srcSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
-    "exact": true,
-    "warnings": []
-   },
-   "baselineRssMib": 43.6328125,
-   "peakRssMib": 119.38671875,
-   "stealTicks": 40,
-   "originalSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
-   "exact": true,
-   "round": 1
-  },
-  {
-   "kind": "native-decompress",
-   "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.r1.znn.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 44447887,
-   "dstBytes": 67109560,
-   "seconds": 0.5994826419992023,
-   "MBps": 70.70898351462802,
-   "result": {
-    "stats": {
-     "tensors": 7,
-     "decompressedTensors": 5
+    {
+      "kind": "native-compress",
+      "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 67109560,
+      "dstBytes": 44447887,
+      "seconds": 0.6220077670004684,
+      "MBps": 102.89367296160471,
+      "result": {
+        "stats": {
+          "originalBytes": 67108864,
+          "compressedBytes": 44446455,
+          "tensors": 7,
+          "compressedTensors": 5
+        },
+        "srcSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
+        "exact": true,
+        "warnings": []
+      },
+      "baselineRssMib": 43.6328125,
+      "peakRssMib": 119.38671875,
+      "stealTicks": 40,
+      "originalSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
+      "exact": true,
+      "round": 1
     },
-    "verified": "sha256",
-    "warnings": []
-   },
-   "baselineRssMib": 43.86328125,
-   "peakRssMib": 96.65234375,
-   "stealTicks": 12,
-   "restoredByteExact": true,
-   "round": 1
-  },
-  {
-   "kind": "legacy-compress",
-   "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 67109560,
-   "dstBytes": 44447583,
-   "seconds": 0.33030184999915946,
-   "MBps": 193.76416982674206,
-   "stats": {
-    "originalBytes": 67108864,
-    "compressedBytes": 44446455,
-    "tensors": 7,
-    "compressedTensors": 5
-   },
-   "baselineRssMib": 240.7890625,
-   "peakRssMib": 411.9375,
-   "stealTicks": 14,
-   "round": 1
-  },
-  {
-   "kind": "legacy-decompress",
-   "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.l1.znn.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 44447583,
-   "dstBytes": 67109560,
-   "seconds": 0.15737147700019705,
-   "MBps": 269.35324711594325,
-   "stats": {
-    "tensors": 7,
-    "decompressedTensors": 5
-   },
-   "baselineRssMib": 240.7578125,
-   "peakRssMib": 351.24609375,
-   "stealTicks": 10,
-   "restoredByteExact": true,
-   "round": 1
-  },
-  {
-   "kind": "native-compress",
-   "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 67109560,
-   "dstBytes": 44447887,
-   "seconds": 0.6055891050000355,
-   "MBps": 105.68331436101458,
-   "result": {
-    "stats": {
-     "originalBytes": 67108864,
-     "compressedBytes": 44446455,
-     "tensors": 7,
-     "compressedTensors": 5
+    {
+      "kind": "native-decompress",
+      "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.r1.znn.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 44447887,
+      "dstBytes": 67109560,
+      "seconds": 0.5994826419992023,
+      "MBps": 70.70898351462802,
+      "result": {
+        "stats": {
+          "tensors": 7,
+          "decompressedTensors": 5
+        },
+        "verified": "sha256",
+        "warnings": []
+      },
+      "baselineRssMib": 43.86328125,
+      "peakRssMib": 96.65234375,
+      "stealTicks": 12,
+      "restoredByteExact": true,
+      "round": 1
     },
-    "srcSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
-    "exact": true,
-    "warnings": []
-   },
-   "baselineRssMib": 43.859375,
-   "peakRssMib": 122.25,
-   "stealTicks": 38,
-   "originalSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
-   "exact": true,
-   "round": 2
-  },
-  {
-   "kind": "native-decompress",
-   "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.r2.znn.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 44447887,
-   "dstBytes": 67109560,
-   "seconds": 0.5958056160015985,
-   "MBps": 71.14536538761581,
-   "result": {
-    "stats": {
-     "tensors": 7,
-     "decompressedTensors": 5
+    {
+      "kind": "legacy-compress",
+      "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 67109560,
+      "dstBytes": 44447583,
+      "seconds": 0.33030184999915946,
+      "MBps": 193.76416982674206,
+      "stats": {
+        "originalBytes": 67108864,
+        "compressedBytes": 44446455,
+        "tensors": 7,
+        "compressedTensors": 5
+      },
+      "baselineRssMib": 240.7890625,
+      "peakRssMib": 411.9375,
+      "stealTicks": 14,
+      "round": 1
     },
-    "verified": "sha256",
-    "warnings": []
-   },
-   "baselineRssMib": 43.76171875,
-   "peakRssMib": 96.41015625,
-   "stealTicks": 14,
-   "restoredByteExact": true,
-   "round": 2
-  },
-  {
-   "kind": "legacy-compress",
-   "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 67109560,
-   "dstBytes": 44447583,
-   "seconds": 0.28993780000018887,
-   "MBps": 220.7392887622191,
-   "stats": {
-    "originalBytes": 67108864,
-    "compressedBytes": 44446455,
-    "tensors": 7,
-    "compressedTensors": 5
-   },
-   "baselineRssMib": 240.484375,
-   "peakRssMib": 416.40625,
-   "stealTicks": 15,
-   "round": 2
-  },
-  {
-   "kind": "legacy-decompress",
-   "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.l2.znn.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 44447583,
-   "dstBytes": 67109560,
-   "seconds": 0.14244824800152855,
-   "MBps": 297.5713561108888,
-   "stats": {
-    "tensors": 7,
-    "decompressedTensors": 5
-   },
-   "baselineRssMib": 240.3515625,
-   "peakRssMib": 350.85546875,
-   "stealTicks": 6,
-   "restoredByteExact": true,
-   "round": 2
-  },
-  {
-   "kind": "native-compress",
-   "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 67109560,
-   "dstBytes": 44447887,
-   "seconds": 0.604859466000562,
-   "MBps": 105.81079962343642,
-   "result": {
-    "stats": {
-     "originalBytes": 67108864,
-     "compressedBytes": 44446455,
-     "tensors": 7,
-     "compressedTensors": 5
+    {
+      "kind": "legacy-decompress",
+      "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.l1.znn.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 44447583,
+      "dstBytes": 67109560,
+      "seconds": 0.15737147700019705,
+      "MBps": 269.35324711594325,
+      "stats": {
+        "tensors": 7,
+        "decompressedTensors": 5
+      },
+      "baselineRssMib": 240.7578125,
+      "peakRssMib": 351.24609375,
+      "stealTicks": 10,
+      "restoredByteExact": true,
+      "round": 1
     },
-    "srcSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
-    "exact": true,
-    "warnings": []
-   },
-   "baselineRssMib": 43.79296875,
-   "peakRssMib": 118.68359375,
-   "stealTicks": 43,
-   "originalSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
-   "exact": true,
-   "round": 3
-  },
-  {
-   "kind": "native-decompress",
-   "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.r3.znn.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 44447887,
-   "dstBytes": 67109560,
-   "seconds": 0.5838398399992002,
-   "MBps": 72.6034870290546,
-   "result": {
-    "stats": {
-     "tensors": 7,
-     "decompressedTensors": 5
+    {
+      "kind": "native-compress",
+      "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 67109560,
+      "dstBytes": 44447887,
+      "seconds": 0.6055891050000355,
+      "MBps": 105.68331436101458,
+      "result": {
+        "stats": {
+          "originalBytes": 67108864,
+          "compressedBytes": 44446455,
+          "tensors": 7,
+          "compressedTensors": 5
+        },
+        "srcSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
+        "exact": true,
+        "warnings": []
+      },
+      "baselineRssMib": 43.859375,
+      "peakRssMib": 122.25,
+      "stealTicks": 38,
+      "originalSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
+      "exact": true,
+      "round": 2
     },
-    "verified": "sha256",
-    "warnings": []
-   },
-   "baselineRssMib": 43.6953125,
-   "peakRssMib": 96.40234375,
-   "stealTicks": 9,
-   "restoredByteExact": true,
-   "round": 3
+    {
+      "kind": "native-decompress",
+      "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.r2.znn.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 44447887,
+      "dstBytes": 67109560,
+      "seconds": 0.5958056160015985,
+      "MBps": 71.14536538761581,
+      "result": {
+        "stats": {
+          "tensors": 7,
+          "decompressedTensors": 5
+        },
+        "verified": "sha256",
+        "warnings": []
+      },
+      "baselineRssMib": 43.76171875,
+      "peakRssMib": 96.41015625,
+      "stealTicks": 14,
+      "restoredByteExact": true,
+      "round": 2
+    },
+    {
+      "kind": "legacy-compress",
+      "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 67109560,
+      "dstBytes": 44447583,
+      "seconds": 0.28993780000018887,
+      "MBps": 220.7392887622191,
+      "stats": {
+        "originalBytes": 67108864,
+        "compressedBytes": 44446455,
+        "tensors": 7,
+        "compressedTensors": 5
+      },
+      "baselineRssMib": 240.484375,
+      "peakRssMib": 416.40625,
+      "stealTicks": 15,
+      "round": 2
+    },
+    {
+      "kind": "legacy-decompress",
+      "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.l2.znn.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 44447583,
+      "dstBytes": 67109560,
+      "seconds": 0.14244824800152855,
+      "MBps": 297.5713561108888,
+      "stats": {
+        "tensors": 7,
+        "decompressedTensors": 5
+      },
+      "baselineRssMib": 240.3515625,
+      "peakRssMib": 350.85546875,
+      "stealTicks": 6,
+      "restoredByteExact": true,
+      "round": 2
+    },
+    {
+      "kind": "native-compress",
+      "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 67109560,
+      "dstBytes": 44447887,
+      "seconds": 0.604859466000562,
+      "MBps": 105.81079962343642,
+      "result": {
+        "stats": {
+          "originalBytes": 67108864,
+          "compressedBytes": 44446455,
+          "tensors": 7,
+          "compressedTensors": 5
+        },
+        "srcSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
+        "exact": true,
+        "warnings": []
+      },
+      "baselineRssMib": 43.79296875,
+      "peakRssMib": 118.68359375,
+      "stealTicks": 43,
+      "originalSha256": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733",
+      "exact": true,
+      "round": 3
+    },
+    {
+      "kind": "native-decompress",
+      "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.r3.znn.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 44447887,
+      "dstBytes": 67109560,
+      "seconds": 0.5838398399992002,
+      "MBps": 72.6034870290546,
+      "result": {
+        "stats": {
+          "tensors": 7,
+          "decompressedTensors": 5
+        },
+        "verified": "sha256",
+        "warnings": []
+      },
+      "baselineRssMib": 43.6953125,
+      "peakRssMib": 96.40234375,
+      "stealTicks": 9,
+      "restoredByteExact": true,
+      "round": 3
+    },
+    {
+      "kind": "legacy-compress",
+      "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 67109560,
+      "dstBytes": 44447583,
+      "seconds": 0.32702961699942534,
+      "MBps": 195.70295909142897,
+      "stats": {
+        "originalBytes": 67108864,
+        "compressedBytes": 44446455,
+        "tensors": 7,
+        "compressedTensors": 5
+      },
+      "baselineRssMib": 240.0703125,
+      "peakRssMib": 425.98828125,
+      "stealTicks": 15,
+      "round": 3
+    },
+    {
+      "kind": "legacy-decompress",
+      "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.l3.znn.safetensors",
+      "base": "model-bf16-64mb",
+      "srcBytes": 44447583,
+      "dstBytes": 67109560,
+      "seconds": 0.15209719999984372,
+      "MBps": 278.69361390925417,
+      "stats": {
+        "tensors": 7,
+        "decompressedTensors": 5
+      },
+      "baselineRssMib": 240.734375,
+      "peakRssMib": 351.1875,
+      "stealTicks": 8,
+      "restoredByteExact": true,
+      "round": 3
+    }
+  ],
+  "originalSha": {
+    "model-bf16-64mb": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733"
   },
-  {
-   "kind": "legacy-compress",
-   "model": "/tmp/mm-bench/model-bf16-64mb.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 67109560,
-   "dstBytes": 44447583,
-   "seconds": 0.32702961699942534,
-   "MBps": 195.70295909142897,
-   "stats": {
-    "originalBytes": 67108864,
-    "compressedBytes": 44446455,
-    "tensors": 7,
-    "compressedTensors": 5
-   },
-   "baselineRssMib": 240.0703125,
-   "peakRssMib": 425.98828125,
-   "stealTicks": 15,
-   "round": 3
-  },
-  {
-   "kind": "legacy-decompress",
-   "model": "/tmp/mm-bench/native-e2e-out/model-bf16-64mb.l3.znn.safetensors",
-   "base": "model-bf16-64mb",
-   "srcBytes": 44447583,
-   "dstBytes": 67109560,
-   "seconds": 0.15209719999984372,
-   "MBps": 278.69361390925417,
-   "stats": {
-    "tensors": 7,
-    "decompressedTensors": 5
-   },
-   "baselineRssMib": 240.734375,
-   "peakRssMib": 351.1875,
-   "stealTicks": 8,
-   "restoredByteExact": true,
-   "round": 3
-  }
- ],
- "originalSha": {
-  "model-bf16-64mb": "f9952b7b3fefcd23c891d6c4e2eb4d2a2795412b0225fd29a8eeaca6e91f3733"
- },
- "verdicts": [
-  {
-   "model": "model-bf16-64mb",
-   "native-compress-MBps-best": 105.81079962343642,
-   "native-compress-peakRssMib-min": 118.68359375,
-   "native-compress-baselineRssMib": 43.6328125,
-   "native-decompress-MBps-best": 72.6034870290546,
-   "native-decompress-peakRssMib-min": 96.40234375,
-   "native-decompress-baselineRssMib": 43.86328125,
-   "legacy-compress-MBps-best": 220.7392887622191,
-   "legacy-compress-peakRssMib-min": 411.9375,
-   "legacy-compress-baselineRssMib": 240.7890625,
-   "legacy-decompress-MBps-best": 297.5713561108888,
-   "legacy-decompress-peakRssMib-min": 350.85546875,
-   "legacy-decompress-baselineRssMib": 240.7578125,
-   "K2-ratio": 0.47934737951165585,
-   "K3-ratio": 0.24398681371065567
-  }
- ]
+  "verdicts": [
+    {
+      "model": "model-bf16-64mb",
+      "native-compress-MBps-best": 105.81079962343642,
+      "native-compress-peakRssMib-min": 118.68359375,
+      "native-compress-baselineRssMib": 43.6328125,
+      "native-decompress-MBps-best": 72.6034870290546,
+      "native-decompress-peakRssMib-min": 96.40234375,
+      "native-decompress-baselineRssMib": 43.86328125,
+      "legacy-compress-MBps-best": 220.7392887622191,
+      "legacy-compress-peakRssMib-min": 411.9375,
+      "legacy-compress-baselineRssMib": 240.7890625,
+      "legacy-decompress-MBps-best": 297.5713561108888,
+      "legacy-decompress-peakRssMib-min": 350.85546875,
+      "legacy-decompress-baselineRssMib": 240.7578125,
+      "K2-ratio": 0.47934737951165585,
+      "K3-ratio": 0.24398681371065567
+    }
+  ]
 }

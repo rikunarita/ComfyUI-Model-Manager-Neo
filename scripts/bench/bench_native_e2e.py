@@ -370,8 +370,11 @@ def main() -> None:
 
     if args.json_out:
         os.makedirs(os.path.dirname(args.json_out), exist_ok=True)
+        # indent=2 + trailing newline = prettier-stable (the repo's Format
+        # gate checks committed result JSONs)
         with open(args.json_out, "w", encoding="utf-8") as f:
-            json.dump(results, f, indent=1)
+            json.dump(results, f, indent=2)
+            f.write("\n")
         print(f"report → {args.json_out}")
 
 

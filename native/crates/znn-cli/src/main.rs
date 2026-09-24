@@ -509,7 +509,7 @@ fn bench(
     }
     let text = serde_json::to_string_pretty(&results).map_err(|e| e.to_string())?;
     match json_out {
-        Some(p) => std::fs::write(p, text).map_err(|e| format!("write: {e}"))?,
+        Some(p) => std::fs::write(p, text + "\n").map_err(|e| format!("write: {e}"))?,
         None => println!("{text}"),
     }
     Ok(())
@@ -559,7 +559,7 @@ fn run_st_compress(
     });
     let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
     match json_out {
-        Some(p) => std::fs::write(p, text).map_err(|e| format!("write: {e}"))?,
+        Some(p) => std::fs::write(p, text + "\n").map_err(|e| format!("write: {e}"))?,
         None => println!("{text}"),
     }
     Ok(())
@@ -599,7 +599,7 @@ fn run_st_decompress(
     });
     let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
     match json_out {
-        Some(p) => std::fs::write(p, text).map_err(|e| format!("write: {e}"))?,
+        Some(p) => std::fs::write(p, text + "\n").map_err(|e| format!("write: {e}"))?,
         None => println!("{text}"),
     }
     Ok(())
