@@ -10,6 +10,10 @@ repository.workspace = true
 [dependencies]
 thiserror = { workspace = true }
 rayon = { workspace = true }
+# Phase 2: safetensors container I/O + the integrity pipeline (Plan §3.7).
+jiter = { workspace = true }
+memmap2 = { workspace = true }
+sha2 = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

@@ -16,8 +16,13 @@
 //! | [`huf`]            | huff0 per RFC 8878 §4.2 (weights, 4X decode, encode)         |
 //! | [`codec`]          | the `zipnn_core` equivalent layer (chunking, threshold,      |
 //! |                    | chunkTypes/cumSizes layout — byte-identical structure to C)  |
+//! | [`safetensors_io`] | mmap container parse, canonical order-preserving writer,     |
+//! |                    | atomic `.tmp` → fsync → rename (Phase 2)                     |
+//! | [`znn_tensor`]     | per-tensor ZN blobs + the compatibility-band dtype table     |
+//! | [`pipeline`]       | the compress/decompress jobs: integrity pipeline, progress,  |
+//! |                    | cancellation, paranoid mode (Phase 2)                        |
 //!
-//! Later phases add `safetensors_io`, `delta`, `scan` and `hash` (Phase 2–5).
+//! Later phases add `delta`, `scan` and `hash` (Phase 3–5).
 //!
 //! Correctness strategy (Plan §5.1): L1 unit/proptest suites here, L2
 //! differential tests against the bundled prebuilt C core (golden generator,
@@ -35,10 +40,16 @@
 //!   bitstream order) so L2 can golden-diff compressed bytes, not just ratios.
 //!
 //! Lint policy (Plan §3.4.2): workspace lints (pedantic = warn, unsafe =
-//! deny); this crate contains NO `unsafe` at all.
+//! deny); the format core (Phase 1) contains NO `unsafe` at all. Phase 2
+//! adds exactly ONE reviewed unsafe boundary: the read-only `memmap2`
+//! mapping in [`safetensors_io::StContainer::open`] (documented SAFETY
+//! block; the zero-copy mmap design is Plan §3.7/§4.3 itself, and the
+//! Python safetensors reader this replaces mmaps identically).
 
-// Phase 1 keeps the whole crate unsafe-free; the deny makes any future
+// Phase 1 kept the whole crate unsafe-free; the deny makes any further
 // introduction a conscious, reviewed change (with `// SAFETY:` comments).
+// The single reviewed exception (the mmap boundary) carries a function-level
+// `#[allow(unsafe_code)]` next to its SAFETY block.
 #![deny(unsafe_code)]
 
 pub mod bitstream;
@@ -47,8 +58,11 @@ pub mod dtype;
 pub mod fse;
 pub mod header;
 pub mod huf;
+pub mod pipeline;
 pub mod planes;
 pub mod reorder;
+pub mod safetensors_io;
+pub mod znn_tensor;
 
 /// Magic bytes of the ZipNN container: the ZN header starts with `b"ZN"`
 /// (Plan Appendix B.1, offsets 0–1; `zipnn.py` `_update_header`).
@@ -100,6 +114,8 @@ pub enum CodecError {
     Fse(String),
     #[error("input/output size error: {0}")]
     Size(String),
+    #[error("operation cancelled")]
+    Cancelled,
 }
 
 /// Convenience alias used across the crate and by consumers.

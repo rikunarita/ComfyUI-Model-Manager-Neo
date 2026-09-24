@@ -44,6 +44,17 @@ clap = { version = "4.5.70", features = ["derive"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 
+# Phase 2 (safetensors I/O + compression pipeline) — Plan §3.7 catalog:
+# jiter   borrowed non-destructive JSON parse of mmap'd headers (Phase 0
+#         decision: 17.7x faster than simd-json on the 8 MB MoE fixture,
+#         the only candidate satisfying the read-only-mmap requirement)
+# memmap2 zero-copy source reads (Plan §4.3)
+# sha2    end-to-end integrity verification (Plan §4.4.3; runtime-detected
+#         SHA-NI/AVX2 backends)
+jiter = "0.17.0"
+memmap2 = "0.9.11"
+sha2 = "0.11.0"
+
 # Test / bench support
 proptest = "1.11.0"
 
