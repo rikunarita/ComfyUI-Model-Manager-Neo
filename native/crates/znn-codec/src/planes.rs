@@ -406,6 +406,92 @@ pub fn join(planes: &[&[u8]], dst: &mut [u8], kind: ReorderKind) -> CodecResult<
     Ok(())
 }
 
+/// Extract a SINGLE plane `b` of the `n`-plane layout of `src` into `dst`
+/// (identical bytes to `split(src, planes, kind)`'s `planes[b]`, including
+/// the fused word reorder). Used by the codec's "virtual raw plane" path:
+/// planes the C heuristics deem incompressible never need a materialised
+/// scratch copy — the assembly phase extracts them straight from the source
+/// into the output (byte-identical results, one full copy less).
+///
+/// # Errors
+/// Plane index/count outside the {1,2,4} layout, `dst` length mismatch,
+/// F64 kind (Phase 4).
+pub fn extract_plane(
+    src: &[u8],
+    n: usize,
+    b: usize,
+    kind: ReorderKind,
+    dst: &mut [u8],
+) -> CodecResult<()> {
+    if !matches!(n, 1 | 2 | 4) || b >= n {
+        return Err(CodecError::Unsupported(format!(
+            "extract_plane: n={n} b={b} outside the {{1,2,4}} layout"
+        )));
+    }
+    if kind == ReorderKind::F64 {
+        return Err(CodecError::Unsupported(
+            "F64 reorder belongs to the 8-plane path (Phase 4)".to_owned(),
+        ));
+    }
+    let total = src.len();
+    let expect = plane_sizes(total, n);
+    if dst.len() != expect[b] {
+        return Err(CodecError::Size(format!(
+            "extract_plane: dst {} bytes, layout requires {}",
+            dst.len(),
+            expect[b]
+        )));
+    }
+    match n {
+        1 => dst.copy_from_slice(src), // kind ignored (C dtype8 path)
+        2 => {
+            // even bytes → plane 0, odd → plane 1 (bf16 reorder fused per word)
+            let words = total / 4;
+            let mut wi = 0usize; // dst word-pair cursor (2 bytes per word per plane)
+            if kind == ReorderKind::None {
+                for w in src[..words * 4].chunks_exact(4) {
+                    dst[wi] = w[b];
+                    dst[wi + 1] = w[b + 2];
+                    wi += 2;
+                }
+            } else {
+                for w in src[..words * 4].chunks_exact(4) {
+                    let u = u32::from_le_bytes(w.try_into().expect("4 bytes"));
+                    let t = transform_word(kind, u).to_le_bytes();
+                    dst[wi] = t[b];
+                    dst[wi + 1] = t[b + 2];
+                    wi += 2;
+                }
+            }
+            // tail bytes (total % 4): raw interleave, plane k gets byte k
+            for k in 0..total % 4 {
+                if k % 2 == b {
+                    let j = words * 4 + k;
+                    dst[j / 2] = src[j];
+                }
+            }
+        }
+        _ => {
+            // byte k of every (reordered) word → plane k; tail byte k → plane k
+            let words = total / 4;
+            if kind == ReorderKind::None {
+                for (i, w) in src[..words * 4].chunks_exact(4).enumerate() {
+                    dst[i] = w[b];
+                }
+            } else {
+                for (i, w) in src[..words * 4].chunks_exact(4).enumerate() {
+                    let u = u32::from_le_bytes(w.try_into().expect("4 bytes"));
+                    dst[i] = transform_word(kind, u).to_le_bytes()[b];
+                }
+            }
+            if b < total % 4 {
+                dst[words] = src[words * 4 + b];
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -522,6 +608,35 @@ mod tests {
                 split(&src, &mut planes, kind).expect("split");
             }
             assert_eq!(storage, expected, "n={n} kind={kind:?}");
+        }
+    }
+
+    #[test]
+    fn extract_plane_matches_split_exactly() {
+        // the virtual-raw path depends on byte equality with split()
+        for total in [
+            0usize, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33, 64, 65, 255, 256, 257, 1000,
+        ] {
+            let src: Vec<u8> = (0..total).map(|i| ((i * 37 + 11) % 251) as u8).collect();
+            for n in [1usize, 2, 4] {
+                for kind in [ReorderKind::None, ReorderKind::F32, ReorderKind::Bf16] {
+                    if n == 1 && kind != ReorderKind::None {
+                        continue; // kind is ignored for n=1 (both paths agree anyway)
+                    }
+                    let sizes = plane_sizes(total, n);
+                    let mut storage: Vec<Vec<u8>> = sizes.iter().map(|&s| vec![0u8; s]).collect();
+                    {
+                        let mut planes: Vec<&mut [u8]> =
+                            storage.iter_mut().map(|v| v.as_mut_slice()).collect();
+                        split(&src, &mut planes, kind).expect("split");
+                    }
+                    for b in 0..n {
+                        let mut dst = vec![0u8; sizes[b]];
+                        extract_plane(&src, n, b, kind, &mut dst).expect("extract");
+                        assert_eq!(dst, storage[b], "total={total} n={n} b={b} kind={kind:?}");
+                    }
+                }
+            }
         }
     }
 

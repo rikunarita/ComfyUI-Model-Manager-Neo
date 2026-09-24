@@ -39,7 +39,7 @@ use rayon::prelude::*;
 
 use crate::dtype::validate_mode;
 use crate::header::ZnHeader;
-use crate::planes::{join, plane_sizes, split};
+use crate::planes::{extract_plane, join, plane_sizes, split};
 use crate::reorder::{ReorderKind, kind_for};
 use crate::{CodecError, CodecResult, HUF_BLOCKSIZE_MAX, huf};
 
@@ -75,8 +75,29 @@ impl Default for CoreParams {
     }
 }
 
-/// One chunk's per-plane results: (chunkType, bytes).
-type ChunkPlanes = Vec<(u8, Vec<u8>)>;
+/// One plane's compression outcome within a chunk.
+enum PlaneOut {
+    /// chunkType 1: huff0 block bytes.
+    Block(Vec<u8>),
+    /// chunkType 0: the plane is raw AND re-derivable from the source chunk —
+    /// the assembly phase extracts it directly into the output (byte-identical
+    /// to the materialised form; saves the scratch clone + refill memset —
+    /// the C core gets the same effect by pointer-swapping the plane buffer,
+    /// which safe Rust cannot do across the two-phase layout).
+    Virtual,
+}
+
+impl PlaneOut {
+    fn len(&self, virtual_len: usize) -> usize {
+        match self {
+            Self::Block(b) => b.len(),
+            Self::Virtual => virtual_len,
+        }
+    }
+}
+
+/// One chunk's per-plane results: (chunkType, outcome).
+type ChunkPlanes = Vec<(u8, PlaneOut)>;
 /// Per-chunk compression outcome.
 type ChunkResult = CodecResult<ChunkPlanes>;
 /// Per-worker decompression scratch: plane decode buffers + the X2 table.
@@ -191,19 +212,29 @@ pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResul
             })
             .collect()
     });
+    // per-chunk plane sizes (Virtual planes resolve through these)
+    let chunk_sizes: Vec<Vec<usize>> = (0..num_chunks)
+        .map(|c| {
+            let start = c * params.chunk;
+            let end = (start + params.chunk).min(data.len());
+            plane_sizes(end - start, n)
+        })
+        .collect();
     let mut plane_totals = vec![0usize; n];
     let chunk_results = {
         let mut out = Vec::with_capacity(num_chunks);
         for r in chunk_results {
             let planes = r?;
-            for (b, (_, bytes)) in planes.iter().enumerate() {
-                plane_totals[b] += bytes.len();
-            }
             out.push(planes);
         }
         out
     };
 
+    for (c, planes) in chunk_results.iter().enumerate() {
+        for (b, (_, po)) in planes.iter().enumerate() {
+            plane_totals[b] += po.len(chunk_sizes[c][b]);
+        }
+    }
     let res_buf_size = header_len + types_len + cums_len + plane_totals.iter().sum::<usize>();
     // Single allocation for the whole result (the vec![] fill is fully
     // overwritten below — the safe-Rust price for the parallel assembly,
@@ -216,7 +247,7 @@ pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResul
     out[24..32].copy_from_slice(&patched);
     // plane-major view of the chunk results (layout is plane-major, the
     // results are chunk-major)
-    let by_plane: Vec<Vec<&(u8, Vec<u8>)>> = (0..n)
+    let by_plane: Vec<Vec<&(u8, PlaneOut)>> = (0..n)
         .map(|b| (0..num_chunks).map(|c| &chunk_results[c][b]).collect())
         .collect();
     // chunkTypes (plane-major)
@@ -229,8 +260,8 @@ pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResul
     let cums_at = header_len + types_len;
     for (b, row) in by_plane.iter().enumerate() {
         let mut cum = 0u64;
-        for (c, (_, bytes)) in row.iter().enumerate() {
-            cum += bytes.len() as u64;
+        for (c, (_, po)) in row.iter().enumerate() {
+            cum += po.len(chunk_sizes[c][b]) as u64;
             let at = cums_at + (b * num_chunks + c) * 8;
             out[at..at + 8].copy_from_slice(&cum.to_le_bytes());
         }
@@ -242,9 +273,9 @@ pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResul
     {
         let data_start = header_len + types_len + cums_len;
         let mut sizes = Vec::with_capacity(types_len);
-        for row in &by_plane {
-            for (_, bytes) in row {
-                sizes.push(bytes.len());
+        for (b, row) in by_plane.iter().enumerate() {
+            for (c, (_, po)) in row.iter().enumerate() {
+                sizes.push(po.len(chunk_sizes[c][b]));
             }
         }
         let mut region = &mut out[data_start..];
@@ -257,13 +288,30 @@ pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResul
         debug_assert!(region.is_empty());
         let results_ref = &chunk_results;
         let nch = num_chunks.max(1);
-        with_threads(params.threads, || {
-            slices.into_par_iter().enumerate().for_each(|(idx, dst)| {
-                let b = idx / nch;
-                let c = idx % nch;
-                dst.copy_from_slice(&results_ref[c][b].1);
-            });
+        let asm: Vec<CodecResult<()>> = with_threads(params.threads, || {
+            slices
+                .into_par_iter()
+                .enumerate()
+                .map(|(idx, dst)| {
+                    let b = idx / nch;
+                    let c = idx % nch;
+                    match &results_ref[c][b].1 {
+                        PlaneOut::Block(bytes) => {
+                            dst.copy_from_slice(bytes);
+                            Ok(())
+                        }
+                        PlaneOut::Virtual => {
+                            let start = c * params.chunk;
+                            let end = (start + params.chunk).min(data.len());
+                            extract_plane(&data[start..end], n, b, kind, dst)
+                        }
+                    }
+                })
+                .collect()
         });
+        for r in asm {
+            r?;
+        }
     }
     debug_assert_eq!(out.len(), res_buf_size);
     Ok(out)
@@ -297,12 +345,12 @@ fn compress_chunk(
 ) -> CodecResult<ChunkPlanes> {
     // Single-plane fast path (fp8): the C's split_bytearray_dtype8 is a pure
     // byte copy — we feed `src` to huff0 directly (output-identical, one
-    // full-size copy and its memory traffic saved). The raw fallback still
-    // materialises an owned Vec (ownership, same as stealing a scratch).
+    // full-size copy and its memory traffic saved). The raw fallback is
+    // Virtual: the assembly copies straight from `src` (zero intermediate).
     if n == 1 && kind == ReorderKind::None {
         let plane_len = src.len();
         if plane_len == 0 {
-            return Ok(vec![(0u8, Vec::new())]);
+            return Ok(vec![(0u8, PlaneOut::Virtual)]);
         }
         let block: Option<Vec<u8>> = if plane_len > HUF_BLOCKSIZE_MAX {
             None
@@ -324,9 +372,9 @@ fn compress_chunk(
             None => false,
         };
         return Ok(vec![if keep {
-            (1u8, block.expect("keep implies Some"))
+            (1u8, PlaneOut::Block(block.expect("keep implies Some")))
         } else {
-            (0u8, src.to_vec())
+            (0u8, PlaneOut::Virtual) // assembly extracts straight from src
         }]);
     }
 
@@ -352,7 +400,7 @@ fn compress_chunk(
             let plane_len = sizes[b];
             if plane_len == 0 {
                 // C: NULL plane buffer → skipped entirely; calloc'd type 0 / size 0
-                out.push((0u8, Vec::new()));
+                out.push((0u8, PlaneOut::Virtual));
                 continue;
             }
             // C: HUF_compress(dst, origChunkSize /* cap */, plane, planeLen).
@@ -379,14 +427,14 @@ fn compress_chunk(
                 None => false,
             };
             if keep {
-                out.push((1u8, block.expect("keep implies Some")));
+                out.push((1u8, PlaneOut::Block(block.expect("keep implies Some"))));
             } else {
-                // CLONE (not steal): the scratch buffer stays allocated and
-                // sized, so the next chunk's `resize` is a no-op — stealing
-                // would force an alloc + full zero-fill refill per chunk
-                // (the split below overwrites every byte anyway; the C pays
-                // malloc-per-chunk here, we pay one hot memcpy instead).
-                out.push((0u8, scratch[b].clone()));
+                // VIRTUAL raw: the scratch stays untouched for the next chunk
+                // (no clone, no refill memset) and the assembly phase
+                // extracts this plane straight from the source into the
+                // output — byte-identical to the materialised form (pinned by
+                // `extract_plane_matches_split_exactly` + the L2 goldens).
+                out.push((0u8, PlaneOut::Virtual));
             }
         }
         Ok(out)
