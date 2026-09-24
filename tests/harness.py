@@ -130,10 +130,18 @@ def write_safetensors(
     metadata: dict[str, str] | None = None,
     sort_keys: bool = False,
 ) -> None:
-    """Write a safetensors file. tensors: name -> (dtype, shape, raw bytes).
+    """Write a CANONICAL safetensors file. tensors: name -> (dtype, shape, raw bytes).
+
+    Canonical = byte-identical to what the reference Rust serializer
+    (`safetensors` 0.8 / `torch.save_file`) produces for the same logical
+    content: compact JSON (no insignificant whitespace), `__metadata__`
+    first, raw UTF-8 (ensure_ascii=False — serde_json keeps non-ASCII raw),
+    and the header region space-padded to a multiple of 8 bytes. Neo's
+    byte-exact restore guarantee is tested against THIS form.
 
     Key order follows dict insertion order unless ``sort_keys`` (the official
-    library sorts); both orders must survive Neo's compress/decompress cycle.
+    library sorts by dtype-alignment-descending, then name); both orders must
+    survive Neo's compress/decompress cycle byte-exactly.
     """
     header: dict[str, object] = {}
     names = sorted(tensors) if sort_keys else list(tensors)
@@ -147,7 +155,8 @@ def write_safetensors(
         assert len(data) == expected, f"{name}: {len(data)} bytes != {expected}"
         header[name] = {"dtype": dtype, "shape": shape, "data_offsets": [offset, offset + len(data)]}
         offset += len(data)
-    header_bytes = json.dumps(header, separators=(",", ":")).encode("utf-8")
+    header_bytes = json.dumps(header, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    header_bytes += b" " * ((8 - len(header_bytes) % 8) % 8)  # reference 8-byte alignment
     with open(path, "wb") as f:
         f.write(struct.pack("<Q", len(header_bytes)))
         f.write(header_bytes)
@@ -247,3 +256,165 @@ def synth_fp8(n: int, seed: int = 1, low_entropy: bool = False) -> bytes:
         else:
             out.append((rng_state >> 16) & 0x7F)  # avoid 0x7F/0xFF NaN-ish variety
     return bytes(out)
+
+
+# ---------------------------------------------------------------------------
+# L4 model corpus (Plan §5.1 L4 / §6.2 Phase 2)
+#
+# Synthetic stand-ins for the corpus classes of the plan (sd1.5-fp16,
+# sdxl-fp16, flux-fp8, LLM-bf16, VAE-f32, MoE huge-header, complex64 audio,
+# f64 synth) — same dtypes / naming patterns / header shapes at CI-friendly
+# sizes. The 12 GB-scale KPI runs use scripts/bench fixtures instead (the
+# RAM ceiling of the dev sandbox, MEMO 2026-09-23); every file here must
+# compress→decompress byte-exactly (sha256) through BOTH code paths.
+# ---------------------------------------------------------------------------
+def synth_u8(n: int, seed: int = 1) -> bytes:
+    return synth_bytes(n, seed)
+
+
+def synth_i32(n: int, seed: int = 1) -> bytes:
+    out = bytearray()
+    rng_state = seed & 0xFFFFFFFF
+    for _ in range(n):
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7FFFFFFF
+        out += struct.pack("<i", (rng_state % 2000) - 1000)
+    return bytes(out)
+
+
+def synth_i64(n: int, seed: int = 1) -> bytes:
+    out = bytearray()
+    rng_state = seed & 0xFFFFFFFF
+    for _ in range(n):
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7FFFFFFF
+        out += struct.pack("<q", rng_state % 50_000)  # small positives: high bytes zero
+    return bytes(out)
+
+
+def synth_c64(n: int, seed: int = 1) -> bytes:
+    """n complex64 values (2 x f32) — audio-model style (pass-through class)."""
+    out = bytearray()
+    rng_state = seed & 0xFFFFFFFF
+    for _ in range(n):
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7FFFFFFF
+        re = math.cos(rng_state / 1000.0) * 0.5
+        im = math.sin(rng_state / 1000.0) * 0.5
+        out += struct.pack("<ff", re, im)
+    return bytes(out)
+
+
+def synth_f64(n: int, seed: int = 1) -> bytes:
+    """n float64 values — the f64 synth class (pass-through until Phase 4)."""
+    out = bytearray()
+    rng_state = seed & 0xFFFFFFFF
+    for _ in range(n):
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7FFFFFFF
+        out += struct.pack("<d", (rng_state / 1000.0 - 1000.0) * 0.001)
+    return bytes(out)
+
+
+def build_corpus(root: str | Path) -> dict[str, Path]:
+    """Write the L4 corpus under `root`; returns name → path.
+
+    Key order is deliberately NOT the safetensors-rust sort order in half of
+    the files (the harness writer preserves insertion order): Neo's restore
+    must be byte-exact for unsorted-order files too — something the legacy
+    torch round-trip cannot do (its save_file re-sorts).
+    """
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    files: dict[str, Path] = {}
+
+    def w(name: str, tensors, metadata=None, sort_keys=False):
+        p = root / f"{name}.safetensors"
+        write_safetensors(p, tensors, metadata, sort_keys=sort_keys)
+        files[name] = p
+
+    # sd1.5-fp16-like (F16 UNet blocks + I64 cond + U8 mask, unsorted keys)
+    w(
+        "sd15-fp16",
+        {
+            "unet.mid.attn.q.weight": ("F16", [32, 16], synth_f16(32 * 16, 11, low_entropy=True)),
+            "cond_stage.embed.weight": ("F16", [64, 32], synth_f16(64 * 32, 12, low_entropy=True)),
+            "pos.ids": ("I64", [24], synth_i64(24, 13)),
+            "mask": ("U8", [16, 16], synth_u8(256, 14)),
+        },
+        {"format": "pt", "sd_version": "1.5"},
+    )
+    # sdxl-fp16-like (BF16 + F32 norm weights, sorted keys, empty-ish metadata)
+    w(
+        "sdxl-bf16",
+        {
+            "blocks.0.ff.weight": ("BF16", [64, 64], synth_bf16(64 * 64, 21, low_entropy=True)),
+            "blocks.0.norm.weight": ("F32", [64], synth_f32(64, 22, low_entropy=True)),
+            "time.embed": ("BF16", [128], synth_bf16(128, 23, low_entropy=True)),
+        },
+        {"format": "pt"},
+        sort_keys=True,
+    )
+    # flux-fp8-like (F8_E4M3 + F8_E5M2 mixed)
+    w(
+        "flux-fp8",
+        {
+            "txt.attn.q": ("F8_E4M3", [128, 64], synth_fp8(128 * 64, 31, low_entropy=True)),
+            "img.attn.k": ("F8_E5M2", [128, 64], synth_fp8(128 * 64, 32, low_entropy=True)),
+            "scale": ("F32", [], synth_f32(1, 33)),  # scalar shape []
+        },
+        None,
+    )
+    # LLM-bf16-like (BF16 experts + I32 vocab + BOOL attention mask)
+    w(
+        "llm-bf16",
+        {
+            "model.embed_tokens.weight": ("BF16", [128, 96], synth_bf16(128 * 96, 41, low_entropy=True)),
+            "model.layers.0.mlp.gate.weight": ("BF16", [96, 128], synth_bf16(96 * 128, 42, low_entropy=True)),
+            "lm_head.weight": ("BF16", [128, 96], synth_bf16(128 * 96, 43, low_entropy=True)),
+            "vocab": ("I32", [100], synth_i32(100, 44)),
+            "causal_mask": ("BOOL", [8, 8], bytes((i * 7) % 2 for i in range(64))),
+        },
+        {"format": "pt", "transformers_version": "4.57.0"},
+    )
+    # VAE-f32-like
+    w(
+        "vae-f32",
+        {
+            "encoder.conv_in.weight": ("F32", [16, 4, 3, 3], synth_f32(16 * 4 * 3 * 3, 51, low_entropy=True)),
+            "decoder.conv_out.bias": ("F32", [12], synth_f32(12, 52, low_entropy=True)),
+        },
+        {},  # explicit EMPTY metadata map (`"__metadata__":{}` must survive)
+    )
+    # MoE huge-header-like: many tiny tensors → header-dominated file
+    moe = {}
+    for i in range(600):
+        # 128 elements = 256 B per expert: big enough that the ZN blob beats
+        # the "not worth it" overhead rule, small enough to stay CI-friendly
+        moe[f"experts.{i}.w"] = ("BF16", [16, 8], synth_bf16(128, 100 + i, low_entropy=True))
+    w("moe-header", moe, {"format": "pt", "num_experts": "600"})
+    # complex64 audio-like (C64 passes through untouched — out of band)
+    w(
+        "audio-c64",
+        {
+            "spec.weight": ("C64", [32, 16], synth_c64(32 * 16, 61)),
+            "gain": ("F32", [256], synth_f32(256, 62, low_entropy=True)),
+        },
+        {"format": "pt"},
+    )
+    # f64 synth (F64 passes through in Phase 2 — the legacy path RAISES on
+    # these files; Neo must not)
+    w(
+        "f64-synth",
+        {
+            "grid": ("F64", [24, 12], synth_f64(24 * 12, 71)),
+            "w": ("BF16", [32, 32], synth_bf16(32 * 32, 72, low_entropy=True)),
+        },
+        {"format": "pt"},
+    )
+    # non-ASCII tensor names + unicode metadata (json.dumps escaping parity)
+    w(
+        "unicode-names",
+        {
+            "層.weight": ("BF16", [64, 32], synth_bf16(64 * 32, 81, low_entropy=True)),
+            "emb🙂": ("F32", [256], synth_f32(256, 82, low_entropy=True)),
+        },
+        {"format": "pt", "author": "日本語テスト"},
+    )
+    return files

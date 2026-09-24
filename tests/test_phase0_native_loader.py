@@ -98,7 +98,7 @@ def test_auto_mode_loads_prebuilt_and_handshakes():
     assert version and "+" in version  # "x.y.z+commit"
     diag = native.diagnostics()
     assert diag["available"] is True and diag["mode"] == "auto"
-    assert diag["platformTag"] == tag and diag["apiVersion"] == 1
+    assert diag["platformTag"] == tag and diag["apiVersion"] == native.MIN_API_VERSION
     # Idempotence: a second load() must not re-import or flip state.
     assert native.load() is True
 
