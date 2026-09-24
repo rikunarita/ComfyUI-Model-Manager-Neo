@@ -98,6 +98,19 @@ impl ZnHeader {
         if buf[0..2] != ZNN_MAGIC {
             return Err(CodecError::Header("missing ZN magic".to_owned()));
         }
+        // Strict version gate (Plan §7 R10): Neo implements the ZipNN 0.5.4
+        // wire format; a NEWER upstream version could change semantics, and
+        // silently mis-decoding it is the exact failure mode R10 guards
+        // against — refuse with an actionable message instead. (Older minors
+        // than 0.5 predate every .znn file in the ecosystems Neo reads —
+        // the HF ZipNN collections and the official CLI are all 0.5.x.)
+        let version = [buf[2], buf[3], buf[4]];
+        if version[0] != 0 || version[1] != 5 || version[2] > 4 {
+            return Err(CodecError::Header(format!(
+                "unsupported ZipNN container version {}.{}.{} (Neo implements the 0.5.4 format)",
+                version[0], version[1], version[2]
+            )));
+        }
         let method = buf[7];
         if method != METHOD_HUFFMAN {
             return Err(CodecError::Unsupported(format!(
@@ -330,6 +343,34 @@ mod tests {
         b[8] = 9;
         assert!(ZnHeader::decode(&b).is_err(), "input_format");
         assert!(ZnHeader::decode(&b[..10]).is_err(), "short");
+    }
+
+    /// Plan §7 R10: the version bytes are gated strictly — anything outside
+    /// 0.5.0..=0.5.4 is an explicit error, never a silent mis-decode.
+    #[test]
+    fn decode_gates_the_container_version() {
+        for tiny in 0u8..=4 {
+            let h = ZnHeader {
+                version: [0, 5, tiny],
+                ..sample()
+            };
+            assert!(ZnHeader::decode(&h.encode()).is_ok(), "0.5.{tiny}");
+        }
+        for version in [
+            [0u8, 5, 5],
+            [0, 5, 255],
+            [0, 6, 0],
+            [1, 0, 0],
+            [0, 0, 0],
+            [0, 4, 9],
+        ] {
+            let h = ZnHeader {
+                version,
+                ..sample()
+            };
+            let err = ZnHeader::decode(&h.encode()).unwrap_err().to_string();
+            assert!(err.contains("version"), "{err}");
+        }
     }
 
     #[test]

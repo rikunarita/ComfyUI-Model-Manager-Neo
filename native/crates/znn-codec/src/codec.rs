@@ -34,6 +34,7 @@
 //! thread count (the assembly pass is sequential).
 
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use rayon::prelude::*;
 
@@ -42,6 +43,12 @@ use crate::header::ZnHeader;
 use crate::planes::{extract_plane, join, plane_sizes, split};
 use crate::reorder::{ReorderKind, kind_for};
 use crate::{CodecError, CodecResult, HUF_BLOCKSIZE_MAX, huf};
+
+/// Cooperative-cancellation probe (Relaxed is fine: the flag is advisory —
+/// the worst case is one extra chunk of work before the worker observes it).
+fn cancelled(cancel: Option<&AtomicBool>) -> bool {
+    cancel.is_some_and(|c| c.load(Ordering::Relaxed))
+}
 
 /// Parameters mirroring the C ABI (`zipnn_core(header, data, num_buf,
 /// bit_reorder, byte_reorder, is_review, chunk, threshold, check_th,
@@ -174,6 +181,40 @@ where
 /// single chunk plane larger than `HUF_BLOCKSIZE_MAX` with a chunk size
 /// that cannot be clamped (the Python layer clamps fp8 chunks upstream).
 pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResult<Vec<u8>> {
+    zipnn_core_with(header, data, params, None)
+}
+
+/// [`zipnn_core`] with a cooperative cancellation flag (Plan §4.2.2 design
+/// invariant 4: cancellation is checked at CHUNK boundaries). A set flag
+/// aborts with [`CodecError::Cancelled`] — the caller cleans up its `.tmp`.
+///
+/// # Errors
+/// Everything [`zipnn_core`] reports, plus cancellation.
+pub fn zipnn_core_with(
+    header: &[u8],
+    data: &[u8],
+    params: &CoreParams,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+) -> CodecResult<Vec<u8>> {
+    let mut out = Vec::new();
+    zipnn_core_into(&mut out, header, data, params, cancel)?;
+    Ok(out)
+}
+
+/// [`zipnn_core_with`] writing into a caller-owned, grow-only buffer — the
+/// Phase-2 pipeline reuses one blob buffer across tensors (no per-tensor
+/// allocation; `resize` zero-fills only when GROWING, and every byte is
+/// overwritten by the assembly below).
+///
+/// # Errors
+/// Everything [`zipnn_core`] reports, plus cancellation.
+pub fn zipnn_core_into(
+    out: &mut Vec<u8>,
+    header: &[u8],
+    data: &[u8],
+    params: &CoreParams,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+) -> CodecResult<()> {
     let n = params.num_buf;
     if !matches!(n, 1 | 2 | 4) {
         return Err(CodecError::Unsupported(format!(
@@ -194,6 +235,9 @@ pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResul
     if params.threshold.is_nan() {
         return Err(CodecError::Unsupported("NaN threshold".to_owned()));
     }
+    if cancelled(cancel) {
+        return Err(CodecError::Cancelled);
+    }
     let kind = kind_for(params.bit_reorder, n, false);
 
     let num_chunks = data.len().div_ceil(params.chunk); // C formula (0 for empty)
@@ -206,6 +250,9 @@ pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResul
         (0..num_chunks)
             .into_par_iter()
             .map(|c| {
+                if cancelled(cancel) {
+                    return Err(CodecError::Cancelled);
+                }
                 let start = c * params.chunk;
                 let end = (start + params.chunk).min(data.len());
                 compress_chunk(&data[start..end], n, kind, params.threshold)
@@ -236,11 +283,12 @@ pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResul
         }
     }
     let res_buf_size = header_len + types_len + cums_len + plane_totals.iter().sum::<usize>();
-    // Single allocation for the whole result (the vec![] fill is fully
+    // Single buffer for the whole result (the resize fill is fully
     // overwritten below — the safe-Rust price for the parallel assembly,
     // which nets out far ahead of the sequential extend it replaced:
     // ~28% of compress e2e was single-threaded cross-core copying).
-    let mut out = vec![0u8; res_buf_size];
+    out.clear();
+    out.resize(res_buf_size, 0);
     // header, with [24:32] = resBufSize (C `py_zipnn_core` memcpy)
     out[..header_len].copy_from_slice(header);
     let patched = (res_buf_size as u64).to_le_bytes();
@@ -314,7 +362,7 @@ pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResul
         }
     }
     debug_assert_eq!(out.len(), res_buf_size);
-    Ok(out)
+    Ok(())
 }
 
 thread_local! {
@@ -461,6 +509,56 @@ pub fn combine_dtype(
     params: &CoreParams,
     max_output: Option<usize>,
 ) -> CodecResult<Vec<u8>> {
+    combine_dtype_with(payload, orig_len, params, max_output, None)
+}
+
+/// [`combine_dtype`] with a cooperative cancellation flag (checked at CHUNK
+/// boundaries, Plan §4.2.2 design invariant 4).
+///
+/// # Errors
+/// Everything [`combine_dtype`] reports, plus cancellation.
+pub fn combine_dtype_with(
+    payload: &[u8],
+    orig_len: usize,
+    params: &CoreParams,
+    max_output: Option<usize>,
+    cancel: Option<&AtomicBool>,
+) -> CodecResult<Vec<u8>> {
+    // Output-size cap FIRST (before any orig_len-derived arithmetic — the
+    // L3 fuzzer found that `orig_len + chunk - 1` overflows on hostile
+    // u64::MAX-scale header values). Callers SHOULD pass the declared
+    // tensor size; the fallback bound keeps hostile inputs from bombing
+    // the allocator with multi-GB zero fills.
+    let cap = max_output.unwrap_or(usize::max(
+        payload.len().saturating_mul(64),
+        16 * 1024 * 1024,
+    ));
+    if orig_len > cap {
+        return Err(CodecError::Corrupt(format!(
+            "orig_len {orig_len} exceeds the output cap {cap} (hostile or truncated header?)"
+        )));
+    }
+    let mut dst = vec![0u8; orig_len];
+    combine_dtype_into(&mut dst, payload, params, cancel)?;
+    Ok(dst)
+}
+
+/// Decode a C-core payload INTO a caller-provided buffer whose length must
+/// equal the container's `original_len` — the allocation-free variant the
+/// Phase-2 pipeline uses with a reusable grow-only tensor buffer (no
+/// per-tensor alloc + zero-fill; every output byte is overwritten by the
+/// decode, so a dirty buffer is safe). Validation is IDENTICAL to
+/// [`combine_dtype`] minus the allocation cap (the buffer IS the cap).
+///
+/// # Errors
+/// Everything [`combine_dtype`] reports, plus cancellation.
+pub fn combine_dtype_into(
+    dst: &mut [u8],
+    payload: &[u8],
+    params: &CoreParams,
+    cancel: Option<&AtomicBool>,
+) -> CodecResult<()> {
+    let orig_len = dst.len();
     let n = params.num_buf;
     if !matches!(n, 1 | 2 | 4) {
         return Err(CodecError::Unsupported(format!(
@@ -478,23 +576,9 @@ pub fn combine_dtype(
     }
     let kind = kind_for(params.bit_reorder, n, false);
 
-    // Output-size cap FIRST (before any orig_len-derived arithmetic — the
-    // L3 fuzzer found that `orig_len + chunk - 1` overflows on hostile
-    // u64::MAX-scale header values). Callers SHOULD pass the declared
-    // tensor size; the fallback bound keeps hostile inputs from bombing
-    // the allocator with multi-GB zero fills.
-    let cap = max_output.unwrap_or(usize::max(
-        payload.len().saturating_mul(64),
-        16 * 1024 * 1024,
-    ));
-    if orig_len > cap {
-        return Err(CodecError::Corrupt(format!(
-            "orig_len {orig_len} exceeds the output cap {cap} (hostile or truncated header?)"
-        )));
-    }
-    let num_chunks = orig_len.div_ceil(params.chunk); // cap-checked above
+    let num_chunks = orig_len.div_ceil(params.chunk);
     if num_chunks == 0 {
-        return Ok(Vec::new()); // orig_len == 0 (chunk ≥ 1)
+        return Ok(()); // orig_len == 0 (chunk ≥ 1): dst is empty
     }
     let types_len = n * num_chunks;
     let cums_len = types_len * 8;
@@ -560,11 +644,13 @@ pub fn combine_dtype(
     let last_base = last_total / n;
     let last_rem = last_total % n;
 
-    let mut dst = vec![0u8; orig_len];
     let results: Vec<CodecResult<()>> = with_threads(params.threads, || {
         dst.par_chunks_mut(params.chunk)
             .enumerate()
             .map(|(c, dst_slice)| {
+                if cancelled(cancel) {
+                    return Err(CodecError::Cancelled);
+                }
                 let cur_len = dst_slice.len();
                 let exp: Vec<usize> = if c + 1 == num_chunks {
                     (0..n).map(|b| last_base + usize::from(b < last_rem)).collect()
@@ -670,7 +756,7 @@ pub fn combine_dtype(
     for r in results {
         r?;
     }
-    Ok(dst)
+    Ok(())
 }
 
 /// Σ of the C's uniform non-final chunk plane sizes: `(numChunks-1) *
@@ -695,11 +781,27 @@ pub fn decompress_container(blob: &[u8], max_output: Option<usize>) -> CodecResu
     // header; the plane count from the dtype code (4 default, 2 for
     // f16/bf16, 1 for fp8). For numBuf==1 the C ignores byte_reorder
     // entirely (combine = memcpy) — mirrored by the n==1 gate skip below.
+    //
+    // FP8 chunk quirk (zipnn.py compress_bin/decompress_bin): header byte 14
+    // records log2(compression_chunk) = 18 even for fp8, but the C calls use
+    // `min(128 KiB, compression_chunk)` when num_buf == 1 (HUF_BLOCKSIZE_MAX).
+    // Production fp8 blobs therefore declare chunk log2 18 while their payload
+    // is chunked at 128 KiB — the clamp below mirrors that, otherwise the
+    // metadata sizes (numChunks × planes) are derived from the wrong chunk
+    // and every production fp8 tensor fails to decode. (Latent Phase-1 bug:
+    // decompress_container had no caller before Phase 2; L2 passes the chunk
+    // explicitly, so it never exercised this path. Found in the Phase-2
+    // pre-implementation audit, pinned by `fp8_container_chunk_clamp`.)
+    let chunk = if scheme.num_planes == 1 {
+        chunk_hint.min(HUF_BLOCKSIZE_MAX)
+    } else {
+        chunk_hint
+    };
     let params = CoreParams {
         num_buf: scheme.num_planes,
         bit_reorder: header.bit_reorder,
         byte_reorder: header.byte_reorder,
-        chunk: chunk_hint,
+        chunk,
         threshold: crate::DEFAULT_THRESHOLD,
         threads: 0,
     };
@@ -997,5 +1099,89 @@ mod tests {
         // data region = pure plane bytes → the golden layout for L2
         let out = combine_dtype(&comp[32..], data.len(), &params, None).expect("decompress");
         assert_eq!(out, data);
+    }
+
+    /// Production fp8 quirk (zipnn.py): header byte 14 says log2(256 KiB)=18
+    /// while the payload was chunked at min(128 KiB, chunk)=131072 because
+    /// num_buf==1. `decompress_container` must apply the same clamp — this
+    /// regressed silently in Phase 1 (no caller exercised it) and is the
+    /// decode path the Phase-2 safetensors pipeline uses for every fp8
+    /// tensor blob.
+    #[test]
+    fn fp8_container_chunk_clamp() {
+        // > 128 KiB of low-entropy fp8-ish bytes → multiple 128 KiB chunks
+        let data: Vec<u8> = (0..300_000).map(|i| 0x38 | ((i / 61) % 7) as u8).collect();
+        let mut h = ZnHeader {
+            version: [0, 5, 4],
+            byte_reorder: 10,
+            bit_reorder: 1, // production fp8 headers carry 1 (ignored at n=1)
+            method: 1,
+            input_format: crate::header::InputFormat::Byte,
+            delta_compressed_type: 0,
+            lossy: [0, 0, 0],
+            streaming: false,
+            streaming_chunk_log2: 0,
+            compression_chunk_log2: 18,      // ← the quirk: 18, not 17
+            dtype_code: 29,                  // FLOAT8_E4M3FN
+            original_len: data.len() as u64, // zipnn.py writes this pre-core
+            comp_len_field: 0,
+        };
+        let params = CoreParams {
+            num_buf: 1,
+            bit_reorder: 1,
+            byte_reorder: 10,
+            chunk: HUF_BLOCKSIZE_MAX, // what zipnn.py passes to the C core
+            threshold: crate::DEFAULT_THRESHOLD,
+            threads: 0,
+        };
+        let mut header = h.encode().to_vec();
+        header.resize(32, 0);
+        let blob = zipnn_core(&header, &data, &params).expect("compress");
+        // the container decode path must derive chunk=131072 from dtype+byte14
+        let out = decompress_container(&blob, None).expect("decompress_container");
+        assert_eq!(out, data);
+        // sanity: without the clamp the metadata sizes disagree → error
+        let wrong = CoreParams {
+            chunk: 1 << 18,
+            ..params
+        };
+        assert!(combine_dtype(&blob[32..], data.len(), &wrong, None).is_err());
+        h.dtype_code = 30; // FLOAT8_E5M2 too
+        let header = h.encode().to_vec();
+        let blob = zipnn_core(&header, &data, &params).expect("compress");
+        assert_eq!(decompress_container(&blob, None).expect("e5m2"), data);
+    }
+
+    #[test]
+    fn cancel_flag_aborts_cleanly() {
+        use std::sync::atomic::AtomicBool;
+        let data: Vec<u8> = (0..1_000_000).map(|i| (i % 251) as u8).collect();
+        let flag = AtomicBool::new(true);
+        let err = zipnn_core_with(&hdr32(), &data, &CoreParams::default(), Some(&flag))
+            .expect_err("must cancel");
+        assert!(matches!(err, crate::CodecError::Cancelled));
+        let comp = zipnn_core(&hdr32(), &data, &CoreParams::default()).expect("compress");
+        let err = combine_dtype_with(
+            &comp[32..],
+            data.len(),
+            &CoreParams::default(),
+            None,
+            Some(&flag),
+        )
+        .expect_err("must cancel");
+        assert!(matches!(err, crate::CodecError::Cancelled));
+        // not set → normal operation
+        let flag = AtomicBool::new(false);
+        assert_eq!(
+            combine_dtype_with(
+                &comp[32..],
+                data.len(),
+                &CoreParams::default(),
+                None,
+                Some(&flag)
+            )
+            .expect("decompress"),
+            data
+        );
     }
 }
