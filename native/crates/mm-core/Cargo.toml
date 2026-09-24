@@ -19,6 +19,10 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 pyo3 = { workspace = true }
 znn-codec = { path = "../znn-codec" }
+# Phase 2: the job-result JSON documents (Plan §4.2.2: job_result/job_error
+# exchange JSON strings — paths/JSON/atomics are the only boundary types).
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [features]
 # `cargo test -p mm-core` must run WITHOUT default features: linking the test

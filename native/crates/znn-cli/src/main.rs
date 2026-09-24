@@ -17,7 +17,7 @@
 //!
 //! Never distributed; not part of any release artifact.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
@@ -92,6 +92,36 @@ enum Command {
         manifest: PathBuf,
         /// Results file: one JSON object per line (same order)
         results: PathBuf,
+    },
+    /// Phase 2: compress a .safetensors file into .znn.safetensors (the
+    /// native pipeline of py/compress.py, without Python)
+    StCompress {
+        /// Source .safetensors file
+        input: PathBuf,
+        /// Destination .znn.safetensors file
+        output: PathBuf,
+        /// Re-decode + sha-verify the artifact before renaming (Plan §4.4.3-4)
+        #[arg(long)]
+        paranoid: bool,
+        /// Codec worker threads (0 = pool default)
+        #[arg(long, default_value_t = 0)]
+        threads: usize,
+        /// Write the outcome JSON (stats/warnings/exact/sha) to this path
+        #[arg(long)]
+        json_out: Option<PathBuf>,
+    },
+    /// Phase 2: decompress a .znn.safetensors file (verified restore)
+    StDecompress {
+        /// Source .znn.safetensors file
+        input: PathBuf,
+        /// Destination .safetensors file
+        output: PathBuf,
+        /// Codec worker threads (0 = pool default)
+        #[arg(long, default_value_t = 0)]
+        threads: usize,
+        /// Write the outcome JSON (stats/verified/warnings) to this path
+        #[arg(long)]
+        json_out: Option<PathBuf>,
     },
 }
 
@@ -486,6 +516,96 @@ fn bench(
 }
 
 // ---------------------------------------------------------------------------
+// Phase 2: the safetensors pipeline (manual QA / bench driver)
+// ---------------------------------------------------------------------------
+
+fn run_st_compress(
+    input: &Path,
+    output: &Path,
+    paranoid: bool,
+    threads: usize,
+    json_out: Option<&PathBuf>,
+) -> Result<(), String> {
+    use znn_codec::pipeline::{Hooks, JobOpts, Progress, compress_file};
+    let progress = Progress::new(1);
+    let hooks = Hooks {
+        progress: Some(&progress),
+        cancel: None,
+    };
+    let opts = JobOpts {
+        threads,
+        paranoid,
+        ..JobOpts::default()
+    };
+    let t0 = std::time::Instant::now();
+    let out = compress_file(input, output, &opts, &hooks).map_err(|e| e.to_string())?;
+    let dt = t0.elapsed().as_secs_f64();
+    let doc = serde_json::json!({
+        "op": "st-compress",
+        "input": input.display().to_string(),
+        "output": output.display().to_string(),
+        "seconds": dt,
+        "stats": {
+            "originalBytes": out.stats.original_bytes,
+            "compressedBytes": out.stats.compressed_bytes,
+            "tensors": out.stats.tensors,
+            "compressedTensors": out.stats.compressed_tensors,
+        },
+        "srcSha256": out.src_sha256,
+        "exact": out.exact,
+        "paranoid": paranoid,
+        "warnings": out.warnings,
+        "outputSize": std::fs::metadata(output).map_or(0, |m| m.len()),
+    });
+    let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
+    match json_out {
+        Some(p) => std::fs::write(p, text).map_err(|e| format!("write: {e}"))?,
+        None => println!("{text}"),
+    }
+    Ok(())
+}
+
+fn run_st_decompress(
+    input: &Path,
+    output: &Path,
+    threads: usize,
+    json_out: Option<&PathBuf>,
+) -> Result<(), String> {
+    use znn_codec::pipeline::{Hooks, JobOpts, Progress, decompress_file};
+    let progress = Progress::new(1);
+    let hooks = Hooks {
+        progress: Some(&progress),
+        cancel: None,
+    };
+    let opts = JobOpts {
+        threads,
+        ..JobOpts::default()
+    };
+    let t0 = std::time::Instant::now();
+    let out = decompress_file(input, output, &opts, &hooks).map_err(|e| e.to_string())?;
+    let dt = t0.elapsed().as_secs_f64();
+    let doc = serde_json::json!({
+        "op": "st-decompress",
+        "input": input.display().to_string(),
+        "output": output.display().to_string(),
+        "seconds": dt,
+        "stats": {
+            "tensors": out.stats.tensors,
+            "decompressedTensors": out.stats.decompressed_tensors,
+        },
+        "verified": out.verified.as_str(),
+        "warnings": out.warnings,
+        "outputSize": std::fs::metadata(output).map_or(0, |m| m.len()),
+    });
+    let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
+    match json_out {
+        Some(p) => std::fs::write(p, text).map_err(|e| format!("write: {e}"))?,
+        None => println!("{text}"),
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 
 fn identity() -> i32 {
     println!(
@@ -568,6 +688,31 @@ fn main() {
             }
         },
         Command::Batch { manifest, results } => run_batch(&manifest, &results),
+        Command::StCompress {
+            input,
+            output,
+            paranoid,
+            threads,
+            json_out,
+        } => match run_st_compress(&input, &output, paranoid, threads, json_out.as_ref()) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("error: {e}");
+                1
+            }
+        },
+        Command::StDecompress {
+            input,
+            output,
+            threads,
+            json_out,
+        } => match run_st_decompress(&input, &output, threads, json_out.as_ref()) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("error: {e}");
+                1
+            }
+        },
     };
     std::process::exit(code);
 }

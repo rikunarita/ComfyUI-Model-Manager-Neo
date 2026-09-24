@@ -38,3 +38,17 @@ path = "fuzz_targets/codec_decompress.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "st_parse"
+path = "fuzz_targets/st_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "blob_decompress"
+path = "fuzz_targets/blob_decompress.rs"
+test = false
+doc = false
+bench = false
