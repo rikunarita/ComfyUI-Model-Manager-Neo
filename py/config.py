@@ -15,6 +15,10 @@ setting_key = {
     # removed) but the ID string MUST stay `ModelManager.Scan.IncludeHiddenFiles`
     # - it is the key ComfyUI persists the user's value under.
     "model_list": {"include_hidden_files": "ModelManager.Scan.IncludeHiddenFiles"},
+    # ZipNN native pipeline (Phase 2): paranoid mode re-decodes and verifies
+    # a compressed file before the original is removed (Plan §4.4.3-4,
+    # default OFF). The env override MM_ZNN_PARANOID wins over this setting.
+    "zipnn": {"paranoid": "ModelManager.ZipNN.Paranoid"},
 }
 
 user_agent = "Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
