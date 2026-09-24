@@ -601,3 +601,34 @@ mypy 14 files / pytest 12（実 zigbuild 成果物に対するローダーテス
   ~7 GB 使用。**native/target の肥大に注意**（fuzz の target は別ツリー）。
 - heredoc 内に `"$ARENA_WORKSPACE"` 直書きをすると環境側で `$ARENA_WORKSPACE` に
   置換されて壊れることがある → Python スクリプトは `os.getcwd()` 相対で書く。
+
+### Phase 2 push 後の CI 修復ラウンド（2026‑09‑24、f51ecd8→f4c1a4c）
+
+push 後の CI で 3 件のゲート失敗 → いずれも修正して再 push（本体設計は不変）:
+
+1. **verify/Format**: `scripts/bench/results/native_e2e.json` が
+   `json.dump(indent=1)` で prettier 不一致 → indent=2 + 末尾改線へ
+   （スクリプト側も修正 — 将来の再生成がゲートを割らないように。
+   znn-cli `--json-out` も末尾改線を付与）。
+2. **verify/mypy（既存コードの被弾）**: CI の pip が **huggingface_hub 2.0.0**
+   を解決するようになり（requirements は `>=1.32.0` の開放範囲）、
+   `HfApi.list_models(sort=)` の注解が閉じた Literal に狭まって
+   `py/search.py:180` が arg‑type 違反に。ローカルで hub 2.0.0 を入れて
+   再現確認のうえ `cast(Any, sort)` で修復（実行時ゼロ影響・
+   バージョン非依存。`# type: ignore` は warn_unused_ignores と
+   hub 未導入環境の双方で割れるため不採用）。
+3. **native-test(windows)/integration(windows)**:
+   (a) mm-core ジョブテストのアサートが POSIX エラー文言依存 →
+   `io_ctx` が **ENOSPC 以外でも常に「操作 + パス」を付与**するよう
+   強化（ユーザ向けメッセージとしても正しい方向）し、アサートは
+   プラットフォーム非依存の 2 語に。(b) `cleanup_stray_files` の報告
+   パスが Windows で separator 混在（normalized root + os.path.join）→
+   `utils.join_path` へ統一、テストも normalize 比較に。
+   ※ 同 run で **znn-codec 99 テストは Windows で緑**（AtomicWriter の
+   rename/fsync・mmap・thread::scope すべて Win32 で動作）、macOS
+   integration も緑 — 新パイプラインのクロスプラットフォーム性は
+   CI で機械確認済み。
+4. CI 証跡（737ffef, ubuntu integration）: pytest **43 passed**
+   （レガシー経路 + native 経路 + クロスパス + L4 コーパス）、
+   **L5 GATE PASS**（pip zipnn 0.5.4 実ビルド: A/B/C 全方向）、
+   コアバージョンスタンプ `0.3.0-alpha.0+737ffef31` 正常。
