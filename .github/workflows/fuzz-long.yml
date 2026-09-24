@@ -1,9 +1,9 @@
 # Long-running L3 fuzz budget (Plan §5.1 L3: ">=8 hours, 0 panic/OOM/hang";
 # §6.2 Phase 1 completion condition "fuzz >=8 h"). GitHub's 6 h per-job limit
-# means the budget runs as a 3-target matrix x 3 h = 9 h total per schedule
-# (each job well inside the limit). Crashes fail the job and are uploaded as
-# artifacts; the committed corpus (incl. the Phase-1 regression seeds found
-# by the fuzzer) replays on every run.
+# means the budget runs as a 5-target matrix x 3 h = 15 h total per schedule
+# (each job well inside the limit; Phase 2 adds st_parse + blob_decompress).
+# Crashes fail the job and are uploaded as artifacts; the committed corpus
+# (incl. the Phase-1 regression seeds found by the fuzzer) replays every run.
 #
 # NOT a PR gate — scheduled (weekly) + manual dispatch only.
 name: fuzz-long
@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [huf_decompress, zn_header, codec_decompress]
+        target: [huf_decompress, zn_header, codec_decompress, st_parse, blob_decompress]
     defaults:
       run:
         working-directory: native/crates/znn-codec/fuzz

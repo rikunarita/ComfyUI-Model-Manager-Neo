@@ -11,11 +11,14 @@
 #   size-budget    <= 4 MB per binary and <= 20 MB total across all artifacts
 #                  (Plan §3.3 / R6)
 #
-# The transition-period gates (L2 differential tests vs the bundled C core,
-# L3 fuzz smoke, L4/L5 pytest + official-zipnn cross-validation) join this
-# workflow in Phase 1+ as the codec lands. Artifacts are verification only:
-# `native-bin/` commits are generated on main/release tags (Plan §5.3), never
-# from PR/dev runs.
+# Transition-period gates (Plan §5.3):
+#   native-diff    L2 golden differential vs the bundled prebuilt C core
+#   fuzz-smoke     L3 cargo-fuzz smoke (3 targets x 60 s, ASan)
+#   integration    L4/L5 — the full pytest suite against the built artifact
+#                  on all three OSes + the official pip-zipnn 0.5.4
+#                  cross-validation on ubuntu (Phase 2)
+# Artifacts are verification only: `native-bin/` commits are generated on
+# main/release tags (Plan §5.3), never from PR/dev runs.
 name: native
 
 on:
@@ -274,7 +277,7 @@ jobs:
           import sys
           import mm_core
 
-          assert mm_core.api_version() == 1, mm_core.api_version()
+          assert mm_core.api_version() == 2, mm_core.api_version()
           print(f"abi3 import OK on CPython {sys.version.split()[0]}: {mm_core.core_version()}")
           PY
 
@@ -353,10 +356,74 @@ jobs:
           assert suite["counters"]["byte_mismatch"] == 0
           PY
 
+  integration:
+    # L4/L5 integration (Plan §5.3 "integration" job, §6.2 Phase 2): the FULL
+    # pytest suite — route/ws golden contracts on BOTH code paths, the L4
+    # corpus round-trips, cancellation, corruption retreat, cleanup — runs
+    # against the real built artifact on every OS. Ubuntu is the full matrix
+    # cell: the vendored prebuilt C core (+ pip torch) enables the legacy
+    # path and the cross-path parity tests, and the L5 gate re-runs against
+    # the UPSTREAM pip zipnn 0.5.4 (source-built on the runner) — the
+    # mechanical proof that vendored == official (Plan §5.1 L5).
+    needs: [native-build-linux, native-build-windows, native-build-macos]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: native-bin-linux
+          - os: windows-latest
+            artifact: native-bin-windows
+          - os: macos-latest
+            artifact: native-bin-macos
+    runs-on: ${{ matrix.os }}
+    env:
+      # windows/macos cells run the native path only: no prebuilt C core
+      # ships for them (that absence is precisely what the Rust core
+      # replaces), and a legacy-path source build would slow the gate down.
+      MMNEO_SKIP_LEGACY: ${{ matrix.os != 'ubuntu-latest' && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch the built native artifact into native-bin/
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: native/native-bin
+
+      - name: Python test dependencies
+        run: python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow
+
+      # The legacy path (vendored zipnn) needs its runtime stack; the CPU
+      # wheel index keeps the install small (no CUDA payload).
+      - name: Legacy-path dependencies (ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python -m pip install numpy safetensors blake3
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Integration tests (pytest)
+        run: python -m pytest tests -q
+
+      # L5 (Plan §5.1): Neo(Rust) compress → official decompress, official
+      # compress → Neo decompress, and per-tensor blob parity — against the
+      # pip-installed UPSTREAM zipnn 0.5.4 (source build on the runner).
+      - name: L5 official-zipnn cross-validation (ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python -m pip install zipnn==0.5.4
+          python3 scripts/l5/official_cross.py
+
   fuzz-smoke:
-    # L3 cargo-fuzz smoke (Plan §5.1 L3): 3 targets x 60 s with ASan on every
-    # push/PR. The >=8 h budget runs in fuzz-long.yml (scheduled/dispatch),
-    # NOT on the PR path (Plan: long runs are not PR gates).
+    # L3 cargo-fuzz smoke (Plan §5.1 L3): 5 targets x 60 s with ASan on every
+    # push/PR (Phase 2 adds st_parse + blob_decompress — the hostile
+    # container / blob surface of the safetensors pipeline, §4.4.2). The
+    # >=8 h budget runs in fuzz-long.yml (scheduled/dispatch), NOT on the
+    # PR path (Plan: long runs are not PR gates).
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -391,9 +458,9 @@ jobs:
       - name: Build fuzz targets (dev + ASan, gnu target)
         run: cargo +nightly fuzz build -D --target x86_64-unknown-linux-gnu
 
-      - name: Smoke-fuzz all three targets (60 s each)
+      - name: Smoke-fuzz all five targets (60 s each)
         run: |
-          for t in huf_decompress zn_header codec_decompress; do
+          for t in huf_decompress zn_header codec_decompress st_parse blob_decompress; do
             cargo +nightly fuzz run "$t" --target x86_64-unknown-linux-gnu --dev -- \
               -max_total_time=60 -rss_limit_mb=1024 -timeout=15
           done
