@@ -485,3 +485,119 @@ fuzz-long.yml: 週次 3h×3=9h + l2-full）。L1 = 68 テスト緑（proptest �
   fmt / ruff / mypy / pytest 12 / prettier 全緑、CI（verify + native 11
   ジョブ、native-diff・fuzz-smoke 含む）全緑。Phase 1 の [x] 化は
   fuzz ≥8h 初回実行完了待ち（機械的步骤のみ）。
+
+## 2026‑09‑24 — Phase 2 実装セッション（safetensors パイプライン + バックエンド接続）
+
+### Phase 0–1 最終確認（このセッションの冒頭、ユーザ指示分）
+
+**再実行して全ゲート緑を確認**（dev tip f51ecd8 に対して）:
+cargo fmt / clippy `-D warnings` / test（L1 69 + mm-core）/ ruff check+format /
+mypy 14 files / pytest 12（実 zigbuild 成果物に対するローダーテスト込み）/
+**L2 quick GATE PASS**（1,200 ケース: byte‑identical 1,121/1,121、mismatch 0、
+付録 C クラス 63 安全処理）/ build-native.sh linux-x86_64 サイズゲート OK /
+リモート CI 12 チェック全緑（GitHub API で確認）。
+
+**発見した潜在バグと対処**（Phase 2 実装に先立ち修正・回帰テスト化）:
+
+1. `codec::decompress_container` の **fp8 チャンククランプ欠落** —
+   zipnn.py は num_buf==1 のとき C に `min(128KiB, 2^byte14)` を渡すが
+   （ヘッダー byte14 は 18 のまま = 生産 fp8 ブロックの実チャンクは 128KiB）、
+   同関数は byte14 由来の 256KiB をそのまま使っていた。Phase 1 では
+   呼び出し元が無く（L2 はチャンクを明示引数で渡す）未顕在化 —
+   Phase 2 が最初の消費者になるところだった。修正 + テスト
+   `fp8_container_chunk_clamp`。
+2. **バージョンゲート欠落**（Plan §7 R10 の緩和策「ヘッダーのバージョン
+   バイト厳密検査」が未実装だった）: `ZnHeader::decode` が 0.5.0–0.5.4
+   以外を明示エラーにするよう強化（将来の上流フォーマット変更の
+   静かな誤デコード防止）。テスト `decode_gates_the_container_version`。
+3. **fuzz-long のディスパッチ経路の訂正**: admin 権限 PAT でも
+   workflow_dispatch は **404**（fuzz-long.yml が default branch に無い
+   → workflow 未登録。GitHub UI にも表示されない）。Phase 1 完了条件の
+   消化経路は **dev→main マージのみ**（Plan の当該項を訂正済み）。
+   main は dev の内容に対して独自変更ゼロ（マージコミット 3 件のみ、
+   `git diff dev...origin/main` 空で確認）。
+
+### Phase 2 実装（成果物）
+
+- **znn-codec 新モジュール**: `safetensors_io.rs`（parse/正準 Writer/
+  AtomicWriter）、`znn_tensor.rs`（テンソル ZN ブロック + dtype 表）、
+  `pipeline.rs`（compress_file/decompress_file + Progress/Hooks/JobOpts）。
+  codec に `zipnn_core_into`/`combine_dtype_into`/`*_with(cancel)` を追加
+  （既存 API は無変更で温存 — L2/znn-cli との互換維持）。
+- **safetensors 0.8.0 の一次ソース精読**（github v0.8.0 tag:
+  tensor.rs / slice.rs / bindings python lib.rs を DL して確認 — 推測ゼロ）:
+  Writer は dtype アライメント降順→名前でソート、`__metadata__` 先頭、
+  compact serde_json、**8B 整列までスペースパディング**、Reader は
+  dense/exact-coverage/size 整合を強制、`keys()` はソート済み、
+  **メタデータは HashMap = キー順がプロセスごとにランダム**（← レガシー
+  往復の byte‑exact が複数キーで偶然依存だった潜伏バグ。Neo は順序保持で
+  構造的に解決）、`f.metadata()` の None と `{}` は別物（→
+  `znn_neo_src_meta_absent` キー新設の根拠）。
+- **mm-core**: `jobs.rs`（レジストリ + GC + catch_unwind）+ pymodule に
+  6 関数（api_version=2 へ bump、py/native.py の範囲も [2,2] へ同期、
+  native.yml の abi3 assert も更新）。
+- **py/compress.py**: `_run` に native 経路（10 Hz ポーリング、ws 契約
+  完全維持）、cancel ルート、`cleanup_stray_files()`（`__init__.py` から
+  io_executor で起動）、レガシー解凍の Neo キー strip 拡張 +
+  meta_absent 尊重。batch/delta は Phase 3 までレガシー温存。
+- **テスト**: Rust L1 98（+29）、pytest 43（+31: pipeline 22 + routes 9）、
+  L5 スクリプト `scripts/l5/official_cross.py`。
+- **CI**: native.yml に `integration` ジョブ（3 OS。ubuntu = フル
+  （torch 導入 → 両経路 + L5 pip zipnn 0.5.4 ソースビルド相互検証）、
+  win/mac = native 経路のみ（MMNEO_SKIP_LEGACY=1 + torch プローブで
+  ソースビルド暴走を防止））。fuzz-smoke/fuzz-long を 5 ターゲット化。
+
+### 実測で発見して修正した実装バグ（今回の教訓群）
+
+1. **ジョブ完了競合**: パイプラインが phase=Done を設定してからスレッドが
+   outcome を記録するまでの窓で `job_result` が「未完了」を返す
+   （bench ハーネスが実測で検出 — RuntimeError）。`job_progress` は
+   outcome のみを終端信号とし、窓の間は `verify` を報告する方式へ。
+2. **paranoid の進捗二重計上**: 内部検証デコードが同じ Progress を
+   駆動して done>total（UI 200 %）。内部 Hooks は progress=None に。
+3. **メタデータ不在情報の喪失**: 原本に `__metadata__` が無い場合、
+   復元が `{}` を追加して byte‑exact を壊す（Rust テストが即検出）→
+   `znn_neo_src_meta_absent` キーで記録・尊重（レガシー側も）。
+4. **並列ハッシャは 2 vCPU で逆効果**: channel + 専用スレッドを実装して
+   実測 → 0.60 s → 0.65 s に**悪化**（空きコア無し + clone トラフィック +
+   無制限キューの RSS 増 = K1 危険）。inline へ revert（判断は常に実測 —
+   BENCH §7.1 の「正直な注記」に記録）。
+5. **割り当て爆弾**: 敵対的ブロブが「整合的な嘘」（shape×elem ==
+   original_len == 1 TiB）で resize → OOM abort → ComfyUI 死亡の経路が
+   あり得た。per-tensor キャップ（既定 64 GiB、`decompress_tensor` は
+   blob×64 フロア 16 MiB）+ checked 累積オフセットで Err 化。テスト +
+   fuzz ターゲット `blob_decompress`（キャップ 1 MiB で回す）で固定。
+6. **sha2 0.11 の SHA‑256 に AVX2 バックエンドは無い**（README 一次確認:
+   x86 は SHA‑NI か soft のみ。`x86-avx2` は SHA‑512 専用）→ SHA‑NI の
+   無いマシンでは検証ハッシュ ~156 MB/s が e2e の壁になる（BENCH §7.1 に
+   内訳実測を記録。設計は Plan 通り sha2 維持 = OpenSSL バインディングは
+   Plan §3.1 が明示的に不採用）。
+
+### 計測（KPI）と正直な判定
+
+- 詳細は **BENCH §7**（同一セッション・側別ベスト窓・ steal 記録の
+  Phase 1 確立プロトコル）。要点: K1 限界倍率 **1.2×/0.8×**（レガシー
+  2.6×/1.7×）、byte‑exact 3/3、K13 不変（44 MiB/6 ms）。K2 ×0.46 /
+  K3 ×0.24 は **sha2-soft が壁の ~85 %**（検証 OFF 実測: 解凍 352 MB/s =
+  ×1.18）。SHA‑NI + NVMe 外挿は K2 ×1.3–2.0 / K3 ×1.2–2.1 の境界 →
+  Plan 完了条件は「参照機再計測」を残して [/]（未達フェーズを閉じない
+  規程 §6.3 に従う）。
+- L5 ローカル実行: pip zipnn 0.5.4（ソースビルド成功、cp311 wheel 生成）
+  との相互検証 **GATE PASS**（A/B/C 全方向）。ベンダ版との同一性の
+  機械的証明になった。
+- L3 スモーク（新ターゲット、dev+ASan、この 1 GiB 機）: st_parse
+  **462,024 runs / 91 s クラッシュ 0**、blob_decompress 20,770 runs / 91 s
+  クラッシュ 0、既存 3 ターゲットも再スモーク緑（codec リファクタ後）。
+
+### 環境メモ（今回セッション）
+
+- apt の HTTP が 25 KB/s まで劣化（aliyun ミラー自体は urllib で 0.7 s 応答）
+  → `apt-get --print-uris` + Python 並列 DL + dpkg キャッシュ経由で回避
+  （109 debs を数分）。rustup / pip（torch cpu 含む）/ crates.io / docs.rs /
+  GitHub raw はすべて高速。
+- リンク時の `fork: Cannot allocate memory`（1 GiB）→ cargo は `-j 1`
+  （clippy/test）。release LTO ビルドも -j 2 で通る（28–77 s）。
+- ディスクは torch + rust toolchain + nightly + fuzz target で 9.9 GB のうち
+  ~7 GB 使用。**native/target の肥大に注意**（fuzz の target は別ツリー）。
+- heredoc 内に `"$ARENA_WORKSPACE"` 直書きをすると環境側で `$ARENA_WORKSPACE` に
+  置換されて壊れることがある → Python スクリプトは `os.getcwd()` 相対で書く。

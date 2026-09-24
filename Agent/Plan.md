@@ -2,16 +2,16 @@
 
 ## ― Rust ネイティブコア化と ZipNN 完全置き換え ―
 
-| 項目           | 内容                                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------- |
-| 文書番号       | NEO‑PLAN‑2026‑001                                                                              |
-| 版数           | 2.0                                                                                            |
-| 作成日         | 2026‑09‑22                                                                                     |
-| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                         |
-| 対象ブランチ   | `dev`                                                                                          |
-| 現行バージョン | v0.2.0（α3）                                                                                   |
-| 目標バージョン | v0.3.0                                                                                         |
-| 状態           | **Phase 0 完了・Phase 1 実装完了（2026‑09‑23、L2 バイト同一 100 %・速度ゲート 2/8 判断待ち）** |
+| 項目           | 内容                                                                                                                                                            |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 文書番号       | NEO‑PLAN‑2026‑001                                                                                                                                               |
+| 版数           | 2.0                                                                                                                                                             |
+| 作成日         | 2026‑09‑22                                                                                                                                                      |
+| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                          |
+| 対象ブランチ   | `dev`                                                                                                                                                           |
+| 現行バージョン | v0.2.0（α3）                                                                                                                                                    |
+| 目標バージョン | v0.3.0                                                                                                                                                          |
+| 状態           | **Phase 0 完了・Phase 1 実装完了（fuzz ≥8 h の初回実行のみ残）・Phase 2 実装完了（2026‑09‑24、L4/L5 緑・K1/K6/K13 達成、K2/K3 は参照機再計測待ち — BENCH §7）** |
 
 ### 版数履歴
 
@@ -584,9 +584,19 @@ tensors/compressedTensors` を維持）を残し、実処理をポーリング�
 
 これにより OS ページキャッシュが唯一のコピーとなり、
 ピーク RSS は O(チャンク × スレッド数) に収束する（KPI K1/K4）。
-なお現行 C コアの「入力を in‑place で破壊する」挙動
-（Python 側 `tensor.clone()` の原因）は、Rust では
-**変換を出力側バッファで行う**ことで消滅する。
+
+> 〔Phase 2 実装注記 2026‑09‑24・圧縮出力の「RAM/spoil」〕実装は
+> **単一書き込みパス**を採用した: ヘッダー領域をworst‑case長（ソース
+> ヘッダーからエントリごとに桁数上限を構成 — 固定スラックではない）で
+> 予約してペイロードをストリームし、全テンソル確定後に seek‑back で確定
+> ヘッダー JSON をパッチする（予約残は JSON 空白として正当なスペース —
+> レガシーのデルタ パディングと同一技法）。スポイル方式（ペイロードを
+> 一時ファイルへ書いてから組立て = 3 倍 I/O）は実測見積りで K2 を確実に
+> 割るため不採用。上限超過は原理的に起きないが防御的フォールバック
+> （再書き込み）も実装・テスト済み。詳細と実測: BENCH §7.3‑1。
+> なお現行 C コアの「入力を in‑place で破壊する」挙動
+> （Python 側 `tensor.clone()` の原因）は、Rust では
+> **変換を出力側バッファで行う**ことで消滅する。
 
 ## 4.4 データ完全性保証設計（本計画の最重要項目）
 
@@ -653,6 +663,21 @@ Neo への影響評価:
      復元物を診断用 `.corrupt` サフィックスで退避
   4. キーなし（公式 CLI 由来ファイル等）→ 検証スキップの旨をログ
 ```
+
+> 〔Phase 2 実装注記 2026‑09‑24〕(a) **`znn_neo_exact` キーの新設**:
+> 原本ヘッダーが正準形（参照 Writer とバイト同一に再構築可能）でない
+> ファイルでは byte‑exact 復元が原理的に不可能なため、圧縮時に正準性を
+> 判定して記録する。解凍時の sha 不一致は exact=1 のみ「破損扱い
+> （圧縮ファイル保持 + `.corrupt` 退避 + UI エラー）」、exact=0 は
+> §4.7.4 の最低保証（構造検証: テンソルデータ + メタデータ等価）へ
+> ダウングレード — §4.4.3 の一律エラーをそのまま実装すると非正準原本が
+> 永久に解凍不能になるため、両節の意図を両立させた。(b)
+> **`znn_neo_src_meta_absent` キーの新設**: 原本の `__metadata__` が
+> 「無い」と「空マップ」の区別を記録（参照 Writer は None=キー省略、
+> 空マップ=`{}` — バイトが違う）。レガシー解凍側も尊重する。
+> (c) 検証ハッシュは解凍時に**インライン**（書込バイトがハッシャを
+> 通過 — 追加 I/O ゼロ）。並列ハッシャは 2 vCPU 実測で逆効果 + RSS 増
+> のため不採用（BENCH §7.3 末尾の注記）。
 
 デルタも同様: `.neo-delta.json` に fine‑tune 原本の SHA‑256 を記録し、
 復元時に検証する（サイドカーは Neo 専有のため互換性影響なし）。
@@ -980,10 +1005,13 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
   - ファズ検出オーバーフロー 2 件修正済み。証跡整理 = docs/BENCH.md §6.4
     （起票文案は `docs/upstream/zipnn-core-defect-report.md` に参考保管）
 - [/] 完了条件: L1–L3 green（L1 69 テスト緑・L2 フル 10,500 ケース GATE PASS・
-  L3 スモーク緑。**fuzz ≥8 h のみ機械的步骤が残る**: schedule は default
-  branch（main）限定、workflow_dispatch は PAT の Actions 権限不足で 403 —
-  **GitHub UI（Actions → fuzz-long → Run workflow → branch: dev, hours: 3）
-  からのユーザ ディスパッチ、または dev→main マージ後の週次実行で消化**。
+  L3 スモーク緑。**fuzz ≥8 h のみ機械的步骤が残る**。〔2026‑09‑24 訂正
+  （Phase 2 セッション、GitHub API で実証）〕admin 権限 PAT でも
+  workflow_dispatch は **404** — fuzz-long.yml が default branch（main）に
+  存在しないため workflow 自体が未登録で、**GitHub UI からのディスパッチも
+  不可能**（UI は default branch の workflow 一覧のみ表示する）。消化経路は
+  **dev→main マージ（PR）のみ**: マージで週次スケジュール（日曜 18:00 UTC、
+  5 ターゲット × 3 h = 15 h）が有効化され、UI/API ディスパッチも可能になる。
   完了時に本項を [x] 化）、f32/bf16/f16/fp8 で C 版比 圧縮率差 ±0.5% 以内
   （**Δ0.0000 % = バイト同一で達成。ユーザ要件「67 % を下回らない」も
   bf16 実測 0.6623 で構造的に保証 — BENCH §6.3**）・速度同等以上
@@ -994,20 +1022,82 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ### Phase 2 — safetensors 圧縮/解凍パイプライン + バックエンド接続
 
-- [ ] `safetensors_io.rs`: mmap 読取・キー順保持 Writer・
-      原子入替（fsync + 親ディレクトリ fsync）・ENOSPC 処理
-- [ ] 圧縮パイプライン（§4.3。RAM しきい値 + tempfile スポイル）+
-      **完全性検証パイプライン**（`znn_neo_src_sha256` 記録、§4.4.3）
-- [ ] 解凍パイプライン（検証 ON 既定、不一致時は圧縮ファイルを
-      削除せず `.corrupt` 退避 + UI エラー）
-- [ ] paranoid モード（圧縮後即解凍検証）
-- [ ] `mm_core` PyO3 API（ジョブ管理・アトミック進捗・キャンセル）
-- [ ] `py/compress.py` 単体圧縮/解凍ルートの切替
-      （ws イベント・stats 形状の golden 互換テスト）
-- [ ] 起動時 `.tmp`/`.corrupt` クリーンアップ
-- [ ] L4 実モデルコーパステスト
-- [ ] 完了条件: L4/L5（互換帯）green、K1–K3/K6/K13 達成、
-      手動 QA（圧縮/解凍/進捗/キャンセル/ディスク満杯/強制終了復旧）
+- [x] `safetensors_io.rs`: mmap 読取・キー順保持 Writer・
+      原子入替（fsync + 親ディレクトリ fsync）・ENOSPC 処理 —
+      参照実装 safetensors 0.8.0（Rust）の一次ソース精読で
+      **バイト同一の正準シリアライズ**を実装（`__metadata__` 先頭・
+      compact JSON・8B 整列スペースパディング・検証規則の逐条ミラー）。
+      mmap は crate 唯一の unsafe 境界（SAFETY レビュー済み、§3.4.2 の
+      「意識的・レビュー付き導入」条項 — native/README 参照）。
+      副次発見: 参照実装はメタデータを **HashMap 順（プロセスごとに
+      ランダム）**で書くため、レガシー往復の byte‑exact は複数キー時に
+      偶然依存だった — Neo の順序保持 Writer がこの潜伏バグを解消
+      （BENCH §7.3‑4）
+- [x] 圧縮パイプライン（§4.3 + §4.4.3 の完全性検証:
+      `znn_neo_src_sha256`/`znn_neo_exact`/`znn_neo_src_meta_absent` 記録、
+      原本 sha は圧縮と並行スレッドで算出）— 「RAM/spoil」は
+      **単一書き込みパス（H_max ヘッダー予約 + seek‑back パッチ）**で
+      実装（§4.3 の実装注記 + BENCH §7.3‑1、フォールバック再書き込み
+      テスト済み）。ピーク RAM = O(最大テンソル)（実測: 64 MB モデルで
+      限界 +75 MiB = 1.2× vs レガシー 2.6×）
+- [x] 解凍パイプライン（検証 ON 既定 = インライン SHA‑256、追加 I/O ゼロ。
+      不一致時は圧縮ファイルを削除せず `.corrupt` 退避 + UI エラー。
+      exact=0 のみ §4.7.4 の構造検証へダウングレード — §4.4.3 実装注記 (a)。
+      敵対的 `.znn` 対策: 割り当てキャップ（整合的な嘘 original_len を
+      Err 化 — OOM abort 防止）、checked offset 累積、fuzz ターゲット
+      `st_parse`/`blob_decompress` 追加）
+- [x] paranoid モード（圧縮後即解凍検証 — rename 前に実施。内部デコードは
+      ジョブ進捗を駆動しない〔done>total バグを実測で発見し修正、
+      BENCH §7.3‑7〕。`MM_ZNN_PARANOID` 環境変数 +
+      `ModelManager.ZipNN.Paranoid` 設定キー、既定 OFF）
+- [x] `mm_core` PyO3 API（api_version **2**: `zipnn_compress`/
+      `zipnn_decompress` → handle、`job_progress`（10 Hz ポーリング契約）/
+      `job_cancel`/`job_result`/`job_error`。ジョブスレッドは GIL 非接触 +
+      `catch_unwind`（パニック → ジョブエラー）。**完了の権威シグナルは
+      outcome レコード**（phase との間の競合窓を実測で発見し構造的に
+      消滅 — BENCH §7.3‑6）。ローダー `py/native.py` は API 範囲 [2,2]
+      （v1 バイナリは AttributeError 前に明確な reason で拒否））
+- [x] `py/compress.py` 単体圧縮/解凍ルートの切替
+      （`MM_NATIVE=0/1/auto`。ws イベント・stats 形状の golden 互換テスト:
+      両経路で**同一ゴールデン**（イベント名・キー集合・phase 語彙・
+      monotone 進捗・stats キー）を機械検証。batch/delta ルートは
+      Phase 3 までレガシーのまま。クロスパス互換: native 圧縮 →
+      レガシー解凍（byte‑exact）/ レガシー圧縮 → native 解凍（意味同一）/
+      **両圧縮器のテンソル保存バイト・infos 文字列・stats 完全一致**
+      （test_blob_parity）。レガシー解凍側も Neo キー 6 種を strip +
+      meta_absent 尊重へ更新。キャンセルルート
+      `POST /model-manager/zipnn/cancel` 新設（レガシージョブは
+      明示的にキャンセル不可と応答））
+- [x] 起動時 `.tmp`/`.corrupt` クリーンアップ（`__init__.py` →
+      io_executor でバックグラウンド実行。`.tmp` は**15 分以上前**のもの
+      のみ削除（外部ツールの実行中ダウンロードを絶対に触らない年齢
+      ガード + ZipNN 名前形のみ）、`.corrupt` は削除せず一覧を
+      ログ報告（診断物の自動削除はデータ破壊リスクのため））
+- [x] L4 コーパステスト — Plan 列挙の 8 クラス（sd15‑fp16/sdxl‑fp16/
+      flux‑fp8/LLM‑bf16/VAE‑f32/MoE 巨大ヘッダ 600 テンソル/complex64 音声/
+      f64 合成）+ unicode テンソル名の合成スタンドイン（1 GiB RAM 制約は
+      Phase 0 と同じ手法 — 実モデル再実行は `run_all.sh` +
+      `bench_native_e2e.py --model` で可能）。全クラス × 圧縮→解凍→
+      **原本 SHA‑256 一致** + 圧縮率: C 版比は**バイト同一**（L2 の系譜、
+      test_blob_parity が生産経路で再証明）。pytest 43 green +
+      Rust L1 98 green
+- [/] 完了条件: **L4/L5（互換帯）green** ✓（L5 = pip 版公式 zipnn 0.5.4
+  実ビルドとの相互検証 `scripts/l5/official_cross.py` GATE PASS:
+  Neo 圧縮→公式解凍 / 公式圧縮→Neo 解凍 / ブロブ字节同一 7/7。
+  CI: integration ジョブ 3 OS + ubuntu フルマトリクス）、
+  **K1 ✓**（限界 1.2×/0.8× vs レガシー 2.6×/1.7× — サイズ非依存設計
+  → 12 GB 換算 <1 GB）・**K6 ✓**（端到端検証実装 + 全経路テスト）・
+  **K13 ✓**（import 6 ms/44 MiB 不変を再確認）、**K2/K3 は
+  参照機再計測待ち**（この SHA‑NI なし 2 vCPU 機では検証ハッシュが
+  壁の ~85 % — sha2 soft ~156 MB/s 実測。検証 OFF なら解凍 ×1.18・
+  圧縮 ×1.5–2.0（同一セッション比）。SHA‑NI + NVMe 外挿は
+  K2 ×1.3–2.0 / K3 ×1.2–2.1 の**境界** — BENCH §7.1 の通り正直に
+  記録し、参照機での `run_all.sh` 再計測を完了条件に残す）、
+  手動 QA: 圧縮/解凍/進捗/キャンセルは自動化済み（ルート + ジョブ
+  レベル、ws ゴールデン）。ディスク満杯（ENOSPC メッセージ経路 +
+  tmp 自動削除は実装・単体検証、実容量注入は参照機 QA 手順書へ）と
+  実 ComfyUI UI での QA はユーザ側手順として USAGE 更新時（Phase 7）
+  に統合。UI 契約自体はゴールデンテストで機械的に固定済み
 
 ### Phase 3 — デルタ圧縮 + バッチプリミティブ
 
@@ -1148,7 +1238,16 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
   CI 全緑（native-diff / fuzz-smoke 新設）。**残るは fuzz ≥8h の初回実行のみ**
   （fuzz-long.yml — UI ディスパッチ（branch: dev）か main マージ後の
   週次スケジュール。完了で [x] 化）
-- [ ] **Phase 2** — safetensors 圧縮/解凍 + 完全性検証パイプライン + バックエンド接続
+- [/] **Phase 2** — safetensors 圧縮/解凍 + 完全性検証パイプライン + バックエンド接続
+  **実装・自動 QA 完了 2026‑09‑24**: Rust パイプライン（mmap 単一
+  書き込みパス・ピーク RAM O(最大テンソル)・SHA‑256 端到端検証・
+  `.corrupt` 退避・paranoid・協調キャンセル）+ mm_core ジョブ API
+  （api_version 2）+ ルート切替（ws/stats ゴールデン両経路一致）+
+  起動時クリーンアップ。L4 pytest 43 緑・L1 98 緑・L5 公式 zipnn 0.5.4
+  クロス検証 GATE PASS・L2 再実行 PASS・L3 5 ターゲット化。K1/K6/K13
+  達成、**K2/K3 は参照機（NVMe + SHA‑NI）再計測待ち**（この 2 vCPU /
+  SHA‑NI なし機では検証ハッシュ律速で ×0.46/×0.24 — 内訳実測と外挿は
+  BENCH §7.1）。残るは参照機計測と実 UI 手動 QA のみ
 - [ ] **Phase 3** — デルタ（SEGFAULT 解消実証込み）+ バッチプリミティブ
 - [ ] **Phase 4** — dtype 大幅拡張（Neo 拡張帯 + 相互運用マトリクス）
 - [ ] **Phase 5** — スキャン/永続インデックス/ハッシュ/更新伝播（Quick Win A2/A3）

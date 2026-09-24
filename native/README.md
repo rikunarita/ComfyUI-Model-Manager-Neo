@@ -5,9 +5,18 @@ ComfyUI‑Model‑Manager‑Neo の中核処理を Rust へ移行するワーク
 
 **Phase 1（znn-codec フォーマット中核）実装済み**: `znn-codec` クレートが
 ZN ヘッダー・ビット並べ替え・平面分割・huff0/FSE（RFC 8878）・チャンク並列
-codec を純 Rust（unsafe ゼロ）で提供し、vendored C コアと**バイト同一の
-圧縮出力**を生成します（L2 ゴールデン差分 9,880/9,880 一致）。`mm_core`
-（PyO3）への Python API 接続は Phase 2 の作業です。
+codec を純 Rust で提供し、vendored C コアと**バイト同一の圧縮出力**を生成
+します（L2 ゴールデン差分 9,880/9,880 一致）。
+
+**Phase 2（safetensors パイプライン + バックエンド接続）実装済み**:
+`safetensors_io`（mmap 読取・キー順保持の正準 Writer・原子入替）、
+`znn_tensor`（テンソル単位 ZN ブロック）、`pipeline`（圧縮/解凍ジョブ =
+完全性検証・進捗・キャンセル・paranoid モード）と、`mm_core` の
+ポーリング型ジョブ API（`zipnn_compress` / `zipnn_decompress` /
+`job_progress` / `job_cancel` / `job_result` / `job_error`、api_version=2）。
+`py/compress.py` の単体圧縮/解凍ルートが `MM_NATIVE=0/1/auto` でこの経路に
+切り替わります（ws イベント・stats 形状はレガシーと完全互換 — ゴールデン
+テスト済み）。
 
 ## レイアウト
 
@@ -165,9 +174,23 @@ cargo-zigbuild 0.23.4 で確認）。Plan §3.3 の通り macOS 成果物は mac
 | `codec.rs`     | `zipnn_core`/`combine_dtype` 等価層（チャンク並列 = rayon 専用プール、閾値 |
 |                | 0.95、chunkTypes/cumSizes レイアウト）。C が検証しない敵対的ペイロード検証 |
 
-正しい実装の根拠は vendored C ソース（`third_party/zipnn-core/`）の逐条移植で、
+**Phase 2 追加**（同ディレクトリ）:
+
+| モジュール          | 内容                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `safetensors_io.rs` | コンテナ parse（jiter・JSON 順保持・参照実装 0.8.0 の検証規則を逐条ミラー）+ 正準 Writer（safetensors-rust とバイト同一の再シリアライズ）+ `AtomicWriter`（`.tmp` → fsync → 検証 → rename → 親 dir fsync、インライン SHA-256 対応）                                                                                                                        |
+| `znn_tensor.rs`     | テンソル単位 ZN ブロックの生成/復号 + 互換帯 dtype 表（safetensors dtype ↔ ZN コード ↔ torch 名）。fp8 のチャンククランプ（byte14=18 だが実チャンク 128KiB — zipnn.py のクセ）を両方向で再現                                                                                                                                                               |
+| `pipeline.rs`       | `compress_file` / `decompress_file`（Plan §4.3/§4.4.3）: mmap ストリーミング（ピーク RAM = O(最大テンソル)）、ワーストケース H_max ヘッダー予約による**単一書き込みパス**、原本 SHA-256 の並行算出、`znn_neo_src_sha256`/`znn_neo_exact` 記録、解凍時の既定検証（不一致時は圧縮ファイルを保持し復元物を `.corrupt` 退避）、paranoid モード、協調キャンセル |
+
+正しい実装の根拠は vendored C ソース（`third_party/zipnn-core/`）と
+safetensors 0.8.0 Rust 実装（一次ソース精読、2026‑09‑24）の逐条移植で、
 出力バイトは L2 ゴールデン差分（下記）が C プリビルド .so と照合します。
-**unsafe は クレート全体でゼロ**（`#![deny(unsafe_code)]`）。
+**unsafe はフォーマット中核（Phase 1 範囲）でゼロ**。Phase 2 の追加は
+`safetensors_io::StContainer::open` の **read-only mmap 1 箇所のみ**
+（memmap2 の安全境界。SAFETY コメント付きでレビュー済み — Plan §3.7 が
+選定したゼロコピー設計そのもので、置き換え対象の Python `safe_open` も
+同一の mmap 方式。crate の `#![deny(unsafe_code)]` は維持し、当該関数に
+局所 `#[allow]` + SAFETY ブロックを付す形）。
 
 ### znn-cli（配布しない開発ツール）
 
@@ -178,6 +201,9 @@ znn-cli core-compress  IN OUT --num-buf 4 --bits 1 --mode 220 --chunk 262144
 znn-cli core-decompress PAYLOAD OUT --orig-len N [--max-output CAP] ...
 znn-cli bench IN --op both --runs 5    # steal ゲート付き in-process 計測
 znn-cli batch MANIFEST.jsonl RESULTS.jsonl   # L2 ハーネス用バッチ実行
+# Phase 2: Python を介さない safetensors パイプライン（手動 QA / bench）
+znn-cli st-compress  model.safetensors model.znn.safetensors [--paranoid] [--json-out R.json]
+znn-cli st-decompress model.znn.safetensors restored.safetensors [--json-out R.json]
 ```
 
 `core-*` は C ABI（`zipnn_core` / `combine_dtype`）の完全ミラーです
@@ -215,11 +241,17 @@ cargo +nightly fuzz build -D --target x86_64-unknown-linux-gnu
 cargo +nightly fuzz run huf_decompress   --target x86_64-unknown-linux-gnu -- -max_total_time=300
 cargo +nightly fuzz run zn_header        --target x86_64-unknown-linux-gnu -- -max_total_time=300
 cargo +nightly fuzz run codec_decompress --target x86_64-unknown-linux-gnu -- -max_total_time=300
+cargo +nightly fuzz run st_parse         --target x86_64-unknown-linux-gnu -- -max_total_time=300
+cargo +nightly fuzz run blob_decompress  --target x86_64-unknown-linux-gnu -- -max_total_time=300
 ```
 
-- ターゲット 3 種: `huf_decompress`（敵対的 huff0 ブロック）/ `zn_header`
+- ターゲット 5 種: `huf_decompress`（敵対的 huff0 ブロック）/ `zn_header`
   （ヘッダー + packed shape、encode∘decode 正規形不変条件）/ `codec_decompress`
-  （ペイロード + パラメータ全体、出力キャップ付き）。
+  （ペイロード + パラメータ全体、出力キャップ付き）/ **Phase 2 追加**:
+  `st_parse`（敵対的 safetensors コンテナ + 正準再構築の不変条件:
+  「canonical フラグ ⇔ 再シリアライズが原本とバイト同一」）/
+  `blob_decompress`（敵対的テンソル ZN ブロック、**割り当てキャップ付き** —
+  整合的な嘘 original_len による OOM 殺人を Err に変える §4.4.2 の要件）。
 - シードコーパスは実物コンテナ/ブロック/ヘッダー（`fuzz/corpus/`、コミット済み）。
   Phase 1 開発中にファザーが発見した実バグ 3 件（ヘッダー正規形 1 + 整数オーバー
   フロー 2）は修正済みで、クラッシュ入力は回帰シードとしてコーパスに追加済み。
