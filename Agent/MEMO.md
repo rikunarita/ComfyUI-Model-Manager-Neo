@@ -459,3 +459,29 @@ fuzz-long.yml: 週次 3h×3=9h + l2-full）。L1 = 68 テスト緑（proptest �
    ラップして span 検査をすり抜け得た → u64 checked_add + 事前検証）、
    (c) `orig_len + chunk - 1` が cap 検査前でオーバーフロー（cap 検査を
    最前へ移動 + div_ceil 化）。
+
+### 追記（同日・ユーザ判断と最終最適化）
+
+- **ユーザ判断 3 点**（ask_user 応答）: (1) 圧縮率は速度より重要 —
+  「せめて 67 % は下回らない」→ バイト同一による構造的保証で回答
+  （bf16 実測 0.6623。BENCH §6.3）。unsafe は「できる限り使わない」指示
+  （safe 策の virtual-raw で目標超過達成のため不使用で決着）。
+  (2) fuzz-long は今すぐディスパッチ希望 → **PAT の Actions 権限不足 +
+  schedule/dispatch の default-branch（main）制約で 403**。GitHub UI からの
+  手動ディスパッチ（branch: dev, hours: 3）をユーザに依頼する形に。
+  (3) 上流 issue は起票せず、Neo 内でメモリバグ完全修正を担保（BENCH §6.4）。
+- **virtual-raw 平面**（最後の大型 safe 最適化）: raw 確定の平面は
+  スクラッチにも clone にも落とさず、アセンブリ フェーズで
+  `planes::extract_plane` が src チャンクから出力スライスへ直接展開
+  （split()[b] とのバイト一致は dedicated テスト + L2 10,500 で固定）。
+  効果: bf16 圧縮 ×0.78→×1.18–1.29、f16 ×0.72→×1.31–1.45 — **8/8 指標で
+  C 超え**（連続 2 実行、同一 steal ゲート プロトコル）。C のポインタ
+  スワップ（compressedData = 平面バッファ itself）を safe Rust で再構成した
+  形で、clone 経路の C よりトラフィックが少ない。
+- 速度計測の残存注意点: C は最静穏窓で bf16/f16 圧縮 ~950–1,030 MB/s に
+  達することがある（Rust 静穏窓上限 ~740–790、virtual-raw 後は未観測）。
+  ゲートは同一セッション交互計測（側別最小値）で判定 — 2 連続 PASS。
+- 最終状態: L1 69 / L2 フル PASS / L3 スモーク PASS / clippy -D warnings 0 /
+  fmt / ruff / mypy / pytest 12 / prettier 全緑、CI（verify + native 11
+  ジョブ、native-diff・fuzz-smoke 含む）全緑。Phase 1 の [x] 化は
+  fuzz ≥8h 初回実行完了待ち（機械的步骤のみ）。

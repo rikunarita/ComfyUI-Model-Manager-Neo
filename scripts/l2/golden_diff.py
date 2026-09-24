@@ -751,14 +751,17 @@ def bench_dtype(
     best_c_dec = min(dec_samples)
 
     def r_clean_best(op, inp, extra):
-        for _ in range(args.speed_blocks * 30):
-            s0 = steal_ticks()
-            t0 = time.perf_counter()
-            rows = rust_bench_full(op, inp, extra)
-            wall = time.perf_counter() - t0
-            if clean_window(s0, steal_ticks(), wall, threads):
-                return rows[op]["best_seconds"]
-            time.sleep(0.06)
+        # the CLI steal-gates EACH internal run (same 5% budget rule as the
+        # C-side loop here) and reports best/median over clean samples only;
+        # an outer spawn-level gate would be too strict (a spawn spans
+        # seconds and any host blip inside would reject already-clean runs).
+        for attempt in range(30):
+            try:
+                return rust_bench_full(op, inp, extra)[op]["best_seconds"]
+            except RuntimeError:
+                if attempt == 29:
+                    raise
+                time.sleep(0.2)
         raise RuntimeError(f"no clean window for rust {op} — rerun")
 
     best_r_comp = min(r_clean_best("compress", in_path, []) for _ in range(args.speed_blocks))

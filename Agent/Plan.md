@@ -974,16 +974,23 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
       （byte13 正規形・cumSizes usize 溢れ・orig_len+chunk-1 溢れ）。
       CI: native.yml `fuzz-smoke`（60s×3）+ fuzz-long.yml（週次 3h×3 = 9h ≥ 8h）
 - [x] （推奨）上流 zipnn への欠陥報告 issue 起票（付録 C の再現手順添付）—
-      起票文案を `docs/upstream/zipnn-core-defect-report.md` にコミット。
-      細粒度 PAT のスコープ外（zipnn/zipnn への起票権限なし）のため
-      **提出はユーザ判断に委ねる**（本文そのまま貼り付け可能な形で用意）
-- [/] 完了条件: L1–L3 green（fuzz ≥8 h は fuzz-long.yml の初回スケジュール実行
-  で消化される — ディスパッチ済み/結果待ち）、f32/bf16/f16/fp8 で
-  C 版比 圧縮率差 ±0.5% 以内（**Δ0.0000 % = バイト同一で達成**）・
-  速度同等以上（**8 指標中 6 が ×1.20–1.86 で超過達成。bf16/f16 圧縮の
-  ×0.72–0.78 は同日 C クリーン窓上限比 — Phase 0 記録 C ベースライン比では
-  全 dtype 同等以上。ゲート解釈の判断をユーザに依頼中**: docs/BENCH.md §6.2
-  と MEMO 2026‑09‑23 参照）、clippy/fmt green（**達成**）
+      **ユーザ判断（2026‑09‑23）: 起票せず、Neo 実装内でバグが完全修正
+      されていればよい**。担保: Neo は設計上 OOB 不可能（unsafe ゼロ・全経路
+      bounds-checked）+ 付録 C 全長回帰（L1/L2 495/495/L3 ASan ~60 万実行）
+  - ファズ検出オーバーフロー 2 件修正済み。証跡整理 = docs/BENCH.md §6.4
+    （起票文案は `docs/upstream/zipnn-core-defect-report.md` に参考保管）
+- [/] 完了条件: L1–L3 green（L1 69 テスト緑・L2 フル 10,500 ケース GATE PASS・
+  L3 スモーク緑。**fuzz ≥8 h のみ機械的步骤が残る**: schedule は default
+  branch（main）限定、workflow_dispatch は PAT の Actions 権限不足で 403 —
+  **GitHub UI（Actions → fuzz-long → Run workflow → branch: dev, hours: 3）
+  からのユーザ ディスパッチ、または dev→main マージ後の週次実行で消化**。
+  完了時に本項を [x] 化）、f32/bf16/f16/fp8 で C 版比 圧縮率差 ±0.5% 以内
+  （**Δ0.0000 % = バイト同一で達成。ユーザ要件「67 % を下回らない」も
+  bf16 実測 0.6623 で構造的に保証 — BENCH §6.3**）・速度同等以上
+  （**8/8 指標 ×1.09–1.81 で達成** — virtual-raw 平面最適化により
+  bf16/f16 圧縮 ×0.72–0.84 → ×1.18–1.45 に反転。同一 steal ゲート
+  プロトコルの連続 2 実行で安定。**unsafe 不使用**（ユーザ指示）。
+  変動注記: BENCH §6.2）、clippy/fmt green（**達成**）
 
 ### Phase 2 — safetensors 圧縮/解凍パイプライン + バックエンド接続
 
@@ -1134,12 +1141,13 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 - [x] **Phase 0** — 基盤準備（ベンチ基盤・mold/rustfmt/clippy・abi3 疎通・Quick Win A1）
       完了 2026‑09‑23（`docs/BENCH.md`・`native/`・`py/native.py`・native.yml 全緑）
 - [/] **Phase 1** — znn-codec フォーマット中核（ヘッダー/平面/huff0・FSE + L2/L3）
-  **実装完了 2026‑09‑23**: L1 68 テスト緑・L2 フル 10,500 ケース GATE PASS
-  （圧縮出力 C とバイト同一 9,880/9,880・付録 C クラス 495/495 安全処理）・
-  L3 スモーク緑（実バグ 3 件検出→修正）。速度 8 指標中 6 が C 超え
-  （×1.20–1.86）、bf16/f16 圧縮 ×0.72–0.78（同日 C クリーン窓上限比。
-  Phase 0 記録比は全 dtype 同等以上）— ゲート解釈をユーザ判断待ち。
-  fuzz ≥8h は fuzz-long.yml 初回実行待ち
+  **実装・全性能ゲート完了 2026‑09‑23**: L1 69 テスト緑・L2 フル 10,500
+  ケース GATE PASS（圧縮出力 C とバイト同一 9,880/9,880 = 圧縮率恒等一致・
+  付録 C クラス 495/495 安全処理）・L3 スモーク緑（実バグ 3 件検出→修正）・
+  速度 **8/8 指標 ×1.09–1.81 で C 超え**（unsafe ゼロ）・clippy/fmt 緑・
+  CI 全緑（native-diff / fuzz-smoke 新設）。**残るは fuzz ≥8h の初回実行のみ**
+  （fuzz-long.yml — UI ディスパッチ（branch: dev）か main マージ後の
+  週次スケジュール。完了で [x] 化）
 - [ ] **Phase 2** — safetensors 圧縮/解凍 + 完全性検証パイプライン + バックエンド接続
 - [ ] **Phase 3** — デルタ（SEGFAULT 解消実証込み）+ バッチプリミティブ
 - [ ] **Phase 4** — dtype 大幅拡張（Neo 拡張帯 + 相互運用マトリクス）

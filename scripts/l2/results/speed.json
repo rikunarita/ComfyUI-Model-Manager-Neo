@@ -1,6 +1,6 @@
 {
   "env": {
-    "date": "2026-09-23T22:07:15+0000",
+    "date": "2026-09-24T01:40:32+0000",
     "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
     "python": "3.11.2",
     "cli": "/tmp/arena/tenants/6acc009e-668a-4d2f-9f51-3f7ed5839ee4/sessions/949539ee-5da1-4138-b4be-9b3e26fb049e/workspace/ComfyUI-Model-Manager-Neo/native/target/release/znn-cli",
@@ -8,100 +8,76 @@
   },
   "seed": 20260923,
   "speed": {
-    "gate": false,
+    "gate": true,
     "dtypes": {
       "f32": {
         "bytes": 33554432,
         "threads": 2,
-        "clean_samples": {
-          "c_comp": 5,
-          "c_dec": 5,
-          "r_comp": 5,
-          "r_dec": 5
-        },
         "byte_identical": true,
         "rust_roundtrip_ok": true,
         "ratio_c": 0.83127,
         "ratio_rust": 0.83127,
         "ratio_delta_pct": 0.0,
-        "compress_mbs_c": 495.9,
-        "compress_mbs_rust": 842.2,
-        "compress_speedup": 1.698,
-        "decompress_mbs_c": 671.8,
-        "decompress_mbs_rust": 1250.3,
-        "decompress_speedup": 1.861,
+        "compress_mbs_c": 531.1,
+        "compress_mbs_rust": 579.7,
+        "compress_speedup": 1.092,
+        "decompress_mbs_c": 748.4,
+        "decompress_mbs_rust": 1355.0,
+        "decompress_speedup": 1.81,
         "gate": true
       },
       "bf16": {
         "bytes": 33554432,
         "threads": 2,
-        "clean_samples": {
-          "c_comp": 5,
-          "c_dec": 5,
-          "r_comp": 5,
-          "r_dec": 5
-        },
         "byte_identical": true,
         "rust_roundtrip_ok": true,
         "ratio_c": 0.662295,
         "ratio_rust": 0.662295,
         "ratio_delta_pct": 0.0,
-        "compress_mbs_c": 1013.1,
-        "compress_mbs_rust": 789.5,
-        "compress_speedup": 0.779,
-        "decompress_mbs_c": 795.3,
-        "decompress_mbs_rust": 964.4,
-        "decompress_speedup": 1.213,
-        "gate": false
+        "compress_mbs_c": 531.1,
+        "compress_mbs_rust": 683.2,
+        "compress_speedup": 1.286,
+        "decompress_mbs_c": 664.3,
+        "decompress_mbs_rust": 992.6,
+        "decompress_speedup": 1.494,
+        "gate": true
       },
       "f16": {
         "bytes": 33554432,
         "threads": 2,
-        "clean_samples": {
-          "c_comp": 5,
-          "c_dec": 5,
-          "r_comp": 5,
-          "r_dec": 5
-        },
         "byte_identical": true,
         "rust_roundtrip_ok": true,
         "ratio_c": 0.843431,
         "ratio_rust": 0.843431,
         "ratio_delta_pct": 0.0,
-        "compress_mbs_c": 1020.3,
-        "compress_mbs_rust": 734.3,
-        "compress_speedup": 0.72,
-        "decompress_mbs_c": 793.5,
-        "decompress_mbs_rust": 1041.0,
-        "decompress_speedup": 1.312,
-        "gate": false
+        "compress_mbs_c": 511.6,
+        "compress_mbs_rust": 740.7,
+        "compress_speedup": 1.448,
+        "decompress_mbs_c": 709.5,
+        "decompress_mbs_rust": 1129.5,
+        "decompress_speedup": 1.592,
+        "gate": true
       },
       "fp8": {
         "bytes": 33554432,
         "threads": 2,
-        "clean_samples": {
-          "c_comp": 5,
-          "c_dec": 5,
-          "r_comp": 5,
-          "r_dec": 5
-        },
         "byte_identical": true,
         "rust_roundtrip_ok": true,
         "ratio_c": 0.669737,
         "ratio_rust": 0.669737,
         "ratio_delta_pct": 0.0,
-        "compress_mbs_c": 516.8,
-        "compress_mbs_rust": 701.5,
-        "compress_speedup": 1.357,
-        "decompress_mbs_c": 548.9,
-        "decompress_mbs_rust": 708.5,
-        "decompress_speedup": 1.291,
+        "compress_mbs_c": 510.5,
+        "compress_mbs_rust": 713.7,
+        "compress_speedup": 1.398,
+        "decompress_mbs_c": 570.3,
+        "decompress_mbs_rust": 729.6,
+        "decompress_speedup": 1.279,
         "gate": true
       }
     },
     "threads": 2,
     "fixture_mb": 32,
-    "seconds": 48.9
+    "seconds": 51.2
   },
-  "gate": false
+  "gate": true
 }
