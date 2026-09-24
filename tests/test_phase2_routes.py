@@ -526,9 +526,12 @@ def test_startup_cleanup_sweeps_tmp_and_reports_corrupt(model_lib):
     unrelated.write_bytes(b"mine")
     os.utime(unrelated, (old, old))
 
+    utils = import_ext("utils")
     report = compress.cleanup_stray_files()
-    assert str(stale_tmp) in report["removed"]
+    # the sweep reports slash-normalized paths (the backend's reporting form
+    # on every OS) — compare normalized
+    assert utils.normalize_path(str(stale_tmp)) in report["removed"]
     assert fresh_tmp.exists(), "young .tmp files may belong to a live run"
-    assert str(corrupt) in report["corrupt"] and corrupt.exists(), ".corrupt files are kept"
+    assert utils.normalize_path(str(corrupt)) in report["corrupt"] and corrupt.exists(), ".corrupt files are kept"
     assert unrelated.exists(), "foreign .tmp files are never touched"
     assert not stale_tmp.exists()

@@ -442,8 +442,10 @@ mod tests {
             std::thread::sleep(Duration::from_millis(5));
         }
         let err = job_error(id).unwrap().expect("failed job has an error");
+        // io_ctx always names the operation and the path — the platform
+        // message text differs (POSIX vs Win32), those two do not
         assert!(
-            err.contains("reading") || err.contains("No such file"),
+            err.contains("reading") && err.contains("a.safetensors"),
             "{err}"
         );
         assert!(job_result(id).is_err(), "result on a failed job raises");

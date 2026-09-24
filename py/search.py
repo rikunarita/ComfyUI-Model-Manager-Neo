@@ -31,6 +31,7 @@ import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import TimeoutError as FuturesTimeoutError
+from typing import Any, cast
 from urllib.parse import quote, urlparse
 
 import requests
@@ -177,7 +178,12 @@ def _search_huggingface(query: str, limit: int, cursor: str | None, sort: str) -
     # One extra item is fetched to learn whether a further page exists.
     models = HfApi().list_models(
         search=query,
-        sort=sort,
+        # The settings surface exposes every sort key the HF endpoint accepts
+        # (per the user's choice); huggingface_hub 2.x narrows the `sort`
+        # annotation to a closed Literal even though the API itself still
+        # serves the other documented keys. The cast keeps the user-selected
+        # value working without pinning the hub version (zero runtime effect).
+        sort=cast(Any, sort),
         limit=offset + limit + 1,
         # `expand` limits the payload to the listed fields: author (avatar /
         # owner link) plus the counters the result rows show as icons.

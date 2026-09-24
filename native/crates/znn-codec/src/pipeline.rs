@@ -344,7 +344,13 @@ fn io_ctx(e: std::io::Error, what: &str, path: &Path) -> StError {
             ),
         ))
     } else {
-        StError::Io(e)
+        // keep the OS message but ALWAYS add the operation context — the raw
+        // platform strings differ ("No such file" vs "The system cannot find
+        // the path"), and the user-facing error must say WHICH file/step
+        StError::Io(std::io::Error::new(
+            e.kind(),
+            format!("{e} while {what} {}", path.display()),
+        ))
     }
 }
 

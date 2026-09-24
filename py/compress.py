@@ -229,7 +229,10 @@ def cleanup_stray_files() -> dict[str, Any]:
             continue
         for dirpath, _dirnames, filenames in os.walk(root):
             for name in filenames:
-                full = os.path.join(dirpath, name)
+                # utils.join_path keeps the slash-normalized form the rest of
+                # the backend reports (model roots arrive normalized — raw
+                # os.path.join would mix separators on Windows)
+                full = utils.join_path(dirpath, name)
                 try:
                     if _is_stray_tmp_name(name):
                         if now - os.path.getmtime(full) >= _STRAY_TMP_MIN_AGE_S:
