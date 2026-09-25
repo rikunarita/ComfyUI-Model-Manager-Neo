@@ -797,7 +797,16 @@ events API に 03:37 UTC 以降の dev push なし、fuzz‑long の run は
 - `.so` 再ビルド（build‑native.sh linux‑x86_64）: **決定論的**
   （2 回ビルドで sha256 一致 `7c44396…dcbc1`、1,026,536 B）。
   `verify_native_binary.py` → `ok: true`、max_glibc **GLIBC_2.28** ✓。
-  無害 warning 1 件（zig ld の `-O1` 非推奨通知）は CI と同一。
+  無害 warning 1 件（zig ld の `-O1` 非推奨通知）は CI と同一
+  （native‑build‑linux ログに 2 件 = 両 arch 分、を実物で確認）。
+  **ロールバックを幸存していた旧 `.so`（992,520 B、mtime 03:23）は現行
+  ソースの決定論的再ビルドと不一致**（CI@972ff73 の x86_64 成果物は
+  1,026,872 B — ローカルとの 336 B 差はビルドパス長由来）→ 来歴不明
+  （stale）として破棄し、本セッションの全結論はフレッシュビルドに
+ 基づく。精査修正の回帰テストも新 `.so`/現行ソースで緑を明示確認:
+  `atomic_writer_commits_and_aborts`（create_new 並行拒否・young tmp
+  保護・stale 採用）、`header_size_guard_rejects_oversized_regions`、
+  `test_cleanup_targets_never_deletes_dst_itself` ほか。
 - L4 pytest **44/44** ✓ / L2 quick **GATE PASS** ✓（注意: quick 実行は
   `scripts/l2/results/golden_diff.json`（コミット済み証跡）を上書きする →
   `git checkout --` で復元した）/ L5 公式 zipnn 0.5.4 **GATE PASS** ✓
