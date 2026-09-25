@@ -10,11 +10,17 @@
 //!
 //! The output buffer is a thread_local grow-only Vec — the same reuse
 //! pattern the pipeline uses for K1 (see `pipeline.rs` / MEMO 2026-09-25).
-//! Root cause of the 2026-09-25 fuzz-long OOM (run 36088280583): a FRESH
-//! per-exec Vec over ~50M execs made glibc malloc retain enough pages to
-//! trip libFuzzer's rss_limit with only ~25 MB of live heap — an allocator
-//! artifact of the harness, not a memory-safety bug. Reusing one buffer
-//! keeps the allocation pattern stationary (RSS flat ~150 MB locally).
+//!
+//! Root cause of the 2026-09-25 fuzz-long OOMs (runs 36088280583 AND the
+//! re-run 36114455354, which still grew ~35 B/exec with a live heap of only
+//! ~25 MB): `threads = 1` differs from the runner's `default_threads()`, so
+//! `codec::with_threads` used to BUILD AND DESTROY a fresh rayon pool on
+//! EVERY exec — one OS thread created/torn down per exec, whose sanitizer/
+//! runtime metadata accumulates for the process lifetime. Not a memory-safety
+//! bug; an artifact of per-call thread churn. `codec.rs` now caches one pool
+//! per explicit thread count (regression test
+//! `explicit_thread_counts_reuse_cached_pools`), so `threads = 1` here is a
+//! stationary single worker and RSS stays flat.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
