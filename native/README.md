@@ -13,10 +13,24 @@ codec を純 Rust で提供し、vendored C コアと**バイト同一の圧縮�
 `znn_tensor`（テンソル単位 ZN ブロック）、`pipeline`（圧縮/解凍ジョブ =
 完全性検証・進捗・キャンセル・paranoid モード）と、`mm_core` の
 ポーリング型ジョブ API（`zipnn_compress` / `zipnn_decompress` /
-`job_progress` / `job_cancel` / `job_result` / `job_error`、api_version=2）。
+`job_progress` / `job_cancel` / `job_result` / `job_error`）。
 `py/compress.py` の単体圧縮/解凍ルートが `MM_NATIVE=0/1/auto` でこの経路に
 切り替わります（ws イベント・stats 形状はレガシーと完全互換 — ゴールデン
 テスト済み）。
+
+**Phase 3（デルタ圧縮 + バッチプリミティブ）実装済み**（api_version=**3**）:
+`delta`（両側 mmap → ヘッダー等長化パディング → 1 MiB ストリーミング XOR →
+公式 streaming コンテナ連鎖。ピーク RAM = O(チャンク)、`.neo-delta.json`
+サイドカーへ `ftSha256` を記録し復元時にインライン検証、legacy 単一
+コンテナ形式も復元可、エラー文言は UI 契約として逐語互換）と `batch`
+（`walk_models` 並列 walk = os.walk 意味論の忠実移植、
+`move_with_sidecars` = 20 スロット プレビュー/ノート規則の移植。バンドル
+意味論は Python 側維持）。`mm_core` 追加 API: `zipnn_delta_compress` /
+`zipnn_delta_decompress`（ジョブ）+ `walk_models` / `move_with_sidecars`
+（同期）。デルタ/バッチフォルダ ルートが `MM_NATIVE` で切り替わります
+（付録 C の SEGFAULT クラスはデルタ端到端テストで「正常完了 + byte‑exact」
+に固定化 — docs/BENCH.md §8）。L3 ファズは 6 ターゲット
+（`delta_decompress` 追加）。
 
 ## レイアウト
 

@@ -112,6 +112,10 @@ pub enum Phase {
     Done = 4,
     /// Terminal: failed (see the job's error).
     Failed = 5,
+    /// The delta chunk loop (Phase 3 — the legacy ws phase vocabulary of
+    /// Plan §4.2.3 is `prepare/tensors/delta/done`; delta routes report
+    /// their work under `"delta"` exactly like the legacy 3-step progress).
+    Delta = 6,
 }
 
 impl Phase {
@@ -125,6 +129,7 @@ impl Phase {
             Self::Verify => "verify",
             Self::Done => "done",
             Self::Failed => "failed",
+            Self::Delta => "delta",
         }
     }
 
@@ -137,6 +142,7 @@ impl Phase {
             3 => Self::Verify,
             4 => Self::Done,
             5 => Self::Failed,
+            6 => Self::Delta,
             _ => Self::Prepare,
         }
     }
@@ -198,22 +204,22 @@ pub struct Hooks<'a> {
 }
 
 impl Hooks<'_> {
-    fn cancelled(&self) -> bool {
+    pub(crate) fn cancelled(&self) -> bool {
         self.cancel.is_some_and(|c| c.load(Ordering::Relaxed))
     }
-    fn check_cancel(&self) -> StResult<()> {
+    pub(crate) fn check_cancel(&self) -> StResult<()> {
         if self.cancelled() {
             Err(StError::Cancelled)
         } else {
             Ok(())
         }
     }
-    fn phase(&self, p: Phase) {
+    pub(crate) fn phase(&self, p: Phase) {
         if let Some(pr) = self.progress {
             pr.set_phase(p);
         }
     }
-    fn bump(&self) {
+    pub(crate) fn bump(&self) {
         if let Some(pr) = self.progress {
             pr.bump();
         }
@@ -349,7 +355,7 @@ fn guard_header_size(region: &[u8]) -> StResult<()> {
     Ok(())
 }
 
-fn io_ctx(e: std::io::Error, what: &str, path: &Path) -> StError {
+pub(crate) fn io_ctx(e: std::io::Error, what: &str, path: &Path) -> StError {
     if is_enospc(&e) {
         StError::Io(std::io::Error::new(
             e.kind(),

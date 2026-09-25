@@ -38,7 +38,12 @@ mod jobs;
 /// * 2 — Phase 2: the ZipNN safetensors job API (compress/decompress +
 ///   progress/cancel/result/error). `py/compress.py` calls these directly,
 ///   so a v1 binary must NOT pass the loader handshake of a v2 backend.
-const API_VERSION: u32 = 2;
+/// * 3 — Phase 3: the delta jobs (`zipnn_delta_compress` /
+///   `zipnn_delta_decompress`) + the batch primitives (`walk_models` /
+///   `move_with_sidecars`). The delta routes call these directly, so a v2
+///   binary must NOT pass the loader handshake of a v3 backend (exact-range
+///   check in `py/native.py`).
+const API_VERSION: u32 = 3;
 
 /// `"x.y.z+commit"` — the crate version plus the git commit the binary was
 /// built from (embedded by `build.rs`, Plan §4.2.2 `core_version()`).
@@ -53,8 +58,9 @@ fn core_version_string() -> String {
 /// The native core of ComfyUI-Model-Manager-Neo.
 ///
 /// Built with the CPython Stable ABI (abi3-py310): this single binary serves
-/// CPython 3.10 and newer. Phase 2 exposes the ZipNN safetensors jobs; the
-/// delta, scan and hash APIs follow in the later phases of the refresh plan
+/// CPython 3.10 and newer. Phase 2 exposed the ZipNN safetensors jobs,
+/// Phase 3 the delta jobs + batch primitives; the dtype extension and the
+/// scan/hash APIs follow in the later phases of the refresh plan
 /// (Agent/Plan.md).
 #[pymodule]
 mod mm_core {
@@ -88,8 +94,54 @@ mod mm_core {
         super::jobs::zipnn_decompress(src, dst, opts)
     }
 
+    /// Delta-compress `ft` against `base` into `out` (+ `.neo-delta.json`
+    /// sidecar with `ftSha256`) as an async job; returns the handle.
+    /// `opts`: `threads`, `paranoid` (re-decode + verify before rename).
+    #[pyfunction]
+    #[pyo3(signature = (base, ft, out, opts=None))]
+    fn zipnn_delta_compress(
+        base: &str,
+        ft: &str,
+        out: &str,
+        opts: Option<&Bound<'_, PyDict>>,
+    ) -> u64 {
+        super::jobs::zipnn_delta_compress(base, ft, out, opts)
+    }
+
+    /// Restore the fine-tune from `base` + `delta` into `out` as an async
+    /// job; returns the handle. `meta` is the parsed sidecar dict
+    /// (`basePad`/`ftPad`/`ftSha256` — missing keys degrade like the legacy
+    /// reader); `opts`: `threads`, `verify` (default true).
+    #[pyfunction]
+    #[pyo3(signature = (base, delta, out, meta=None, opts=None))]
+    fn zipnn_delta_decompress(
+        base: &str,
+        delta: &str,
+        out: &str,
+        meta: Option<&Bound<'_, PyDict>>,
+        opts: Option<&Bound<'_, PyDict>>,
+    ) -> u64 {
+        super::jobs::zipnn_delta_decompress(base, delta, out, meta, opts)
+    }
+
+    /// The parallel batch walk (`mode`: "compress"/"decompress"/
+    /// "blockers"); returns a JSON array of paths in the legacy sorted
+    /// order. Synchronous — routes call it from executors.
+    #[pyfunction]
+    #[pyo3(signature = (root, opts=None))]
+    fn walk_models(root: &str, opts: Option<&Bound<'_, PyDict>>) -> PyResult<String> {
+        super::jobs::walk_models(root, opts)
+    }
+
+    /// Move every sidecar of `src` (previews + notes) beside `dst`.
+    /// Synchronous; the model file itself is NOT moved.
+    #[pyfunction]
+    fn move_with_sidecars(src: &str, dst: &str) -> PyResult<()> {
+        super::jobs::move_with_sidecars(src, dst)
+    }
+
     /// `(done, total, phase)` of a job; phase ∈ {prepare, tensors, write,
-    /// verify, done, failed} — `done`/`failed` are terminal.
+    /// verify, delta, done, failed} — `done`/`failed` are terminal.
     #[pyfunction]
     fn job_progress(handle: u64) -> PyResult<(u64, u64, String)> {
         super::jobs::job_progress(handle)
@@ -129,6 +181,6 @@ mod tests {
     fn api_version_matches_the_loader_contract() {
         // py/native.py pins MIN_API_VERSION..MAX_API_VERSION — keep the two
         // sides in lockstep (the loader test suite asserts the same range).
-        assert_eq!(super::API_VERSION, 2);
+        assert_eq!(super::API_VERSION, 3);
     }
 }

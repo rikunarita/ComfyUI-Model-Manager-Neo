@@ -21,8 +21,12 @@
 //! | [`znn_tensor`]     | per-tensor ZN blobs + the compatibility-band dtype table     |
 //! | [`pipeline`]       | the compress/decompress jobs: integrity pipeline, progress,  |
 //! |                    | cancellation, paranoid mode (Phase 2)                        |
+//! | [`delta`]          | file-level delta (de)compression: padded renderings, the     |
+//! |                    | streaming XOR chunk loop, sidecar + ftSha256 (Phase 3)       |
+//! | [`batch`]          | batch primitives: the parallel folder walk + the sidecar     |
+//! |                    | mover (Phase 3; bundle semantics stay in Python)             |
 //!
-//! Later phases add `delta`, `scan` and `hash` (Phase 3–5).
+//! Later phases add `scan` and `hash` (Phase 5).
 //!
 //! Correctness strategy (Plan §5.1): L1 unit/proptest suites here, L2
 //! differential tests against the bundled prebuilt C core (golden generator,
@@ -52,8 +56,10 @@
 // `#[allow(unsafe_code)]` next to its SAFETY block.
 #![deny(unsafe_code)]
 
+pub mod batch;
 pub mod bitstream;
 pub mod codec;
+pub mod delta;
 pub mod dtype;
 pub mod fse;
 pub mod header;

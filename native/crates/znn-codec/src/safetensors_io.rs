@@ -75,6 +75,12 @@ pub enum StError {
     Cancelled,
     #[error("integrity verification failed: {0}")]
     Verification(String),
+    /// A message that must reach the user VERBATIM (no prefix): the legacy
+    /// error-wording compatibility of Plan §4.5-6 — the UI displays these
+    /// strings as-is and users search them, so they are contract, not prose
+    /// (e.g. zipnn.py's delta length-mismatch ValueError).
+    #[error("{0}")]
+    Message(String),
 }
 
 /// Convenience alias for the safetensors/pipeline layer.

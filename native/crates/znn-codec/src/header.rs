@@ -89,6 +89,31 @@ impl ZnHeader {
     /// must not guess (magic, method, lossy-zero); `input_format` validity
     /// included. Does NOT parse the packed shape (see [`parse`]).
     pub fn decode(buf: &[u8]) -> CodecResult<Self> {
+        Self::decode_inner(buf, true)
+    }
+
+    /// The DELTA-container gate — [`decode`] minus the strict `method`
+    /// check. Primary sources (zipnn/zipnn main, read 2026-09-25):
+    /// `scripts/zipnn_decompress_file_delta.py` constructs
+    /// `ZipNN(is_streaming=True, delta_compressed_type="file")` WITHOUT a
+    /// method (constructor default `AUTO` → header byte 7 = 0), and
+    /// `zipnn.py decompress_bin` ignores byte 7 entirely (its zstd
+    /// single-group branch is dead code: `dtype_size = 0  # Need to
+    /// implement`). On the write side `scripts/zipnn_compress_file_delta.py`
+    /// defaults to `HUFFMAN` but ACCEPTS `--method AUTO/ZSTD/...`, and for
+    /// float32 byte containers `compress_bin` ALWAYS routes through
+    /// `zipnn_core` (Huffman payload) regardless of the method value. So
+    /// real official delta files carry byte 7 ∈ {0,1,2,3,4} with a Huffman
+    /// payload — refusing anything but 1 would break Plan §7 R12 ("the Rust
+    /// decompressor accepts 100% of the official output"). The payload is
+    /// still fully validated by the codec's structural checks, so a
+    /// genuinely foreign payload is a clean Err, never a mis-decode. The
+    /// TENSOR path keeps the strict gate (Plan Appendix B.1).
+    pub fn decode_delta(buf: &[u8]) -> CodecResult<Self> {
+        Self::decode_inner(buf, false)
+    }
+
+    fn decode_inner(buf: &[u8], strict_method: bool) -> CodecResult<Self> {
         if buf.len() < HEADER_LEN {
             return Err(CodecError::Header(format!(
                 "need {HEADER_LEN} bytes, got {}",
@@ -112,7 +137,7 @@ impl ZnHeader {
             )));
         }
         let method = buf[7];
-        if method != METHOD_HUFFMAN {
+        if strict_method && method != METHOD_HUFFMAN {
             return Err(CodecError::Unsupported(format!(
                 "compression method {method} (only HUFFMAN=1 is supported; Plan Appendix B.1)"
             )));
@@ -206,7 +231,16 @@ impl ZnHeader {
     /// packed shape. Returns the header, the shape (empty for BYTE) and the
     /// total prefix length.
     pub fn parse(buf: &[u8]) -> CodecResult<(Self, Vec<u64>, usize)> {
-        let header = Self::decode(buf)?;
+        Self::parse_inner(buf, true)
+    }
+
+    /// [`parse`] with the lenient delta method gate ([`decode_delta`]).
+    pub fn parse_delta(buf: &[u8]) -> CodecResult<(Self, Vec<u64>, usize)> {
+        Self::parse_inner(buf, false)
+    }
+
+    fn parse_inner(buf: &[u8], strict_method: bool) -> CodecResult<(Self, Vec<u64>, usize)> {
+        let header = Self::decode_inner(buf, strict_method)?;
         if !header.input_format.has_shape() {
             return Ok((header, Vec::new(), HEADER_LEN));
         }

@@ -13,7 +13,12 @@ behave identically) and the REAL Neo artifact (``native-bin`` →
   → ``ZipNN(input_format="torch")`` → uint8 vectors + infos metadata, others
   pass through) must restore through the Neo pipeline with every tensor
   byte-identical to the original (verification reports ``skipped`` — the
-  official recipe records no ``znn_neo_src_sha256``, Plan §4.4.3-4).
+  official recipe records no ``znn_neo_src_sha256``, Plan §4.4.3-4);
+* **delta cross-validation (Phase 3)**: Neo's streaming delta artifacts
+  restore through the official ``ZipNN(delta_compressed_type="byte",
+  is_streaming=True)`` path byte-exactly, and the official delta output —
+  BOTH the single-container and the streaming form — restores through the
+  Neo native delta decompressor byte-exactly.
 
 Any mismatch exits non-zero with a first-difference report (CI gate).
 Requires: linux + torch + safetensors + the built native binary. Skips
@@ -270,6 +275,88 @@ def neo_job(mm, handle: int, timeout: float = 300.0):
     return json.loads(mm.job_result(handle))
 
 
+# ---------------------------------------------------------------------------
+# delta fixtures + the header-padding glue (pure struct — mirrors what BOTH
+# sides require, so section D is a genuine engine-vs-engine cross-check)
+# ---------------------------------------------------------------------------
+def _st_split(path: str):
+    with open(path, "rb") as f:
+        img = f.read()
+    (hlen,) = struct.unpack("<Q", img[:8])
+    return hlen, img[8 : 8 + hlen], img[8 + hlen :]
+
+
+def _padded_rendering(path: str, pad: int) -> bytes:
+    hlen, header, data = _st_split(path)
+    return struct.pack("<Q", hlen + pad) + header + b" " * pad + data
+
+
+def _unpad(restored: bytes, pad: int) -> bytes:
+    if not pad:
+        return restored
+    (padded_len,) = struct.unpack("<Q", restored[:8])
+    original_len = padded_len - pad
+    return struct.pack("<Q", original_len) + restored[8 : 8 + original_len] + restored[8 + padded_len :]
+
+
+def build_delta_pair(base_path: str, ft_path: str) -> None:
+    """base + fine-tune with an IDENTICAL tensor layout (delta-able) and
+    different metadata (the headers differ in length → padding exercised)."""
+    tensors = {
+        "attn.q": ("BF16", [256, 64], _bf16(256 * 64)),
+        "mlp.w": ("F32", [128, 96], _f32(128 * 96)),
+    }
+    write_st(base_path, tensors, {"format": "pt", "notes": "the base model checkpoint"})
+    ft = {
+        "attn.q": ("BF16", [256, 64], _bf16(256 * 64, seed=9)),
+        "mlp.w": ("F32", [128, 96], _f32(128 * 96)),
+    }
+    write_st(ft_path, ft, {"format": "pt"})
+
+
+def official_delta_compress(
+    base: str, ft: str, out: str, streaming: bool, method: str | None = None
+) -> tuple[int, int]:
+    """The official byte-delta recipe (``zipnn_compress_file_delta.py``
+    semantics via the pip library): pad both sides, XOR, FLOAT32 byte
+    containers. ``method=None`` uses the zipnn.py API DEFAULT ("AUTO" →
+    header byte 7 = 0 — the value the official decompressor ignores); the
+    delta CLI's default is "HUFFMAN" (byte 7 = 1). Returns the
+    (basePad, ftPad) the decompressor needs."""
+    from zipnn import ZipNN
+
+    base_len, _base_header, _ = _st_split(base)
+    ft_len, _ft_header, _ = _st_split(ft)
+    pad_base = max(0, ft_len - base_len)
+    pad_ft = max(0, base_len - ft_len)
+    base_bytes = _padded_rendering(base, pad_base)
+    ft_bytes = _padded_rendering(ft, pad_ft)
+    kwargs = {} if method is None else {"method": method}
+    zpn = ZipNN(
+        bytearray_dtype="float32",
+        delta_compressed_type="byte",
+        is_streaming=streaming,
+        streaming_chunk=1024 * 1024,
+        **kwargs,
+    )
+    compressed = zpn.compress(ft_bytes, delta_second_data=base_bytes)
+    with open(out, "wb") as f:
+        f.write(compressed)
+    return pad_base, pad_ft
+
+
+def official_delta_decompress(base: str, delta_path: str, pad_base: int, pad_ft: int) -> bytes:
+    """The official streaming/non-streaming byte-delta restore."""
+    from zipnn import ZipNN
+
+    with open(delta_path, "rb") as f:
+        delta_bytes = f.read()
+    base_bytes = _padded_rendering(base, pad_base)
+    zpn = ZipNN(is_streaming=True, delta_compressed_type="byte")
+    restored = zpn.decompress(delta_bytes, delta_second_data=base_bytes)
+    return _unpad(bytes(restored), pad_ft)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--keep-tmp", default=None)
@@ -336,6 +423,55 @@ def main() -> int:
     if diff:
         failures.append(f"C: stored tensor bytes differ between Neo and official compress: {diff}")
     print(f"C. blob parity on {len(shared)} tensors: {'PASS' if not diff else 'FAIL ' + str(diff)}")
+
+    # --- D. delta cross-validation (Phase 3) --------------------------------
+    d_base = os.path.join(tmp, "l5.base.safetensors")
+    d_ft = os.path.join(tmp, "l5.ft.safetensors")
+    build_delta_pair(d_base, d_ft)
+    with open(d_ft, "rb") as f:
+        ft_original = f.read()
+    ft_sha = _sha256(ft_original)
+
+    # D1. Neo native delta compress (official STREAMING chain + ftSha256
+    #     sidecar) → official zipnn decompress (streaming path)
+    d_neo = os.path.join(tmp, "l5.neo_delta.znn")
+    res = neo_job(mm, mm.zipnn_delta_compress(d_base, d_ft, d_neo, None))
+    with open(d_neo + ".neo-delta.json", encoding="utf-8") as f:
+        sidecar = json.load(f)
+    if sidecar.get("ftSha256") != ft_sha:
+        failures.append(f"D1: sidecar ftSha256 {sidecar.get('ftSha256')} != {ft_sha}")
+    d_problems = []
+    try:
+        got = official_delta_decompress(d_base, d_neo, int(sidecar["basePad"]), int(sidecar["ftPad"]))
+        if got != ft_original:
+            d_problems.append("official decompress of the Neo streaming delta differs")
+    except Exception as e:
+        d_problems.append(f"official decompress of the Neo streaming delta raised: {e}")
+    failures += [f"D1: {p}" for p in d_problems]
+    print(f"D1. Neo streaming delta → official decompress: {'PASS' if not d_problems else 'FAIL ' + str(d_problems)}")
+
+    # D2. official delta compress (single-container AND streaming) → Neo
+    #     native delta decompress (verified=skipped: no ftSha256 sidecar)
+    # single-container with the API-default method (AUTO → byte 7 = 0) AND
+    # streaming with the CLI default (HUFFMAN → byte 7 = 1): both official
+    # spellings must restore through the Neo native decompressor
+    for tag, streaming, method in (("single", False, None), ("stream", True, "HUFFMAN")):
+        d_off = os.path.join(tmp, f"l5.official_delta_{tag}.znn")
+        pad_base, pad_ft = official_delta_compress(d_base, d_ft, d_off, streaming, method)
+        d_out = os.path.join(tmp, f"l5.official_delta_{tag}.restored")
+        meta = {"basePad": pad_base, "ftPad": pad_ft}
+        try:
+            res = neo_job(mm, mm.zipnn_delta_decompress(d_base, d_off, d_out, meta, None))
+            with open(d_out, "rb") as f:
+                got = f.read()
+            ok = got == ft_original and res["verified"] == "skipped"
+            if not ok:
+                failures.append(f"D2-{tag}: restore mismatch (bytes={got == ft_original}, verified={res['verified']})")
+        except Exception as e:
+            failures.append(f"D2-{tag}: Neo decompress of the official delta raised: {e}")
+            ok = False
+        form = "streaming" if streaming else "single container"
+        print(f"D2-{tag}. official delta ({form}) → Neo decompress: {'PASS' if ok else 'FAIL'}")
 
     if failures:
         print("\nL5 GATE: FAIL")

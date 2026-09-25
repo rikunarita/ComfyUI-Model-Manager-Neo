@@ -30,7 +30,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [huf_decompress, zn_header, codec_decompress, st_parse, blob_decompress]
+        target:
+          [huf_decompress, zn_header, codec_decompress, st_parse, blob_decompress, delta_decompress]
     defaults:
       run:
         working-directory: native/crates/znn-codec/fuzz

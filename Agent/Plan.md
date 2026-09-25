@@ -2,16 +2,16 @@
 
 ## ― Rust ネイティブコア化と ZipNN 完全置き換え ―
 
-| 項目           | 内容                                                                                                                                                            |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 文書番号       | NEO‑PLAN‑2026‑001                                                                                                                                               |
-| 版数           | 2.0                                                                                                                                                             |
-| 作成日         | 2026‑09‑22                                                                                                                                                      |
-| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                          |
-| 対象ブランチ   | `dev`                                                                                                                                                           |
-| 現行バージョン | v0.2.0（α3）                                                                                                                                                    |
-| 目標バージョン | v0.3.0                                                                                                                                                          |
-| 状態           | **Phase 0 完了・Phase 1 実装完了（fuzz ≥8 h の初回実行のみ残）・Phase 2 実装完了（2026‑09‑24、L4/L5 緑・K1/K6/K13 達成、K2/K3 は参照機再計測待ち — BENCH §7）** |
+| 項目           | 内容                                                                                                                                                                                                                                                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 文書番号       | NEO‑PLAN‑2026‑001                                                                                                                                                                                                                                                                                                      |
+| 版数           | 2.0                                                                                                                                                                                                                                                                                                                    |
+| 作成日         | 2026‑09‑22                                                                                                                                                                                                                                                                                                             |
+| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                                                                                                                                                                                 |
+| 対象ブランチ   | `dev`                                                                                                                                                                                                                                                                                                                  |
+| 現行バージョン | v0.2.0（α3）                                                                                                                                                                                                                                                                                                           |
+| 目標バージョン | v0.3.0                                                                                                                                                                                                                                                                                                                 |
+| 状態           | **Phase 0 完了・Phase 1 実装完了（fuzz ≥8 h の初回実行のみ残 — run 36148521214 の全 5 ターゲット緑確認で [x] 化）・Phase 2 実装完了（2026‑09‑24、L4/L5 緑・K1/K6/K13 達成、K2/K3 は参照機再計測待ち — BENCH §7）・Phase 3 実装完了（2026‑09‑25、K4/K5 達成・L5 セクション D 緑・SEGFAULT クラス解消実証 — BENCH §8）** |
 
 ### 版数履歴
 
@@ -1109,18 +1109,56 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ### Phase 3 — デルタ圧縮 + バッチプリミティブ
 
-- [ ] `delta.rs`: 両側 mmap + ストリーミング XOR + 1 MB チャンク
-      ZN byte 形式（K4: ピーク RAM < 1 GB）
-- [ ] ヘッダー等長化パディング + `.neo-delta.json` 互換
-      （SHA‑256 記録を追加。エラーメッセージ文言互換維持）
-- [ ] **付録 C の SEGFAULT ケース（total%256KB ∈ {1,2,3}）を
-      デルタ端到端テストに固定化**（Rust 版が正常完了することを確認）
-- [ ] `py/compress.py` デルタルート切替
-- [ ] バッチプリミティブ（`walk_models` / `move_with_sidecars`）—
+- [x] `delta.rs`: 両側 mmap + ストリーミング XOR + 1 MB チャンク
+      ZN byte 形式（K4: ピーク RAM < 1 GB）— 出力は**公式 streaming
+      コンテナ連鎖**（header[13]=148・[24:32]=コンテナサイズ —
+      zipnn.py の streaming 形式そのもの。公式解凍側が 100 % 受理する
+      ことを L5‑D1 で実証）。限界 RSS 実測 2.09×/1.69× だが内訳は
+      **回収可能な mmap clean ページがほぼ全て**で、匿名域は
+      O(1 MiB チャンク)（0.5 MiB 級ペアで限界 +3–4 MiB がスケーリング
+      非依存の証左 — BENCH §8.1。legacy 5.43×/5.72× は匿名コピー）
+- [x] ヘッダー等長化パディング + `.neo-delta.json` 互換
+      （SHA‑256 記録を追加 = `ftSha256`（ft 原本ダイジェスト、圧縮と
+      並行スレッドで算出）。復元時インライン検証（追加 I/O ゼロ）+
+      不一致はデルタ保持 + `.corrupt` 退避。サイドカーはエンジンが
+      原子コミット（delta 本体 → sidecar の順、失敗時はジョブ失敗 =
+      ft 無傷）。エラーメッセージ文言互換維持 — data‑size 不一致 /
+      length mismatch / 非デルタの 3 文言を逐語でゴールデンテスト化。
+      **相互運用の一次ソース発見**: 公式デルタ文件的 method バイトは
+      0–4 いずれでもあり得る（API 既定 AUTO=0・CLI 既定 HUFFMAN だが
+      float32 byte コンテナは method によらず常に Huffman ペイロード・
+      公式解凍は byte7 を読まない — upstream スクリプト取得 + pip 0.5.4
+      実機で確認）→ デルタ復号のみ method ゲートを外す
+      `decode_delta`（テンソル経路は B.1 の厳格ゲート維持。BENCH §8.3））
+- [x] **付録 C の SEGFAULT ケース（total%256KB ∈ {1,2,3}）を
+      デルタ端到端テストに固定化**（Rust 版が正常完了することを確認 —
+      三層固定: L1 e2e（1 MiB streaming 境界跨ぎ 3 MiB+2 含む）+
+      生産ルート pytest（ws 契約ごと）+ ベンチ証跡
+      `k5AllSurvivedByteExact: true`。全ケース byte‑exact 往復）
+- [x] `py/compress.py` デルタルート切替（`MM_NATIVE=0/1/auto`。ws 契約
+      prepare/delta/done・`kind:"delta"`・stats キー
+      originalBytes/compressedBytes は**両経路同一ゴールデン**。
+      デルタタスクは cancel ルートでキャンセル可能に（handle 登録）、
+      paranoid モード対応（rename 前の再デコード検証）。失敗時
+      クリーンアップは「committed‑but‑sidecar‑less のみ dst 削除」=
+      Phase 2 の教訓（並行ジョブ tmp 保護）を継承）
+- [x] バッチプリミティブ（`walk_models` / `move_with_sidecars`）—
       バンドル意味論（`*_DeltaZNN`・type‑root 内包・legacy `_ZNN`）は
-      Python 現行ロジックを維持
-- [ ] 完了条件: K4/K5 達成、デルタ往復 byte‑exact（検証付き）、
-      フォルダバッチ圧縮/解凍の現行同一挙動 QA
+      Python 現行ロジックを維持（プリミティブは Python 現行関数との
+      **ゴールデン parity テスト**付き: 3 walker × hidden/symlink/bundle
+      網羅、20 スロット プレビュー + .md/.txt 規則。walk は ignore
+      crate 並列 = os.walk 意味論の忠実移植、sorted 安定順）。
+      バッチルートは native ジョブ（同期ポーリング、per‑file handle 登録で
+      キャンセル可）+ Rust walk/sidecar move へ切替（MM_NATIVE 準拠）。
+      フォルダバッチ往復（ツリー byte‑exact 復元）・デルタ入りバッチ・
+      **両エンジン同一ツリー parity** をテスト化
+- [x] 完了条件: K4/K5 達成（BENCH §8: 限界 ÷2.6/÷3.4 + 匿名域
+      サイズ非依存、SEGFAULT クラス 3/3 生存 + byte‑exact）、
+      デルタ往復 byte‑exact（検証付き — verified=sha256 3/3 ラウンド +
+      クロスパス双方向 + legacy 単一コンテナ復元）、
+      フォルダバッチ圧縮/解凍の現行同一挙動 QA（自動 parity/ゴールデン
+      済み — 実 ComfyUI UI での手動 QA は Phase 2 の残件と同様に
+      USAGE 改訂（Phase 7）へ統合。UI 契約はゴールデンテストで機械固定）
 
 ### Phase 4 — dtype 大幅拡張（Neo 拡張帯）
 
@@ -1259,7 +1297,17 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
   達成、**K2/K3 は参照機（NVMe + SHA‑NI）再計測待ち**（この 2 vCPU /
   SHA‑NI なし機では検証ハッシュ律速で ×0.46/×0.24 — 内訳実測と外挿は
   BENCH §7.1）。残るは参照機計測と実 UI 手動 QA のみ
-- [ ] **Phase 3** — デルタ（SEGFAULT 解消実証込み）+ バッチプリミティブ
+- [x] **Phase 3** — デルタ（SEGFAULT 解消実証込み）+ バッチプリミティブ
+      **実装・自動 QA 完了 2026‑09‑25**: 公式 streaming 形式（公式 zipnn
+      0.5.4 と双方向クロス検証 — L5 セクション D 緑）+ ftSha256 端到端検証 +
+      legacy 単一コンテナ復元 + エラー文言逐語互換 + バッチプリミティブ
+      （walk_models / move_with_sidecars・Python 現行とのゴールデン parity）。
+      **K4 達成**（限界 ÷2.6/÷3.4 — 匿名域 O(チャンク) のサイズ非依存、
+      12 GB 換算 <1 GB）・**K5 達成**（付録 C SEGFAULT クラス 3/3 が生産
+      ルートで生存 + byte‑exact — 三層テスト固定）。L1 132 緑・pytest 59 緑・
+      L2 quick 再 PASS・L3 6 ターゲット化（delta_decompress 追加、スモーク
+      122 k execs クラッシュ 0）・api_version 3（ローダー exact レンジ同期）。
+      実 UI 手動 QA は Phase 2 残件と併せ Phase 7 で統合（BENCH §8）
 - [ ] **Phase 4** — dtype 大幅拡張（Neo 拡張帯 + 相互運用マトリクス）
 - [ ] **Phase 5** — スキャン/永続インデックス/ハッシュ/更新伝播（Quick Win A2/A3）
 - [ ] **Phase 6** — フロントエンド表示最適化（C1–C5、計測駆動）

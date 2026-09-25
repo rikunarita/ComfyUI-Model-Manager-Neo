@@ -818,3 +818,118 @@ events API に 03:37 UTC 以降の dev push なし、fuzz‑long の run は
 SUCCESS を確認して初めて Plan §6.2 Phase 1 完了条件と §9 を [x] 化する**
 （run 1 の 4/5 緑は旧ハーネスの実績として有効だが、blob_decompress の
 3 h 完走は未証明のため）。
+
+## 2026‑09‑25（続々セッション）— fuzz‑long run 2 失敗の真因特定と修正、Phase 3 着手
+
+### run 36114455354（修正 4cce777 込み）も blob_decompress が OOM で失敗 — 真因は別だった
+
+**GitHub API + ジョブログで実証**（ユーザ指示「run 2 の全 5 ターゲット成功確認」への回答:
+**4/5 SUCCESS + l2‑full SUCCESS、blob_decompress は 11:40 UTC に OOM 終了**）:
+
+- OOM 時の live heap は **26 MB**（quarantine 25.7 MB ≤ 上限 32 MB = ASan チューニングは
+  効いていた）のに RSS peak **4,097 MB > 4,096 MB**。OOM 入力 `oom-da39a3ee…` は**空**
+  （= 特定入力ではなく累積で上限到達）。RSS は exec 数に**完全線形**（~35.5 B/exec —
+  run 1 の ~38 B/exec とほぼ同じ = 前回の修正では保持率はほぼ減っていなかった）。
+- **真因**: ハーネスは `threads = 1` を渡すが、runner の `default_threads()` は 4。
+  `codec::with_threads` は「明示数 ≠ default」のとき**毎回新規 rayon プールを
+  build + destroy** していた → exec ごとに OS スレッド 1 本を spawn/teardown
+  （スレッド 1 本あたり ~35 B のランタイム/サニタイザ メタデータがプロセス生存中
+  累積 — live heap に現れないため前回「アロケータのページ保持」と誤診された）。
+  ハーネスのコメント「threads pinned to 1 (no pool churn)」は**意図と実装が逆**だった。
+- **傍証**: `codec_decompress` は `threads: 0`（グローバルプール = 生成 1 回）で
+  両 run とも 3 h 緑。5 ターゲット中で per‑exec スレッド churn があったのは
+  blob_decompress のみ。
+- **修正（コミット de1a153）**: 明示スレッド数ごとのプールを `CUSTOM_POOLS`
+  （LazyLock<Mutex<HashMap<usize, Arc<ThreadPool>>>>）にキャッシュ。上限ガード
+  （>64 は build せず global pool フォールバック — 出力バイトはスレッド数非依存、
+  `threads_param_does_not_change_output` が固定）でスレッド爆発も防止。
+  回帰テスト `explicit_thread_counts_reuse_cached_pools`（Arc::ptr_eq + ワーカー
+  スレッド ID 再利用 + ガード）。
+- **ローカル A/B 実証**（dev+ASan、同一コーパス、各 300 s、この 2 vCPU/1 GiB 機）:
+  現行 = RSS 71→94 MB（+23 MB / 222 k exec、cov 飽和後の定常窓 **~44 B/exec**）→
+  修正後 = 82→88 MB（+6 MB / 247 k exec、定常窓 **~9 B/exec**）。CI release 外挿
+  ~8 B/exec × ~110 M exec ≈ **0.9 GB << rss_limit 4,096 MB**。
+- **再ディスパッチ**: run **36148521214**（head **de1a153**、hours=3、14:35 UTC）。
+  **この run の全 5 ターゲット SUCCESS 確認で Plan §6.2 Phase 1 完了条件と §9 を [x] 化**。
+- 修正コミット前の全ゲート再検証: cargo fmt / clippy `-D warnings` / test 101+5 ✓、
+  pytest **44/44** ✓（新ビルド .so 1,030,544 B に対して）、ruff / mypy 14 files ✓、
+  **L2 quick GATE PASS**（1,121/1,121 byte‑identical・付録 C クラス 63 安全処理）、
+  **L5 公式 zipnn 0.5.4 GATE PASS**（A/B/C 全方向）、prettier ✓。
+- 教訓: 「rss_limit OOM = アロケータのページ保持」と決めつけず、**スレッド churn も
+  RSS 累積源**になる（ASan は生成スレッドごとのメタデータを保持する）。live heap が
+  小さいのに RSS が線形増加する場合、確保源はヒープ外（スレッド/シャドウ/mmap）を疑う。
+
+### Phase 3 実装セッション（同日続 — デルタ + バッチプリミティブ）
+
+**成果物**（コミットは run 3 確認と併せて記録）:
+
+- `znn-codec::delta`（新モジュール）: 両側 mmap → ヘッダー等長化パディング
+  （legacy `_delta_aligned_bytes` の zero-copy 版 = 仮想 Rendering 4 領域）→
+  1 MiB ストリーミング XOR → **公式 streaming コンテナ連鎖**を AtomicWriter
+  で逐次書込み。ftSha256 は圧縮と並行スレッド（§4.4.3‑1 パターン）、
+  サイドカーはエンジンが delta 本体の commit 直後に原子コミット
+  （失敗 = ジョブ失敗 → Python は ft を消さない = データ喪失なし。
+  ルート側は「committed‑but‑sidecar‑less のみ dst 削除」で
+  "失敗時は成果物を残さない" 不変条件を回復 — Phase 2 の
+  並行ジョブ tmp 保護の教訓も継承: native 失敗時に Python は
+  `.tmp` を一切触らない）。
+- 復元: streaming 連鎖 + legacy 単一コンテナの双方を受理。期待総長は
+  base rendering から**厳密に既知**なので、敵対的 original_len は
+  resize 前に legacy 文言（"Length of delta file has to match…"）で Err
+  （割り当て爆弾防止）。unpad はストリーミング状態機
+  （prefix 書換 → header → pad skip → data）。検証は inline sha
+  （AtomicWriter ハッシャ）→ 不一致は `.corrupt` 退避 + デルタ保持。
+  paranoid は tmp の再デコード → sha 比較 → rename 前（Phase 2 同型、
+  内部 Hooks は progress=None）。
+- **一次ソース発見（相互運用）**: 公式デルタ文件的 method バイトは 0–4
+  いずれでもあり得る — zipnn.py API 既定 AUTO(=0)（実機ヘッダーダンプで
+  確認: byte7=0）、公式 CLI `zipnn_compress_file_delta.py` は既定 HUFFMAN
+  だが `--method AUTO/ZSTD/...` 受理、float32 byte コンテナでは
+  `compress_bin` が method によらず**常に zipnn_core（Huffman）**を通り、
+  公式解凍 `decompress_bin` は byte7 を**読まない**（zstd 分岐は
+  `dtype_size = 0 # Need to implement` のデッドコード）。→ デルタ復号のみ
+  `ZnHeader::decode_delta/parse_delta`（method ゲートなし）で R12
+  「公式出力 100 % 受理」を満たす。**テンソル経路は Phase 2 の厳格ゲートを
+  維持**（Plan B.1 — Neo/公式 safetensors スクリプトは常に HUFFMAN=1）。
+  L5‑D2 が AUTO(0) 単一コンテナと HUFFMAN(1) streaming の両公式表記を
+  カバー。
+- `znn-codec::batch`（新モジュール）: `walk_models`（ignore crate 並列、
+  os.walk 意味論の忠実移植: 隠しファイル包含・symlink‑dir 非追跡/非ファイル
+  扱い・不能読ディレクトリ静黙スキップ・lossy UTF‑8 名・sorted 安定順。
+  3 モード = Python 3 walker の写像で**ゴールデン parity テスト**）と
+  `move_with_sidecars`（20 スロット × 8 拡張 プレビュー + .md/.txt
+  （拡張子小文字照合・大文字保持）+ 「dst 存在時は上書きしない」規則の
+  移植 — `_delta_sidecar_move` との parity テスト）。定数は全て Python 側
+  から opts で受領（単一の真実 = py/utils）。
+- `mm-core`（api_version **3**）: `zipnn_delta_compress/decompress`
+  （ジョブ化、meta は Python がサイドカーを読んで dict で渡す — 欠損時は
+  空 dict = legacy 同一の劣化）、`walk_models`（JSON 配列）/
+  `move_with_sidecars`（同期）。py/native.py の exact レンジ [3,3]、
+  native.yml abi3 assert・Phase 2 テストの assert も同期。
+- `py/compress.py`: デルタルート（worker/worker_body 化 + `_poll_native_job`
+  抽出 = Phase 2 と共通ポーリング、phase map は delta 語彙）とバッチルート
+  （native 時は ensure_zipnn を**呼ばない** = torch import 回避、
+  `_run_native_job_sync` で executor 内ブロックポーリング、per‑file handle
+  登録でバッチもキャンセル可、walk/sidecar move を Rust プリミティブへ）。
+  バンドル意味論関数は全て Python のまま（Plan 規定）。
+- **計測（K4/K5、docs/BENCH.md §8）**: `bench_native_delta.py` 新設
+  （§7 と同一プロトコル）。限界 RSS: native +66.8/+54.2 MiB
+  （2.09×/1.69× — 内訳は mmap clean ページ主体、匿名は O(1MiB)）vs
+  legacy +173.6/+183.1（5.43×/5.72× 匿名コピー）→ 12GB 換算 <1GB 構造達成。
+  K5: SEGFAULT クラス k∈{1,2,3} 全て生存 + byte‑exact（Phase 0 の同
+  フィクスチャで legacy は signal 11 死亡と実証済み）。壁時間: native 圧縮
+  0.304s（sha インライン込み）≈ legacy 0.295s（検証なし）、解凍 +0.09s 差
+  = sha2‑soft 律速（§7.1 同型）。
+- テスト: L1 132（delta 20 + batch 11 + プール回帰 1）、pytest **59**
+  （Phase 3 +15: 両経路ゴールデン・クロスパス双方向・SEGFAULT クラス
+  ルート・文言ゴールデン 3 種・.corrupt/paranoid/cancel・バッチ往復 +
+  デルタ入り + 両エンジン parity・プリミティブ parity）、L5 GATE PASS
+  （D1/D2‑single/D2‑stream）、L2 quick 再 PASS（1,121/1,121）、L3 新
+  ターゲット `delta_decompress`（シード 7 件 = 実成果物系 + 敵対的系、
+  スモーク 122,186 execs クラッシュ 0）、fuzz‑smoke/fuzz‑long 6 ターゲット化。
+- バイナリ 2,376,240 B（ignore/serde_json/delta 増、予算 57 %）。
+
+**運営メモ**: run 3（36148521214、de1a153 = プールキャッシュ修正）の
+全 5 ターゲット緑確認で Phase 1 を [x] 化。Phase 3 push 後に
+**run 4**（delta_decompress 込み 6 ターゲット）をディスパッチして
+新サーフェスの 3h バジェットも消化する（週次スケジュールも 6 ターゲット）。

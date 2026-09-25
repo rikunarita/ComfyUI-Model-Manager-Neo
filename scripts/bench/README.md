@@ -27,19 +27,25 @@ pip install numpy safetensors torch blake3   # torch は CPU 版で可
 FIXTURES=/tmp/mm-bench REAL_MODEL=/path/model.safetensors ./scripts/bench/run_all.sh
 ```
 
-| スクリプト            | KPI             | 内容                                                                                                                  |
-| --------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `gen_synthetic.py`    | —               | フィクスチャ生成: 8 MB 級 MoE ヘッダー / Gaussian テンソルバイト / モデル / ペア / 5,000 モデルツリー                 |
-| `bench_zipnn.py`      | K1/K2/K3/K5/K13 | C コア直呼び（dtype 別スループット・ピーク RAM）、Neo e2e（圧縮→解凍→SHA‑256 一致）、付録 C SEGFAULT 再現、起動系計測 |
-| `bench_delta.py`      | K4/K5           | デルタ圧縮/解凍（ピーク RAM・byte‑exact 検証）+ **生産経路での SEGFAULT 到達性実証**                                  |
-| `bench_c_defects.py`  | K5              | Plan 付録 C.3 の**全 22 ケース行列**（dtype32 クラッシュ 8・対照 9・dtype16 境界/奇数長 5）を一括再実行               |
-| `bench_scan.py`       | K9/K10          | `scan_models` 冷間/暖間（現行は毎回全面走査）+ `scan_hygiene`                                                         |
-| `bench_header.py`     | K11/K12         | `get_model_tensors` / `get_model_metadata`（8 MB MoE ヘッダー、内訳: read / json.loads / list 構築）                  |
-| `bench_hash.py`       | K7/K8           | `compute_hashes` 5 算法 1 パス / `_sha256_of` フル再読込 / 素の sha256 参照（相互検証付き）                           |
-| `native/…/json-bench` | （選定）        | jiter vs simd-json vs serde_json（8 MB ヘッダー、ダイジェスト一致検証付き）                                           |
+| スクリプト              | KPI             | 内容                                                                                                                   |
+| ----------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `gen_synthetic.py`      | —               | フィクスチャ生成: 8 MB 級 MoE ヘッダー / Gaussian テンソルバイト / モデル / ペア / 5,000 モデルツリー                  |
+| `bench_zipnn.py`        | K1/K2/K3/K5/K13 | C コア直呼び（dtype 別スループット・ピーク RAM）、Neo e2e（圧縮→解凍→SHA‑256 一致）、付録 C SEGFAULT 再現、起動系計測  |
+| `bench_delta.py`        | K4/K5           | デルタ圧縮/解凍（ピーク RAM・byte‑exact 検証）+ **生産経路での SEGFAULT 到達性実証**                                   |
+| `bench_c_defects.py`    | K5              | Plan 付録 C.3 の**全 22 ケース行列**（dtype32 クラッシュ 8・対照 9・dtype16 境界/奇数長 5）を一括再実行                |
+| `bench_scan.py`         | K9/K10          | `scan_models` 冷間/暖間（現行は毎回全面走査）+ `scan_hygiene`                                                          |
+| `bench_header.py`       | K11/K12         | `get_model_tensors` / `get_model_metadata`（8 MB MoE ヘッダー、内訳: read / json.loads / list 構築）                   |
+| `bench_hash.py`         | K7/K8           | `compute_hashes` 5 算法 1 パス / `_sha256_of` フル再読込 / 素の sha256 参照（相互検証付き）                            |
+| `native/…/json-bench`   | （選定）        | jiter vs simd-json vs serde_json（8 MB ヘッダー、ダイジェスト一致検証付き）                                            |
+| `bench_native_e2e.py`   | K1/K2/K3/K13    | **Phase 2**: native パイプライン vs legacy e2e（同一セッション交互計測・側別ベスト・steal 記録 — docs/BENCH.md §7）    |
+| `bench_native_delta.py` | K4/K5           | **Phase 3**: native デルタ vs legacy デルタ（同一ペア・交互計測）+ SEGFAULT クラスの native 生存/byte‑exact 実証（§8） |
 
 結果 JSON は `scripts/bench/results/` に保存されます（コミット対象 = 初回実行の証跡。
-再実行時は上書きされるため、`docs/BENCH.md` の表が正）。
+再実行時は上書きされるため、`docs/BENCH.md` の表が正）。`run_all.sh` は Phase 0
+ベースライン一式を実行します; `bench_native_e2e.py` / `bench_native_delta.py` は
+native バイナリ（`scripts/build-native.sh`）を前提とする個別実行です
+（コマンドは docs/BENCH.md §9）。再生成した JSON は prettier 安定形
+（indent=2 + 末尾改線）なので `pnpm format:check` をそのまま通過します。
 
 ## 既知の環境依存
 

@@ -1,0 +1,406 @@
+{
+  "env": {
+    "date": "2026-09-25T16:13:03+0000",
+    "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "cpus": 2,
+    "memTotal": "1083460 kB",
+    "machine": "x86_64"
+  },
+  "rounds": 3,
+  "measurements": [
+    {
+      "kind": "legacy-delta-compress",
+      "seconds": 0.32251578999967023,
+      "stats": {
+        "originalBytes": 33554880,
+        "compressedBytes": 23122696
+      },
+      "baselineRssMib": 241.27734375,
+      "peakRssMib": 415.234375,
+      "stealTicks": 6,
+      "deltaBytes": 23122696,
+      "ftBytes": 33554880,
+      "ratio": 0.6891008401758552
+    },
+    {
+      "kind": "native-delta-compress",
+      "seconds": 0.31666741499975615,
+      "result": {
+        "stats": {
+          "originalBytes": 33554880,
+          "compressedBytes": 23123720
+        },
+        "meta": {
+          "basePad": 40,
+          "ftPad": 0,
+          "ftSha256": "f161c0eac5fcc9d0c551bf11307a38e5316c903b662f0c599c43503c5984c6a8"
+        },
+        "warnings": []
+      },
+      "baselineRssMib": 44.59765625,
+      "peakRssMib": 112.33984375,
+      "stealTicks": 28,
+      "deltaBytes": 23123720,
+      "ftBytes": 33554880,
+      "ratio": 0.689131357346532,
+      "sidecarKeys": "basePad,ftPad,ftSha256",
+      "round": 1
+    },
+    {
+      "kind": "native-delta-decompress",
+      "seconds": 0.2853353900009097,
+      "result": {
+        "stats": {
+          "originalBytes": 33554880,
+          "compressedBytes": 23123720
+        },
+        "verified": "sha256",
+        "warnings": []
+      },
+      "baselineRssMib": 44.5625,
+      "peakRssMib": 98.71484375,
+      "stealTicks": 4,
+      "restoredBytes": 33554880,
+      "verified": "sha256",
+      "restoredByteExact": true,
+      "round": 1
+    },
+    {
+      "kind": "legacy-delta-compress",
+      "seconds": 0.32534849700095947,
+      "stats": {
+        "originalBytes": 33554880,
+        "compressedBytes": 23122696
+      },
+      "baselineRssMib": 241.23046875,
+      "peakRssMib": 415.09375,
+      "stealTicks": 5,
+      "deltaBytes": 23122696,
+      "ftBytes": 33554880,
+      "ratio": 0.6891008401758552,
+      "round": 1
+    },
+    {
+      "kind": "legacy-delta-decompress",
+      "seconds": 0.2271557229996688,
+      "stats": {
+        "originalBytes": 33554880,
+        "compressedBytes": 23122696
+      },
+      "baselineRssMib": 241.0703125,
+      "peakRssMib": 424.21875,
+      "stealTicks": 5,
+      "restoredBytes": 33554880,
+      "restoredByteExact": true,
+      "round": 1
+    },
+    {
+      "kind": "native-delta-compress",
+      "seconds": 0.32587000300009095,
+      "result": {
+        "stats": {
+          "originalBytes": 33554880,
+          "compressedBytes": 23123720
+        },
+        "meta": {
+          "basePad": 40,
+          "ftPad": 0,
+          "ftSha256": "f161c0eac5fcc9d0c551bf11307a38e5316c903b662f0c599c43503c5984c6a8"
+        },
+        "warnings": []
+      },
+      "baselineRssMib": 44.62109375,
+      "peakRssMib": 112.10546875,
+      "stealTicks": 17,
+      "deltaBytes": 23123720,
+      "ftBytes": 33554880,
+      "ratio": 0.689131357346532,
+      "sidecarKeys": "basePad,ftPad,ftSha256",
+      "round": 2
+    },
+    {
+      "kind": "native-delta-decompress",
+      "seconds": 0.2849648369992792,
+      "result": {
+        "stats": {
+          "originalBytes": 33554880,
+          "compressedBytes": 23123720
+        },
+        "verified": "sha256",
+        "warnings": []
+      },
+      "baselineRssMib": 44.26171875,
+      "peakRssMib": 98.48046875,
+      "stealTicks": 3,
+      "restoredBytes": 33554880,
+      "verified": "sha256",
+      "restoredByteExact": true,
+      "round": 2
+    },
+    {
+      "kind": "legacy-delta-compress",
+      "seconds": 0.2952092499999708,
+      "stats": {
+        "originalBytes": 33554880,
+        "compressedBytes": 23122696
+      },
+      "baselineRssMib": 241.3046875,
+      "peakRssMib": 414.76953125,
+      "stealTicks": 5,
+      "deltaBytes": 23122696,
+      "ftBytes": 33554880,
+      "ratio": 0.6891008401758552,
+      "round": 2
+    },
+    {
+      "kind": "legacy-delta-decompress",
+      "seconds": 0.19707425299930037,
+      "stats": {
+        "originalBytes": 33554880,
+        "compressedBytes": 23122696
+      },
+      "baselineRssMib": 241.06640625,
+      "peakRssMib": 424.15234375,
+      "stealTicks": 2,
+      "restoredBytes": 33554880,
+      "restoredByteExact": true,
+      "round": 2
+    },
+    {
+      "kind": "native-delta-compress",
+      "seconds": 0.30435287000000244,
+      "result": {
+        "stats": {
+          "originalBytes": 33554880,
+          "compressedBytes": 23123720
+        },
+        "meta": {
+          "basePad": 40,
+          "ftPad": 0,
+          "ftSha256": "f161c0eac5fcc9d0c551bf11307a38e5316c903b662f0c599c43503c5984c6a8"
+        },
+        "warnings": []
+      },
+      "baselineRssMib": 44.53125,
+      "peakRssMib": 111.3359375,
+      "stealTicks": 23,
+      "deltaBytes": 23123720,
+      "ftBytes": 33554880,
+      "ratio": 0.689131357346532,
+      "sidecarKeys": "basePad,ftPad,ftSha256",
+      "round": 3
+    },
+    {
+      "kind": "native-delta-decompress",
+      "seconds": 0.2872843950008246,
+      "result": {
+        "stats": {
+          "originalBytes": 33554880,
+          "compressedBytes": 23123720
+        },
+        "verified": "sha256",
+        "warnings": []
+      },
+      "baselineRssMib": 44.46875,
+      "peakRssMib": 98.5625,
+      "stealTicks": 3,
+      "restoredBytes": 33554880,
+      "verified": "sha256",
+      "restoredByteExact": true,
+      "round": 3
+    },
+    {
+      "kind": "legacy-delta-compress",
+      "seconds": 0.31090294099885796,
+      "stats": {
+        "originalBytes": 33554880,
+        "compressedBytes": 23122696
+      },
+      "baselineRssMib": 241.16796875,
+      "peakRssMib": 415.10546875,
+      "stealTicks": 2,
+      "deltaBytes": 23122696,
+      "ftBytes": 33554880,
+      "ratio": 0.6891008401758552,
+      "round": 3
+    },
+    {
+      "kind": "legacy-delta-decompress",
+      "seconds": 0.1968497670004581,
+      "stats": {
+        "originalBytes": 33554880,
+        "compressedBytes": 23122696
+      },
+      "baselineRssMib": 240.984375,
+      "peakRssMib": 424.12109375,
+      "stealTicks": 3,
+      "restoredBytes": 33554880,
+      "restoredByteExact": true,
+      "round": 3
+    }
+  ],
+  "ftSha256": "f161c0eac5fcc9d0c551bf11307a38e5316c903b662f0c599c43503c5984c6a8",
+  "segfaultClass": [
+    {
+      "remainder": 1,
+      "compress": {
+        "kind": "native-delta-compress",
+        "seconds": 0.01029604999894218,
+        "result": {
+          "stats": {
+            "originalBytes": 786433,
+            "compressedBytes": 57818
+          },
+          "meta": {
+            "basePad": 262039,
+            "ftPad": 0,
+            "ftSha256": "2566ab8be87466d21a23364c1ccbf956d0972ae6e24d411b7e043aec2562049e"
+          },
+          "warnings": []
+        },
+        "baselineRssMib": 44.26171875,
+        "peakRssMib": 46.94921875,
+        "stealTicks": 0,
+        "deltaBytes": 57818,
+        "ftBytes": 786433,
+        "ratio": 0.0735192953500171,
+        "sidecarKeys": "basePad,ftPad,ftSha256"
+      },
+      "decompress": {
+        "kind": "native-delta-decompress",
+        "seconds": 0.010353857000154676,
+        "result": {
+          "stats": {
+            "originalBytes": 786433,
+            "compressedBytes": 57818
+          },
+          "verified": "sha256",
+          "warnings": []
+        },
+        "baselineRssMib": 44.59765625,
+        "peakRssMib": 48.3671875,
+        "stealTicks": 0,
+        "restoredBytes": 786433,
+        "verified": "sha256",
+        "restoredByteExact": true
+      },
+      "survived": true
+    },
+    {
+      "remainder": 2,
+      "compress": {
+        "kind": "native-delta-compress",
+        "seconds": 0.005205708001085441,
+        "result": {
+          "stats": {
+            "originalBytes": 786434,
+            "compressedBytes": 82432
+          },
+          "meta": {
+            "basePad": 262040,
+            "ftPad": 0,
+            "ftSha256": "5e37b6d0229f2f5410c41e5f7f75f9998ed06310bcfe4234520cbdf904cd93f3"
+          },
+          "warnings": []
+        },
+        "baselineRssMib": 44.22265625,
+        "peakRssMib": 47.6640625,
+        "stealTicks": 0,
+        "deltaBytes": 82432,
+        "ftBytes": 786434,
+        "ratio": 0.10481744176879433,
+        "sidecarKeys": "basePad,ftPad,ftSha256"
+      },
+      "decompress": {
+        "kind": "native-delta-decompress",
+        "seconds": 0.010388212998805102,
+        "result": {
+          "stats": {
+            "originalBytes": 786434,
+            "compressedBytes": 82432
+          },
+          "verified": "sha256",
+          "warnings": []
+        },
+        "baselineRssMib": 44.3828125,
+        "peakRssMib": 48.15625,
+        "stealTicks": 0,
+        "restoredBytes": 786434,
+        "verified": "sha256",
+        "restoredByteExact": true
+      },
+      "survived": true
+    },
+    {
+      "remainder": 3,
+      "compress": {
+        "kind": "native-delta-compress",
+        "seconds": 0.010422205001304974,
+        "result": {
+          "stats": {
+            "originalBytes": 786435,
+            "compressedBytes": 82451
+          },
+          "meta": {
+            "basePad": 262041,
+            "ftPad": 0,
+            "ftSha256": "5fbdcd21b58f27202ab930675df0501d44df6fa6b282b6548ec7855d77da716e"
+          },
+          "warnings": []
+        },
+        "baselineRssMib": 44.56640625,
+        "peakRssMib": 48.296875,
+        "stealTicks": 0,
+        "deltaBytes": 82451,
+        "ftBytes": 786435,
+        "ratio": 0.10484146814422043,
+        "sidecarKeys": "basePad,ftPad,ftSha256"
+      },
+      "decompress": {
+        "kind": "native-delta-decompress",
+        "seconds": 0.010331769999538665,
+        "result": {
+          "stats": {
+            "originalBytes": 786435,
+            "compressedBytes": 82451
+          },
+          "verified": "sha256",
+          "warnings": []
+        },
+        "baselineRssMib": 44.4296875,
+        "peakRssMib": 48.203125,
+        "stealTicks": 0,
+        "restoredBytes": 786435,
+        "verified": "sha256",
+        "restoredByteExact": true
+      },
+      "survived": true
+    }
+  ],
+  "best": {
+    "native-delta-compress": {
+      "seconds": 0.3044,
+      "peakRssMib": 111.3359,
+      "limitRssMib": 66.805
+    },
+    "native-delta-decompress": {
+      "seconds": 0.285,
+      "peakRssMib": 98.4805,
+      "limitRssMib": 54.219
+    },
+    "legacy-delta-compress": {
+      "seconds": 0.2952,
+      "peakRssMib": 414.7695,
+      "limitRssMib": 173.602
+    },
+    "legacy-delta-decompress": {
+      "seconds": 0.1968,
+      "peakRssMib": 424.1211,
+      "limitRssMib": 183.137
+    },
+    "k4LimitRatioNative": 2.0876,
+    "k4LimitRatioLegacy": 5.425,
+    "k5AllSurvivedByteExact": true
+  }
+}
