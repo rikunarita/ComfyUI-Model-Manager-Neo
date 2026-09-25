@@ -690,6 +690,14 @@ native 可用時は torch import（初回 ~1.5 s のループブロック要因�
   ペア/日本語/220 文字）: infos 値が Python `json.dumps`（ensure_ascii）と
   完全一致 + byte‑exact 往復。
 - **C.** Neo 成果物（圧縮/復元）を公式 safe_open が読めること。
+- **P. 書込み失敗注入**（RLIMIT_FSIZE→EFBIG、SIGXFSZ=IGN で子プロセス内強制）:
+  ジョブはクリーンに failed（`I/O error: File too large`）、dst/tmp 残骸ゼロ、
+  原本無傷 — 「ディスク満杯」QA 項目の機械的実証（ENOSPC と同一の错误経路）。
+- **Q. SIGKILL クラッシュ復旧**（64 MiB ジョブを 0.15/0.6/1.2 s で kill）:
+  commit 前 kill → dst 不在・掃運可能な tmp のみ・原本無傷。commit 後 kill →
+  dst は**完全かつ検証可能**（解凍 → verified=sha256 → byte‑exact）。
+  どの窓でも torn file が存在しない（rename 原子性の実証 = 手動 QA
+  「強制終了復旧」の機械化）。
 - **D. 250 シード・ランダム掃引**: dtype 12 種×メタデータ 5 変種×正準/非正準
   ヘッダー×unicode 名×0要素テンソル×空ファイル — **0 issues**
   （exact=1→sha256+byte‑exact、exact=0→structural+意味一致、残骸ファイル 0）。
