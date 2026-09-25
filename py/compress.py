@@ -34,16 +34,18 @@ of which ComfyUI already provides.
 """
 
 import asyncio
+import json
 import os
 import platform
 import re
+import time
 import uuid
 from collections.abc import Callable
 from typing import Any
 
 from aiohttp import web
 
-from . import config, utils
+from . import config, native, utils
 
 ZNN_SUFFIX = ".znn.safetensors"
 SAFE_SUFFIX = ".safetensors"
@@ -55,6 +57,35 @@ SAFE_SUFFIX = ".safetensors"
 # unknown metadata keys, and decompression removes it again, so the restored
 # file carries exactly the metadata the original had.
 ZNN_ORIGINAL_SIZE_KEY = "znn_neo_original_bytes"
+
+# Phase 2 (native pipeline) integrity records — written by the Rust core
+# (Plan §4.4.3), and stripped by BOTH decompressors so a restored file never
+# leaks Neo bookkeeping:
+#   znn_neo_src_sha256        SHA-256 of the whole source file (verified on
+#                             restore — default ON; mismatch on a byte-exact
+#                             capable file keeps the compressed source and
+#                             retreats the restore to `.corrupt`)
+#   znn_neo_exact             "1" when the source header was canonical, i.e.
+#                             the restore is byte-exact and the sha is
+#                             ENFORCED; "0" downgrades to the structural
+#                             guarantee (Plan §4.7.4)
+#   znn_neo_src_meta_absent   "1" when the source had no __metadata__ at all
+#   znn_neo_extended          "1" when Neo-extension dtypes are present
+#                             (Phase 4 — stripped here already so future
+#                             files round-trip through both paths)
+ZNN_SRC_SHA_KEY = "znn_neo_src_sha256"
+ZNN_EXACT_KEY = "znn_neo_exact"
+ZNN_SRC_META_ABSENT_KEY = "znn_neo_src_meta_absent"
+ZNN_EXTENDED_KEY = "znn_neo_extended"
+
+# Every Neo/ZipNN metadata key the RESTORE must strip (both paths).
+ZNN_NEO_METADATA_KEYS = (
+    ZNN_ORIGINAL_SIZE_KEY,
+    ZNN_SRC_SHA_KEY,
+    ZNN_EXACT_KEY,
+    ZNN_SRC_META_ABSENT_KEY,
+    ZNN_EXTENDED_KEY,
+)
 
 # task_id -> bookkeeping, same shape as the HF upload tasks
 ZIPNN_TASKS: dict[str, dict] = {}
@@ -73,6 +104,154 @@ def _spawn_background(loop: asyncio.AbstractEventLoop, coro) -> None:
 
 
 ProgressCb = Callable[[int, int, str], None]
+
+# ---------------------------------------------------------------------------
+# Native (Rust `mm_core`) job path — the Phase 2 switchover (Plan §4.2.3).
+#
+# The Rust core runs the whole pipeline (mmap → per-tensor codec → integrity
+# sha → atomic rename) on its own thread; this side only POLLS the atomic
+# progress at 10 Hz (Plan §4.3 — no GIL-reacquiring callbacks) and keeps the
+# ws event / stats contract byte-identical to the legacy path.
+# ---------------------------------------------------------------------------
+
+# Native phases → the legacy ws `phase` vocabulary the UI understands
+# (`prepare`/`tensors`/`done`); `write`/`verify` are short assembly steps
+# that read as "tensors" to the frontend, `failed` never surfaces as a phase
+# (it becomes a `zipnn_complete` error).
+_WS_PHASE_FOR_NATIVE = {
+    "prepare": "prepare",
+    "tensors": "tensors",
+    "write": "tensors",
+    "verify": "tensors",
+    "done": "done",
+    "failed": "tensors",
+}
+
+# 10 Hz polling (Plan §4.3: "AtomicU64 を Python 側 10 Hz ポーリング").
+_NATIVE_POLL_INTERVAL = 0.1
+
+
+def native_core():
+    """The loaded ``mm_core`` when the native path should run, else None.
+
+    Honours ``MM_NATIVE`` (Plan §5.4): ``0`` forces the legacy path, ``1``
+    REQUIRES the native core (``native.load()`` raises when unavailable — an
+    installation that demands the Rust core must never silently fall back to
+    the C one), ``auto`` (default) uses the native core when the prebuilt
+    binary loads and passes the API handshake.
+    """
+    if native.native_mode() == "0":
+        return None
+    if native.load():
+        return native.core()
+    return None
+
+
+def paranoid_enabled(request=None) -> bool:
+    """Compress-then-immediately-decompress-and-verify (Plan §4.4.3-4).
+
+    Default OFF. Switches, in precedence order: the ``MM_ZNN_PARANOID``
+    environment variable (QA/automation), then the persisted user setting
+    ``ModelManager.ZipNN.Paranoid`` (a frontend toggle can be added without
+    backend changes; until then the default applies).
+    """
+    env = os.environ.get("MM_ZNN_PARANOID", "").strip().lower()
+    if env in ("1", "on", "true", "yes"):
+        return True
+    if env in ("0", "off", "false", "no"):
+        return False
+    if request is not None:
+        return bool(utils.get_setting_value(request, "zipnn.paranoid", False))
+    return False
+
+
+def _cleanup_targets(dst: str) -> None:
+    """Remove every partial-output name a failed native/legacy run can leave.
+
+    NEVER touches `.corrupt` files — those are deliberate diagnostics of a
+    failed verification (Plan §4.4.3) whose compressed source was kept.
+    """
+    for candidate in (dst, f"{dst}.tmp", f"{dst}.verify.tmp", f"{dst}.tmp.fix"):
+        try:
+            if os.path.exists(candidate):
+                os.remove(candidate)
+        except OSError:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Startup cleanup of crash/kill leftovers (Plan §4.4.4)
+# ---------------------------------------------------------------------------
+
+# Only delete `.tmp` leftovers OLDER than this: both pipelines commit via
+# rename and a live run's `.tmp` is continuously written, so a 15-minute-old
+# partial in a model folder is dead by definition — while a foreign tool's
+# in-flight `*.safetensors.tmp` download (they exist) is never touched.
+_STRAY_TMP_MIN_AGE_S = 900.0
+
+
+def _is_stray_tmp_name(name: str) -> bool:
+    """A ZipNN pipeline partial: `<model>.tmp` / `<delta>.znn.tmp` / the
+    native pipeline's `.verify.tmp` / `.tmp.fix` siblings."""
+    if not name.endswith((".tmp", ".tmp.fix")):
+        return False
+    return SAFE_SUFFIX in name or ".znn" in name
+
+
+def _is_corrupt_name(name: str) -> bool:
+    """A failed-verification restore diagnostic (`<model>.corrupt`)."""
+    return name.endswith(".corrupt") and (SAFE_SUFFIX in name or ".znn" in name)
+
+
+def cleanup_stray_files() -> dict[str, Any]:
+    """Sweep dead `.tmp` partials from the model roots; list `.corrupt` files.
+
+    Runs in the background at extension start-up (see `__init__.py`) so a
+    slow/network library never delays the boot. `.tmp` files are removed
+    (they are uncommitted partials of a crashed or killed run — a committed
+    model never ends in `.tmp`); `.corrupt` files are only REPORTED: they are
+    deliberate diagnostics whose compressed source was kept intact, so
+    deleting them automatically could destroy the only copy of a failed
+    restore (Plan §4.4.3 — manual QA item "強制終了復旧").
+    """
+    removed: list[str] = []
+    corrupt: list[str] = []
+    errors: list[str] = []
+    now = time.time()
+    roots: set[str] = set()
+    try:
+        for paths in utils.resolve_model_base_paths().values():
+            roots.update(paths)
+    except Exception as e:  # a broken folder_paths must not kill the sweep
+        return {"removed": removed, "corrupt": corrupt, "errors": [str(e)]}
+    for root in sorted(roots):
+        if not os.path.isdir(root):
+            continue
+        for dirpath, _dirnames, filenames in os.walk(root):
+            for name in filenames:
+                # utils.join_path keeps the slash-normalized form the rest of
+                # the backend reports (model roots arrive normalized — raw
+                # os.path.join would mix separators on Windows)
+                full = utils.join_path(dirpath, name)
+                try:
+                    if _is_stray_tmp_name(name):
+                        if now - os.path.getmtime(full) >= _STRAY_TMP_MIN_AGE_S:
+                            os.remove(full)
+                            removed.append(full)
+                    elif _is_corrupt_name(name):
+                        corrupt.append(full)
+                except OSError as e:
+                    errors.append(f"{full}: {e}")
+    if removed:
+        shown = ", ".join(os.path.basename(p) for p in removed[:5])
+        utils.print_warning(f"startup cleanup: removed {len(removed)} stale ZipNN .tmp file(s): {shown}")
+    if corrupt:
+        shown = ", ".join(os.path.basename(p) for p in corrupt[:5])
+        utils.print_warning(
+            f"found {len(corrupt)} .corrupt diagnostic file(s) from failed ZipNN restores "
+            f"(the compressed models were kept; inspect and remove manually): {shown}"
+        )
+    return {"removed": removed, "corrupt": corrupt, "errors": errors}
 
 
 def is_safetensors(name: str) -> bool:
@@ -764,11 +943,20 @@ def decompress_safetensors(src: str, dst: str, progress: ProgressCb) -> dict[str
             else:
                 tensors[name] = znn.decompress(tensor.contiguous().numpy())
             progress(index + 1, total, "tensors")
+        # The native pipeline records that the ORIGINAL file carried no
+        # __metadata__ at all — honour it so a legacy decompression of a
+        # native-compressed file restores byte-identically (without the
+        # record, an empty dict would be written back as `"__metadata__":{}`).
+        meta_absent = bool(metadata) and metadata.get(ZNN_SRC_META_ABSENT_KEY) == "1"
         if metadata:
-            # Strip both ZipNN records so the restored file carries exactly the
-            # metadata the original had (including the Neo-only size key).
+            # Strip the ZipNN infos record and EVERY Neo bookkeeping key so
+            # the restored file carries exactly the metadata the original had
+            # (including files compressed by the native path).
             metadata.pop(METADATA_KEY, None)
-            metadata.pop(ZNN_ORIGINAL_SIZE_KEY, None)
+            for key in ZNN_NEO_METADATA_KEYS:
+                metadata.pop(key, None)
+        if meta_absent and not metadata:
+            metadata = None
 
     tmp_dst = f"{dst}.tmp"
     save_file(tensors, tmp_dst, metadata)
@@ -1225,6 +1413,102 @@ class ZipNNRoutes:
         async def zipnn_delta_decompress(request):
             return await self._run_delta(request, "decompress")
 
+        @routes.post("/model-manager/zipnn/cancel")
+        async def zipnn_cancel(request):
+            """Cooperative cancellation of a running NATIVE job (Plan §4.2.2).
+
+            The worker observes the flag at tensor/chunk boundaries, removes
+            its partial output and reports ``zipnn_complete {ok: false,
+            error: "cancelled by user"}`` like any other failure. Legacy-path
+            tasks (vendored C core, ``MM_NATIVE=0``) run inside one blocking
+            C call per tensor and cannot be cancelled mid-flight — the
+            response says so explicitly.
+            """
+            data = await utils.get_request_body(request)
+            task_id = str(data.get("taskId") or "")
+            entry = ZIPNN_TASKS.get(task_id)
+            if entry is None:
+                return web.json_response({"success": False, "error": "unknown task"})
+            handle = entry.get("handle")
+            if handle is None:
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": "this task runs on the legacy (C core) path and cannot be cancelled mid-run",
+                    }
+                )
+            mm = native.core()
+            if mm is None:
+                return web.json_response({"success": False, "error": "the native core is no longer loaded"})
+            try:
+                was_running = bool(mm.job_cancel(handle))
+            except Exception as e:
+                return web.json_response({"success": False, "error": str(e)})
+            return web.json_response({"success": True, "data": {"wasRunning": was_running}})
+
+    async def _run_native_job(self, mm, task_id: str, mode: str, src: str, dst: str, paranoid: bool):
+        """Drive one compress/decompress job on the Rust core (Phase 2 path).
+
+        Submits the job, polls its atomic progress at 10 Hz and re-emits the
+        legacy ws contract (`update_zipnn_progress` with the same payload
+        shape; phases mapped through `_WS_PHASE_FOR_NATIVE`). Returns the
+        stats dict on success, or None after reporting the failure through
+        `_fail` (partial outputs are cleaned up; `.corrupt` diagnostics of a
+        failed verification are deliberately kept).
+        """
+        opts = {"threads": 0, "paranoid": bool(paranoid)}
+        try:
+            handle = mm.zipnn_compress(src, dst, opts) if mode == "compress" else mm.zipnn_decompress(src, dst, opts)
+        except Exception as e:
+            await self._fail(task_id, src, f"native job could not start: {e}")
+            return None
+        ZIPNN_TASKS[task_id]["handle"] = handle
+
+        last_sent: tuple[float, str] | None = None
+        while True:
+            await asyncio.sleep(_NATIVE_POLL_INTERVAL)
+            try:
+                done, total, phase = mm.job_progress(handle)
+            except Exception as e:
+                _cleanup_targets(dst)
+                await self._fail(task_id, src, f"native job vanished: {e}")
+                return None
+            if phase not in ("done", "failed"):
+                pct = (done / total * 100) if total else 0.0
+                ws_phase = _WS_PHASE_FOR_NATIVE.get(phase, "tensors")
+                event = (round(pct, 3), ws_phase)
+                if event != last_sent:
+                    last_sent = event
+                    await utils.send_json(
+                        "update_zipnn_progress",
+                        {"taskId": task_id, "progress": pct, "phase": ws_phase, "mode": mode},
+                    )
+            if phase == "failed":
+                try:
+                    err = mm.job_error(handle)
+                except Exception:
+                    err = None
+                _cleanup_targets(dst)
+                await self._fail(task_id, src, err or "native job failed")
+                return None
+            if phase == "done":
+                break
+
+        try:
+            result = json.loads(mm.job_result(handle))
+        except Exception as e:
+            _cleanup_targets(dst)
+            await self._fail(task_id, src, f"native job result unreadable: {e}")
+            return None
+        for warning in result.get("warnings") or []:
+            utils.print_warning(f"zipnn[{mode}]: {warning}")
+        stats = result.get("stats")
+        if not isinstance(stats, dict):
+            _cleanup_targets(dst)
+            await self._fail(task_id, src, "native job returned no stats")
+            return None
+        return stats
+
     async def _run(self, request, mode: str):
         data = await utils.get_request_body(request)
         model_type = data.get("type")
@@ -1260,6 +1544,7 @@ class ZipNNRoutes:
             return web.json_response({"success": False, "error": f"target already exists: {os.path.basename(dst)}"})
 
         force = bool(data.get("force"))
+        paranoid = paranoid_enabled(request)
         task_id = uuid.uuid4().hex
         ZIPNN_TASKS[task_id] = {"mode": mode, "status": "running", "src": src, "dst": dst}
         await utils.send_json(
@@ -1270,44 +1555,64 @@ class ZipNNRoutes:
         loop = asyncio.get_running_loop()
 
         async def worker():
+            # ANY escaping exception must flip the task to "error" and emit
+            # zipnn_complete — a worker that dies silently would leave the UI
+            # spinner running forever (`_schedule` only logs).
             try:
-                await loop.run_in_executor(utils.cpu_executor(), ensure_zipnn, force)
+                await worker_body()
             except Exception as e:
-                await self._fail(
-                    task_id,
-                    src,
-                    str(e),
-                    install_failed=isinstance(e, ZipNNInstallError),
-                )
-                return
+                try:
+                    await self._fail(task_id, src, f"zipnn worker crashed: {e}")
+                except Exception:
+                    utils.print_error(f"zipnn worker crash could not be reported: {e}")
 
-            def progress(done: int, total: int, phase: str):
-                asyncio.run_coroutine_threadsafe(
-                    utils.send_json(
-                        "update_zipnn_progress",
-                        {
-                            "taskId": task_id,
-                            "progress": (done / total * 100) if total else 0.0,
-                            "phase": phase,
-                            "mode": mode,
-                        },
-                    ),
-                    loop,
-                )
-
-            fn = compress_safetensors if mode == "compress" else decompress_safetensors
+        async def worker_body():
             try:
-                stats = await loop.run_in_executor(utils.cpu_executor(), fn, src, dst, progress)
-            except Exception as e:
-                # never leave a half-written target behind
-                for candidate in (dst, f"{dst}.tmp"):
-                    if os.path.exists(candidate):
-                        try:
-                            os.remove(candidate)
-                        except OSError:
-                            pass
+                mm = native_core()
+            except RuntimeError as e:
+                # MM_NATIVE=1 with an unavailable core: the reason() text is
+                # actionable (missing binary / failed handshake) — surface it.
                 await self._fail(task_id, src, str(e))
                 return
+
+            if mm is not None:
+                stats = await self._run_native_job(mm, task_id, mode, src, dst, paranoid)
+                if stats is None:
+                    return  # failure/cancellation already reported
+            else:
+                try:
+                    await loop.run_in_executor(utils.cpu_executor(), ensure_zipnn, force)
+                except Exception as e:
+                    await self._fail(
+                        task_id,
+                        src,
+                        str(e),
+                        install_failed=isinstance(e, ZipNNInstallError),
+                    )
+                    return
+
+                def progress(done: int, total: int, phase: str):
+                    asyncio.run_coroutine_threadsafe(
+                        utils.send_json(
+                            "update_zipnn_progress",
+                            {
+                                "taskId": task_id,
+                                "progress": (done / total * 100) if total else 0.0,
+                                "phase": phase,
+                                "mode": mode,
+                            },
+                        ),
+                        loop,
+                    )
+
+                fn = compress_safetensors if mode == "compress" else decompress_safetensors
+                try:
+                    stats = await loop.run_in_executor(utils.cpu_executor(), fn, src, dst, progress)
+                except Exception as e:
+                    # never leave a half-written target behind
+                    _cleanup_targets(dst)
+                    await self._fail(task_id, src, str(e))
+                    return
 
             # The model entry moves to the new file: previews and notes follow.
             try:

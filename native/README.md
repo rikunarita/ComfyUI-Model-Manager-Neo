@@ -2,9 +2,21 @@
 
 ComfyUI‑Model‑Manager‑Neo の中核処理を Rust へ移行するワークスペースです
 （設計・フェーズ計画は [`Agent/Plan.md`](../Agent/Plan.md) を参照）。
-**Phase 0 の現状は雛形**で、`mm_core` は可用性・版数 API
-（`api_version()` / `core_version()`）のみを提供します。圧縮・スキャン・
-ハッシュの実装は Phase 1 以降でこのワークスペースに追加されます。
+
+**Phase 1（znn-codec フォーマット中核）実装済み**: `znn-codec` クレートが
+ZN ヘッダー・ビット並べ替え・平面分割・huff0/FSE（RFC 8878）・チャンク並列
+codec を純 Rust で提供し、vendored C コアと**バイト同一の圧縮出力**を生成
+します（L2 ゴールデン差分 9,880/9,880 一致）。
+
+**Phase 2（safetensors パイプライン + バックエンド接続）実装済み**:
+`safetensors_io`（mmap 読取・キー順保持の正準 Writer・原子入替）、
+`znn_tensor`（テンソル単位 ZN ブロック）、`pipeline`（圧縮/解凍ジョブ =
+完全性検証・進捗・キャンセル・paranoid モード）と、`mm_core` の
+ポーリング型ジョブ API（`zipnn_compress` / `zipnn_decompress` /
+`job_progress` / `job_cancel` / `job_result` / `job_error`、api_version=2）。
+`py/compress.py` の単体圧縮/解凍ルートが `MM_NATIVE=0/1/auto` でこの経路に
+切り替わります（ws イベント・stats 形状はレガシーと完全互換 — ゴールデン
+テスト済み）。
 
 ## レイアウト
 
@@ -145,3 +157,105 @@ macOS の mm-core は clippy --all-targets とビルド&import 疎通が担保�
 cargo-zigbuild 0.23.4 で確認）。Plan §3.3 の通り macOS 成果物は macOS 上でビルドします。
 参考: `x86_64-pc-windows-gnu`（zig）はコードのクロスコンパイル疎通確認には使えますが、
 配布物は MSVC ビルド（`mm_core.pyd`）です。
+
+## Phase 1: znn-codec フォーマット中核
+
+### モジュール構成（`crates/znn-codec/src/`）
+
+| モジュール     | 内容                                                                       |
+| -------------- | -------------------------------------------------------------------------- |
+| `header.rs`    | ZN ヘッダー 32B + packed shape（付録 B.1。敵対的入力の検証込み）           |
+| `dtype.rs`     | dtype コード ↔ 平面スキーム表（互換帯。拡張帯 128–255 は Phase 4）         |
+| `reorder.rs`   | f32/bf16/f64 の符号・指数ビット並べ替えと逆変換（proptest で全単射を固定） |
+| `planes.rs`    | N=1,2,4 平面分割/結合。**C の in-bounds レイアウトとバイト一致**、端数網羅 |
+| `bitstream.rs` | FSE/huff0 の後方読みビットリーダー / 前方書きビットライタ（C ミラー）      |
+| `fse.rs`       | FSE 正規化カウント表の復号 + 符号（重みテーブル用。C とバイト同一）        |
+| `huf/`         | huff0（RFC 8878 §4.2）: 重みヘッダー両経路・X2 デコード・4X エンコード     |
+| `codec.rs`     | `zipnn_core`/`combine_dtype` 等価層（チャンク並列 = rayon 専用プール、閾値 |
+|                | 0.95、chunkTypes/cumSizes レイアウト）。C が検証しない敵対的ペイロード検証 |
+
+**Phase 2 追加**（同ディレクトリ）:
+
+| モジュール          | 内容                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `safetensors_io.rs` | コンテナ parse（jiter・JSON 順保持・参照実装 0.8.0 の検証規則を逐条ミラー）+ 正準 Writer（safetensors-rust とバイト同一の再シリアライズ）+ `AtomicWriter`（`.tmp` → fsync → 検証 → rename → 親 dir fsync、インライン SHA-256 対応）                                                                                                                        |
+| `znn_tensor.rs`     | テンソル単位 ZN ブロックの生成/復号 + 互換帯 dtype 表（safetensors dtype ↔ ZN コード ↔ torch 名）。fp8 のチャンククランプ（byte14=18 だが実チャンク 128KiB — zipnn.py のクセ）を両方向で再現                                                                                                                                                               |
+| `pipeline.rs`       | `compress_file` / `decompress_file`（Plan §4.3/§4.4.3）: mmap ストリーミング（ピーク RAM = O(最大テンソル)）、ワーストケース H_max ヘッダー予約による**単一書き込みパス**、原本 SHA-256 の並行算出、`znn_neo_src_sha256`/`znn_neo_exact` 記録、解凍時の既定検証（不一致時は圧縮ファイルを保持し復元物を `.corrupt` 退避）、paranoid モード、協調キャンセル |
+
+正しい実装の根拠は vendored C ソース（`third_party/zipnn-core/`）と
+safetensors 0.8.0 Rust 実装（一次ソース精読、2026‑09‑24）の逐条移植で、
+出力バイトは L2 ゴールデン差分（下記）が C プリビルド .so と照合します。
+**unsafe はフォーマット中核（Phase 1 範囲）でゼロ**。Phase 2 の追加は
+`safetensors_io::StContainer::open` の **read-only mmap 1 箇所のみ**
+（memmap2 の安全境界。SAFETY コメント付きでレビュー済み — Plan §3.7 が
+選定したゼロコピー設計そのもので、置き換え対象の Python `safe_open` も
+同一の mmap 方式。crate の `#![deny(unsafe_code)]` は維持し、当該関数に
+局所 `#[allow]` + SAFETY ブロックを付す形）。
+
+### znn-cli（配布しない開発ツール）
+
+```bash
+cargo build --release -p znn-cli
+znn-cli identity                       # 定数レポート
+znn-cli core-compress  IN OUT --num-buf 4 --bits 1 --mode 220 --chunk 262144
+znn-cli core-decompress PAYLOAD OUT --orig-len N [--max-output CAP] ...
+znn-cli bench IN --op both --runs 5    # steal ゲート付き in-process 計測
+znn-cli batch MANIFEST.jsonl RESULTS.jsonl   # L2 ハーネス用バッチ実行
+# Phase 2: Python を介さない safetensors パイプライン（手動 QA / bench）
+znn-cli st-compress  model.safetensors model.znn.safetensors [--paranoid] [--json-out R.json]
+znn-cli st-decompress model.znn.safetensors restored.safetensors [--json-out R.json]
+```
+
+`core-*` は C ABI（`zipnn_core` / `combine_dtype`）の完全ミラーです
+（`is_review` / `check_th_after_percent` は C 側でも出力に影響しないため
+受け入れ・無視。ヘッダー [24:32] への resBufSize 書き込みも C 準拠）。
+
+### L2 ゴールデン差分テスト（`scripts/l2/golden_diff.py`）
+
+C プリビルド .so（`third_party/zipnn-core-bin/linux-x86_64/`、要 Linux x86_64 +
+CPython 3.11）をゴールデン生成器に、Rust 出力と**バイト単位**で照合します:
+
+```bash
+python3 scripts/l2/golden_diff.py                 # フル 10,500 ケース
+python3 scripts/l2/golden_diff.py --quick         # CI ゲート（~1,200）
+python3 scripts/l2/golden_diff.py --skip-suite --speed   # 圧縮率/速度ゲート
+```
+
+- ケース = 長さクラス（0–9 / チャンク境界 ± / 乱数 / 多チャンク）× エントロピ
+  8 種 × パラメータ 8 組。C が SEGFAULT する付録 C クラス（4 平面・最終チャンク
+  1–3B）は **Rust 側のみ**実行し「エラーか正常動作」を要求（C には渡さない —
+  ドライバプロセスが死ぬため。Phase 0 の `bench_c_defects.py` が C 側判定を記録済み）。
+- C の**文書化済み UB 形状**（端数チャンクの 1–3B ヒープオーバーフロー書き込み）
+  は fork 隔离子プロセスでゴールデン生成（親プロセスのヒープ汚染防止。golden は
+  abort 前に fsync 済み）。
+- 結果 JSON は `scripts/l2/results/` にコミット（証跡）。
+
+### L3 ファジング（cargo-fuzz）
+
+```bash
+rustup toolchain install nightly && rustup component add rust-src --toolchain nightly
+# cargo-fuzz 0.12.0 を PATH へ（0.13.x は musl デフォルトで musl-g++ を要求するため
+# gnu ターゲット明示の 0.12.0 をピン留め — CI と同一）
+cd native/crates/znn-codec/fuzz
+cargo +nightly fuzz build -D --target x86_64-unknown-linux-gnu
+cargo +nightly fuzz run huf_decompress   --target x86_64-unknown-linux-gnu -- -max_total_time=300
+cargo +nightly fuzz run zn_header        --target x86_64-unknown-linux-gnu -- -max_total_time=300
+cargo +nightly fuzz run codec_decompress --target x86_64-unknown-linux-gnu -- -max_total_time=300
+cargo +nightly fuzz run st_parse         --target x86_64-unknown-linux-gnu -- -max_total_time=300
+cargo +nightly fuzz run blob_decompress  --target x86_64-unknown-linux-gnu -- -max_total_time=300
+```
+
+- ターゲット 5 種: `huf_decompress`（敵対的 huff0 ブロック）/ `zn_header`
+  （ヘッダー + packed shape、encode∘decode 正規形不変条件）/ `codec_decompress`
+  （ペイロード + パラメータ全体、出力キャップ付き）/ **Phase 2 追加**:
+  `st_parse`（敵対的 safetensors コンテナ + 正準再構築の不変条件:
+  「canonical フラグ ⇔ 再シリアライズが原本とバイト同一」）/
+  `blob_decompress`（敵対的テンソル ZN ブロック、**割り当てキャップ付き** —
+  整合的な嘘 original_len による OOM 殺人を Err に変える §4.4.2 の要件）。
+- シードコーパスは実物コンテナ/ブロック/ヘッダー（`fuzz/corpus/`、コミット済み）。
+  Phase 1 開発中にファザーが発見した実バグ 3 件（ヘッダー正規形 1 + 整数オーバー
+  フロー 2）は修正済みで、クラッシュ入力は回帰シードとしてコーパスに追加済み。
+- ≥8h の本格バジェットは PR ゲートではなく `fuzz-long.yml`（週次スケジュール +
+  手動ディスパッチ、3 ターゲット並列 × 3h = 9h）で消化します（Plan §5.1 L3）。
+- ローカル 1GiB メモリ環境では release+ASan ビルドが OOM するため `-D`（dev）を
+  使用。CI（7GiB+）は release（`-O`）で実行。

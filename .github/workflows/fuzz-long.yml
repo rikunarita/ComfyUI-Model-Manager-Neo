@@ -1,0 +1,116 @@
+# Long-running L3 fuzz budget (Plan §5.1 L3: ">=8 hours, 0 panic/OOM/hang";
+# §6.2 Phase 1 completion condition "fuzz >=8 h"). GitHub's 6 h per-job limit
+# means the budget runs as a 5-target matrix x 3 h = 15 h total per schedule
+# (each job well inside the limit; Phase 2 adds st_parse + blob_decompress).
+# Crashes fail the job and are uploaded as artifacts; the committed corpus
+# (incl. the Phase-1 regression seeds found by the fuzzer) replays every run.
+#
+# NOT a PR gate — scheduled (weekly) + manual dispatch only.
+name: fuzz-long
+
+on:
+  schedule:
+    - cron: "0 18 * * 0" # Sundays 18:00 UTC
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "Fuzz hours PER TARGET (matrix runs in parallel)"
+        default: "3"
+        type: choice
+        options: ["1", "2", "3", "4", "5"]
+
+concurrency:
+  group: fuzz-long
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [huf_decompress, zn_header, codec_decompress, st_parse, blob_decompress]
+    defaults:
+      run:
+        working-directory: native/crates/znn-codec/fuzz
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/crates/znn-codec/fuzz
+
+      - name: Install mold + clang (sanitizer linking)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang mold
+          sudo ln -sf "$(command -v mold)" /usr/local/bin/ld.mold
+
+      - name: Install cargo-fuzz 0.12.0 (pinned — see fuzz-smoke note)
+        run: |
+          curl -sSfL https://github.com/rust-fuzz/cargo-fuzz/releases/download/0.12.0/cargo-fuzz-0.12.0-x86_64-unknown-linux-musl.tar.gz \
+            | tar xz -C /tmp
+          sudo install -m 755 /tmp/cargo-fuzz "$HOME/.cargo/bin/cargo-fuzz"
+          cargo fuzz --version
+
+      - name: Build fuzz target (release + ASan, gnu)
+        run: cargo +nightly fuzz build -O --target x86_64-unknown-linux-gnu "${{ matrix.target }}"
+
+      - name: Fuzz ${{ matrix.target }} for the scheduled budget
+        run: |
+          HOURS="${{ github.event.inputs.hours || '3' }}"
+          SECS=$(( HOURS * 3600 ))
+          cargo +nightly fuzz run "${{ matrix.target }}" \
+            --target x86_64-unknown-linux-gnu -- \
+            -max_total_time="$SECS" -rss_limit_mb=2048 -timeout=30 \
+            -artifact_prefix=artifacts/${{ matrix.target }}/
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes-${{ matrix.target }}
+          path: native/crates/znn-codec/fuzz/artifacts/
+          if-no-files-found: ignore
+
+  l2-full:
+    # Companion: the FULL >=10,000-case L2 golden differential suite
+    # (Plan §6.2 Phase 1: "L2 ... >=10,000 cases") on the same schedule, so
+    # the committed evidence under scripts/l2/results stays reproducible.
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install mold + clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang mold
+          sudo ln -sf "$(command -v mold)" /usr/local/bin/ld.mold
+
+      - name: Build znn-cli (release)
+        run: cargo build --release --manifest-path native/Cargo.toml -p znn-cli
+
+      - name: Run the full L2 suite (>=10,000 cases)
+        run: python3 scripts/l2/golden_diff.py --cases 10500 --out scripts/l2/results/golden_diff.json
+
+      - name: Upload the report
+        uses: actions/upload-artifact@v4
+        with:
+          name: l2-full-report
+          path: scripts/l2/results/golden_diff.json

@@ -20,6 +20,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 FIXTURES="${FIXTURES:-/tmp/mm-bench}"
 RESULTS="$HERE/results"
 SIZES_MB="${SIZES_MB:-32 96 192}"
@@ -55,6 +56,18 @@ python3 "$HERE/bench_zipnn.py" --fixtures "$FIXTURES" \
   --sizes-mb "${SIZES[@]}" --neo-synthetic-mb "$NEO_SYNTH_MB" \
   "${MODEL_ARGS[@]}" --json-out "$RESULTS/zipnn.json"
 
+echo "== bench_native_e2e (Phase 2 K1/K2/K3/K13 — native vs legacy, same session) =="
+if [[ -f "$REPO_ROOT/native/native-bin/linux-x86_64/mm_core.abi3.so" ]] \
+  || [[ -f "$REPO_ROOT/native/native-bin/macos-universal2/mm_core.abi3.so" ]] \
+  || [[ -f "$REPO_ROOT/native/native-bin/windows-x86_64/mm_core.pyd" ]]; then
+  python3 "$HERE/bench_native_e2e.py" --fixtures "$FIXTURES" \
+    --size-mb "$NEO_SYNTH_MB" --rounds 3 \
+    "${MODEL_ARGS[@]}" \
+    --json-out "$RESULTS/native_e2e.json"
+else
+  echo "native binary not built — skipping bench_native_e2e (scripts/build-native.sh)"
+fi
+
 echo "== bench_delta (K4 + K5 production-path reachability) =="
 python3 "$HERE/bench_delta.py" --fixtures "$FIXTURES" --pair-mb "$PAIR_MB" \
   --json-out "$RESULTS/delta.json"
@@ -72,7 +85,6 @@ python3 "$HERE/bench_hash.py" --fixtures "$FIXTURES" --size-mb "$HASH_MB" \
   --json-out "$RESULTS/hash.json"
 
 echo "== json-bench (parser decision) =="
-REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 if command -v cargo >/dev/null 2>&1; then
   (cd "$REPO_ROOT/native" && cargo build --release -p json-bench)
   "$REPO_ROOT/native/target/release/json-bench" "$FIXTURES/moe-header.safetensors.json" \

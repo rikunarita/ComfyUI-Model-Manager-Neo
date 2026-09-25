@@ -1,0 +1,32 @@
+{
+  "env": {
+    "date": "2026-09-24T01:33:12+0000",
+    "host": "Linux-4.19.91-c8dfc93.al7.x86_64-x86_64-with-glibc2.36",
+    "python": "3.11.2",
+    "cli": "/tmp/arena/tenants/6acc009e-668a-4d2f-9f51-3f7ed5839ee4/sessions/949539ee-5da1-4138-b4be-9b3e26fb049e/workspace/ComfyUI-Model-Manager-Neo/native/target/release/znn-cli",
+    "c_so": "/tmp/arena/tenants/6acc009e-668a-4d2f-9f51-3f7ed5839ee4/sessions/949539ee-5da1-4138-b4be-9b3e26fb049e/workspace/ComfyUI-Model-Manager-Neo/third_party/zipnn-core-bin/linux-x86_64/zipnn_core.cpython-311-x86_64-linux-gnu.so"
+  },
+  "seed": 20260923,
+  "suite": {
+    "gate": true,
+    "counters": {
+      "cases": 10500,
+      "c_compress": 9880,
+      "byte_identical": 9880,
+      "byte_mismatch": 0,
+      "rust_dec_ok": 9880,
+      "c_dec_of_rust_ok": 9880,
+      "c_dec_of_rust_via_identity": 3632,
+      "rust_self_roundtrip_ok": 495,
+      "forbidden_rust_ok": 495,
+      "forbidden_rust_err": 0,
+      "rust_err_other": 0,
+      "c_forked_signal": 125,
+      "c_self_unverified": 0
+    },
+    "failures": [],
+    "n_failures": 0,
+    "seconds": 425.3
+  },
+  "gate": true
+}

@@ -55,6 +55,15 @@ compress.ZipNNRoutes().add_routes(routes)
 search.SearchRoutes().add_routes(routes)
 identify.IdentifyRoutes().add_routes(routes)
 
+# Startup hygiene (Plan §4.4.4): sweep `.tmp` partials left behind by a
+# crashed/killed ZipNN run and report `.corrupt` verification diagnostics.
+# Background (io pool) so a slow or network-mounted library never delays
+# ComfyUI's boot; failures only log.
+try:
+    utils.io_executor().submit(compress.cleanup_stray_files)
+except Exception:
+    pass
+
 WEB_DIRECTORY = "web"
 NODE_CLASS_MAPPINGS = {}
 __all__ = ["NODE_CLASS_MAPPINGS", "WEB_DIRECTORY"]

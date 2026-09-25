@@ -11,11 +11,14 @@
 #   size-budget    <= 4 MB per binary and <= 20 MB total across all artifacts
 #                  (Plan §3.3 / R6)
 #
-# The transition-period gates (L2 differential tests vs the bundled C core,
-# L3 fuzz smoke, L4/L5 pytest + official-zipnn cross-validation) join this
-# workflow in Phase 1+ as the codec lands. Artifacts are verification only:
-# `native-bin/` commits are generated on main/release tags (Plan §5.3), never
-# from PR/dev runs.
+# Transition-period gates (Plan §5.3):
+#   native-diff    L2 golden differential vs the bundled prebuilt C core
+#   fuzz-smoke     L3 cargo-fuzz smoke (3 targets x 60 s, ASan)
+#   integration    L4/L5 — the full pytest suite against the built artifact
+#                  on all three OSes + the official pip-zipnn 0.5.4
+#                  cross-validation on ubuntu (Phase 2)
+# Artifacts are verification only: `native-bin/` commits are generated on
+# main/release tags (Plan §5.3), never from PR/dev runs.
 name: native
 
 on:
@@ -274,7 +277,7 @@ jobs:
           import sys
           import mm_core
 
-          assert mm_core.api_version() == 1, mm_core.api_version()
+          assert mm_core.api_version() == 2, mm_core.api_version()
           print(f"abi3 import OK on CPython {sys.version.split()[0]}: {mm_core.core_version()}")
           PY
 
@@ -303,3 +306,169 @@ jobs:
           echo "binaries: $found, total: $total bytes"
           if [ "$found" -lt 4 ]; then echo "expected 4 platform binaries, found $found"; exit 1; fi
           if [ "$total" -gt 20971520 ]; then echo "TOTAL OVER BUDGET (>20 MB)"; exit 1; fi
+
+  native-diff:
+    # L2 golden differential gate (Plan §5.1 L2 / §6.2 Phase 1): the pinned
+    # prebuilt C core (third_party/zipnn-core-bin, linux-x86_64 cpython-311)
+    # is the golden generator; znn-cli (release) is the Rust side. PR/push
+    # gate = the quick suite (~1,200 cases: byte-identical compressed output,
+    # cross-decompression both directions, Appendix-C crash classes handled
+    # as error-or-correct, never a crash). The FULL >=10,000-case suite and
+    # the ratio/speed runs execute on the reference machine and in the
+    # scheduled fuzz-long workflow's companion job (results are committed
+    # under scripts/l2/results/).
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11" # matches the pinned cpython-311 .so ABI
+
+      - name: Install mold + clang (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang mold
+          sudo ln -sf "$(command -v mold)" /usr/local/bin/ld.mold
+
+      - name: Build znn-cli (release)
+        run: cargo build --release -p znn-cli
+
+      - name: Run L2 golden diff (quick suite)
+        working-directory: .
+        run: |
+          python3 scripts/l2/golden_diff.py --quick --out /tmp/l2_quick.json
+          python3 - <<'PY'
+          import json
+          report = json.load(open("/tmp/l2_quick.json"))
+          suite = report["suite"]
+          print(json.dumps(suite["counters"], indent=1))
+          assert report["gate"], "L2 gate FAILED"
+          assert suite["counters"]["byte_mismatch"] == 0
+          PY
+
+  integration:
+    # L4/L5 integration (Plan §5.3 "integration" job, §6.2 Phase 2): the FULL
+    # pytest suite — route/ws golden contracts on BOTH code paths, the L4
+    # corpus round-trips, cancellation, corruption retreat, cleanup — runs
+    # against the real built artifact on every OS. Ubuntu is the full matrix
+    # cell: the vendored prebuilt C core (+ pip torch) enables the legacy
+    # path and the cross-path parity tests, and the L5 gate re-runs against
+    # the UPSTREAM pip zipnn 0.5.4 (source-built on the runner) — the
+    # mechanical proof that vendored == official (Plan §5.1 L5).
+    needs: [native-build-linux, native-build-windows, native-build-macos]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: native-bin-linux
+          - os: windows-latest
+            artifact: native-bin-windows
+          - os: macos-latest
+            artifact: native-bin-macos
+    runs-on: ${{ matrix.os }}
+    env:
+      # windows/macos cells run the native path only: no prebuilt C core
+      # ships for them (that absence is precisely what the Rust core
+      # replaces), and a legacy-path source build would slow the gate down.
+      MMNEO_SKIP_LEGACY: ${{ matrix.os != 'ubuntu-latest' && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch the built native artifact into native-bin/
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: native/native-bin
+
+      - name: Python test dependencies
+        run: python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow
+
+      # The legacy path (vendored zipnn) needs its runtime stack; the CPU
+      # wheel index keeps the install small (no CUDA payload).
+      - name: Legacy-path dependencies (ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python -m pip install numpy safetensors blake3
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Integration tests (pytest)
+        run: python -m pytest tests -q
+
+      # L5 (Plan §5.1): Neo(Rust) compress → official decompress, official
+      # compress → Neo decompress, and per-tensor blob parity — against the
+      # pip-installed UPSTREAM zipnn 0.5.4 (source build on the runner).
+      - name: L5 official-zipnn cross-validation (ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python -m pip install zipnn==0.5.4
+          python3 scripts/l5/official_cross.py
+
+  fuzz-smoke:
+    # L3 cargo-fuzz smoke (Plan §5.1 L3): 5 targets x 60 s with ASan on every
+    # push/PR (Phase 2 adds st_parse + blob_decompress — the hostile
+    # container / blob surface of the safetensors pipeline, §4.4.2). The
+    # >=8 h budget runs in fuzz-long.yml (scheduled/dispatch), NOT on the
+    # PR path (Plan: long runs are not PR gates).
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native/crates/znn-codec/fuzz
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/crates/znn-codec/fuzz
+
+      - name: Install mold + clang (sanitizer linking)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang mold
+          sudo ln -sf "$(command -v mold)" /usr/local/bin/ld.mold
+
+      # Pinned cargo-fuzz 0.12.0 (0.13.x defaults to a musl target whose
+      # libFuzzer build needs x86_64-linux-musl-g++, unavailable on runners;
+      # gnu + ASan is the supported path). Official release binary.
+      - name: Install cargo-fuzz 0.12.0 (pinned)
+        run: |
+          curl -sSfL https://github.com/rust-fuzz/cargo-fuzz/releases/download/0.12.0/cargo-fuzz-0.12.0-x86_64-unknown-linux-musl.tar.gz \
+            | tar xz -C /tmp
+          sudo install -m 755 /tmp/cargo-fuzz "$HOME/.cargo/bin/cargo-fuzz"
+          cargo fuzz --version
+
+      - name: Build fuzz targets (dev + ASan, gnu target)
+        run: cargo +nightly fuzz build -D --target x86_64-unknown-linux-gnu
+
+      - name: Smoke-fuzz all five targets (60 s each)
+        run: |
+          for t in huf_decompress zn_header codec_decompress st_parse blob_decompress; do
+            cargo +nightly fuzz run "$t" --target x86_64-unknown-linux-gnu --dev -- \
+              -max_total_time=60 -rss_limit_mb=1024 -timeout=15
+          done
+
+      - name: Upload crash artifacts (if any)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes
+          path: native/crates/znn-codec/fuzz/artifacts/
+          if-no-files-found: ignore

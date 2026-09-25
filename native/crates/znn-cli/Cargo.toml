@@ -1,6 +1,6 @@
 [package]
 name = "znn-cli"
-description = "Validation CLI for the znn-codec native core (never distributed)"
+description = "Developer CLI for znn-codec: ZipNN-core-equivalent compress/decompress (C ABI mirror), batch mode for the L2 golden-diff harness, and (Phase 3+) delta tooling. Never distributed."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,6 +13,9 @@ path = "src/main.rs"
 
 [dependencies]
 znn-codec = { path = "../znn-codec" }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

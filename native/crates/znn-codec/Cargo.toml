@@ -1,16 +1,25 @@
 [package]
 name = "znn-codec"
-description = "Pure-Rust ZipNN codec for ComfyUI-Model-Manager-Neo (no Python dependency)"
+description = "Pure-Rust ZipNN codec: ZN header, bit reorder, plane split, huff0/FSE, delta, safetensors I/O, scan and multi-algorithm hashing. No Python dependency (Plan §3.6/§4.5). Phase 1: format core (header/planes/huff0/FSE/codec)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[lib]
-name = "znn_codec"
-
 [dependencies]
+thiserror = { workspace = true }
+rayon = { workspace = true }
+# Phase 2: safetensors container I/O + the integrity pipeline (Plan §3.7).
+jiter = { workspace = true }
+memmap2 = { workspace = true }
+sha2 = { workspace = true }
 
-[lints]
-workspace = true
+[dev-dependencies]
+proptest = { workspace = true }
+
+[features]
+default = []
+# Declared (empty) from Phase 0 so the feature name — and with it the CI
+# `--all-features` surface — is stable; wired to notify + debouncer in Phase 5.
+watch = []

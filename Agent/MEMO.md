@@ -386,3 +386,249 @@ dev 側の潜在バグ 1 件・CI カバレッジ欠落 1 件を発見、有用�
   範囲。**KPI ゲートは「同一ハーネス・同一フィクスチャでの新旧比」で
   判定する**という BENCH.md 冒頭の方法論がこれを吸収する（Phase 2 では
   ベースライン再計測を同一 run で実施すること）。
+
+## 2026‑09‑23 — Phase 1 実装セッション（znn-codec フォーマット中核 + L2/L3）
+
+**成果**: `znn-codec` 全 8 モジュール（header/dtype/reorder/planes/bitstream/
+fse/huf{weights,tree,encode,decode}/codec）を unsafe ゼロで実装。znn-cli に
+C ABI ミラー（core-compress/core-decompress）+ batch + steal ゲート付き bench。
+L2 ハーネス（scripts/l2/golden_diff.py）で **フル 10,500 ケース GATE PASS:
+圧縮出力バイト一致 9,880/9,880（100 %）、相互解凍両方向全通過、付録 C クラス
+495/495 安全処理（クラッシュ 0）、圧縮率差 Δ0.0000 %**。L3 ファズ 3 ターゲット
+（シード 69 件コミット）+ CI 配線（native.yml: native-diff/fuzz-smoke、
+fuzz-long.yml: 週次 3h×3=9h + l2-full）。L1 = 68 テスト緑（proptest 含む）。
+
+**重要な発見・確定事実**:
+
+1. **Plan §4.6.2 の f64 並べ替え式が全単射でなかった**（`>>12`/`0x0008…`/
+   `0x0007…` = mantissa bit 51 を落とし bit 52 を死蔵 → 任意 u64 の ~50 % が
+   往復失敗、実測 100,045/200,000、1.5→1.0）。訂正式（sign→bit 52、man 52 bit
+   全保持）を Plan 表に注記済み。proptest が恒久固定。**推測でなく実証で
+   計画書のバグを捕まえた事例** — Phase 4 の f64 実装は reorder.rs の
+   proptest 済み定数をそのまま使うこと。
+2. **C コアの「静かな UB」はロングラン driver プロセスを殺す**: 端数ケースの
+   1–3B ヒープオーバーフロー書き込みが蓄積し `free(): invalid size` 等で
+   abort（L2 初期版が実測で死亡）。対策 = UB 形状のゴールデン生成を
+   **fork 隔离子プロセス**で実行（golden は self-decompress 前に fsync →
+   子が後から abort しても golden は有効。実測 125 件の信号死を吸収し
+   9,880 golden 全件で C 自己往復も検証済み）。heap-safe 形状
+   （nb=1 全長 / length%nb==0）のみ in-process 高速経路。
+3. **C のホール alphabet（ギャップ付き maxSV）挙動は経験的に決定論的**:
+   buildCTable はゼロカウント シンボルの tree[].nbBits を明示初期化しない
+   （スタック履歴依存の UB 懸念）が、dense→sparse を同一ワーカー スレッドで
+   連続圧縮しても出力は単独圧縮とバイト同一（=実効的にゼロ）。Rust 実装は
+   ホールを nb_bits=0 に確定初期化 → この条件下で C とバイト一致を L2 で確認。
+   （理論上の C 潜在バグだが実機再現せず — upstream 報告書には主欠陥のみ記載。）
+4. **huff0 ライタのフラッシュ周期は出力バイト不変**（直列ビット順序のみが
+   バイト列を決める。C の flushBits が 8B 書き pos を floor(bits/8) 進める
+   構造の帰結）。これにより 4→5 シンボル/フラッシュへの変更（huffLog≤11 で
+   5×11+7=62<64 が保証）がバイト同一を保ったまま可能 — L2 9,880 件が実証。
+5. **計測方法論（この 2vCPU 共有機では必須）**: 未ゲート計測は同一設定で
+   2–3 倍揺れる。C 自身も Phase 0 記録と当日クリーン窓で最大 2.4 倍乖離
+   （f32 解凍 1722→718、f16 圧縮 613→1020）→ **Phase 0 記録値との比較は無効、
+   同一セッション比較のみ有効**。確立したプロトコル = /proc/stat steal ゲート
+   （窓の tick 容量 ~5 % 超を棄却、C 側 Python ループと Rust 側 znn-cli bench
+   の両方に同一規則を実装）+ 交互ブロック + 側別最小値（=干渉ゼロ窓の上限）。
+6. 最適化の実測履歴（f16 32MB 圧縮 e2e、2T）: 初期 313 → 4-way hist + packed
+   CTable + デコード窓 → 372 → スクラッチ再利用（平面/ライタ/dtable）→ 720 台 →
+   nb=1 ゼロコピー + take() → fp8 ×1.37、split2 16B ブロック化（968→2,055MB/s、
+   **32B 化は逆効果 1,698** で却下）→ 並列アセンブリ + writer 5-flush →
+   最終 734–790。デコードは 4 ストリーム インターリーブ（C の ILP 構造）+
+   固定長 [DeltX2;4096] 表（境界検査消去）で f32 ×1.86–2.20。
+7. **速度ゲート現状（判断待ち）**: 8 指標中 6 が ×1.20–1.86 で C 超え。
+   bf16/f16 **圧縮**のみ ×0.72–0.84（C の当日クリーン窓 ~1,010–1,020 MB/s は
+   Phase 0 記録 337–800 の上限も 27 % 超える異常速。Phase 0 記録比では全 dtype
+   同等以上）。残差の内訳は実測で「安全 Rust の初期化税」（並列アセンブリ用
+   out 27MB zero-fill + raw 平面 clone = トラフィック +45 %）と gcc の memcpy
+   律速経路。scoped unsafe（MaybeUninit）で ×0.9–1.0 到達の見積りだが
+   workspace `unsafe_code=deny`（Plan §3.4.2）と衝突 → **ユーザ判断に委ねた**
+   （選択肢: (a) 記録ベースライン比でゲート充足として [x]、(b) scoped unsafe
+   承認、(c) 現状の文書化済み逸脱で確定）。
+8. 環境/ツールチェーン: cargo-fuzz は **0.12.0 ピン**（0.13.x は musl 既定で
+   x86_64-linux-musl-g++ を要求 → runner/サンドボックスに無い。gnu ターゲット
+   明示で ASan 動作）。nightly + rust-src 必須（--build-std 既定）。ローカル
+   1GiB では release+ASan の rayon コンパイルが OOM（SIGKILL）→ **-D（dev）で
+   スモーク**、CI（7GiB+）は release。array_chunks(_mut) は 1.98 でも
+   unstable → MSRV 1.85 維持のため chunks_exact + try_into で代替（性能差は
+   実測ノイズ内）。ディスク逼迫時は native/target/debug（1.1GB、再構築可能）
+   を削除して凌いだ。
+9. fuzz が検出した実バグ 3 件（全て修正 + 回帰シード化）: (a) byte13 の
+   下位 7bit を非ストリーミング時に保持 → encode∘decode 正規形不一致
+   （decode 側で 0 に正規化。zipnn.py も下位 bit は読まない）、
+   (b) cumSizes 平面オフセットの usize 加算オーバーフロー（release では
+   ラップして span 検査をすり抜け得た → u64 checked_add + 事前検証）、
+   (c) `orig_len + chunk - 1` が cap 検査前でオーバーフロー（cap 検査を
+   最前へ移動 + div_ceil 化）。
+
+### 追記（同日・ユーザ判断と最終最適化）
+
+- **ユーザ判断 3 点**（ask_user 応答）: (1) 圧縮率は速度より重要 —
+  「せめて 67 % は下回らない」→ バイト同一による構造的保証で回答
+  （bf16 実測 0.6623。BENCH §6.3）。unsafe は「できる限り使わない」指示
+  （safe 策の virtual-raw で目標超過達成のため不使用で決着）。
+  (2) fuzz-long は今すぐディスパッチ希望 → **PAT の Actions 権限不足 +
+  schedule/dispatch の default-branch（main）制約で 403**。GitHub UI からの
+  手動ディスパッチ（branch: dev, hours: 3）をユーザに依頼する形に。
+  (3) 上流 issue は起票せず、Neo 内でメモリバグ完全修正を担保（BENCH §6.4）。
+- **virtual-raw 平面**（最後の大型 safe 最適化）: raw 確定の平面は
+  スクラッチにも clone にも落とさず、アセンブリ フェーズで
+  `planes::extract_plane` が src チャンクから出力スライスへ直接展開
+  （split()[b] とのバイト一致は dedicated テスト + L2 10,500 で固定）。
+  効果: bf16 圧縮 ×0.78→×1.18–1.29、f16 ×0.72→×1.31–1.45 — **8/8 指標で
+  C 超え**（連続 2 実行、同一 steal ゲート プロトコル）。C のポインタ
+  スワップ（compressedData = 平面バッファ itself）を safe Rust で再構成した
+  形で、clone 経路の C よりトラフィックが少ない。
+- 速度計測の残存注意点: C は最静穏窓で bf16/f16 圧縮 ~950–1,030 MB/s に
+  達することがある（Rust 静穏窓上限 ~740–790、virtual-raw 後は未観測）。
+  ゲートは同一セッション交互計測（側別最小値）で判定 — 2 連続 PASS。
+- 最終状態: L1 69 / L2 フル PASS / L3 スモーク PASS / clippy -D warnings 0 /
+  fmt / ruff / mypy / pytest 12 / prettier 全緑、CI（verify + native 11
+  ジョブ、native-diff・fuzz-smoke 含む）全緑。Phase 1 の [x] 化は
+  fuzz ≥8h 初回実行完了待ち（機械的步骤のみ）。
+
+## 2026‑09‑24 — Phase 2 実装セッション（safetensors パイプライン + バックエンド接続）
+
+### Phase 0–1 最終確認（このセッションの冒頭、ユーザ指示分）
+
+**再実行して全ゲート緑を確認**（dev tip f51ecd8 に対して）:
+cargo fmt / clippy `-D warnings` / test（L1 69 + mm-core）/ ruff check+format /
+mypy 14 files / pytest 12（実 zigbuild 成果物に対するローダーテスト込み）/
+**L2 quick GATE PASS**（1,200 ケース: byte‑identical 1,121/1,121、mismatch 0、
+付録 C クラス 63 安全処理）/ build-native.sh linux-x86_64 サイズゲート OK /
+リモート CI 12 チェック全緑（GitHub API で確認）。
+
+**発見した潜在バグと対処**（Phase 2 実装に先立ち修正・回帰テスト化）:
+
+1. `codec::decompress_container` の **fp8 チャンククランプ欠落** —
+   zipnn.py は num_buf==1 のとき C に `min(128KiB, 2^byte14)` を渡すが
+   （ヘッダー byte14 は 18 のまま = 生産 fp8 ブロックの実チャンクは 128KiB）、
+   同関数は byte14 由来の 256KiB をそのまま使っていた。Phase 1 では
+   呼び出し元が無く（L2 はチャンクを明示引数で渡す）未顕在化 —
+   Phase 2 が最初の消費者になるところだった。修正 + テスト
+   `fp8_container_chunk_clamp`。
+2. **バージョンゲート欠落**（Plan §7 R10 の緩和策「ヘッダーのバージョン
+   バイト厳密検査」が未実装だった）: `ZnHeader::decode` が 0.5.0–0.5.4
+   以外を明示エラーにするよう強化（将来の上流フォーマット変更の
+   静かな誤デコード防止）。テスト `decode_gates_the_container_version`。
+3. **fuzz-long のディスパッチ経路の訂正**: admin 権限 PAT でも
+   workflow_dispatch は **404**（fuzz-long.yml が default branch に無い
+   → workflow 未登録。GitHub UI にも表示されない）。Phase 1 完了条件の
+   消化経路は **dev→main マージのみ**（Plan の当該項を訂正済み）。
+   main は dev の内容に対して独自変更ゼロ（マージコミット 3 件のみ、
+   `git diff dev...origin/main` 空で確認）。
+
+### Phase 2 実装（成果物）
+
+- **znn-codec 新モジュール**: `safetensors_io.rs`（parse/正準 Writer/
+  AtomicWriter）、`znn_tensor.rs`（テンソル ZN ブロック + dtype 表）、
+  `pipeline.rs`（compress_file/decompress_file + Progress/Hooks/JobOpts）。
+  codec に `zipnn_core_into`/`combine_dtype_into`/`*_with(cancel)` を追加
+  （既存 API は無変更で温存 — L2/znn-cli との互換維持）。
+- **safetensors 0.8.0 の一次ソース精読**（github v0.8.0 tag:
+  tensor.rs / slice.rs / bindings python lib.rs を DL して確認 — 推測ゼロ）:
+  Writer は dtype アライメント降順→名前でソート、`__metadata__` 先頭、
+  compact serde_json、**8B 整列までスペースパディング**、Reader は
+  dense/exact-coverage/size 整合を強制、`keys()` はソート済み、
+  **メタデータは HashMap = キー順がプロセスごとにランダム**（← レガシー
+  往復の byte‑exact が複数キーで偶然依存だった潜伏バグ。Neo は順序保持で
+  構造的に解決）、`f.metadata()` の None と `{}` は別物（→
+  `znn_neo_src_meta_absent` キー新設の根拠）。
+- **mm-core**: `jobs.rs`（レジストリ + GC + catch_unwind）+ pymodule に
+  6 関数（api_version=2 へ bump、py/native.py の範囲も [2,2] へ同期、
+  native.yml の abi3 assert も更新）。
+- **py/compress.py**: `_run` に native 経路（10 Hz ポーリング、ws 契約
+  完全維持）、cancel ルート、`cleanup_stray_files()`（`__init__.py` から
+  io_executor で起動）、レガシー解凍の Neo キー strip 拡張 +
+  meta_absent 尊重。batch/delta は Phase 3 までレガシー温存。
+- **テスト**: Rust L1 98（+29）、pytest 43（+31: pipeline 22 + routes 9）、
+  L5 スクリプト `scripts/l5/official_cross.py`。
+- **CI**: native.yml に `integration` ジョブ（3 OS。ubuntu = フル
+  （torch 導入 → 両経路 + L5 pip zipnn 0.5.4 ソースビルド相互検証）、
+  win/mac = native 経路のみ（MMNEO_SKIP_LEGACY=1 + torch プローブで
+  ソースビルド暴走を防止））。fuzz-smoke/fuzz-long を 5 ターゲット化。
+
+### 実測で発見して修正した実装バグ（今回の教訓群）
+
+1. **ジョブ完了競合**: パイプラインが phase=Done を設定してからスレッドが
+   outcome を記録するまでの窓で `job_result` が「未完了」を返す
+   （bench ハーネスが実測で検出 — RuntimeError）。`job_progress` は
+   outcome のみを終端信号とし、窓の間は `verify` を報告する方式へ。
+2. **paranoid の進捗二重計上**: 内部検証デコードが同じ Progress を
+   駆動して done>total（UI 200 %）。内部 Hooks は progress=None に。
+3. **メタデータ不在情報の喪失**: 原本に `__metadata__` が無い場合、
+   復元が `{}` を追加して byte‑exact を壊す（Rust テストが即検出）→
+   `znn_neo_src_meta_absent` キーで記録・尊重（レガシー側も）。
+4. **並列ハッシャは 2 vCPU で逆効果**: channel + 専用スレッドを実装して
+   実測 → 0.60 s → 0.65 s に**悪化**（空きコア無し + clone トラフィック +
+   無制限キューの RSS 増 = K1 危険）。inline へ revert（判断は常に実測 —
+   BENCH §7.1 の「正直な注記」に記録）。
+5. **割り当て爆弾**: 敵対的ブロブが「整合的な嘘」（shape×elem ==
+   original_len == 1 TiB）で resize → OOM abort → ComfyUI 死亡の経路が
+   あり得た。per-tensor キャップ（既定 64 GiB、`decompress_tensor` は
+   blob×64 フロア 16 MiB）+ checked 累積オフセットで Err 化。テスト +
+   fuzz ターゲット `blob_decompress`（キャップ 1 MiB で回す）で固定。
+6. **sha2 0.11 の SHA‑256 に AVX2 バックエンドは無い**（README 一次確認:
+   x86 は SHA‑NI か soft のみ。`x86-avx2` は SHA‑512 専用）→ SHA‑NI の
+   無いマシンでは検証ハッシュ ~156 MB/s が e2e の壁になる（BENCH §7.1 に
+   内訳実測を記録。設計は Plan 通り sha2 維持 = OpenSSL バインディングは
+   Plan §3.1 が明示的に不採用）。
+
+### 計測（KPI）と正直な判定
+
+- 詳細は **BENCH §7**（同一セッション・側別ベスト窓・ steal 記録の
+  Phase 1 確立プロトコル）。要点: K1 限界倍率 **1.2×/0.8×**（レガシー
+  2.6×/1.7×）、byte‑exact 3/3、K13 不変（44 MiB/6 ms）。K2 ×0.46 /
+  K3 ×0.24 は **sha2-soft が壁の ~85 %**（検証 OFF 実測: 解凍 352 MB/s =
+  ×1.18）。SHA‑NI + NVMe 外挿は K2 ×1.3–2.0 / K3 ×1.2–2.1 の境界 →
+  Plan 完了条件は「参照機再計測」を残して [/]（未達フェーズを閉じない
+  規程 §6.3 に従う）。
+- L5 ローカル実行: pip zipnn 0.5.4（ソースビルド成功、cp311 wheel 生成）
+  との相互検証 **GATE PASS**（A/B/C 全方向）。ベンダ版との同一性の
+  機械的証明になった。
+- L3 スモーク（新ターゲット、dev+ASan、この 1 GiB 機）: st_parse
+  **462,024 runs / 91 s クラッシュ 0**、blob_decompress 20,770 runs / 91 s
+  クラッシュ 0、既存 3 ターゲットも再スモーク緑（codec リファクタ後）。
+
+### 環境メモ（今回セッション）
+
+- apt の HTTP が 25 KB/s まで劣化（aliyun ミラー自体は urllib で 0.7 s 応答）
+  → `apt-get --print-uris` + Python 並列 DL + dpkg キャッシュ経由で回避
+  （109 debs を数分）。rustup / pip（torch cpu 含む）/ crates.io / docs.rs /
+  GitHub raw はすべて高速。
+- リンク時の `fork: Cannot allocate memory`（1 GiB）→ cargo は `-j 1`
+  （clippy/test）。release LTO ビルドも -j 2 で通る（28–77 s）。
+- ディスクは torch + rust toolchain + nightly + fuzz target で 9.9 GB のうち
+  ~7 GB 使用。**native/target の肥大に注意**（fuzz の target は別ツリー）。
+- heredoc 内に `"$ARENA_WORKSPACE"` 直書きをすると環境側で `$ARENA_WORKSPACE` に
+  置換されて壊れることがある → Python スクリプトは `os.getcwd()` 相対で書く。
+
+### Phase 2 push 後の CI 修復ラウンド（2026‑09‑24、f51ecd8→f4c1a4c）
+
+push 後の CI で 3 件のゲート失敗 → いずれも修正して再 push（本体設計は不変）:
+
+1. **verify/Format**: `scripts/bench/results/native_e2e.json` が
+   `json.dump(indent=1)` で prettier 不一致 → indent=2 + 末尾改線へ
+   （スクリプト側も修正 — 将来の再生成がゲートを割らないように。
+   znn-cli `--json-out` も末尾改線を付与）。
+2. **verify/mypy（既存コードの被弾）**: CI の pip が **huggingface_hub 2.0.0**
+   を解決するようになり（requirements は `>=1.32.0` の開放範囲）、
+   `HfApi.list_models(sort=)` の注解が閉じた Literal に狭まって
+   `py/search.py:180` が arg‑type 違反に。ローカルで hub 2.0.0 を入れて
+   再現確認のうえ `cast(Any, sort)` で修復（実行時ゼロ影響・
+   バージョン非依存。`# type: ignore` は warn_unused_ignores と
+   hub 未導入環境の双方で割れるため不採用）。
+3. **native-test(windows)/integration(windows)**:
+   (a) mm-core ジョブテストのアサートが POSIX エラー文言依存 →
+   `io_ctx` が **ENOSPC 以外でも常に「操作 + パス」を付与**するよう
+   強化（ユーザ向けメッセージとしても正しい方向）し、アサートは
+   プラットフォーム非依存の 2 語に。(b) `cleanup_stray_files` の報告
+   パスが Windows で separator 混在（normalized root + os.path.join）→
+   `utils.join_path` へ統一、テストも normalize 比較に。
+   ※ 同 run で **znn-codec 99 テストは Windows で緑**（AtomicWriter の
+   rename/fsync・mmap・thread::scope すべて Win32 で動作）、macOS
+   integration も緑 — 新パイプラインのクロスプラットフォーム性は
+   CI で機械確認済み。
+4. CI 証跡（737ffef, ubuntu integration）: pytest **43 passed**
+   （レガシー経路 + native 経路 + クロスパス + L4 コーパス）、
+   **L5 GATE PASS**（pip zipnn 0.5.4 実ビルド: A/B/C 全方向）、
+   コアバージョンスタンプ `0.3.0-alpha.0+737ffef31` 正常。
