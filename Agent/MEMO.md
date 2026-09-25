@@ -803,7 +803,7 @@ events API に 03:37 UTC 以降の dev push なし、fuzz‑long の run は
   ソースの決定論的再ビルドと不一致**（CI@972ff73 の x86_64 成果物は
   1,026,872 B — ローカルとの 336 B 差はビルドパス長由来）→ 来歴不明
   （stale）として破棄し、本セッションの全結論はフレッシュビルドに
- 基づく。精査修正の回帰テストも新 `.so`/現行ソースで緑を明示確認:
+  基づく。精査修正の回帰テストも新 `.so`/現行ソースで緑を明示確認:
   `atomic_writer_commits_and_aborts`（create_new 並行拒否・young tmp
   保護・stale 採用）、`header_size_guard_rejects_oversized_regions`、
   `test_cleanup_targets_never_deletes_dst_itself` ほか。
