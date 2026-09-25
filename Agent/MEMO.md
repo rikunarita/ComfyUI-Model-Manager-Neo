@@ -632,3 +632,89 @@ push 後の CI で 3 件のゲート失敗 → いずれも修正して再 push�
    （レガシー経路 + native 経路 + クロスパス + L4 コーパス）、
    **L5 GATE PASS**（pip zipnn 0.5.4 実ビルド: A/B/C 全方向）、
    コアバージョンスタンプ `0.3.0-alpha.0+737ffef31` 正常。
+
+## 2026‑09‑25 — Phase 2 精査セッション（ユーザ指示「一切のバグが含まれていないか精査」）
+
+**セッション跨ぎの注意**: ワークスペースのスナップショットは `"$ARENA_WORKSPACE"` 配下の
+通常ファイルのみ永続化するため、`.git`・`/opt` のツールチェーン・pip/apt パッケージは
+消失していた（native-bin の成果物とソースは生存）。再クローンして `.git` を復帰、
+ツールチェーンを再構築してから精査を実施した（環境構築は前セッションの
+`/tmp/rebuild-env.sh` 方式: apt `--print-uris` + Python 並列 DL、rustup、pip）。
+
+### 精査で発見し修正したバグ（5 件）
+
+1. **【中】`_cleanup_targets` が dst 本体を削除していた** — 両パイプラインとも dst は
+   最終 atomic rename でしか生成されないため、失敗時に dst が存在すればそれは
+   「route の存在チェック後に他者が作ったファイル」。これを削除するのは狭いが
+   実在するデータ喪失競合。partial（`.tmp`/`.verify.tmp`/`.tmp.fix`）のみの削除へ
+   修正 + 単体テスト（sentinel dst の生存を assert）。
+2. **【中】並行ジョブの tmp 相互破壊** — `AtomicWriter::new` が既存 `{dst}.tmp` を
+   無条件 truncate していた: 同一 dst への二重サブミット（UI の二重クリック、
+   複数 ComfyUI インスタンス）で 2 ジョブが同一ファイルへインターリーブ書込み →
+   静かな破損。`create_new`（O_EXCL）+ 若年 tmp（<15 分）は明確なエラーで拒否、
+   陳腐 tmp（≥15 分 = クラッシュ残骸、起動時掃除と同じ年齢規則）は引き継ぎ。
+   テスト追加（拒否 + backdate 引き継ぎ）。
+3. **【中】2 の導入で顕在化した相互作用** — native ジョブ失敗時の Python 側
+   `_cleanup_targets` 呼び出しが、create_new に拒否された「第 2 ジョブ」の失敗
+   ハンドラから「第 1 ジョブが書込み中の tmp」を削除し得た。native 経路の
+   Python 側クリーンアップを撤去（Rust の Drop ガードが cancel/panic/ENOSPC を
+   含む全失敗路で tmp 削除を保証 — 44 pytest で再確認。legacy 経路は
+   save_file→os.replace 間に例外窓があるため Python 側掃除を維持）。
+4. **【低】`commit()` の rename 成功後 fsync_dir 失敗で Err** — 「成果物は確定済み
+   なのにジョブは失敗」（リトライは target already exists に当たる）という
+   矛盾状態。rename 成功をコミット点とし、dir fsync 失敗は warning 化
+   （内容は finish() で fsync 済み。dir エントリ非永続の最悪ケース =
+   rename 不反映 = **原本無傷**で legacy と同一のエクスポージャ）。
+   `take_dir_sync_warning()` でパイプライン warnings へ昇格。reject_to も同様に
+   best-effort 化。
+5. **【低】書込み側 MAX_HEADER_SIZE ガード欠落** — 参照リーダは 100 MB 超の
+   ヘッダーを拒否するのに、Writer 側は無検査だった（病的ソース: 上限近くの
+   ヘッダー + 巨大 infos で「標準ツールが読めない出力」を生む経路）。
+   `guard_header_size` を両パイプラインの region 構築直後に追加 + 単体テスト。
+
+**改善（バグではない）**: `/model-manager/zipnn/available` が
+native を優先短路して二エンジン報告（`engine`/`reason` 追加 — 後方互換）。
+native 可用時は torch import（初回 ~1.5 s のループブロック要因）を回避。
+`io_ctx` は ENOSPC 以外でも常に「操作 + パス」を付与（POSIX/Win32 の
+メッセージ差に依存していたテストアサーションも平台非依存化）。
+
+### 実証監査バッテリー（/tmp/audit/battery.py、ALL CLEAN）
+
+- **A. torch(safetensors‑rust 0.8.0) 実物 Writer との正準性証明**:
+  mixed dtype（bf16/f32/f16/fp8/I64/BOOL/scalar）× メタデータ 4 変種
+  （複数キー+unicode / 単一 / 無し / 空）で `canonical=true`、
+  **byte‑exact 復元**、`load_file`/`safe_open` 全テンソル一致、
+  no‑meta 復元に `__metadata__` が湧かない / empty‑meta は `{}` 維持。
+  → 「Neo の正準 Writer = 参照実装とバイト同一」の主張が実物against で証明された。
+- **B. 敵対的テンソル名**（引用符/バックスラッシュ/制御文字/絵文字サロゲート
+  ペア/日本語/220 文字）: infos 値が Python `json.dumps`（ensure_ascii）と
+  完全一致 + byte‑exact 往復。
+- **C.** Neo 成果物（圧縮/復元）を公式 safe_open が読めること。
+- **D. 250 シード・ランダム掃引**: dtype 12 種×メタデータ 5 変種×正準/非正準
+  ヘッダー×unicode 名×0要素テンソル×空ファイル — **0 issues**
+  （exact=1→sha256+byte‑exact、exact=0→structural+意味一致、残骸ファイル 0）。
+- **F.** 0 テンソルコンテナ 3 変種 byte‑exact。**N.** 解凍途中キャンセルで
+  残骸なし。**O.** 並行 2 ジョブ成功。
+- 再実行系: L5 GATE PASS（pip zipnn 0.5.4）、L2 quick GATE PASS（1,121/0）、
+  pytest **44**、Rust **100+5**、clippy/fmt/ruff/mypy（hub 2.0.0 同梱で再現）・
+  prettier 全緑。bench 証跡 JSON は最終バイナリで再生成（BENCH §7.1 の表を
+  同期: K2 ×0.45 / K3 ×0.25 — 判定と内訳は不変、sha2‑soft 律速）。
+
+### fuzz‑long（Phase 1 残項）
+
+ユーザの dev→main マージ（PR #5）で workflow 登録が有効化 → **API ディスパッチ
+成功**（2026‑09‑25 02:55 UTC、branch dev、hours=3、5 ターゲット並列 = 15 h
+予算 ≥ Plan §5.1 の 8 h）。run: actions/runs/36088280583。完了・緑を確認できたら
+Plan §6.2 Phase 1 完了条件と §9 を [x] 化すること（本セッション中に完了を
+待てない場合は次のセッションで run 結果を確認）。
+
+### 残った既知の非バグ事項（記録）
+
+- レガシー経路の「dst 存在チェック後の競合」は Phase 2 前の昔からある挙動で、
+  native 側は create_new で構造的に解消済み。legacy は Phase 7 で消滅する。
+- 解凍 stats の `decompressedTensors` は native=実際にデコードした数、
+  legacy=infos エントリ数（ゴースト infos のある壊れファイルでのみ差が出る。
+  形状ゴールデンは両者一致）。
+- サーバプロセス kill 中のジョブスレッドは道連れで死ぬ（tmp は残る →
+  起動時クリーンアップが 15 分規則で回収。コミット済み成果物は rename 原子性で
+  不整合にならない）。
