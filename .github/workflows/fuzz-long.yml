@@ -65,9 +65,17 @@ jobs:
         run: |
           HOURS="${{ github.event.inputs.hours || '3' }}"
           SECS=$(( HOURS * 3600 ))
+          # ASan allocator tuning: the default quarantine (256 MB) + lazy
+          # page release retains hundreds of MB of already-freed pages over
+          # a 3 h run — that tripped the old 2048 MB rss_limit in the first
+          # blob_decompress long run (live heap was ~25 MB; not a leak).
+          # Small quarantine + eager release keeps RSS near-flat:
+          # 427 MB -> 127 MB in a matched local A/B (410 k execs).
+          export ASAN_OPTIONS="quarantine_size_mb=32:release_to_os_interval_ms=200"
+          # rss_limit 4096: headroom for the (decaying) residual retention.
           cargo +nightly fuzz run "${{ matrix.target }}" \
             --target x86_64-unknown-linux-gnu -- \
-            -max_total_time="$SECS" -rss_limit_mb=2048 -timeout=30 \
+            -max_total_time="$SECS" -rss_limit_mb=4096 -timeout=30 \
             -artifact_prefix=artifacts/${{ matrix.target }}/
 
       - name: Upload crash artifacts
