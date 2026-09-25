@@ -334,6 +334,21 @@ pub struct DecompressOutcome {
     pub warnings: Vec<String>,
 }
 
+/// Refuse to WRITE a container the reference reader would reject: its
+/// header region is capped at 100 MB (`MAX_HEADER_SIZE`). Only reachable
+/// with pathological inputs (a source header already near the cap plus a
+/// huge infos record) — but producing a file no standard tool can read
+/// back is worse than an explicit error.
+fn guard_header_size(region: &[u8]) -> StResult<()> {
+    if region.len() as u64 > crate::safetensors_io::MAX_HEADER_SIZE {
+        return Err(StError::Format(format!(
+            "the output header ({} bytes) would exceed the safetensors 100 MB header cap — the file could not be read back by standard tools",
+            region.len()
+        )));
+    }
+    Ok(())
+}
+
 fn io_ctx(e: std::io::Error, what: &str, path: &Path) -> StError {
     if is_enospc(&e) {
         StError::Io(std::io::Error::new(
@@ -676,6 +691,7 @@ pub fn compress_file(
         })
         .collect();
     let region = build_header_region(Some(&meta), &entries);
+    guard_header_size(&region)?;
     let json = trim_json_tail(&region);
     if json.len() > h_max {
         // Defensive fallback — the bound construction above makes this
@@ -755,6 +771,9 @@ pub fn compress_file(
     }
 
     writer.commit()?;
+    if let Some(w) = writer.take_dir_sync_warning() {
+        warnings.push(w);
+    }
     hooks.phase(Phase::Done);
     Ok(CompressOutcome {
         stats: CompressStats {
@@ -990,6 +1009,7 @@ pub fn decompress_file(
         })
         .collect();
     let region = build_header_region(restored_meta.as_deref(), &entries);
+    guard_header_size(&region)?;
 
     // Streaming write pass with the INLINE sha (hasher only when a recorded
     // digest exists to compare against — zero-cost otherwise).
@@ -1101,6 +1121,9 @@ pub fn decompress_file(
         }
     };
     writer.commit()?;
+    if let Some(w) = writer.take_dir_sync_warning() {
+        warnings.push(w);
+    }
     hooks.phase(Phase::Done);
     Ok(DecompressOutcome {
         stats: DecompressStats {
@@ -1739,6 +1762,18 @@ mod tests {
         let err = decompress_file(&bad_json, &back, &JobOpts::default(), &hooks).unwrap_err();
         assert!(err.to_string().contains(METADATA_KEY), "{err}");
         assert!(!back.exists());
+    }
+
+    /// The write-side MAX_HEADER_SIZE guard: an output the reference reader
+    /// would reject must never be produced (only reachable with pathological
+    /// sources — guard tested directly).
+    #[test]
+    fn header_size_guard_rejects_oversized_regions() {
+        let ok = vec![b'x'; crate::safetensors_io::MAX_HEADER_SIZE as usize];
+        assert!(guard_header_size(&ok).is_ok());
+        let too_big = vec![b'x'; crate::safetensors_io::MAX_HEADER_SIZE as usize + 1];
+        let err = guard_header_size(&too_big).unwrap_err().to_string();
+        assert!(err.contains("100 MB") || err.contains("header"), "{err}");
     }
 
     #[test]

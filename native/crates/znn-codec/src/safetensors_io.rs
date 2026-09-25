@@ -694,22 +694,53 @@ pub struct AtomicWriter {
     hasher: Option<Sha256>,
     written: u64,
     committed: bool,
+    dir_sync_error: Option<String>,
 }
 
 impl AtomicWriter {
     /// Create `<dst>.tmp` beside the destination (same filesystem ⇒ the
     /// rename is atomic) and start writing.
     ///
+    /// Concurrency guard: the tmp is opened `create_new` — a SECOND live job
+    /// for the same destination gets a clean error instead of both writers
+    /// interleaving into one file (silent corruption). A tmp left behind by
+    /// a crash is taken over once it is older than 15 minutes (the same
+    /// staleness rule the startup sweep uses — a live run keeps rewriting
+    /// its tmp, so a young one belongs to somebody).
+    ///
     /// # Errors
     /// Open/create failures (including a read-only or full filesystem —
-    /// the ENOSPC surfaces on the first write at the latest).
+    /// the ENOSPC surfaces on the first write at the latest) and a young
+    /// pre-existing `.tmp` (concurrent operation).
     pub fn new(dst: &Path, with_sha256: bool) -> StResult<Self> {
         let tmp = tmp_sibling(dst);
-        let file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&tmp)?;
+        let file = match OpenOptions::new().write(true).create_new(true).open(&tmp) {
+            Ok(f) => f,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                const STALE_AFTER_SECS: u64 = 900;
+                let stale = std::fs::metadata(&tmp)
+                    .and_then(|m| m.modified())
+                    .map(|t| {
+                        t.elapsed()
+                            .map(|age| age.as_secs() >= STALE_AFTER_SECS)
+                            .unwrap_or(true) // clock weirdness → treat as stale
+                    })
+                    .unwrap_or(true); // unstat-able → let the truncate open decide
+                if !stale {
+                    return Err(StError::Format(format!(
+                        "{} exists and was modified less than {} minutes ago — another ZipNN operation for this target appears to be running (or one crashed moments ago); retry once it finishes or the startup cleanup has swept it",
+                        tmp.display(),
+                        STALE_AFTER_SECS / 60
+                    )));
+                }
+                OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(&tmp)?
+            }
+            Err(e) => return Err(e.into()),
+        };
         Ok(Self {
             tmp,
             dst: dst.to_path_buf(),
@@ -717,6 +748,7 @@ impl AtomicWriter {
             hasher: with_sha256.then(Sha256::new),
             written: 0,
             committed: false,
+            dir_sync_error: None,
         })
     }
 
@@ -789,18 +821,37 @@ impl AtomicWriter {
     /// Rename the finished `.tmp` into place + fsync the parent directory
     /// (Plan §4.4.4 — makes the replacement itself crash-durable).
     ///
+    /// The RENAME is the commit point: once it succeeds the artifact is live
+    /// and a failing directory fsync must not turn a complete, verified file
+    /// into a reported job failure (that would leave "error + existing dst"
+    /// — a confusing, retry-hostile state). The file CONTENT is already
+    /// fsynced by [`finish`](Self::finish); without a durable dir entry the
+    /// worst power-loss outcome is the rename not taking effect, i.e. the
+    /// ORIGINAL staying intact — exactly the exposure the legacy path always
+    /// had. The failure is surfaced as a warning instead
+    /// ([`take_dir_sync_warning`]).
+    ///
     /// # Errors
-    /// Rename/fsync failures (the tmp is kept for diagnostics in that case —
-    /// it is a complete, verified artifact; the Drop guard removes it only
-    /// when the writer is dropped WITHOUT commit).
+    /// Only a rename failure (or a commit before finish); the tmp is then
+    /// removed by the Drop guard.
     pub fn commit(&mut self) -> StResult<()> {
         if self.inner.is_some() {
             return Err(StError::Format("commit before finish".to_owned()));
         }
         std::fs::rename(&self.tmp, &self.dst)?;
-        fsync_dir(self.dst.parent().unwrap_or_else(|| Path::new(".")))?;
         self.committed = true;
+        if let Err(e) = fsync_dir(self.dst.parent().unwrap_or_else(|| Path::new("."))) {
+            self.dir_sync_error = Some(format!(
+                "the parent-directory fsync after the rename failed ({e}) — the file is complete and content-fsynced, but the rename may not survive a power loss on this filesystem"
+            ));
+        }
         Ok(())
+    }
+
+    /// The non-fatal directory-fsync warning recorded by
+    /// [`commit`](Self::commit) (call once after a successful commit).
+    pub fn take_dir_sync_warning(&mut self) -> Option<String> {
+        self.dir_sync_error.take()
     }
 
     /// Abort: remove the partial (or finished-but-uncommitted) file
@@ -825,8 +876,10 @@ impl AtomicWriter {
             std::fs::remove_file(path)?;
         }
         std::fs::rename(&self.tmp, path)?;
-        fsync_dir(path.parent().unwrap_or_else(|| Path::new(".")))?;
         self.committed = true; // the tmp now lives on AS `path`
+        // best-effort dir durability (see commit() — the diagnostic file is
+        // already content-fsynced by finish())
+        let _ = fsync_dir(path.parent().unwrap_or_else(|| Path::new(".")));
         Ok(())
     }
 }
@@ -1155,7 +1208,36 @@ mod tests {
             w.finish().unwrap();
         }
         assert!(!tmp_sibling(&dst).exists(), "Drop guard cleaned up");
+
+        // concurrency guard: a second writer for the same dst is refused
+        // while the first writer's tmp is young…
+        let mut w1 = AtomicWriter::new(&dst, false).unwrap();
+        w1.write_all(b"first job").unwrap();
+        let err = match AtomicWriter::new(&dst, false) {
+            Ok(_) => panic!("a second live writer for the same dst must be refused"),
+            Err(e) => e.to_string(),
+        };
+        assert!(err.contains("another ZipNN operation"), "{err}");
+        w1.abort();
+        // …and a crash remnant is adopted once it is stale (backdated mtime)
+        std::fs::write(tmp_sibling(&dst), b"crash remnant").unwrap();
+        set_mtime_back(tmp_sibling(&dst), 3600);
+        let mut w2 = AtomicWriter::new(&dst, false).unwrap();
+        w2.write_all(b"second job").unwrap();
+        w2.finish().unwrap();
+        w2.commit().unwrap();
+        assert_eq!(std::fs::read(&dst).unwrap(), b"second job");
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Backdate a file's mtime (std `FileTimes`, stable since 1.75) to
+    /// simulate a stale crash remnant.
+    fn set_mtime_back(path: std::path::PathBuf, secs_ago: u64) {
+        use std::fs::FileTimes;
+        let when = std::time::SystemTime::now() - std::time::Duration::from_secs(secs_ago);
+        let f = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        f.set_times(FileTimes::new().set_accessed(when).set_modified(when))
+            .unwrap();
     }
 
     #[test]
