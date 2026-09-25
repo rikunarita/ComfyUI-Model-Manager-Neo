@@ -166,12 +166,18 @@ def paranoid_enabled(request=None) -> bool:
 
 
 def _cleanup_targets(dst: str) -> None:
-    """Remove every partial-output name a failed native/legacy run can leave.
+    """Remove every PARTIAL-output name a failed run can leave.
 
-    NEVER touches `.corrupt` files — those are deliberate diagnostics of a
-    failed verification (Plan §4.4.3) whose compressed source was kept.
+    Deliberately does NOT delete ``dst`` itself: both pipelines create the
+    destination only through a final atomic rename (native: commit after
+    verification; legacy: ``os.replace`` after ``save_file``), so on any
+    failure path ``dst`` either never existed — or was created by somebody
+    else between the route's existence check and the failure (a rare but
+    real data-loss race the earlier dst-deleting cleanup had).
+    NEVER touches `.corrupt` files either — those are deliberate diagnostics
+    of a failed verification (Plan §4.4.3) whose compressed source was kept.
     """
-    for candidate in (dst, f"{dst}.tmp", f"{dst}.verify.tmp", f"{dst}.tmp.fix"):
+    for candidate in (f"{dst}.tmp", f"{dst}.verify.tmp", f"{dst}.tmp.fix"):
         try:
             if os.path.exists(candidate):
                 os.remove(candidate)
@@ -1391,7 +1397,34 @@ class ZipNNRoutes:
     def add_routes(self, routes):
         @routes.get("/model-manager/zipnn/available")
         async def zipnn_status(request):
-            return web.json_response({"success": True, "data": {"available": zipnn_available()}})
+            # Phase 2: capability = native core OR the legacy vendored path.
+            # The native probe is cheap and cached; when it answers, the
+            # legacy probe (which imports torch on first call) is skipped —
+            # that also keeps this diagnostic route from ever blocking the
+            # event loop on the native path. `engine`/`reason` are additive
+            # diagnostics; `available` keeps its legacy meaning for any
+            # external caller.
+            engine = None
+            reason = None
+            try:
+                if native_core() is not None:
+                    engine = "native"
+                else:
+                    reason = native.reason()
+                    if zipnn_available():
+                        engine = "legacy"
+            except Exception as e:  # diagnostics must never explode
+                reason = str(e)
+            return web.json_response(
+                {
+                    "success": True,
+                    "data": {
+                        "available": engine is not None,
+                        "engine": engine,
+                        "reason": reason,
+                    },
+                }
+            )
 
         @routes.post("/model-manager/zipnn/compress")
         async def zipnn_compress(request):
@@ -1453,8 +1486,15 @@ class ZipNNRoutes:
         legacy ws contract (`update_zipnn_progress` with the same payload
         shape; phases mapped through `_WS_PHASE_FOR_NATIVE`). Returns the
         stats dict on success, or None after reporting the failure through
-        `_fail` (partial outputs are cleaned up; `.corrupt` diagnostics of a
-        failed verification are deliberately kept).
+        `_fail`.
+
+        NO python-side `.tmp` cleanup here (unlike the legacy path): the Rust
+        pipeline removes its own partials on EVERY failure route (AtomicWriter
+        Drop guard, cancellation, panic unwind), and a blind sweep could
+        delete the tmp of a CONCURRENT job for the same target (the writer's
+        create-new guard rejects the second job — its failure handler must
+        not then destroy the first job's file). `.corrupt` diagnostics of a
+        failed verification are deliberately kept.
         """
         opts = {"threads": 0, "paranoid": bool(paranoid)}
         try:
@@ -1470,7 +1510,6 @@ class ZipNNRoutes:
             try:
                 done, total, phase = mm.job_progress(handle)
             except Exception as e:
-                _cleanup_targets(dst)
                 await self._fail(task_id, src, f"native job vanished: {e}")
                 return None
             if phase not in ("done", "failed"):
@@ -1488,7 +1527,6 @@ class ZipNNRoutes:
                     err = mm.job_error(handle)
                 except Exception:
                     err = None
-                _cleanup_targets(dst)
                 await self._fail(task_id, src, err or "native job failed")
                 return None
             if phase == "done":
@@ -1497,14 +1535,12 @@ class ZipNNRoutes:
         try:
             result = json.loads(mm.job_result(handle))
         except Exception as e:
-            _cleanup_targets(dst)
             await self._fail(task_id, src, f"native job result unreadable: {e}")
             return None
         for warning in result.get("warnings") or []:
             utils.print_warning(f"zipnn[{mode}]: {warning}")
         stats = result.get("stats")
         if not isinstance(stats, dict):
-            _cleanup_targets(dst)
             await self._fail(task_id, src, "native job returned no stats")
             return None
         return stats
