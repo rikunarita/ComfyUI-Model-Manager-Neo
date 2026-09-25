@@ -1012,7 +1012,15 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
   不可能**（UI は default branch の workflow 一覧のみ表示する）。消化経路は
   **dev→main マージ（PR）のみ**: マージで週次スケジュール（日曜 18:00 UTC、
   5 ターゲット × 3 h = 15 h）が有効化され、UI/API ディスパッチも可能になる。
-  完了時に本項を [x] 化）、f32/bf16/f16/fp8 で C 版比 圧縮率差 ±0.5% 以内
+  〔2026‑09‑25 追記（GitHub API で実証）〕初回ディスパッチ run 36088280583
+  （head 3b3a3af、3h×5）完走: **l2‑full / st_parse / codec_decompress /
+  huf_decompress / zn_header = SUCCESS（3 h クラッシュゼロ）**、
+  blob_decompress = FAILED（libFuzzer rss_limit 2048MB 到達。live heap
+  ~25MB = ハーネス/ASan のアロケータ・ページ保持で**コード非欠陥** —
+  根因・修正・ローカル A/B 実証は MEMO 同日）。修正 4cce777
+  （thread_local 再利用バッファ + ASan チューニング + rss_limit 4096）で
+  run 36114455354 を再ディスパッチ済み — **その全 5 ターゲット緑の確認で
+  [x] 化**）、f32/bf16/f16/fp8 で C 版比 圧縮率差 ±0.5% 以内
   （**Δ0.0000 % = バイト同一で達成。ユーザ要件「67 % を下回らない」も
   bf16 実測 0.6623 で構造的に保証 — BENCH §6.3**）・速度同等以上
   （**8/8 指標 ×1.09–1.81 で達成** — virtual-raw 平面最適化により
@@ -1237,7 +1245,10 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
   速度 **8/8 指標 ×1.09–1.81 で C 超え**（unsafe ゼロ）・clippy/fmt 緑・
   CI 全緑（native-diff / fuzz-smoke 新設）。**残るは fuzz ≥8h の初回実行のみ**
   （fuzz-long.yml — UI ディスパッチ（branch: dev）か main マージ後の
-  週次スケジュール。完了で [x] 化）
+  週次スケジュール。完了で [x] 化。〔2026‑09‑25〕初回 run 36088280583
+  完走: 4/5 ターゲット 3h クラッシュゼロ + l2‑full 緑。blob_decompress の
+  rss OOM はインフラ要因（修正 4cce777 — 再 run 36114455354 の全緑確認で
+  [x] 化。詳細は MEMO 同日））
 - [/] **Phase 2** — safetensors 圧縮/解凍 + 完全性検証パイプライン + バックエンド接続
   **実装・自動 QA 完了 2026‑09‑24**: Rust パイプライン（mmap 単一
   書き込みパス・ピーク RAM O(最大テンソル)・SHA‑256 端到端検証・

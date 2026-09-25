@@ -726,3 +726,86 @@ Plan §6.2 Phase 1 完了条件と §9 を [x] 化すること（本セッショ
 - サーバプロセス kill 中のジョブスレッドは道連れで死ぬ（tmp は残る →
   起動時クリーンアップが 15 分規則で回収。コミット済み成果物は rename 原子性で
   不整合にならない）。
+
+### fuzz‑long run 1 完走と blob_decompress OOM の根因・修正（2026‑09‑25 続セッション）
+
+**run 36088280583（head 3b3a3af、hours=3、02:55 UTC ディスパッチ）最終結果**:
+
+| ジョブ                   | 結果       | 実走                     |
+| ------------------------ | ---------- | ------------------------ |
+| l2‑full（10,500 ケース） | SUCCESS    | 6 m                      |
+| fuzz st_parse            | SUCCESS    | 3 h 02 m（クラッシュ 0） |
+| fuzz codec_decompress    | SUCCESS    | 3 h 02 m（クラッシュ 0） |
+| fuzz huf_decompress      | SUCCESS    | 3 h 02 m（クラッシュ 0） |
+| fuzz zn_header           | SUCCESS    | 3 h 02 m（クラッシュ 0） |
+| fuzz blob_decompress     | **FAILED** | 1 h 54 m で OOM 終了     |
+
+**blob_decompress OOM の根因**（コード欠陥ではない）:
+
+- libFuzzer の `rss_limit_mb=2048` 到達による abort。ヒーププロファイルの
+  live heap は **~25 MB** — リークでもメモリ安全性バグでもなく、
+  **アロケータのページ保持**: (a) ハーネスが exec ごとに新規 `Vec` を
+  確保・解放する churn、(b) ASan 既定の quarantine（256 MB 級）と
+  OS への遅いページ返却。~5,000 万 exec で累積し上限に到達した。
+- **トリアージ注意**: libFuzzer の OOM レポートは stderr に出るだけで
+  `crash-*` アーティファクトを残さない（アーティファクト 0 件でも
+  ジョブログを見ること）。OOM 時の入力（88 B）は
+  `corpus/blob_decompress/oom-2026-09-25.bin` として回帰シード化。
+
+**修正（3 点、コミット 4cce777）**:
+
+1. ターゲットの出力バッファを **thread_local grow‑only** 化
+   （パイプライン K1 と同型。`decompress_tensor_into` が内部で
+   clear+resize するため呼び出し側は確保を再利用するだけ）。
+2. workflow に `ASAN_OPTIONS=quarantine_size_mb=32:release_to_os_interval_ms=200`
+   （cargo‑fuzz は自前の `detect_odr_violation=0` を**追記**するだけで
+   環境変数は子プロセスに到達することを実地で確認済み）。
+3. `rss_limit_mb` 2048 → 4096（残余勾配に対するヘッドルーム）。
+
+**ローカル A/B 実証**（dev ビルド + ASan、同一コーパス、各 ~7 分）:
+
+- 修正ターゲット + ASan 既定: 357,829 execs、クラッシュ 0。RSS は
+  #16k まで 43→399 MB（quarantine 充填のウォームアップ）後、
+  ~40 B/exec に減衰しながら緩増（#262k で 423 MB、末尾 427 MB）。
+- 修正ターゲット + ASan チューニング: **410,558 execs、クラッシュ 0、
+  RSS 108→131 MB**（ウォームアップ充填が消滅）、exec/s 850→975。
+- 外挿: CI run 1（旧ハーネス、release）は ~5,000 万 execs で 2048 MB
+  到達 ≒ 一定 ~38 B/exec。新構成の最悪線形外挿でも 3 h（release で
+  ~7,500 万 execs）≒ 131 MB + ~2.9 GB < 4096 MB。勾配は減衰傾向なので
+  実測はさらに低い見込み（~1 GB 級）。
+- 運用注意: `cargo fuzz run` は発見入力を `corpus/<target>/` に
+  **書き込む**（今回のローカル実行で数百件生成 → キュレーション済み
+  7 件以外は削除した。commit 前に `git status` で確認すること）。
+
+**環境ロールバック事故の記録（重要）**: 前セッション区間
+（2026‑09‑25 ~05:00–06:50 UTC 相当: OOM トリアージ → 修正 → コミット
+2f6224c → push「成功」表示 → 再ディスパッチ表示）は**サンドボックスの
+ロールバックで失われ、GitHub に一切到達していなかった**。実証:
+remote dev tip = 972ff73（API）、`GET /commits/2f6224c` → **422**、
+events API に 03:37 UTC 以降の dev push なし、fuzz‑long の run は
+36088280583 の 1 件のみ。ワークスペースの untracked ファイル
+（corpus シード）のみが幸存。force push は使っておらずユーザ作業の
+破壊はなし。本セッションで修正を**再作成・再実証**したのが 4cce777。
+**教訓: push は local の git 出力を信じるだけでなく API で remote tip を
+検証する**（dispatch 404 の裏取りと同法）。
+
+**本セッションの全ゲート再検証（最終ツリー 4cce777 に対して）**:
+
+- `cargo fmt --all --check` ✓ / fuzz ターゲット rustfmt ✓
+- `cargo clippy --workspace --all-targets --all-features -D warnings` ✓
+- `cargo test`: znn‑codec **100** + mm‑core（no‑default‑features）**5** ✓
+- `.so` 再ビルド（build‑native.sh linux‑x86_64）: **決定論的**
+  （2 回ビルドで sha256 一致 `7c44396…dcbc1`、1,026,536 B）。
+  `verify_native_binary.py` → `ok: true`、max_glibc **GLIBC_2.28** ✓。
+  無害 warning 1 件（zig ld の `-O1` 非推奨通知）は CI と同一。
+- L4 pytest **44/44** ✓ / L2 quick **GATE PASS** ✓（注意: quick 実行は
+  `scripts/l2/results/golden_diff.json`（コミット済み証跡）を上書きする →
+  `git checkout --` で復元した）/ L5 公式 zipnn 0.5.4 **GATE PASS** ✓
+- ruff format（37 files）+ ruff check ✓ / prettier（yml・md）✓
+- 新規 fuzz ターゲットのローカル実行 41 万 execs クラッシュ 0 ✓
+
+**再ディスパッチ**: run **36114455354**（head **4cce777**、hours=3、
+08:43 UTC queued、5 ターゲット + l2‑full）。**この run の全 5 ターゲット
+SUCCESS を確認して初めて Plan §6.2 Phase 1 完了条件と §9 を [x] 化する**
+（run 1 の 4/5 緑は旧ハーネスの実績として有効だが、blob_decompress の
+3 h 完走は未証明のため）。
