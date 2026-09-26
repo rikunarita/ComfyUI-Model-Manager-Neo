@@ -151,7 +151,14 @@ def build_fixture(path) -> dict:
 # ---------------------------------------------------------------------------
 def official_decompress_check(znn_path: str, original: dict) -> list[str]:
     """Official-script decompression of a Neo-compressed file; returns the
-    list of tensor mismatches (empty = PASS)."""
+    list of tensor mismatches (empty = PASS).
+
+    Phase 4 made the check BAND-AWARE: compatibility-band blobs (dtype code
+    < 128) must decode byte-exactly through the official path, while
+    Neo-extension blobs (codes 128-146 — the fixture's I32/U8 tensors are
+    compressed since Phase 4) must be REFUSED with the official decoder's
+    explicit `ValueError: Unsupported Dtype` (Plan §4.6.3 failure-mode
+    safety; section E pins this contract in detail)."""
     from safetensors import safe_open
     from zipnn import ZipNN
     from zipnn.util_safetensors import (
@@ -167,6 +174,15 @@ def official_decompress_check(znn_path: str, original: dict) -> list[str]:
         for name in list(f.keys()):
             tensor = f.get_tensor(name)
             if name in infos:
+                code = int(tensor.contiguous().numpy()[15])  # header byte 15
+                if code >= 128:
+                    try:
+                        znn.decompress(tensor.contiguous().numpy())
+                        problems.append(f"{name}: official decoder ACCEPTED a Neo-band blob (code {code})")
+                    except ValueError as e:
+                        if f"Unsupported Dtype {code}" not in str(e):
+                            problems.append(f"{name}: unexpected official error text: {e}")
+                    continue
                 tensor = znn.decompress(tensor.contiguous().numpy())
             got_dtype, got_shape, got = _torch_bytes(tensor)
             want_dtype, want_shape, want = original[name]
@@ -299,6 +315,42 @@ def _unpad(restored: bytes, pad: int) -> bytes:
     return struct.pack("<Q", original_len) + restored[8 : 8 + original_len] + restored[8 + padded_len :]
 
 
+def _f64(n, seed=23):
+    out = bytearray()
+    x = seed
+    for _ in range(n):
+        x = (x * 1103515245 + 12345) & 0x7FFFFFFF
+        v = (x / 2147483648.0 - 0.5) * 0.01
+        out += struct.pack("<d", v)
+    return bytes(out)
+
+
+def _c64(n, seed=29):
+    out = bytearray()
+    x = seed
+    for _ in range(n):
+        x = (x * 1103515245 + 12345) & 0x7FFFFFFF
+        re = ((x >> 8) / 8388608.0 - 1.0) * 0.01
+        im = ((x >> 9) / 8388608.0) * 0.01
+        out += struct.pack("<ff", re, im)
+    return bytes(out)
+
+
+def build_extended_fixture(path) -> dict:
+    """A Phase-4 fixture mixing the compatibility band (bf16) with Neo
+    extension-band tensors (F64 8-plane, C64 4-plane f32-reorder, I32 with
+    truncation, BOOL 1-plane)."""
+    tensors = {
+        "w": ("BF16", [256, 64], _bf16(256 * 64, 31)),
+        "grid": ("F64", [2048], _f64(2048)),
+        "spec": ("C64", [1024], _c64(1024)),
+        "ids": ("I32", [4096], struct.pack("<4096I", *[(i % 200) for i in range(4096)])),
+        "mask": ("BOOL", [4096], bytes((i % 4 == 0) for i in range(4096))),
+    }
+    write_st(path, tensors, {"format": "pt"})
+    return tensors
+
+
 def build_delta_pair(base_path: str, ft_path: str) -> None:
     """base + fine-tune with an IDENTICAL tensor layout (delta-able) and
     different metadata (the headers differ in length → padding exercised)."""
@@ -416,13 +468,36 @@ def main() -> int:
     print(f"B. official → Neo decompress: {'PASS' if not any(f.startswith('B') for f in failures) else 'FAIL'}")
 
     # --- C. blob parity: the two compressors store identical bytes ----------
+    # Phase 4 scope note: parity is asserted for every tensor BOTH engines
+    # handle the same way — compatibility-band blobs (byte-identical, the L2
+    # lineage) and shared pass-throughs. A Neo-extension-band tensor (the
+    # fixture's I32 `vocab` since Phase 4) is stored as a blob by Neo and
+    # passed through by the official recipe (which cannot compress it at
+    # all): an INTENTIONAL divergence, checked here as "official kept the
+    # original dtype, Neo stored a U8 blob that restores byte-exactly".
     _m1, t1 = read_st(neo_znn)
     _m2, t2 = read_st(off_znn)
     shared = sorted(set(t1) & set(t2))
-    diff = [n for n in shared if t1[n][2] != t2[n][2]]
+    diff = []
+    diverged = []
+    for n in shared:
+        if t1[n][2] == t2[n][2]:
+            continue
+        if t1[n][0] == "U8" and t2[n][0] == original[n][0]:
+            diverged.append(n)  # Neo-band blob vs official pass-through
+        else:
+            diff.append(n)
     if diff:
         failures.append(f"C: stored tensor bytes differ between Neo and official compress: {diff}")
-    print(f"C. blob parity on {len(shared)} tensors: {'PASS' if not diff else 'FAIL ' + str(diff)}")
+    # every diverged tensor must restore to the original bytes (round trip)
+    for n in diverged:
+        if t2[n][2] != original[n][2]:
+            failures.append(f"C: official pass-through of {n} lost the original bytes")
+    print(
+        f"C. blob parity on {len(shared) - len(diverged)} tensors "
+        f"({len(diverged)} intentional Neo-band divergence{'' if len(diverged) == 1 else 's'}: {diverged}): "
+        f"{'PASS' if not diff else 'FAIL ' + str(diff)}"
+    )
 
     # --- D. delta cross-validation (Phase 3) --------------------------------
     d_base = os.path.join(tmp, "l5.base.safetensors")
@@ -472,6 +547,139 @@ def main() -> int:
             ok = False
         form = "streaming" if streaming else "single container"
         print(f"D2-{tag}. official delta ({form}) → Neo decompress: {'PASS' if ok else 'FAIL'}")
+
+    # --- E. Phase 4: the Neo extension band vs the official decoder ---------
+    # Plan §6.2 Phase 4: "znn_neo_extended マーカー + 公式 zipnn での失敗
+    # モード検証(明示エラーになることを確認)" and the C64 band question
+    # ("公式デコーダ可読性の実証 -> 互換帯(9)/Neo 帯(130) 確定"). Every
+    # assertion below is a DEMONSTRATION against the pip build, not a
+    # source-reading claim.
+    import numpy as np
+    from zipnn import ZipNN
+    from zipnn.util_safetensors import COMPRESSED_DTYPE, COMPRESSION_METHOD
+
+    e_src = os.path.join(tmp, "l5ext.safetensors")
+    ext_original = build_extended_fixture(e_src)
+    e_znn = os.path.join(tmp, "l5ext.neo.znn.safetensors")
+    res = neo_job(mm, mm.zipnn_compress(e_src, e_znn, None))
+    e_meta, e_tensors = read_st(e_znn)
+    e_infos = json.loads(e_meta["znn_compressed_vectors"])
+
+    # E0. the extended marker is written and the compat tensor still decodes
+    #     officially (mixed files fail PER TENSOR, never per file)
+    if e_meta.get("znn_neo_extended") != "1":
+        failures.append("E0: znn_neo_extended marker missing on the extended fixture")
+    official_ok = official_decompress_check(e_znn, ext_original)
+    # official_decompress_check treats Neo-band blobs as "must refuse" — so
+    # an empty problem list here means: bf16 decoded, Neo blobs refused
+    if official_ok:
+        failures.append(f"E0: mixed-file official check reported: {official_ok}")
+    print(f"E0. mixed file: marker + official per-tensor behaviour: {'PASS' if not official_ok else 'FAIL'}")
+
+    def _official_blob_attempt(blob: bytes):
+        z = ZipNN(input_format="torch", bytearray_dtype=COMPRESSED_DTYPE, method=COMPRESSION_METHOD)
+        try:
+            out = z.decompress(np.frombuffer(blob, dtype=np.uint8))
+            return ("decoded", out)
+        except ValueError as e:
+            return ("ValueError", str(e))
+        except Exception as e:  # the point IS the exception class
+            return (type(e).__name__, str(e))
+
+    # E1. every Neo-band blob → the official decoder's EXPLICIT dtype error
+    e1_names = []
+    for name in sorted(e_infos):
+        blob = e_tensors[name][2]
+        code = blob[15]
+        if code < 128:
+            continue  # compatibility-band blob — E0/A already proved it decodes
+        kind, msg = _official_blob_attempt(blob)
+        if kind != "ValueError" or f"Unsupported Dtype {code}" not in msg:
+            failures.append(f"E1: {name} (code {code}): official answered {kind}: {msg}")
+        else:
+            e1_names.append(f"{name}={code}")
+    if len(e1_names) != 4:
+        failures.append(f"E1: expected the 4 Neo-band fixture blobs, got {e1_names}")
+    print(
+        f"E1. Neo blobs explicitly refused by official 0.5.4 [{', '.join(e1_names)}]: "
+        f"{'PASS' if not any(f.startswith('E1') for f in failures) else 'FAIL'}"
+    )
+
+    # E2. the C64 band decision: upstream reserves code 9 for COMPLEX64, but
+    #     its decoder has no arm for it — a byte-structurally-valid
+    #     4-plane/220/1 blob carrying code 9 is refused EXACTLY like the Neo
+    #     code 130. Neo therefore uses 130 (documented in dtype.rs).
+    spec_blob = bytearray(e_tensors["spec"][2])
+    assert spec_blob[15] == 130, f"fixture C64 blob code {spec_blob[15]}"
+    patched = bytes(spec_blob[:15]) + bytes([9]) + bytes(spec_blob[16:])
+    kind9, msg9 = _official_blob_attempt(patched)
+    if kind9 != "ValueError" or "Unsupported Dtype 9" not in msg9:
+        failures.append(f"E2: official on code-9 C64 blob: {kind9}: {msg9}")
+    kind130, msg130 = _official_blob_attempt(bytes(spec_blob))
+    if kind130 != "ValueError" or "Unsupported Dtype 130" not in msg130:
+        failures.append(f"E2: official on code-130 C64 blob: {kind130}: {msg130}")
+    # and Neo itself refuses the ambiguous code 9 (it is NOT a Neo code —
+    # no silent reinterpretation in either direction)
+    e2_neo_refuses = True
+    try:
+        # hand-build a minimal .znn.safetensors whose only tensor is the
+        # patched blob, then run the native decompressor
+        p9 = os.path.join(tmp, "l5ext.code9.znn.safetensors")
+        write_st(
+            p9,
+            {"spec": ("U8", [len(patched)], patched)},
+            {
+                "znn_compressed_vectors": json.dumps({"spec": {"dtype": "complex64", "shape": "[1024]"}}),
+                "znn_neo_exact": "0",
+            },
+        )
+        p9_out = os.path.join(tmp, "l5ext.code9.restored")
+        neo_job(mm, mm.zipnn_decompress(p9, p9_out, None))
+        e2_neo_refuses = False  # neo_job raises on failure — reaching here = accepted
+    except Exception:
+        e2_neo_refuses = True
+    if not e2_neo_refuses:
+        failures.append("E2: Neo ACCEPTED a code-9 blob (must refuse unassigned codes)")
+    print(
+        f"E2. C64 band demonstration (official refuses 9 == 130; Neo refuses 9): "
+        f"{'PASS' if not any(f.startswith('E2') for f in failures) else 'FAIL'}"
+    )
+
+    # E3. the official safetensors wrapper (zipnn_safetensors' SafeOpen)
+    #     raises on the Neo tensors and decodes the compat one
+    from zipnn.zipnn import SafeOpen
+
+    try:
+        with SafeOpen(e_znn, framework="pt", device="cpu") as f:
+            got = f.get_tensor("w")  # bf16 — compatibility band
+            # bf16 has no numpy dtype — compare through the raw byte view
+            got_dtype, got_shape, got_bytes = _torch_bytes(got)
+            if (got_dtype, got_shape, got_bytes) != ext_original["w"]:
+                failures.append("E3: official SafeOpen mis-decoded the compat tensor")
+            try:
+                f.get_tensor("grid")  # F64 — Neo band
+                failures.append("E3: official SafeOpen ACCEPTED a Neo-band tensor")
+            except ValueError as e:
+                if "Unsupported Dtype" not in str(e):
+                    failures.append(f"E3: unexpected SafeOpen error: {e}")
+    except Exception as e:
+        failures.append(f"E3: SafeOpen flow broke: {e}")
+    e3_ok = not any(f.startswith("E3") for f in failures)
+    print(f"E3. official SafeOpen per-tensor contract: {'PASS' if e3_ok else 'FAIL'}")
+
+    # E4. the extended file itself round-trips through NEO byte-exactly
+    e_back = os.path.join(tmp, "l5ext.back.safetensors")
+    res = neo_job(mm, mm.zipnn_decompress(e_znn, e_back, None))
+    with open(e_src, "rb") as f:
+        want = f.read()
+    with open(e_back, "rb") as f:
+        gotbytes = f.read()
+    if res["verified"] != "sha256" or gotbytes != want:
+        failures.append(f"E4: extended round trip (verified={res['verified']}, bytes={gotbytes == want})")
+    print(
+        f"E4. extended fixture Neo round trip (sha256-verified, byte-exact): "
+        f"{'PASS' if not any(f.startswith('E4') for f in failures) else 'FAIL'}"
+    )
 
     if failures:
         print("\nL5 GATE: FAIL")
