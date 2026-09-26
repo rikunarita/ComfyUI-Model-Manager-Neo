@@ -918,3 +918,89 @@ fn delta_accepts_the_official_method_defaults() {
     assert!(ZnHeader::decode(&strict).is_err());
     assert!(ZnHeader::decode_delta(&strict).is_ok());
 }
+
+// ---------------------------------------------------------------------------
+// The verify switch (regression: match-arm inversion, 2026-09-26 audit)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn verify_off_skips_the_recorded_sha_with_an_honest_warning() {
+    // `opts.verify = false` must SKIP the comparison (Skipped + an honest
+    // warning) — never fail. The pre-fix code matched on the RAW sidecar
+    // value while the hasher was gated on `verify`, so a recorded ftSha256
+    // with the switch off landed in the "unreachable" internal-error arm
+    // ("hasher produced no digest…") and the sha-less sidecar was told it
+    // had a sha recorded. Both arms are pinned here (the tensor pipeline's
+    // `src_sha` gate is the reference semantics).
+    let dir = TempDir::new("verifyoff");
+    let data = noisy_bytes(120_000, 77);
+    let mut ft_data = data.clone();
+    for b in ft_data.iter_mut().take(500) {
+        *b ^= 0x0F;
+    }
+    let base = dir.path("base.safetensors");
+    let ft = dir.path("ft.safetensors");
+    let base_img = st_image(64, &data);
+    let ft_img = st_image(80, &ft_data); // padded headers both directions
+    write(&base, &base_img);
+    write(&ft, &ft_img);
+    let delta = dir.path("ft_delta_base.znn");
+    delta_compress(&base, &ft, &delta, &JobOpts::default(), &Hooks::default()).unwrap();
+    let meta = parse_sidecar(&std::fs::read_to_string(sidecar_path(&delta)).unwrap());
+    assert!(meta.ft_sha256.is_some(), "Neo sidecars record ftSha256");
+
+    let opts_off = JobOpts {
+        verify: false,
+        ..JobOpts::default()
+    };
+
+    // recorded sha + verify off → success, Skipped, "disabled" warning
+    let out = dir.path("restored.safetensors");
+    let d = delta_decompress(&base, &delta, &out, &meta, &opts_off, &Hooks::default())
+        .expect("verify=false must skip the comparison, not fail the job");
+    assert_eq!(d.verified, Verified::Skipped);
+    assert!(
+        d.warnings
+            .iter()
+            .any(|w| w.contains("verification was disabled")),
+        "{:?}",
+        d.warnings
+    );
+    assert_eq!(std::fs::read(&out).unwrap(), ft_img, "byte-exact restore");
+    assert!(
+        !corrupt_path(&out).exists(),
+        "no .corrupt on a skipped check"
+    );
+    assert!(!tmp_sibling(&out).exists());
+
+    // sha-less sidecar + verify off → Skipped with the "no ftSha256" note
+    // (and NOT the "recorded but disabled" one)
+    let out2 = dir.path("restored2.safetensors");
+    let meta_nosha = DeltaMeta {
+        ft_sha256: None,
+        ..meta.clone()
+    };
+    let d2 = delta_decompress(
+        &base,
+        &delta,
+        &out2,
+        &meta_nosha,
+        &opts_off,
+        &Hooks::default(),
+    )
+    .expect("sha-less sidecar restores with pads");
+    assert_eq!(d2.verified, Verified::Skipped);
+    assert!(
+        d2.warnings.iter().any(|w| w.contains("no ftSha256")),
+        "{:?}",
+        d2.warnings
+    );
+    assert!(
+        !d2.warnings
+            .iter()
+            .any(|w| w.contains("verification was disabled")),
+        "a sidecar without ftSha256 must not be told one is recorded: {:?}",
+        d2.warnings
+    );
+    assert_eq!(std::fs::read(&out2).unwrap(), ft_img, "byte-exact restore");
+}

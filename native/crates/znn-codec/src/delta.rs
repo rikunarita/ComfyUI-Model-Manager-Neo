@@ -975,7 +975,18 @@ pub fn delta_decompress(
         p.set_total(total);
     }
 
-    let want_sha = opts.verify && meta.ft_sha256.is_some();
+    // `verify=false` (non-default) suppresses the inline hasher entirely —
+    // the recorded digest is then ignored and the outcome says "skipped"
+    // (the same switch semantics as the tensor pipeline's `src_sha` gate:
+    // the match below must see the VERIFY-GATED expectation, not the raw
+    // sidecar value, or (recorded sha, no digest) lands in the internal-
+    // error arm instead of the honest skip).
+    let sha_expected = if opts.verify {
+        meta.ft_sha256.as_deref()
+    } else {
+        None
+    };
+    let want_sha = sha_expected.is_some();
     let mut writer = AtomicWriter::new(dst, want_sha).map_err(|e| match e {
         StError::Io(io) => io_ctx(io, "writing", dst),
         other => other,
@@ -1010,7 +1021,7 @@ pub fn delta_decompress(
 
     hooks.phase(Phase::Verify);
     let mut warnings: Vec<String> = Vec::new();
-    let verified = match (meta.ft_sha256.as_deref(), digest) {
+    let verified = match (sha_expected, digest) {
         (Some(expected), Some(actual)) if expected.eq_ignore_ascii_case(&actual) => {
             Verified::Sha256
         }
@@ -1025,22 +1036,26 @@ pub fn delta_decompress(
             )));
         }
         (Some(_), None) => {
-            // unreachable: the hasher is enabled whenever a sha is recorded
+            // unreachable: the hasher is enabled exactly when a sha is
+            // expected (want_sha above mirrors this match's first element)
             writer.abort();
             return Err(StError::Format(
                 "internal: hasher produced no digest despite a recorded ftSha256".to_owned(),
             ));
         }
         (None, _) => {
-            if opts.verify {
+            // No sha is being compared: either the sidecar records none, or
+            // verification was switched off — say which, honestly (the same
+            // two-way wording as the tensor pipeline).
+            if meta.ft_sha256.is_some() {
                 warnings.push(
-                    "no ftSha256 in the delta sidecar (created before Neo Phase 3, or by the official tooling): \
-                     byte-exact verification skipped (Plan §4.4.3-4)"
+                    "ftSha256 is recorded but verification was disabled via opts — the restore was NOT checked"
                         .to_owned(),
                 );
             } else {
                 warnings.push(
-                    "ftSha256 is recorded but verification was disabled via opts — the restore was NOT checked"
+                    "no ftSha256 in the delta sidecar (created before Neo Phase 3, or by the official tooling): \
+                     byte-exact verification skipped (Plan §4.4.3-4)"
                         .to_owned(),
                 );
             }
