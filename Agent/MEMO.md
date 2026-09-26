@@ -1244,3 +1244,25 @@ ftSha256` — 予測と逐語一致）→ **修正後 PASS**。テストは両�
   クラッシュアーティファクト 0 件）。確認できたら本 MEMO の run 表に結果を追記すること。
 - プロジェクト全体の残件は不変: Phase 2 K2/K3 の参照機再計測、実 UI 手動 QA（Phase 7 統合）、
   Phase 4 以降。
+
+### run 5 完走 — 全 7 ジョブ SUCCESS（2026‑09‑26 09:13:14 UTC、本セッションで確認・消化）
+
+上記 ETA（09:11–09:15 UTC）通りに完走。**Phase 3 新ターゲット `delta_decompress` の
+初 3 h バジェット消化を含む、6 ターゲット × 3 h = 18 h の追加証跡**（run 4 に続く 2 回目）。
+
+| ジョブ                | 結果    | 最終統計（ジョブログの libFuzzer DONE 行）                                                |
+| --------------------- | ------- | ----------------------------------------------------------------------------------------- |
+| l2‑full（10,500 件）  | SUCCESS | 06:15:03 UTC 完了（6 m）                                                                  |
+| fuzz st_parse         | SUCCESS | cov 2,482・exec/s 16,338・最終 RSS **198 MB**                                             |
+| fuzz zn_header        | SUCCESS | cov 247・exec/s 24,397・最終 RSS **142 MB**                                               |
+| fuzz codec_decompress | SUCCESS | cov 1,605・exec/s 4,228・最終 RSS **211 MB**                                              |
+| fuzz huf_decompress   | SUCCESS | cov 541・exec/s 11,486・最終 RSS **171 MB**                                               |
+| fuzz blob_decompress  | SUCCESS | **#183,708,290 DONE**・cov 1,472・exec/s 17,008・最終 RSS **172 MB**（lim 4,096 の 1/24） |
+| fuzz delta_decompress | SUCCESS | cov 1,617・exec/s 7,617・最終 RSS **205 MB**                                              |
+
+- blob_decompress は run 3（1.90 億 execs・164 MB・17,574 exec/s）とほぼ同一 =
+  **プールキャッシュ修正（de1a153）の効果が長期 run で安定再現**。RSS は全ターゲットで
+  上限の 1/20 以下、libFuzzer エラー行ゼロ、クラッシュアーティファクトゼロ。
+- head `6bfe6d7` と現行 tip `bd47254` の実コード差は delta.rs の verify 分岐
+  （fuzz 表面外）+ docs のみ → **この証跡は現行ツリーの fuzz 表面に対してそのまま有効**
+  （push 済みの native #33 fuzz‑smoke 6×60 s が新 tip の表面を機械再検証）。
