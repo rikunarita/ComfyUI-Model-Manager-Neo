@@ -1,7 +1,8 @@
 # Long-running L3 fuzz budget (Plan §5.1 L3: ">=8 hours, 0 panic/OOM/hang";
 # §6.2 Phase 1 completion condition "fuzz >=8 h"). GitHub's 6 h per-job limit
-# means the budget runs as a 5-target matrix x 3 h = 15 h total per schedule
-# (each job well inside the limit; Phase 2 adds st_parse + blob_decompress).
+# means the budget runs as a 6-target matrix x 3 h = 18 h total per schedule
+# (each job well inside the limit; Phase 2 added st_parse + blob_decompress,
+# Phase 3 delta_decompress).
 # Crashes fail the job and are uploaded as artifacts; the committed corpus
 # (incl. the Phase-1 regression seeds found by the fuzzer) replays every run.
 #
