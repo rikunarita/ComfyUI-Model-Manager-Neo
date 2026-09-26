@@ -1558,6 +1558,83 @@ def delta_decompress_file(base_path: str, delta_path: str, out_path: str, progre
     return {"originalBytes": len(restored), "compressedBytes": len(delta_bytes)}
 
 
+# ---------------------------------------------------------------------------
+# Phase 4 (Plan §4.6.3/§4.6.4): dtype-band classification for the UI
+# ---------------------------------------------------------------------------
+
+# The safetensors dtypes whose ZN blobs stay in the UPSTREAM COMPATIBILITY
+# band (codes 1-30 - official ZipNN tools decode them). Every other
+# safetensors 0.8 dtype is compressed through the Neo extension band
+# (codes 128-146): the resulting file carries `znn_neo_extended="1"` and is
+# rejected with an explicit error by official tools. This set mirrors the
+# compatibility table of the Rust core (`znn_tensor.rs`); the parity is
+# pinned mechanically by tests/test_phase4_dtypes.py (the engine-written
+# marker is compared against this classifier for every dtype).
+COMPAT_ST_DTYPES = frozenset({"F32", "F16", "BF16", "F8_E4M3", "F8_E5M2"})
+
+
+def inspect_safetensors_dtypes(path: str) -> dict[str, Any]:
+    """dtype breakdown of a model file (synchronous - run in an executor).
+
+    Plain ``.safetensors``: counts the header dtypes and reports whether
+    compressing would produce a Neo-extension file (any dtype outside
+    ``COMPAT_ST_DTYPES``). Compressed ``.znn.safetensors``: reads the
+    recorded ``znn_neo_extended`` marker and aggregates the torch dtype
+    names from ``znn_compressed_vectors``.
+
+    Header-only work (no tensor data is read); errors are returned as
+    ``{"error": ...}`` so the confirm dialog can fall back to its generic
+    message instead of blocking on a diagnosis.
+    """
+    import comfy.utils
+
+    out: dict[str, Any] = {"compressed": is_compressed_name(os.path.basename(path))}
+    try:
+        # MoE headers run into the megabytes; 32 MiB matches get_model_tensors
+        raw = comfy.utils.safetensors_header(path, max_size=1024 * 1024 * 32)
+        if raw is None:
+            return {"error": "unreadable or oversized safetensors header"}
+        header = json.loads(raw)
+    except Exception as e:
+        return {"error": f"safetensors header parse failed: {e}"}
+
+    metadata = header.get("__metadata__")
+    metadata = metadata if isinstance(metadata, dict) else {}
+
+    if out["compressed"]:
+        # compressed file: the truth is in the metadata (the stored tensors
+        # are all U8 blob vectors)
+        out["extended"] = metadata.get(ZNN_EXTENDED_KEY) == "1"
+        infos_raw = metadata.get("znn_compressed_vectors")
+        counts: dict[str, int] = {}
+        try:
+            infos = json.loads(infos_raw) if isinstance(infos_raw, str) else {}
+            for spec in infos.values():
+                if isinstance(spec, dict):
+                    name = str(spec.get("dtype", "?"))
+                    counts[name] = counts.get(name, 0) + 1
+        except Exception:
+            counts = {}
+        out["dtypes"] = counts
+        out["compressedTensors"] = sum(counts.values())
+        return out
+
+    # plain file: count the header dtypes; any dtype outside the
+    # compatibility band means the compressed output would be Neo-extended
+    counts = {}
+    for name, spec in header.items():
+        if name == "__metadata__" or not isinstance(spec, dict):
+            continue
+        dtype = str(spec.get("dtype", "?"))
+        counts[dtype] = counts.get(dtype, 0) + 1
+    out["dtypes"] = counts
+    out["tensors"] = sum(counts.values())
+    extended = sorted(d for d in counts if d not in COMPAT_ST_DTYPES and d != "?")
+    out["extended"] = bool(extended)
+    out["extendedDtypes"] = extended
+    return out
+
+
 class ZipNNRoutes:
     def add_routes(self, routes):
         @routes.get("/model-manager/zipnn/available")
@@ -1610,6 +1687,35 @@ class ZipNNRoutes:
         @routes.post("/model-manager/zipnn/delta-decompress")
         async def zipnn_delta_decompress(request):
             return await self._run_delta(request, "decompress")
+
+        @routes.post("/model-manager/zipnn/inspect")
+        async def zipnn_inspect(request):
+            """Phase 4 (Plan §4.6.4): the dtype breakdown behind the compress
+            confirmation ("official-compatible" vs "Neo extended format").
+
+            Header-only and cheap, but still off the event loop (K12 lesson:
+            MoE headers are megabytes of JSON). Any failure answers
+            ``success: true`` with an ``error`` field so the dialog can fall
+            back to its generic message — this route must never block a
+            compression the user asked for."""
+            data = await utils.get_request_body(request)
+            model_type = data.get("type")
+            path_index = int(data.get("pathIndex") or 0)
+            fullname = data.get("fullname")
+            if not model_type or not fullname:
+                return web.json_response({"success": False, "error": "type and fullname are required"})
+            try:
+                src = utils.get_valid_full_path(model_type, path_index, fullname)
+            except Exception as e:
+                return web.json_response({"success": False, "error": str(e)})
+            if src is None:
+                return web.json_response({"success": False, "error": "model not found"})
+            loop = asyncio.get_running_loop()
+            try:
+                info = await loop.run_in_executor(utils.io_executor(), inspect_safetensors_dtypes, src)
+            except Exception as e:  # diagnostics must never explode
+                info = {"error": str(e)}
+            return web.json_response({"success": True, "data": info})
 
         @routes.post("/model-manager/zipnn/cancel")
         async def zipnn_cancel(request):

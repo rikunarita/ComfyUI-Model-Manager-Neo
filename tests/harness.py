@@ -80,33 +80,43 @@ def json_body(response) -> dict:
 # ---------------------------------------------------------------------------
 # safetensors container (byte-exact control)
 # ---------------------------------------------------------------------------
-# safetensors 0.8 dtype name -> element size
-DTYPE_SIZES = {
-    "BOOL": 1,
-    "U8": 1,
-    "I8": 1,
-    "F8_E5M2": 1,
-    "F8_E4M3": 1,
-    "F8_E4M3FNUZ": 1,
-    "F8_E5M2FNUZ": 1,
-    "F8_E8M0": 1,
-    "F4": 1,
-    "F6_E2M3": 1,
-    "F6_E3M2": 1,
-    "I16": 2,
-    "U16": 2,
-    "F16": 2,
-    "BF16": 2,
-    "I32": 4,
-    "U32": 4,
-    "F32": 4,
-    "C64": 8,
-    "F64": 8,
-    "I64": 8,
-    "U64": 8,
+# safetensors 0.8 dtype name -> element BIT width (reference semantics:
+# F4 packs two nibbles per byte, F6_* are 6-bit — the header shape counts
+# ELEMENTS, the payload is `nelem * bits / 8` bytes and must end on a byte
+# boundary; verified against safetensors v0.8.0 tensor.rs `Dtype::bitsize`)
+DTYPE_BITS = {
+    "BOOL": 8,
+    "U8": 8,
+    "I8": 8,
+    "F8_E5M2": 8,
+    "F8_E4M3": 8,
+    "F8_E4M3FNUZ": 8,
+    "F8_E5M2FNUZ": 8,
+    "F8_E8M0": 8,
+    "F4": 4,
+    "F6_E2M3": 6,
+    "F6_E3M2": 6,
+    "I16": 16,
+    "U16": 16,
+    "F16": 16,
+    "BF16": 16,
+    "I32": 32,
+    "U32": 32,
+    "F32": 32,
+    "C64": 64,
+    "F64": 64,
+    "I64": 64,
+    "U64": 64,
 }
 
-# torch dtype string (as recorded by znn_compressed_vectors) <-> safetensors name
+# Back-compat alias: byte-aligned element sizes (sub-byte types report the
+# PACKED granularity used by callers that think in bytes).
+DTYPE_SIZES = {k: max(1, v // 8) for k, v in DTYPE_BITS.items()}
+
+# torch dtype string (as recorded by znn_compressed_vectors) <-> safetensors
+# name. Phase 4 completes the table; the two F6 types record their
+# SAFETENSORS name in infos (torch 2.14 has no float6 dtype — verified), so
+# they map to themselves.
 TORCH_TO_ST = {
     "float32": "F32",
     "float16": "F16",
@@ -114,11 +124,20 @@ TORCH_TO_ST = {
     "float64": "F64",
     "float8_e4m3fn": "F8_E4M3",
     "float8_e5m2": "F8_E5M2",
+    "float8_e4m3fnuz": "F8_E4M3FNUZ",
+    "float8_e5m2fnuz": "F8_E5M2FNUZ",
+    "float8_e8m0fnu": "F8_E8M0",
+    "float4_e2m1fn_x2": "F4",
+    "F6_E2M3": "F6_E2M3",
+    "F6_E3M2": "F6_E3M2",
     "int8": "I8",
     "uint8": "U8",
     "int16": "I16",
+    "uint16": "U16",
     "int32": "I32",
+    "uint32": "U32",
     "int64": "I64",
+    "uint64": "U64",
     "bool": "BOOL",
     "complex64": "C64",
 }
@@ -150,8 +169,10 @@ def write_safetensors(
         header["__metadata__"] = metadata
     for name in names:
         dtype, shape, data = tensors[name]
-        elem = DTYPE_SIZES[dtype]
-        expected = elem * (math.prod(shape) if shape else 1)
+        bits = DTYPE_BITS[dtype]
+        nelem = math.prod(shape) if shape else 1
+        assert nelem * bits % 8 == 0, f"{name}: {nelem} x {bits} bits off byte boundary"
+        expected = nelem * bits // 8
         assert len(data) == expected, f"{name}: {len(data)} bytes != {expected}"
         header[name] = {"dtype": dtype, "shape": shape, "data_offsets": [offset, offset + len(data)]}
         offset += len(data)
@@ -302,13 +323,62 @@ def synth_c64(n: int, seed: int = 1) -> bytes:
     return bytes(out)
 
 
-def synth_f64(n: int, seed: int = 1) -> bytes:
-    """n float64 values — the f64 synth class (pass-through until Phase 4)."""
+def synth_f64(n: int, seed: int = 1, low_entropy: bool = False) -> bytes:
+    """n float64 values — the f64 synth class (compressed via the Neo
+    extension band since Phase 4). low_entropy: values around ±0.005 with
+    concentrated sign/exponent bits (the 8-plane f64 reorder target)."""
     out = bytearray()
     rng_state = seed & 0xFFFFFFFF
     for _ in range(n):
         rng_state = (rng_state * 1103515245 + 12345) & 0x7FFFFFFF
-        out += struct.pack("<d", (rng_state / 1000.0 - 1000.0) * 0.001)
+        if low_entropy:
+            out += struct.pack("<d", (rng_state / 2147483648.0 - 0.5) * 0.01)
+        else:
+            out += struct.pack("<d", (rng_state / 1000.0 - 1000.0) * 0.001)
+    return bytes(out)
+
+
+def synth_bool(n: int, seed: int = 1) -> bytes:
+    """n BOOL bytes ({0,1} — huff0 collapses these ~8x)."""
+    rng_state = seed & 0xFFFFFFFF
+    out = bytearray()
+    for _ in range(n):
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7FFFFFFF
+        out.append(1 if rng_state % 4 == 0 else 0)
+    return bytes(out)
+
+
+def synth_i16(n: int, seed: int = 1, high_zero: bool = False) -> bytes:
+    """n int16 values; high_zero: magnitudes < 256 (truncation mode 1)."""
+    rng_state = seed & 0xFFFFFFFF
+    out = bytearray()
+    for _ in range(n):
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7FFFFFFF
+        v = (rng_state % 200) if high_zero else (rng_state % 60_000) - 30_000
+        out += struct.pack("<h", v)
+    return bytes(out)
+
+
+def synth_u32(n: int, seed: int = 1, max_val: int = 1 << 30) -> bytes:
+    """n uint32 values in [0, max_val) — max_val picks the truncation depth
+    (the existing synth_i32 emits signed values whose negative upper bytes
+    are 0xFF, i.e. never truncatable)."""
+    rng_state = seed & 0xFFFFFFFF
+    out = bytearray()
+    for _ in range(n):
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7FFFFFFF
+        out += struct.pack("<I", rng_state % max_val)
+    return bytes(out)
+
+
+def synth_opaque_bytes(n: int, seed: int = 1) -> bytes:
+    """n low-entropy bytes — payload for the opaque 1-plane dtypes
+    (FNUZ fp8, E8M0, packed F4/F6)."""
+    rng_state = seed & 0xFFFFFFFF
+    out = bytearray()
+    for _ in range(n):
+        rng_state = (rng_state * 1103515245 + 12345) & 0x7FFFFFFF
+        out.append(0x38 | ((rng_state >> 12) & 0x07))
     return bytes(out)
 
 
