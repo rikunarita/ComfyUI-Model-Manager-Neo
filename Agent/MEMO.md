@@ -955,3 +955,138 @@ SUCCESS を確認して初めて Plan §6.2 Phase 1 完了条件と §9 を [x] 
   Q = SIGKILL（書込み中 → 掃運可能 tmp のみ / commit 後 → 成果物完全 +
   解凍検証 byte‑exact、どの窓でも torn file なし）、O = 二重サブミットで
   第 2 ジョブが create_new ガードに拒否され第 1 の成果物は検証可能。
+
+## 2026‑09‑26 — 失われた dev 履歴の復元 + Phase 3 独立監査セッション
+
+### セッション冒頭の重大発見: dev が c3b7919 へ force‑push 巻き戻しされていた
+
+- **2026‑09‑26 05:03:54 UTC** の dev への push イベント（head `c3b7919d6` = PR #5
+  マージ点。CI run #118 / native run #29 が誘発され両方緑）を GitHub API が記録。
+  9/25 のセッションが push していた **12 コミット**（`d393587`…`c42513f` —
+  Phase 2 精査修正 5 件、fuzz blob_decompress OOM 真因修正 2 件、Phase 3 実装本体、
+  Phase 1 完了マーク）が dev/main 双方から消失していた（本セッションのクローン
+  05:10 UTC の tip = c3b7919）。
+- 復元: オブジェクトは GitHub に生存 → **SHA 指定 `git fetch origin <full‑sha>`** で
+  9 コミットを回収（author は全て rikunarita = ユーザ自身の過去セッション作業。
+  残り 3 コミット d393587/7178e32/4cce777 系は比較 API 経由で確認）し、
+  `git merge --no‑ff c42513f` で dev へ復元（**efade4a**。履歴の書き換えなし =
+  保守原則。tree は c42513f と完全一致を `git diff` 空で確認）。CI 証跡
+  （fuzz‑long run 2/3/4、CI #113–#117、native #22–#28）が再びブランチから
+  到達可能な SHA に紐づいた。
+- **教訓（前セッションの「環境ロールバック事故」記録の再確認）**: ブランチは
+  サンドボックス外でも巻き戻り得る。セッション開始時は `git ls‑remote` の tip を
+  MEMO 末尾の記録と照合してから着手すること。ズレていたら force‑push の事実を
+  ユーザに報告し、失われた作業の SHA 回収可能性を最初に確認する。
+
+### 「fuzz‑long run 2 の全 5 ターゲット成功確認(~11:45 UTC)」への回答（GitHub API 実証）
+
+**run 2（36114455354、head `4cce777`、08:43 UTC 開始）は 4/5 SUCCESS + l2‑full
+SUCCESS であり、全緑ではない**: `blob_decompress` が **11:40:19 UTC に OOM 終了**
+（RSS peak 4,097 MB > rss_limit 4,096 MB。live heap 26 MB = コーデックのメモリ
+安全性欠陥ではなくスレッド churn 由来のランタイム メタデータ累積）。他 4 ターゲット
+（st_parse / zn_header / codec_decompress / huf_decompress）は **11:44:14–11:44:30 UTC
+に 3 h 完走 SUCCESS** — 「~11:45 UTC に 5 ターゲット」の認識はこの完了時刻群に
+一致するが、5 本目は失敗している。真因と決着（復元済みコミット + 本セッションの
+再確認）:
+
+| run | head SHA  | 結果                                                                                                                                                                                                                              |
+| --- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `3b3a3af` | 4/5 + l2‑full 緑。blob_decompress OOM（rss 2048 MB・旧ハーネス）                                                                                                                                                                  |
+| 2   | `4cce777` | **4/5 + l2‑full 緑。blob_decompress は OOM 再発**（4096 MB でも ~35.5 B/exec の線形増加が 3 h で到達）                                                                                                                            |
+| 3   | `de1a153` | **5/5 + l2‑full 緑（~17:36 UTC）** — 真因修正（`with_threads` の per‑call プール生成破棄 → CUSTOM_POOLS キャッシュ）後。blob_decompress 1.9 億 execs・peak RSS 164 MB・クラッシュ 0 = **Phase 1 完了条件（fuzz ≥8 h）の真の証跡** |
+| 4   | `3bcb52b` | **6/6 緑（~20:39 UTC）** — Phase 3 ツリー。新ターゲット `delta_decompress` の 3 h 完走を含む                                                                                                                                      |
+
+- 修正コミット 2 件（`4cce777` = ハーネス thread_local 化 + ASan チューニング +
+  rss_limit 4096、`de1a153` = プール キャッシュ化 + 回帰テスト
+  `explicit_thread_counts_reuse_cached_pools`）は巻き戻しで失われており、
+  **復元しなければ週次 fuzz‑long（日曜 18:00 UTC）で blob_decompress の OOM が
+  再発し続ける状態だった** — 本セッションの復元で解消。
+- Phase 2 の「バグなし」最終確認の結論: 現行 dev tip（復元 + 本監査）は、
+  Phase 2 精査セッションが発見した 5 バグの修正（d393587/7178e32）を**含み**、
+  下記の再検証バッテリーが全緑。Phase 2 完了条件の残件は依然
+  「参照機での K2/K3 再計測 + 実 UI 手動 QA」のみ（この環境では代替不能）。
+
+### 独立再検証バッテリー（復元ツリー + 下記 GIL 修正に対し、全て本セッション実測）
+
+- `cargo fmt --all --check` ✓ / `cargo clippy --workspace --all‑targets
+--all‑features -- -D warnings` ✓（Rust 1.98.1 stable 再導入）
+- `cargo test --workspace --exclude mm-core`: znn‑codec **132 緑**（監査回帰
+  `atomic_writer_commits_and_aborts`（create_new 並行拒否・stale 引き継ぎ）/
+  `header_size_guard_rejects_oversized_regions` /
+  `explicit_thread_counts_reuse_cached_pools` の個別緑も明示確認）+
+  `cargo test -p mm-core --no-default-features` **5 緑**
+- `.so` 再ビルド（build‑native.sh linux‑x86_64、zigbuild glibc 2.28）:
+  **2,375,424 B**（≤4 MB ゲート OK）、`verify_native_binary.py` ok:true、
+  import 実証: `api_version()=3`・delta/batch 4 API 存在・`core_version()=
+0.3.0‑alpha.0+efade4a1e`（マージコミット スタンプ）
+- **L2 quick GATE PASS**: byte‑identical 1,121/1,121・mismatch 0・付録 C クラス
+  63/63 安全処理・rust_err_other 0（`--out /tmp` でコミット済み証跡は不変）
+- **L4 pytest 60 緑**（復元時の 59 + 本監査の新規 GIL 回帰 1。torch 2.14.0+cpu /
+  safetensors 0.8.0 / hub 2.0.0 同梱環境）
+- **L5 GATE PASS**（pip zipnn 0.5.4 実ビルド）: A/B/C 全方向 + **D1（Neo
+  streaming デルタ → 公式解凍 byte‑exact）/ D2‑single / D2‑stream（公式デルタ
+  両表記 → Neo 解凍）** = Phase 3 セクション D もこの環境で再現
+- **K4/K5 独立再計測**（bench_native_delta.py、同一セッション交互 3 ラウンド +
+  SEGFAULT クラス）: 限界 RSS 倍率 native **2.13×/1.69×** vs legacy
+  **5.39×/5.72×**（÷2.5/÷3.4 — BENCH §8 の 2.09×/1.69× と一致）。SEGFAULT
+  クラス total%256KiB∈{1,2,3} = **3/3 生存 + byte‑exact**
+  （`k5AllSurvivedByteExact: true`。各 +3 MiB・圧縮 0.005 s）。壁時間は
+  native 圧縮 0.134 s（**ftSha256 インライン込み**）< legacy 0.211 s、
+  解凍 0.104 s vs 0.129 s — 本セッションの窓では native が legacy を上回った
+  （セッション間比較は無効・同一セッション比のみ有効の原則通り）
+- ruff check + format（38 files）✓ / mypy **14 files Success**（hub 2.0.0 で
+  再現 = f4c1a4c の cast 修正が現行 PyPI 解決でも有効）/ `pnpm install
+--frozen-lockfile` → `pnpm format:check`（prettier + tailwind plugin）全ファイル ✓
+- L3 ローカルスモークは**意図的に未実施**: 本セッションのコード変更は mm‑core の
+  GIL 解放のみで fuzz 6 ターゲットは全て znn‑codec 表面（delta_decompress 含む）=
+  変更ゼロ。run 4 の 3 h 緑実績がそのまま有効で、push 時の CI fuzz‑smoke
+  （6×60 s）+ 新 tip への fuzz‑long ディスパッチ（run 5）が担保する。
+
+### 監査で発見し修正した不備（本セッションの唯一のコード変更・1 件）
+
+**【中】`walk_models` / `move_with_sidecars`（同期プリミティブ）が GIL を
+解放していなかった** — Plan §4.2.2 設計不変条件 (2)「長時間 API は
+`py.allow_threads()` で GIL 解放」への違反。バッチ ルートは
+`batch_process_folder`（cpu_executor 内）から `mm.walk_models` を呼ぶが、
+Rust 並列 walk の全行程で GIL が保持される → **executor 経由であっても
+イベントループ（ws 配信含む）が walk 中フリーズ**する。legacy の `os.walk` は
+バイトコード境界で GIL を手放してループがインターリーブできたため、
+ネットワーク ストレージ + 大規模ライブラリ（Plan §1.2.2 #9 の環境）では
+秒級の応答性退行になり得た（課題 #6 / K12 が潰したのと同じクラスの问题）。
+preflight の `_walk_files`（イベントループ上で同期実行 — legacy からの
+既存挙動で native 化によりむしろ高速化）は本修正の対象外・構造変更なし。
+
+- 修正: 引数抽出（GIL 必要）後に **`py.detach()`** で walk/直列化と
+  readdir/rename を GIL フリー実行（mm‑core jobs.rs の 2 関数 + lib.rs 签名）。
+- **PyO3 0.29 の API 名は `allow_threads` ではなく `detach`**（一次ソース:
+  pyo3‑0.29.2 src/marker.rs L562 `pub fn detach<T, F>(self, f: F) -> T
+where F: Ungil + FnOnce() -> T`。`PyErr` は `Ungil`（err/mod.rs L48）なので
+  `PyResult<T>` の返却可。stable では `Ungil = Send + 'static` blanket
+  （marker.rs L192））。クロージャへ `&str` 借用を持ち込めないため
+  root/src/dst は owned 化（String/PathBuf）。**Plan §4.2.2 の文言も
+  `py.detach()` 注記付きへ更新済み**（次フェーズの実装者が同じ罠
+  （allow_threads 名での E0599）を踏まないように）。
+- **A/B 実証**: 新規 pytest `test_walk_models_releases_the_gil`
+  （1,500 ファイル ツリー。スピン Python カウンタスレッドは walk 実行中に
+  GIL を得られて初めて進む → 解放されていなければ delta=0 で決定論的に失敗）が
+  **修正前バイナリで FAIL（counter 前進ゼロ）→ 修正後バイナリで PASS**。
+  GIL 解放の事実を機械的に固定した（CI integration 3 OS で毎回実行される）。
+- 付随観察（**再現せず・参考記録**）: A/B の旧バイナリ実行に一度だけ
+  リポジトリ直下へ 26 MB の ELF コアダンプ（`core`、ulimit -c unlimited 環境）が
+  出現。同一条件の再実行では再現せず、修正版バイナリでは pytest フルスイート
+  複数回で未発生。GIL 飢餓スレッド + インタプリタ shutdown の偶発競合と推定するが
+  確証なし（旧バイナリは差し替え済みで追及不能）。削除済み・追跡外。
+  今後 `core` が見えたら**コミットに含めない**こと（.gitignore 対象外のため
+  `git status` で確認）。
+
+### 運営メモ（次セッション向け）
+
+- 本セッションの push 構成: efade4a（復元マージ）→ fix(mm-core) GIL 解放 +
+  回帰テスト → docs（MEMO/Plan 更新）。push で CI + native が自動実行、
+  fuzz‑long は新 tip へ **run 5** をディスパッチ済み（6 ターゲット × 3 h —
+  成功確認はユーザ側次ターン / 週次スケジュール）。
+- native‑bin の成果物（.so）は gitignore 済みでコミット対象外（CI が
+  main/tag で生成する運用 — Phase 0 確立）。
+- Phase 3 の Plan 完了条件 [x] は本監査の再検証で**実態と一致**を確認した。
+  残るプロジェクト全体の残件: Phase 2 K2/K3 参照機再計測、実 UI 手動 QA
+  （Phase 7 の USAGE 改訂時に統合）、Phase 4 以降。
