@@ -52,3 +52,10 @@ path = "fuzz_targets/blob_decompress.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "delta_decompress"
+path = "fuzz_targets/delta_decompress.rs"
+test = false
+doc = false
+bench = false

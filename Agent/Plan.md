@@ -2,16 +2,16 @@
 
 ## ― Rust ネイティブコア化と ZipNN 完全置き換え ―
 
-| 項目           | 内容                                                                                                                                                            |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 文書番号       | NEO‑PLAN‑2026‑001                                                                                                                                               |
-| 版数           | 2.0                                                                                                                                                             |
-| 作成日         | 2026‑09‑22                                                                                                                                                      |
-| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                          |
-| 対象ブランチ   | `dev`                                                                                                                                                           |
-| 現行バージョン | v0.2.0（α3）                                                                                                                                                    |
-| 目標バージョン | v0.3.0                                                                                                                                                          |
-| 状態           | **Phase 0 完了・Phase 1 実装完了（fuzz ≥8 h の初回実行のみ残）・Phase 2 実装完了（2026‑09‑24、L4/L5 緑・K1/K6/K13 達成、K2/K3 は参照機再計測待ち — BENCH §7）** |
+| 項目           | 内容                                                                                                                                                                                                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 文書番号       | NEO‑PLAN‑2026‑001                                                                                                                                                                                                                                                                                             |
+| 版数           | 2.0                                                                                                                                                                                                                                                                                                           |
+| 作成日         | 2026‑09‑22                                                                                                                                                                                                                                                                                                    |
+| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                                                                                                                                                                        |
+| 対象ブランチ   | `dev`                                                                                                                                                                                                                                                                                                         |
+| 現行バージョン | v0.2.0（α3）                                                                                                                                                                                                                                                                                                  |
+| 目標バージョン | v0.3.0                                                                                                                                                                                                                                                                                                        |
+| 状態           | **Phase 0 完了・Phase 1 完了（2026‑09‑25、fuzz 15 h バジェット消化 — run 36148521214 全 5 ターゲット緑）・Phase 2 実装完了（2026‑09‑24、L4/L5 緑・K1/K6/K13 達成、K2/K3 は参照機再計測待ち — BENCH §7）・Phase 3 実装完了（2026‑09‑25、K4/K5 達成・L5 セクション D 緑・SEGFAULT クラス解消実証 — BENCH §8）** |
 
 ### 版数履歴
 
@@ -1004,21 +1004,37 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
       bounds-checked）+ 付録 C 全長回帰（L1/L2 495/495/L3 ASan ~60 万実行）
   - ファズ検出オーバーフロー 2 件修正済み。証跡整理 = docs/BENCH.md §6.4
     （起票文案は `docs/upstream/zipnn-core-defect-report.md` に参考保管）
-- [/] 完了条件: L1–L3 green（L1 69 テスト緑・L2 フル 10,500 ケース GATE PASS・
-  L3 スモーク緑。**fuzz ≥8 h のみ機械的步骤が残る**。〔2026‑09‑24 訂正
-  （Phase 2 セッション、GitHub API で実証）〕admin 権限 PAT でも
-  workflow_dispatch は **404** — fuzz-long.yml が default branch（main）に
-  存在しないため workflow 自体が未登録で、**GitHub UI からのディスパッチも
-  不可能**（UI は default branch の workflow 一覧のみ表示する）。消化経路は
-  **dev→main マージ（PR）のみ**: マージで週次スケジュール（日曜 18:00 UTC、
-  5 ターゲット × 3 h = 15 h）が有効化され、UI/API ディスパッチも可能になる。
-  完了時に本項を [x] 化）、f32/bf16/f16/fp8 で C 版比 圧縮率差 ±0.5% 以内
-  （**Δ0.0000 % = バイト同一で達成。ユーザ要件「67 % を下回らない」も
-  bf16 実測 0.6623 で構造的に保証 — BENCH §6.3**）・速度同等以上
-  （**8/8 指標 ×1.09–1.81 で達成** — virtual-raw 平面最適化により
-  bf16/f16 圧縮 ×0.72–0.84 → ×1.18–1.45 に反転。同一 steal ゲート
-  プロトコルの連続 2 実行で安定。**unsafe 不使用**（ユーザ指示）。
-  変動注記: BENCH §6.2）、clippy/fmt green（**達成**）
+- [x] 完了条件: L1–L3 green（L1 69 テスト緑・L2 フル 10,500 ケース GATE PASS・
+      L3 スモーク緑。fuzz ≥8 h は 〔2026‑09‑24 訂正（Phase 2 セッション、
+      GitHub API で実証）〕admin 権限 PAT でも workflow_dispatch が **404** —
+      fuzz-long.yml が default branch（main）に存在せず workflow 未登録 —
+      だったため **dev→main マージ（PR）で登録を有効化**して消化した。
+      〔2026‑09‑25 追記（GitHub API で実証）〕初回ディスパッチ run 36088280583
+      （head 3b3a3af、3h×5）完走: **l2‑full / st_parse / codec_decompress /
+      huf_decompress / zn_header = SUCCESS（3 h クラッシュゼロ）**、
+      blob_decompress = FAILED（libFuzzer rss_limit 2048MB 到達。live heap
+      ~25MB で**コード非欠陥**）。修正 4cce777（thread_local 再利用バッファ +
+      ASan チューニング + rss_limit 4096）の run 36114455354 も
+      **blob_decompress のみ再度 OOM（4097MB、~35.5 B/exec の線形保持）** —
+      〔2026‑09‑25 続セッションで真因特定〕前回の「アロケータのページ保持」
+      診断は誤りで、実因は**ハーネスの threads=1 が default_threads()(=4) と
+      異なるため `with_threads` が exec ごとに新規 rayon プールを生成破棄
+      （OS スレッド 1 本/exec の churn → ランタイム/サニタイザ メタデータが
+      プロセス生存中累積）**だった（傍証: threads=0 の codec_decompress は
+      両 run 緑）。修正 de1a153（明示スレッド数のプールをキャッシュ +
+      上限ガード、ローカル A/B: 定常窓 ~44→~9 B/exec）で再ディスパッチした
+      **run 36148521214（head de1a153、3h×5）が全 5 ターゲット SUCCESS** —
+      blob_decompress は **189,822,394 execs / 3 h 完走、最終 peak RSS
+      164 MB（limit 4096 MB の 1/25）、クラッシュ 0、exec/s 17,574
+      （run 2 比 +63 % — churn はスループット税でもあった）**。l2‑full も緑。
+      ≥8 h バジェット = 5 ターゲット × 3 h = 15 h で消化完了）、
+      f32/bf16/f16/fp8 で C 版比 圧縮率差 ±0.5% 以内
+      （**Δ0.0000 % = バイト同一で達成。ユーザ要件「67 % を下回らない」も
+      bf16 実測 0.6623 で構造的に保証 — BENCH §6.3**）・速度同等以上
+      （**8/8 指標 ×1.09–1.81 で達成** — virtual-raw 平面最適化により
+      bf16/f16 圧縮 ×0.72–0.84 → ×1.18–1.45 に反転。同一 steal ゲート
+      プロトコルの連続 2 実行で安定。**unsafe 不使用**（ユーザ指示）。
+      変動注記: BENCH §6.2）、clippy/fmt green（**達成**）
 
 ### Phase 2 — safetensors 圧縮/解凍パイプライン + バックエンド接続
 
@@ -1101,18 +1117,56 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ### Phase 3 — デルタ圧縮 + バッチプリミティブ
 
-- [ ] `delta.rs`: 両側 mmap + ストリーミング XOR + 1 MB チャンク
-      ZN byte 形式（K4: ピーク RAM < 1 GB）
-- [ ] ヘッダー等長化パディング + `.neo-delta.json` 互換
-      （SHA‑256 記録を追加。エラーメッセージ文言互換維持）
-- [ ] **付録 C の SEGFAULT ケース（total%256KB ∈ {1,2,3}）を
-      デルタ端到端テストに固定化**（Rust 版が正常完了することを確認）
-- [ ] `py/compress.py` デルタルート切替
-- [ ] バッチプリミティブ（`walk_models` / `move_with_sidecars`）—
+- [x] `delta.rs`: 両側 mmap + ストリーミング XOR + 1 MB チャンク
+      ZN byte 形式（K4: ピーク RAM < 1 GB）— 出力は**公式 streaming
+      コンテナ連鎖**（header[13]=148・[24:32]=コンテナサイズ —
+      zipnn.py の streaming 形式そのもの。公式解凍側が 100 % 受理する
+      ことを L5‑D1 で実証）。限界 RSS 実測 2.09×/1.69× だが内訳は
+      **回収可能な mmap clean ページがほぼ全て**で、匿名域は
+      O(1 MiB チャンク)（0.5 MiB 級ペアで限界 +3–4 MiB がスケーリング
+      非依存の証左 — BENCH §8.1。legacy 5.43×/5.72× は匿名コピー）
+- [x] ヘッダー等長化パディング + `.neo-delta.json` 互換
+      （SHA‑256 記録を追加 = `ftSha256`（ft 原本ダイジェスト、圧縮と
+      並行スレッドで算出）。復元時インライン検証（追加 I/O ゼロ）+
+      不一致はデルタ保持 + `.corrupt` 退避。サイドカーはエンジンが
+      原子コミット（delta 本体 → sidecar の順、失敗時はジョブ失敗 =
+      ft 無傷）。エラーメッセージ文言互換維持 — data‑size 不一致 /
+      length mismatch / 非デルタの 3 文言を逐語でゴールデンテスト化。
+      **相互運用の一次ソース発見**: 公式デルタ文件的 method バイトは
+      0–4 いずれでもあり得る（API 既定 AUTO=0・CLI 既定 HUFFMAN だが
+      float32 byte コンテナは method によらず常に Huffman ペイロード・
+      公式解凍は byte7 を読まない — upstream スクリプト取得 + pip 0.5.4
+      実機で確認）→ デルタ復号のみ method ゲートを外す
+      `decode_delta`（テンソル経路は B.1 の厳格ゲート維持。BENCH §8.3））
+- [x] **付録 C の SEGFAULT ケース（total%256KB ∈ {1,2,3}）を
+      デルタ端到端テストに固定化**（Rust 版が正常完了することを確認 —
+      三層固定: L1 e2e（1 MiB streaming 境界跨ぎ 3 MiB+2 含む）+
+      生産ルート pytest（ws 契約ごと）+ ベンチ証跡
+      `k5AllSurvivedByteExact: true`。全ケース byte‑exact 往復）
+- [x] `py/compress.py` デルタルート切替（`MM_NATIVE=0/1/auto`。ws 契約
+      prepare/delta/done・`kind:"delta"`・stats キー
+      originalBytes/compressedBytes は**両経路同一ゴールデン**。
+      デルタタスクは cancel ルートでキャンセル可能に（handle 登録）、
+      paranoid モード対応（rename 前の再デコード検証）。失敗時
+      クリーンアップは「committed‑but‑sidecar‑less のみ dst 削除」=
+      Phase 2 の教訓（並行ジョブ tmp 保護）を継承）
+- [x] バッチプリミティブ（`walk_models` / `move_with_sidecars`）—
       バンドル意味論（`*_DeltaZNN`・type‑root 内包・legacy `_ZNN`）は
-      Python 現行ロジックを維持
-- [ ] 完了条件: K4/K5 達成、デルタ往復 byte‑exact（検証付き）、
-      フォルダバッチ圧縮/解凍の現行同一挙動 QA
+      Python 現行ロジックを維持（プリミティブは Python 現行関数との
+      **ゴールデン parity テスト**付き: 3 walker × hidden/symlink/bundle
+      網羅、20 スロット プレビュー + .md/.txt 規則。walk は ignore
+      crate 並列 = os.walk 意味論の忠実移植、sorted 安定順）。
+      バッチルートは native ジョブ（同期ポーリング、per‑file handle 登録で
+      キャンセル可）+ Rust walk/sidecar move へ切替（MM_NATIVE 準拠）。
+      フォルダバッチ往復（ツリー byte‑exact 復元）・デルタ入りバッチ・
+      **両エンジン同一ツリー parity** をテスト化
+- [x] 完了条件: K4/K5 達成（BENCH §8: 限界 ÷2.6/÷3.4 + 匿名域
+      サイズ非依存、SEGFAULT クラス 3/3 生存 + byte‑exact）、
+      デルタ往復 byte‑exact（検証付き — verified=sha256 3/3 ラウンド +
+      クロスパス双方向 + legacy 単一コンテナ復元）、
+      フォルダバッチ圧縮/解凍の現行同一挙動 QA（自動 parity/ゴールデン
+      済み — 実 ComfyUI UI での手動 QA は Phase 2 の残件と同様に
+      USAGE 改訂（Phase 7）へ統合。UI 契約はゴールデンテストで機械固定）
 
 ### Phase 4 — dtype 大幅拡張（Neo 拡張帯）
 
@@ -1230,14 +1284,19 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
       **C コア欠陥の実機実証（付録 C）**、本計画書 v2.0 の策定
 - [x] **Phase 0** — 基盤準備（ベンチ基盤・mold/rustfmt/clippy・abi3 疎通・Quick Win A1）
       完了 2026‑09‑23（`docs/BENCH.md`・`native/`・`py/native.py`・native.yml 全緑）
-- [/] **Phase 1** — znn-codec フォーマット中核（ヘッダー/平面/huff0・FSE + L2/L3）
-  **実装・全性能ゲート完了 2026‑09‑23**: L1 69 テスト緑・L2 フル 10,500
-  ケース GATE PASS（圧縮出力 C とバイト同一 9,880/9,880 = 圧縮率恒等一致・
-  付録 C クラス 495/495 安全処理）・L3 スモーク緑（実バグ 3 件検出→修正）・
-  速度 **8/8 指標 ×1.09–1.81 で C 超え**（unsafe ゼロ）・clippy/fmt 緑・
-  CI 全緑（native-diff / fuzz-smoke 新設）。**残るは fuzz ≥8h の初回実行のみ**
-  （fuzz-long.yml — UI ディスパッチ（branch: dev）か main マージ後の
-  週次スケジュール。完了で [x] 化）
+- [x] **Phase 1** — znn-codec フォーマット中核（ヘッダー/平面/huff0・FSE + L2/L3）
+      **完了 2026‑09‑25**（実装・全性能ゲートは 2026‑09‑23）: L1 69 テスト緑・
+      L2 フル 10,500 ケース GATE PASS（圧縮出力 C とバイト同一 9,880/9,880 =
+      圧縮率恒等一致・付録 C クラス 495/495 安全処理）・L3 スモーク緑
+      （実バグ 3 件検出→修正）・速度 **8/8 指標 ×1.09–1.81 で C 超え**
+      （unsafe ゼロ）・clippy/fmt 緑・CI 全緑（native-diff / fuzz-smoke 新設）。
+      fuzz ≥8h の初回実行: run 36088280583 で 4/5 緑 → blob_decompress の
+      rss OOM（run 36114455354 でも再発）の**真因 = ハーネス threads=1 の
+      per‑exec rayon プール churn**（ASan メタデータ ~35 B/exec 累積 —
+      「アロケータのページ保持」の初診は誤り）を特定し、プール キャッシュ化
+      （de1a153）で **run 36148521214 全 5 ターゲット 3h SUCCESS**
+      （blob_decompress 1.9 億 execs・peak RSS 164 MB・クラッシュ 0）+
+      l2‑full 緑 = 15 h バジェット消化（詳細は §6.2 完了条件・MEMO 同日）
 - [/] **Phase 2** — safetensors 圧縮/解凍 + 完全性検証パイプライン + バックエンド接続
   **実装・自動 QA 完了 2026‑09‑24**: Rust パイプライン（mmap 単一
   書き込みパス・ピーク RAM O(最大テンソル)・SHA‑256 端到端検証・
@@ -1248,7 +1307,17 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
   達成、**K2/K3 は参照機（NVMe + SHA‑NI）再計測待ち**（この 2 vCPU /
   SHA‑NI なし機では検証ハッシュ律速で ×0.46/×0.24 — 内訳実測と外挿は
   BENCH §7.1）。残るは参照機計測と実 UI 手動 QA のみ
-- [ ] **Phase 3** — デルタ（SEGFAULT 解消実証込み）+ バッチプリミティブ
+- [x] **Phase 3** — デルタ（SEGFAULT 解消実証込み）+ バッチプリミティブ
+      **実装・自動 QA 完了 2026‑09‑25**: 公式 streaming 形式（公式 zipnn
+      0.5.4 と双方向クロス検証 — L5 セクション D 緑）+ ftSha256 端到端検証 +
+      legacy 単一コンテナ復元 + エラー文言逐語互換 + バッチプリミティブ
+      （walk_models / move_with_sidecars・Python 現行とのゴールデン parity）。
+      **K4 達成**（限界 ÷2.6/÷3.4 — 匿名域 O(チャンク) のサイズ非依存、
+      12 GB 換算 <1 GB）・**K5 達成**（付録 C SEGFAULT クラス 3/3 が生産
+      ルートで生存 + byte‑exact — 三層テスト固定）。L1 132 緑・pytest 59 緑・
+      L2 quick 再 PASS・L3 6 ターゲット化（delta_decompress 追加、スモーク
+      122 k execs クラッシュ 0）・api_version 3（ローダー exact レンジ同期）。
+      実 UI 手動 QA は Phase 2 残件と併せ Phase 7 で統合（BENCH §8）
 - [ ] **Phase 4** — dtype 大幅拡張（Neo 拡張帯 + 相互運用マトリクス）
 - [ ] **Phase 5** — スキャン/永続インデックス/ハッシュ/更新伝播（Quick Win A2/A3）
 - [ ] **Phase 6** — フロントエンド表示最適化（C1–C5、計測駆動）

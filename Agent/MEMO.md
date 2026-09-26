@@ -632,3 +632,326 @@ push 後の CI で 3 件のゲート失敗 → いずれも修正して再 push�
    （レガシー経路 + native 経路 + クロスパス + L4 コーパス）、
    **L5 GATE PASS**（pip zipnn 0.5.4 実ビルド: A/B/C 全方向）、
    コアバージョンスタンプ `0.3.0-alpha.0+737ffef31` 正常。
+
+## 2026‑09‑25 — Phase 2 精査セッション（ユーザ指示「一切のバグが含まれていないか精査」）
+
+**セッション跨ぎの注意**: ワークスペースのスナップショットは `"$ARENA_WORKSPACE"` 配下の
+通常ファイルのみ永続化するため、`.git`・`/opt` のツールチェーン・pip/apt パッケージは
+消失していた（native-bin の成果物とソースは生存）。再クローンして `.git` を復帰、
+ツールチェーンを再構築してから精査を実施した（環境構築は前セッションの
+`/tmp/rebuild-env.sh` 方式: apt `--print-uris` + Python 並列 DL、rustup、pip）。
+
+### 精査で発見し修正したバグ（5 件）
+
+1. **【中】`_cleanup_targets` が dst 本体を削除していた** — 両パイプラインとも dst は
+   最終 atomic rename でしか生成されないため、失敗時に dst が存在すればそれは
+   「route の存在チェック後に他者が作ったファイル」。これを削除するのは狭いが
+   実在するデータ喪失競合。partial（`.tmp`/`.verify.tmp`/`.tmp.fix`）のみの削除へ
+   修正 + 単体テスト（sentinel dst の生存を assert）。
+2. **【中】並行ジョブの tmp 相互破壊** — `AtomicWriter::new` が既存 `{dst}.tmp` を
+   無条件 truncate していた: 同一 dst への二重サブミット（UI の二重クリック、
+   複数 ComfyUI インスタンス）で 2 ジョブが同一ファイルへインターリーブ書込み →
+   静かな破損。`create_new`（O_EXCL）+ 若年 tmp（<15 分）は明確なエラーで拒否、
+   陳腐 tmp（≥15 分 = クラッシュ残骸、起動時掃除と同じ年齢規則）は引き継ぎ。
+   テスト追加（拒否 + backdate 引き継ぎ）。
+3. **【中】2 の導入で顕在化した相互作用** — native ジョブ失敗時の Python 側
+   `_cleanup_targets` 呼び出しが、create_new に拒否された「第 2 ジョブ」の失敗
+   ハンドラから「第 1 ジョブが書込み中の tmp」を削除し得た。native 経路の
+   Python 側クリーンアップを撤去（Rust の Drop ガードが cancel/panic/ENOSPC を
+   含む全失敗路で tmp 削除を保証 — 44 pytest で再確認。legacy 経路は
+   save_file→os.replace 間に例外窓があるため Python 側掃除を維持）。
+4. **【低】`commit()` の rename 成功後 fsync_dir 失敗で Err** — 「成果物は確定済み
+   なのにジョブは失敗」（リトライは target already exists に当たる）という
+   矛盾状態。rename 成功をコミット点とし、dir fsync 失敗は warning 化
+   （内容は finish() で fsync 済み。dir エントリ非永続の最悪ケース =
+   rename 不反映 = **原本無傷**で legacy と同一のエクスポージャ）。
+   `take_dir_sync_warning()` でパイプライン warnings へ昇格。reject_to も同様に
+   best-effort 化。
+5. **【低】書込み側 MAX_HEADER_SIZE ガード欠落** — 参照リーダは 100 MB 超の
+   ヘッダーを拒否するのに、Writer 側は無検査だった（病的ソース: 上限近くの
+   ヘッダー + 巨大 infos で「標準ツールが読めない出力」を生む経路）。
+   `guard_header_size` を両パイプラインの region 構築直後に追加 + 単体テスト。
+
+**改善（バグではない）**: `/model-manager/zipnn/available` が
+native を優先短路して二エンジン報告（`engine`/`reason` 追加 — 後方互換）。
+native 可用時は torch import（初回 ~1.5 s のループブロック要因）を回避。
+`io_ctx` は ENOSPC 以外でも常に「操作 + パス」を付与（POSIX/Win32 の
+メッセージ差に依存していたテストアサーションも平台非依存化）。
+
+### 実証監査バッテリー（/tmp/audit/battery.py、ALL CLEAN）
+
+- **A. torch(safetensors‑rust 0.8.0) 実物 Writer との正準性証明**:
+  mixed dtype（bf16/f32/f16/fp8/I64/BOOL/scalar）× メタデータ 4 変種
+  （複数キー+unicode / 単一 / 無し / 空）で `canonical=true`、
+  **byte‑exact 復元**、`load_file`/`safe_open` 全テンソル一致、
+  no‑meta 復元に `__metadata__` が湧かない / empty‑meta は `{}` 維持。
+  → 「Neo の正準 Writer = 参照実装とバイト同一」の主張が実物against で証明された。
+- **B. 敵対的テンソル名**（引用符/バックスラッシュ/制御文字/絵文字サロゲート
+  ペア/日本語/220 文字）: infos 値が Python `json.dumps`（ensure_ascii）と
+  完全一致 + byte‑exact 往復。
+- **C.** Neo 成果物（圧縮/復元）を公式 safe_open が読めること。
+- **P. 書込み失敗注入**（RLIMIT_FSIZE→EFBIG、SIGXFSZ=IGN で子プロセス内強制）:
+  ジョブはクリーンに failed（`I/O error: File too large`）、dst/tmp 残骸ゼロ、
+  原本無傷 — 「ディスク満杯」QA 項目の機械的実証（ENOSPC と同一の错误経路）。
+- **Q. SIGKILL クラッシュ復旧**（64 MiB ジョブを 0.15/0.6/1.2 s で kill）:
+  commit 前 kill → dst 不在・掃運可能な tmp のみ・原本無傷。commit 後 kill →
+  dst は**完全かつ検証可能**（解凍 → verified=sha256 → byte‑exact）。
+  どの窓でも torn file が存在しない（rename 原子性の実証 = 手動 QA
+  「強制終了復旧」の機械化）。
+- **D. 250 シード・ランダム掃引**: dtype 12 種×メタデータ 5 変種×正準/非正準
+  ヘッダー×unicode 名×0要素テンソル×空ファイル — **0 issues**
+  （exact=1→sha256+byte‑exact、exact=0→structural+意味一致、残骸ファイル 0）。
+- **F.** 0 テンソルコンテナ 3 変種 byte‑exact。**N.** 解凍途中キャンセルで
+  残骸なし。**O.** 並行 2 ジョブ成功。
+- 再実行系: L5 GATE PASS（pip zipnn 0.5.4）、L2 quick GATE PASS（1,121/0）、
+  pytest **44**、Rust **100+5**、clippy/fmt/ruff/mypy（hub 2.0.0 同梱で再現）・
+  prettier 全緑。bench 証跡 JSON は最終バイナリで再生成（BENCH §7.1 の表を
+  同期: K2 ×0.45 / K3 ×0.25 — 判定と内訳は不変、sha2‑soft 律速）。
+
+### fuzz‑long（Phase 1 残項）
+
+ユーザの dev→main マージ（PR #5）で workflow 登録が有効化 → **API ディスパッチ
+成功**（2026‑09‑25 02:55 UTC、branch dev、hours=3、5 ターゲット並列 = 15 h
+予算 ≥ Plan §5.1 の 8 h）。run: actions/runs/36088280583。完了・緑を確認できたら
+Plan §6.2 Phase 1 完了条件と §9 を [x] 化すること（本セッション中に完了を
+待てない場合は次のセッションで run 結果を確認）。
+
+### 残った既知の非バグ事項（記録）
+
+- レガシー経路の「dst 存在チェック後の競合」は Phase 2 前の昔からある挙動で、
+  native 側は create_new で構造的に解消済み。legacy は Phase 7 で消滅する。
+- 解凍 stats の `decompressedTensors` は native=実際にデコードした数、
+  legacy=infos エントリ数（ゴースト infos のある壊れファイルでのみ差が出る。
+  形状ゴールデンは両者一致）。
+- サーバプロセス kill 中のジョブスレッドは道連れで死ぬ（tmp は残る →
+  起動時クリーンアップが 15 分規則で回収。コミット済み成果物は rename 原子性で
+  不整合にならない）。
+
+### fuzz‑long run 1 完走と blob_decompress OOM の根因・修正（2026‑09‑25 続セッション）
+
+**run 36088280583（head 3b3a3af、hours=3、02:55 UTC ディスパッチ）最終結果**:
+
+| ジョブ                   | 結果       | 実走                     |
+| ------------------------ | ---------- | ------------------------ |
+| l2‑full（10,500 ケース） | SUCCESS    | 6 m                      |
+| fuzz st_parse            | SUCCESS    | 3 h 02 m（クラッシュ 0） |
+| fuzz codec_decompress    | SUCCESS    | 3 h 02 m（クラッシュ 0） |
+| fuzz huf_decompress      | SUCCESS    | 3 h 02 m（クラッシュ 0） |
+| fuzz zn_header           | SUCCESS    | 3 h 02 m（クラッシュ 0） |
+| fuzz blob_decompress     | **FAILED** | 1 h 54 m で OOM 終了     |
+
+**blob_decompress OOM の根因**（コード欠陥ではない）:
+
+- libFuzzer の `rss_limit_mb=2048` 到達による abort。ヒーププロファイルの
+  live heap は **~25 MB** — リークでもメモリ安全性バグでもなく、
+  **アロケータのページ保持**: (a) ハーネスが exec ごとに新規 `Vec` を
+  確保・解放する churn、(b) ASan 既定の quarantine（256 MB 級）と
+  OS への遅いページ返却。~5,000 万 exec で累積し上限に到達した。
+- **トリアージ注意**: libFuzzer の OOM レポートは stderr に出るだけで
+  `crash-*` アーティファクトを残さない（アーティファクト 0 件でも
+  ジョブログを見ること）。OOM 時の入力（88 B）は
+  `corpus/blob_decompress/oom-2026-09-25.bin` として回帰シード化。
+
+**修正（3 点、コミット 4cce777）**:
+
+1. ターゲットの出力バッファを **thread_local grow‑only** 化
+   （パイプライン K1 と同型。`decompress_tensor_into` が内部で
+   clear+resize するため呼び出し側は確保を再利用するだけ）。
+2. workflow に `ASAN_OPTIONS=quarantine_size_mb=32:release_to_os_interval_ms=200`
+   （cargo‑fuzz は自前の `detect_odr_violation=0` を**追記**するだけで
+   環境変数は子プロセスに到達することを実地で確認済み）。
+3. `rss_limit_mb` 2048 → 4096（残余勾配に対するヘッドルーム）。
+
+**ローカル A/B 実証**（dev ビルド + ASan、同一コーパス、各 ~7 分）:
+
+- 修正ターゲット + ASan 既定: 357,829 execs、クラッシュ 0。RSS は
+  #16k まで 43→399 MB（quarantine 充填のウォームアップ）後、
+  ~40 B/exec に減衰しながら緩増（#262k で 423 MB、末尾 427 MB）。
+- 修正ターゲット + ASan チューニング: **410,558 execs、クラッシュ 0、
+  RSS 108→131 MB**（ウォームアップ充填が消滅）、exec/s 850→975。
+- 外挿: CI run 1（旧ハーネス、release）は ~5,000 万 execs で 2048 MB
+  到達 ≒ 一定 ~38 B/exec。新構成の最悪線形外挿でも 3 h（release で
+  ~7,500 万 execs）≒ 131 MB + ~2.9 GB < 4096 MB。勾配は減衰傾向なので
+  実測はさらに低い見込み（~1 GB 級）。
+- 運用注意: `cargo fuzz run` は発見入力を `corpus/<target>/` に
+  **書き込む**（今回のローカル実行で数百件生成 → キュレーション済み
+  7 件以外は削除した。commit 前に `git status` で確認すること）。
+
+**環境ロールバック事故の記録（重要）**: 前セッション区間
+（2026‑09‑25 ~05:00–06:50 UTC 相当: OOM トリアージ → 修正 → コミット
+2f6224c → push「成功」表示 → 再ディスパッチ表示）は**サンドボックスの
+ロールバックで失われ、GitHub に一切到達していなかった**。実証:
+remote dev tip = 972ff73（API）、`GET /commits/2f6224c` → **422**、
+events API に 03:37 UTC 以降の dev push なし、fuzz‑long の run は
+36088280583 の 1 件のみ。ワークスペースの untracked ファイル
+（corpus シード）のみが幸存。force push は使っておらずユーザ作業の
+破壊はなし。本セッションで修正を**再作成・再実証**したのが 4cce777。
+**教訓: push は local の git 出力を信じるだけでなく API で remote tip を
+検証する**（dispatch 404 の裏取りと同法）。
+
+**本セッションの全ゲート再検証（最終ツリー 4cce777 に対して）**:
+
+- `cargo fmt --all --check` ✓ / fuzz ターゲット rustfmt ✓
+- `cargo clippy --workspace --all-targets --all-features -D warnings` ✓
+- `cargo test`: znn‑codec **100** + mm‑core（no‑default‑features）**5** ✓
+- `.so` 再ビルド（build‑native.sh linux‑x86_64）: **決定論的**
+  （2 回ビルドで sha256 一致 `7c44396…dcbc1`、1,026,536 B）。
+  `verify_native_binary.py` → `ok: true`、max_glibc **GLIBC_2.28** ✓。
+  無害 warning 1 件（zig ld の `-O1` 非推奨通知）は CI と同一
+  （native‑build‑linux ログに 2 件 = 両 arch 分、を実物で確認）。
+  **ロールバックを幸存していた旧 `.so`（992,520 B、mtime 03:23）は現行
+  ソースの決定論的再ビルドと不一致**（CI@972ff73 の x86_64 成果物は
+  1,026,872 B — ローカルとの 336 B 差はビルドパス長由来）→ 来歴不明
+  （stale）として破棄し、本セッションの全結論はフレッシュビルドに
+  基づく。精査修正の回帰テストも新 `.so`/現行ソースで緑を明示確認:
+  `atomic_writer_commits_and_aborts`（create_new 並行拒否・young tmp
+  保護・stale 採用）、`header_size_guard_rejects_oversized_regions`、
+  `test_cleanup_targets_never_deletes_dst_itself` ほか。
+- L4 pytest **44/44** ✓ / L2 quick **GATE PASS** ✓（注意: quick 実行は
+  `scripts/l2/results/golden_diff.json`（コミット済み証跡）を上書きする →
+  `git checkout --` で復元した）/ L5 公式 zipnn 0.5.4 **GATE PASS** ✓
+- ruff format（37 files）+ ruff check ✓ / prettier（yml・md）✓
+- 新規 fuzz ターゲットのローカル実行 41 万 execs クラッシュ 0 ✓
+
+**再ディスパッチ**: run **36114455354**（head **4cce777**、hours=3、
+08:43 UTC queued、5 ターゲット + l2‑full）。**この run の全 5 ターゲット
+SUCCESS を確認して初めて Plan §6.2 Phase 1 完了条件と §9 を [x] 化する**
+（run 1 の 4/5 緑は旧ハーネスの実績として有効だが、blob_decompress の
+3 h 完走は未証明のため）。
+
+## 2026‑09‑25（続々セッション）— fuzz‑long run 2 失敗の真因特定と修正、Phase 3 着手
+
+### run 36114455354（修正 4cce777 込み）も blob_decompress が OOM で失敗 — 真因は別だった
+
+**GitHub API + ジョブログで実証**（ユーザ指示「run 2 の全 5 ターゲット成功確認」への回答:
+**4/5 SUCCESS + l2‑full SUCCESS、blob_decompress は 11:40 UTC に OOM 終了**）:
+
+- OOM 時の live heap は **26 MB**（quarantine 25.7 MB ≤ 上限 32 MB = ASan チューニングは
+  効いていた）のに RSS peak **4,097 MB > 4,096 MB**。OOM 入力 `oom-da39a3ee…` は**空**
+  （= 特定入力ではなく累積で上限到達）。RSS は exec 数に**完全線形**（~35.5 B/exec —
+  run 1 の ~38 B/exec とほぼ同じ = 前回の修正では保持率はほぼ減っていなかった）。
+- **真因**: ハーネスは `threads = 1` を渡すが、runner の `default_threads()` は 4。
+  `codec::with_threads` は「明示数 ≠ default」のとき**毎回新規 rayon プールを
+  build + destroy** していた → exec ごとに OS スレッド 1 本を spawn/teardown
+  （スレッド 1 本あたり ~35 B のランタイム/サニタイザ メタデータがプロセス生存中
+  累積 — live heap に現れないため前回「アロケータのページ保持」と誤診された）。
+  ハーネスのコメント「threads pinned to 1 (no pool churn)」は**意図と実装が逆**だった。
+- **傍証**: `codec_decompress` は `threads: 0`（グローバルプール = 生成 1 回）で
+  両 run とも 3 h 緑。5 ターゲット中で per‑exec スレッド churn があったのは
+  blob_decompress のみ。
+- **修正（コミット de1a153）**: 明示スレッド数ごとのプールを `CUSTOM_POOLS`
+  （LazyLock<Mutex<HashMap<usize, Arc<ThreadPool>>>>）にキャッシュ。上限ガード
+  （>64 は build せず global pool フォールバック — 出力バイトはスレッド数非依存、
+  `threads_param_does_not_change_output` が固定）でスレッド爆発も防止。
+  回帰テスト `explicit_thread_counts_reuse_cached_pools`（Arc::ptr_eq + ワーカー
+  スレッド ID 再利用 + ガード）。
+- **ローカル A/B 実証**（dev+ASan、同一コーパス、各 300 s、この 2 vCPU/1 GiB 機）:
+  現行 = RSS 71→94 MB（+23 MB / 222 k exec、cov 飽和後の定常窓 **~44 B/exec**）→
+  修正後 = 82→88 MB（+6 MB / 247 k exec、定常窓 **~9 B/exec**）。CI release 外挿
+  ~8 B/exec × ~110 M exec ≈ **0.9 GB << rss_limit 4,096 MB**。
+- **再ディスパッチ**: run **36148521214**（head **de1a153**、hours=3、14:35 UTC）。
+  **この run の全 5 ターゲット SUCCESS 確認で Plan §6.2 Phase 1 完了条件と §9 を [x] 化**。
+- 修正コミット前の全ゲート再検証: cargo fmt / clippy `-D warnings` / test 101+5 ✓、
+  pytest **44/44** ✓（新ビルド .so 1,030,544 B に対して）、ruff / mypy 14 files ✓、
+  **L2 quick GATE PASS**（1,121/1,121 byte‑identical・付録 C クラス 63 安全処理）、
+  **L5 公式 zipnn 0.5.4 GATE PASS**（A/B/C 全方向）、prettier ✓。
+- 教訓: 「rss_limit OOM = アロケータのページ保持」と決めつけず、**スレッド churn も
+  RSS 累積源**になる（ASan は生成スレッドごとのメタデータを保持する）。live heap が
+  小さいのに RSS が線形増加する場合、確保源はヒープ外（スレッド/シャドウ/mmap）を疑う。
+
+### Phase 3 実装セッション（同日続 — デルタ + バッチプリミティブ）
+
+**成果物**（コミットは run 3 確認と併せて記録）:
+
+- `znn-codec::delta`（新モジュール）: 両側 mmap → ヘッダー等長化パディング
+  （legacy `_delta_aligned_bytes` の zero-copy 版 = 仮想 Rendering 4 領域）→
+  1 MiB ストリーミング XOR → **公式 streaming コンテナ連鎖**を AtomicWriter
+  で逐次書込み。ftSha256 は圧縮と並行スレッド（§4.4.3‑1 パターン）、
+  サイドカーはエンジンが delta 本体の commit 直後に原子コミット
+  （失敗 = ジョブ失敗 → Python は ft を消さない = データ喪失なし。
+  ルート側は「committed‑but‑sidecar‑less のみ dst 削除」で
+  "失敗時は成果物を残さない" 不変条件を回復 — Phase 2 の
+  並行ジョブ tmp 保護の教訓も継承: native 失敗時に Python は
+  `.tmp` を一切触らない）。
+- 復元: streaming 連鎖 + legacy 単一コンテナの双方を受理。期待総長は
+  base rendering から**厳密に既知**なので、敵対的 original_len は
+  resize 前に legacy 文言（"Length of delta file has to match…"）で Err
+  （割り当て爆弾防止）。unpad はストリーミング状態機
+  （prefix 書換 → header → pad skip → data）。検証は inline sha
+  （AtomicWriter ハッシャ）→ 不一致は `.corrupt` 退避 + デルタ保持。
+  paranoid は tmp の再デコード → sha 比較 → rename 前（Phase 2 同型、
+  内部 Hooks は progress=None）。
+- **一次ソース発見（相互運用）**: 公式デルタ文件的 method バイトは 0–4
+  いずれでもあり得る — zipnn.py API 既定 AUTO(=0)（実機ヘッダーダンプで
+  確認: byte7=0）、公式 CLI `zipnn_compress_file_delta.py` は既定 HUFFMAN
+  だが `--method AUTO/ZSTD/...` 受理、float32 byte コンテナでは
+  `compress_bin` が method によらず**常に zipnn_core（Huffman）**を通り、
+  公式解凍 `decompress_bin` は byte7 を**読まない**（zstd 分岐は
+  `dtype_size = 0 # Need to implement` のデッドコード）。→ デルタ復号のみ
+  `ZnHeader::decode_delta/parse_delta`（method ゲートなし）で R12
+  「公式出力 100 % 受理」を満たす。**テンソル経路は Phase 2 の厳格ゲートを
+  維持**（Plan B.1 — Neo/公式 safetensors スクリプトは常に HUFFMAN=1）。
+  L5‑D2 が AUTO(0) 単一コンテナと HUFFMAN(1) streaming の両公式表記を
+  カバー。
+- `znn-codec::batch`（新モジュール）: `walk_models`（ignore crate 並列、
+  os.walk 意味論の忠実移植: 隠しファイル包含・symlink‑dir 非追跡/非ファイル
+  扱い・不能読ディレクトリ静黙スキップ・lossy UTF‑8 名・sorted 安定順。
+  3 モード = Python 3 walker の写像で**ゴールデン parity テスト**）と
+  `move_with_sidecars`（20 スロット × 8 拡張 プレビュー + .md/.txt
+  （拡張子小文字照合・大文字保持）+ 「dst 存在時は上書きしない」規則の
+  移植 — `_delta_sidecar_move` との parity テスト）。定数は全て Python 側
+  から opts で受領（単一の真実 = py/utils）。
+- `mm-core`（api_version **3**）: `zipnn_delta_compress/decompress`
+  （ジョブ化、meta は Python がサイドカーを読んで dict で渡す — 欠損時は
+  空 dict = legacy 同一の劣化）、`walk_models`（JSON 配列）/
+  `move_with_sidecars`（同期）。py/native.py の exact レンジ [3,3]、
+  native.yml abi3 assert・Phase 2 テストの assert も同期。
+- `py/compress.py`: デルタルート（worker/worker_body 化 + `_poll_native_job`
+  抽出 = Phase 2 と共通ポーリング、phase map は delta 語彙）とバッチルート
+  （native 時は ensure_zipnn を**呼ばない** = torch import 回避、
+  `_run_native_job_sync` で executor 内ブロックポーリング、per‑file handle
+  登録でバッチもキャンセル可、walk/sidecar move を Rust プリミティブへ）。
+  バンドル意味論関数は全て Python のまま（Plan 規定）。
+- **計測（K4/K5、docs/BENCH.md §8）**: `bench_native_delta.py` 新設
+  （§7 と同一プロトコル）。限界 RSS: native +66.8/+54.2 MiB
+  （2.09×/1.69× — 内訳は mmap clean ページ主体、匿名は O(1MiB)）vs
+  legacy +173.6/+183.1（5.43×/5.72× 匿名コピー）→ 12GB 換算 <1GB 構造達成。
+  K5: SEGFAULT クラス k∈{1,2,3} 全て生存 + byte‑exact（Phase 0 の同
+  フィクスチャで legacy は signal 11 死亡と実証済み）。壁時間: native 圧縮
+  0.304s（sha インライン込み）≈ legacy 0.295s（検証なし）、解凍 +0.09s 差
+  = sha2‑soft 律速（§7.1 同型）。
+- テスト: L1 132（delta 20 + batch 11 + プール回帰 1）、pytest **59**
+  （Phase 3 +15: 両経路ゴールデン・クロスパス双方向・SEGFAULT クラス
+  ルート・文言ゴールデン 3 種・.corrupt/paranoid/cancel・バッチ往復 +
+  デルタ入り + 両エンジン parity・プリミティブ parity）、L5 GATE PASS
+  （D1/D2‑single/D2‑stream）、L2 quick 再 PASS（1,121/1,121）、L3 新
+  ターゲット `delta_decompress`（シード 7 件 = 実成果物系 + 敵対的系、
+  スモーク 122,186 execs クラッシュ 0）、fuzz‑smoke/fuzz‑long 6 ターゲット化。
+- バイナリ 2,376,240 B（ignore/serde_json/delta 増、予算 57 %）。
+
+**運営メモ**: run 3（36148521214、de1a153 = プールキャッシュ修正）の
+全 5 ターゲット緑確認で Phase 1 を [x] 化。Phase 3 push 後に
+**run 4**（delta_decompress 込み 6 ターゲット）をディスパッチして
+新サーフェスの 3h バジェットも消化する（週次スケジュールも 6 ターゲット）。
+
+### run 36148521214 完走 — Phase 1 完了条件消化（2026‑09‑25 17:36 UTC）
+
+- **全 6 ジョブ SUCCESS**: l2‑full + 5 fuzz ターゲット × 3 h（GitHub API で
+  確認）。blob_decompress の最終ログ: **189,822,394 execs / 10,801 s 完走、
+  最終 peak RSS 164 MB（limit 4096 MB の 1/25）、クラッシュ 0、
+  exec/s 17,574（run 2 = 10,777 比 +63 %）**。プール churn は RSS 保持源
+  であると同時にスループット税でもあった（exec ごとのスレッド spawn/join
+  が消えた分がそのまま速度に返ってきた）。
+- 実測保持率は ~0.6 B/exec（54→164 MB の大半はコーパス 266 KB + 探索状態）
+  — ローカル A/B からの外挿（~8 B/exec → ~0.9 GB）すら保守的だった。
+- Plan §6.2 Phase 1 完了条件と §9 を **[x] 化**（誤診だった「アロケータの
+  ページ保持」の記録も真因に訂正済み）。
+- **run 4 = 36162273129**（head 3bcb52b = Phase 3 ツリー、6 ターゲット × 3 h、
+  run 3 終了を受けて自動開始）を新サーフェス（delta_decompress）の 3 h
+  バジェット消化としてディスパッチ済み。完了確認は次セッション or
+  週次スケジュール（日曜 18:00 UTC、6 ターゲット化済み）が担保する。
+- Phase 2 精査バッテリーのデルタ版をこの環境で再実施（/tmp/audit3、
+  **ALL CLEAN**）: P = EFBIG 注入でジョブ failed・残骸ゼロ・原本無傷、
+  Q = SIGKILL（書込み中 → 掃運可能 tmp のみ / commit 後 → 成果物完全 +
+  解凍検証 byte‑exact、どの窓でも torn file なし）、O = 二重サブミットで
+  第 2 ジョブが create_new ガードに拒否され第 1 の成果物は検証可能。

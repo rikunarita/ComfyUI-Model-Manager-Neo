@@ -33,12 +33,15 @@ from . import config, utils
 #
 # * 1 — Phase 0: version handshake only,
 # * 2 — Phase 2: the ZipNN safetensors job API (zipnn_compress/decompress +
-#   job_progress/cancel/result/error) that py/compress.py calls directly.
-# The range is EXACT (min == max): a v1 binary would pass a `>=1` handshake
+#   job_progress/cancel/result/error) that py/compress.py calls directly,
+# * 3 — Phase 3: the delta jobs (zipnn_delta_compress/decompress) and the
+#   batch primitives (walk_models/move_with_sidecars) that the delta and
+#   batch-folder routes call directly.
+# The range is EXACT (min == max): an older binary would pass a `>=` handshake
 # and then fail with an AttributeError deep inside a compression task — an
 # incompatible binary must be rejected at load time with a clear reason().
-MIN_API_VERSION = 2
-MAX_API_VERSION = 2
+MIN_API_VERSION = 3
+MAX_API_VERSION = 3
 
 _NATIVE_DIR = "native"
 _NATIVE_BIN_DIR = "native-bin"

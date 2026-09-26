@@ -384,11 +384,15 @@ Rust パイプライン（`mm_core` ジョブ = 生産経路そのもの）と�
 
 | 指標                      | native（Rust）                               | legacy（torch+C）                          | 比                 |
 | ------------------------- | -------------------------------------------- | ------------------------------------------ | ------------------ |
-| 圧縮 e2e                  | **107.8 MB/s**（best 0.594 s）               | 236.9 MB/s（best 0.270 s）                 | K2 ×0.46           |
-| 解凍 e2e                  | **72.6 MB/s**（best 0.590 s）                | 303.9 MB/s（best 0.139 s）                 | K3 ×0.24           |
-| 圧縮ピーク RSS            | **119 MiB**（基底 44 → 限界 **+75 = 1.2×**） | 407 MiB（基底 241 → 限界 +166 = **2.6×**） | **K1 限界比 ÷2.2** |
+| 圧縮 e2e                  | **111.0 MB/s**（best 0.577 s）               | 247.8 MB/s（best 0.258 s）                 | K2 ×0.45           |
+| 解凍 e2e                  | **77.2 MB/s**（best 0.549 s）                | 311.2 MB/s（best 0.136 s）                 | K3 ×0.25           |
+| 圧縮ピーク RSS            | **121 MiB**（基底 44 → 限界 **+77 = 1.2×**） | 427 MiB（基底 241 → 限界 +186 = **2.9×**） | **K1 限界比 ÷2.4** |
 | 解凍ピーク RSS            | **96 MiB**（限界 +52 = 0.8×）                | 351 MiB（限界 +110 = 1.7×）                | ÷2.1               |
 | 復元 byte‑exact（sha256） | **True 3/3 ラウンド**（検証既定 ON で達成）  | True（検証なしの偶然一致 — 順序依存）      | **K6 ✓**           |
+
+（数値は 2026‑09‑25 の監査後最終バイナリによる再実行分 —
+`scripts/bench/results/native_e2e.json` と一致。初回実行 2026‑09‑24 との差は
+計測ノイズの範囲: K2 ×0.46→×0.45、K3 ×0.24→×0.25。）
 
 **K2/K3 がこのマシンで目標未達の理由（内訳を実測で特定 — 推測ではない）**:
 
@@ -397,7 +401,7 @@ Rust パイプライン（`mm_core` ジョブ = 生産経路そのもの）と�
    （一次ソース: sha2 0.11 README「Backends」— `x86-avx2` は SHA‑512 専用、
    SHA‑256 は `x86-sha`(SHA‑NI) か `soft` のみ）→ 実測 **~156 MB/s**。
    分離計測: 検証 OFF の解凍 = **352 MB/s**（0.182 s）に対し検証 ON =
-   72.6 MB/s（0.590 s）— **壁時間の ~85 % が K6 検証ハッシュ**。圧縮側は
+   77.2 MB/s（0.549 s）— **壁時間の ~85 % が K6 検証ハッシュ**。圧縮側は
    sha を専用スレッドで並行化済みだが、2 vCPU に空きコアがなく壁 ≈ sha 律速。
 2. 比較対象の legacy には検証も fsync も**存在しない**（K6=「なし」が
    Phase 0 の記録通り）。機能差込みの比較である点を明記する。
@@ -483,7 +487,79 @@ revert 済み — 8C+ では状況が異なる）。
    なる 200 % 表示バグを実測で発見 → 内部 Hooks は progress=None、
    cancel のみ共有）。
 
-## 8. 再現手順
+## 8. Phase 3 — デルタ圧縮 + バッチプリミティブ実装結果（2026‑09‑25、同一セッション比較）
+
+native デルタ（`mm_core` ジョブ = 生産経路そのもの: 両側 mmap → 1 MiB
+ストリーミング XOR → 公式 streaming コンテナ連鎖）と legacy デルタ
+（`py/compress.py` の `f.read()`×2 + ヘッダーパディングコピー + numpy XOR +
+vendored C）を、同一マシン・同一セッション・**Phase 0 K4 ベースラインと
+同一フィクスチャ**（`gen_pair` 32 MB f32 ペア、~6 % ドリフト）で交互 3
+ラウンド計測した記録（方法論は §7 と同じ: サブプロセス隔離の VmHWM +
+側別ベスト窓 + steal tick 記録。実行器: `scripts/bench/bench_native_delta.py`、
+証跡: `scripts/bench/results/native_delta.json`）。
+
+### 8.1 K4 — ピークメモリ（限界倍率 = (peak − 基底) / ft サイズ）
+
+| 指標                      | native（Rust ストリーミング）              | legacy（torch+C）                           | 比                  |
+| ------------------------- | ------------------------------------------ | ------------------------------------------- | ------------------- |
+| 圧縮限界 RSS              | **+66.8 MiB = 2.09×**                      | +173.6 MiB = **5.43×**（Phase 0 記録 5.4×） | **÷2.6**            |
+| 解凍限界 RSS              | **+54.2 MiB = 1.69×**                      | +183.1 MiB = 5.72×（Phase 0 記録 5.7×）     | ÷3.4                |
+| 壁時間（圧縮）            | 0.304 s（**ftSha256 インライン算出込み**） | 0.295 s（検証なし）                         | 同等（機能差込み）  |
+| 壁時間（解凍）            | 0.285 s（**インライン sha 検証込み**）     | 0.197 s（検証なし）                         | +0.09 s = sha 律速  |
+| 復元 byte‑exact（sha256） | **True 3/3 ラウンド（verified=sha256）**   | True（検証なしの偶然一致）                  | **K6 のデルタ側 ✓** |
+
+**限界値の内訳（正直な記録）**: native の限界 +66.8 MiB のほぼ全ては
+**mmap の clean ファイルページ**（base 32 MB + ft 32 MB = 64 MB — 回収可能
+ページであり、メモリ圧迫下ではカーネルが.evict する）。匿名ワーキング
+セットは O(1 MiB ストリーミングチャンク + codec スクラッチ) ≈ 数 MB で
+**ファイルサイズに依存しない**（裏付け: 8.2 の 0.5 MiB 級ペアでは限界
++3–4 MiB、32 MB ペアで +67 MiB ≈ 両ファイルの合計に比例 = ページキャッシュ
+由来の証左）。legacy の 5.4× は**匿名コピー**（両ファイル全文 + パディング
+コピー + numpy XOR 出力 + C 平面バッファ — 回収不能）である。よって
+12 GB ペア換算: legacy ≈ 65 GB 級（実機 OOM/スワップ）に対し native は
+匿名 < 10 MB + 回収可能ページのみ → **K4「< 1 GB」達成（構造 + 実測）**
+— §7.1 K1 と同じ「サイズ非依存設計」の論証。
+
+壁時間の注記: native 圧縮は検証なし legacy と同タイムで、ftSha256 の
+インライン算出（この SHA‑NI なし機では ~156 MB/s = 32 MB で ~0.2 s、
+§7.1）を**追加機能として**含む。解凍差 +0.09 s も同じ sha 律速で、
+SHA‑NI + NVMe の参照機ではデコード/XOR の裏に隠れる（§7.1 K3 と同型の
+外挿。K2/K3 と違いデルタには Phase 0 側の「≥1.5×/≥2×」目標が無い —
+デルタの KPI は K4/K5 のみ）。
+
+### 8.2 K5 — 付録 C SEGFAULT クラス（total % 256 KiB ∈ {1,2,3}）の解消実証
+
+Phase 0 §4.3 が **legacy 生産デルタ経路（`delta_compress_files`）で
+signal 11 のプロセス死亡**を実証したのと同じ手組みペア
+（`bench_delta._handbuilt_pair`、ft ヘッダー長を解析的に調整し
+パディング後総長を制御）を native 生産経路に投入した結果:
+
+| ケース（total % 256 KiB） | legacy（Phase 0 記録）        | native（本 Phase、実測）                       |
+| ------------------------- | ----------------------------- | ---------------------------------------------- |
+| 1                         | **SIGSEGV（プロセス死亡）**   | **正常完了 + 復元 byte‑exact**（圧縮 0.010 s） |
+| 2                         | 同クラス（C 生コア 8/8 再現） | 正常完了 + byte‑exact                          |
+| 3                         | 同上                          | 正常完了 + byte‑exact                          |
+
+固定化は三層: Rust e2e（`delta::tests::segfault_class_totals_roundtrip` —
+1 MiB ストリーミング境界跨ぎの 3 MiB+2 ケースを含む）、生産ルート
+（`tests/test_phase3_delta.py::test_delta_segfault_class_totals_roundtrip_native`
+— ws 契約ごと検証）、ベンチ証跡（`native_delta.json` の `segfaultClass`、
+`k5AllSurvivedByteExact: true`）。C の最終チャンク 1–3 B は 4 平面分割で
+NULL プレーン書込み（付録 C.4）だが、Rust は bounds‑checked 端数処理で
+「正常動作」を返す（L2 495/495 の系譜 — デルタ端到端で再証明）。
+
+### 8.3 正確性ゲートの証跡（Phase 3 完了判定分）
+
+| ゲート                   | 結果                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L1                       | znn‑codec **132 テスト緑**（delta 20 + batch 11 + プールキャッシュ回帰 1 を追加。往復 byte‑exact・パディング両方向・公式 streaming 連鎖構造・legacy 単一コンテナ復元・文言互換 3 種・ftSha256/.corrupt・paranoid・キャンセル・敵対的入力）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| L4                       | pytest **59 テスト緑**（Phase 3 +15: デルタルート ゴールデン両経路（ws 契約 = prepare/delta/done・kind=delta・stats キー）、クロスパス双方向（native 圧縮→legacy 解凍 / legacy 圧縮→native 解凍、byte‑exact）、SEGFAULT クラスのルート経由往復、エラー文言ゴールデン、`.corrupt` 退避 + デルタ保持、paranoid、キャンセル、フォルダバッチ往復 + デルタ入りバッチ + **両エンジン同一ツリー parity**、walk/move プリミティブの Python 版とのゴールデン parity）                                                                                                                                                                                                                                                                                                                                              |
+| L5                       | `scripts/l5/official_cross.py` **GATE PASS + セクション D 新設**: D1 Neo streaming デルタ → **公式 zipnn 0.5.4 解凍 byte‑exact**（公式 streaming 経路が Neo 連鎖を 100 % 受理）/ D2 公式デルタ（単一コンテナ **method=AUTO(0)** ・ streaming **method=HUFFMAN(1)** の両表記）→ Neo 解凍 byte‑exact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| L3                       | ファズターゲット **6 種**へ拡張（新: `delta_decompress` — 敵対的連鎖・敵対的サイドカー pad・敵対的 base。シード 7 件コミット: 実 streaming/legacy 成果物・パディング・切詰め連鎖・ underflow pad・ゴミ）。ローカルスモーク **122,186 execs / 240 s クラッシュ 0**（dev+ASan）。CI: fuzz‑smoke / fuzz‑long とも 6 ターゲット化                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 相互運用の一次ソース発見 | **公式デルタ文件的 method バイトは 0–4 のいずれでもあり得る**: `zipnn.py` API 既定は `AUTO`（→ byte 7 = 0、実機ダンプで確認）、公式 CLI `zipnn_compress_file_delta.py` は既定 `HUFFMAN` だが `--method AUTO/ZSTD/...` を受理、しかも float32 byte コンテナでは method 値に**よらず常に Huffman ペイロード**（`compress_bin` の分岐）、公式解凍側は byte 7 を**一切読まない**（`decompress_bin` の zstd 分岐は `dtype_size = 0` ハードコードのデッドコード）— 2026‑09‑25 に upstream main のスクリプト取得 + pip 0.5.4 実機で確認。→ デルタ復号は `ZnHeader::decode_delta`（method ゲートなし、ペイロードは構造検証が担保）で公式出力を 100 % 受理（Plan §7 R12）。**テンソル経路は Phase 2 の厳格ゲート（method=1 のみ）を維持**（Plan 付録 B.1 — Neo/公式スクリプトの safetensors 成果物は常に HUFFMAN） |
+| バッチ                   | `walk_models`（ignore crate 並列 walk — os.walk 意味論の忠実移植: 隠しファイル包含・symlink dir 非追跡・不能読ディレクトリ静黙スキップ・sorted 安定順）と `move_with_sidecars`（20 スロット プレビュー + .md/.txt 規則）は Python 現行関数との**ゴールデン parity テスト**付き。バンドル意味論は Python 維持（Plan Phase 3 タスク規定）。バイナリサイズ 1,026,536 → **2,376,240 B**（ignore/serde_json/delta 追加分 — 予算 4 MB の 57 %、CI サイズゲート緑）                                                                                                                                                                                                                                                                                                                                              |
+
+## 9. 再現手順
 
 ```bash
 pip install numpy safetensors torch blake3
@@ -495,14 +571,18 @@ FIXTURES=/tmp/mm-bench REAL_MODEL=/path/model.safetensors ./scripts/bench/run_al
 
 `scripts/bench/results/` の JSON は本実行（2026‑09‑23、上記環境）の証跡としてコミットする。
 
-Phase 2 の native e2e 比較（§7）は同一フィクスチャで次を実行する
-（native バイナリのビルド済みが必要 — `scripts/build-native.sh`）:
+Phase 2 の native e2e 比較（§7）と Phase 3 の native デルタ比較（§8）は
+同一フィクスチャで次を実行する（native バイナリのビルド済みが必要 —
+`scripts/build-native.sh`）:
 
 ```bash
 FIXTURES=/tmp/mm-bench python3 scripts/bench/bench_native_e2e.py \
   --size-mb 64 --rounds 3 [--model /path/real.safetensors] \
   --json-out scripts/bench/results/native_e2e.json
-# L5 相互運用ゲート（公式 zipnn とのクロス検証）:
+FIXTURES=/tmp/mm-bench python3 scripts/bench/bench_native_delta.py \
+  --pair-mb 32 --rounds 3 \
+  --json-out scripts/bench/results/native_delta.json
+# L5 相互運用ゲート（公式 zipnn とのクロス検証 — テンソル A/B/C + デルタ D）:
 pip install zipnn==0.5.4 torch safetensors
 python3 scripts/l5/official_cross.py
 ```

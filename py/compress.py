@@ -123,8 +123,21 @@ _WS_PHASE_FOR_NATIVE = {
     "tensors": "tensors",
     "write": "tensors",
     "verify": "tensors",
+    "delta": "delta",
     "done": "done",
     "failed": "tensors",
+}
+
+# Delta routes report their whole in-flight vocabulary as the legacy
+# "delta" phase (the legacy delta worker only ever sent prepare/delta/done).
+_WS_PHASE_FOR_DELTA = {
+    "prepare": "delta",
+    "tensors": "delta",
+    "write": "delta",
+    "verify": "delta",
+    "delta": "delta",
+    "done": "done",
+    "failed": "delta",
 }
 
 # 10 Hz polling (Plan §4.3: "AtomicU64 を Python 側 10 Hz ポーリング").
@@ -166,12 +179,18 @@ def paranoid_enabled(request=None) -> bool:
 
 
 def _cleanup_targets(dst: str) -> None:
-    """Remove every partial-output name a failed native/legacy run can leave.
+    """Remove every PARTIAL-output name a failed run can leave.
 
-    NEVER touches `.corrupt` files — those are deliberate diagnostics of a
-    failed verification (Plan §4.4.3) whose compressed source was kept.
+    Deliberately does NOT delete ``dst`` itself: both pipelines create the
+    destination only through a final atomic rename (native: commit after
+    verification; legacy: ``os.replace`` after ``save_file``), so on any
+    failure path ``dst`` either never existed — or was created by somebody
+    else between the route's existence check and the failure (a rare but
+    real data-loss race the earlier dst-deleting cleanup had).
+    NEVER touches `.corrupt` files either — those are deliberate diagnostics
+    of a failed verification (Plan §4.4.3) whose compressed source was kept.
     """
-    for candidate in (dst, f"{dst}.tmp", f"{dst}.verify.tmp", f"{dst}.tmp.fix"):
+    for candidate in (f"{dst}.tmp", f"{dst}.verify.tmp", f"{dst}.tmp.fix"):
         try:
             if os.path.exists(candidate):
                 os.remove(candidate)
@@ -188,6 +207,31 @@ def _cleanup_targets(dst: str) -> None:
 # partial in a model folder is dead by definition — while a foreign tool's
 # in-flight `*.safetensors.tmp` download (they exist) is never touched.
 _STRAY_TMP_MIN_AGE_S = 900.0
+
+
+def _cleanup_delta_failure(dst: str, mode: str, native: bool) -> None:
+    """Delta-route failure cleanup.
+
+    Partials: legacy writes `<dst>.tmp` itself, so the legacy path sweeps
+    it (``_cleanup_targets``); the NATIVE path must NOT (the Rust Drop
+    guard owns its partials and a blind sweep could destroy a concurrent
+    job's tmp — the Phase-2 lesson).
+
+    Committed-delta exception (compress only): when the job died AFTER the
+    delta file was renamed into place but BEFORE its sidecar landed (an
+    ENOSPC on the tiny JSON), the artifact would be unrestorable whenever
+    padding was involved — remove it to keep the "a failed run leaves no
+    artifact" invariant. ``dst`` can only be ours here: the route checked
+    its absence when the task was created, and delta names live inside the
+    base model's own ``*_DeltaZNN`` folder.
+    """
+    if not native:
+        _cleanup_targets(dst)
+    if mode == "compress" and os.path.exists(dst) and not os.path.exists(_delta_meta_path(dst)):
+        try:
+            os.remove(dst)
+        except OSError:
+            pass
 
 
 def _is_stray_tmp_name(name: str) -> bool:
@@ -1147,7 +1191,93 @@ def _prune_empty_dirs(folder: str, remove_root: bool) -> None:
             pass
 
 
-def batch_process_folder(folder: str, mode: str, is_type_root: bool, progress: ProgressCb) -> dict[str, Any]:
+def _run_native_job_sync(mm: Any, task_id: str | None, submit: Callable[..., Any], label: str) -> dict[str, Any]:
+    """Submit one native job and block-poll it (batch/executor side).
+
+    The batch flow runs inside ``cpu_executor`` (a sync context), so it
+    polls the same 10 Hz contract the async routes use (``time.sleep``
+    releases the GIL — the ComfyUI loop keeps breathing). Registering the
+    handle in ``ZIPNN_TASKS`` makes the running file cancellable through
+    ``POST /model-manager/zipnn/cancel`` (a cancelled job fails with
+    "cancelled by user" like any other failure, failing the batch).
+
+    Returns the job's stats dict; raises RuntimeError with the job error.
+    """
+    handle = submit()
+    if task_id is not None and task_id in ZIPNN_TASKS:
+        ZIPNN_TASKS[task_id]["handle"] = handle
+    try:
+        while True:
+            time.sleep(_NATIVE_POLL_INTERVAL)
+            _done, _total, phase = mm.job_progress(handle)
+            if phase == "failed":
+                err = None
+                try:
+                    err = mm.job_error(handle)
+                except Exception:
+                    err = None
+                raise RuntimeError(err or "native job failed")
+            if phase == "done":
+                break
+        result = json.loads(mm.job_result(handle))
+    finally:
+        if task_id is not None and task_id in ZIPNN_TASKS:
+            ZIPNN_TASKS[task_id].pop("handle", None)
+    for warning in result.get("warnings") or []:
+        utils.print_warning(f"zipnn[{label}]: {warning}")
+    stats = result.get("stats")
+    if not isinstance(stats, dict):
+        raise RuntimeError("native job returned no stats")
+    return stats
+
+
+def _walk_files(folder: str, mode: str, mm: Any) -> list[str]:
+    """The batch file set for `mode`, in the stable legacy order.
+
+    Native path: the Rust parallel walk (``mm.walk_models`` — Plan §6.2
+    Phase 3 batch primitive). Legacy path: the Python ``os.walk`` walkers.
+    Both return sorted absolute paths; the bundle-semantics constants come
+    from ``py/utils`` so the Python side stays the single source of truth.
+    """
+    if mm is not None:
+        import folder_paths
+
+        opts: dict[str, Any] = {
+            "mode": mode,
+            "bundleSuffixes": [utils.DELTA_FOLDER_SUFFIX, utils.ZNN_FOLDER_SUFFIX],
+            "deltaFolderSuffix": utils.DELTA_FOLDER_SUFFIX,
+        }
+        if mode == "compress":
+            opts["skipBundles"] = True
+        elif mode == "blockers":
+            opts["extensions"] = sorted(folder_paths.supported_pt_extensions)
+        return [str(p) for p in json.loads(mm.walk_models(folder, opts))]
+    if mode == "compress":
+        return _walk_model_files(folder, "compress", skip_bundles=True)
+    if mode == "decompress":
+        return _walk_decompress_files(folder)
+    return _batch_invariants_blockers(folder)
+
+
+def _move_sidecars(mm: Any, src: str, dst: str) -> None:
+    """Sidecar move through the native primitive when available (the Rust
+    port is golden-tested against ``_delta_sidecar_move``), else the Python
+    mover."""
+    if mm is not None:
+        mm.move_with_sidecars(src, dst)
+    else:
+        _delta_sidecar_move(src, dst)
+
+
+def batch_process_folder(
+    folder: str,
+    mode: str,
+    is_type_root: bool,
+    progress: ProgressCb,
+    mm: Any = None,
+    task_id: str | None = None,
+    paranoid: bool = False,
+) -> dict[str, Any]:
     """Batch-compress / batch-decompress every eligible file under `folder`.
 
     compress: every plain `.safetensors` becomes `.znn.safetensors` and MOVES
@@ -1170,19 +1300,28 @@ def batch_process_folder(folder: str, mode: str, is_type_root: bool, progress: P
         bundle = _bundle_dst_root(folder, is_type_root)
         if os.path.exists(bundle):
             raise RuntimeError(f"target already exists: {os.path.basename(bundle)}")
-        files = _walk_model_files(folder, "compress", skip_bundles=True)
+        files = _walk_files(folder, "compress", mm)
         total = max(1, len(files))
         for index, path in enumerate(files):
             target = _compress_target(path, folder, bundle)
             os.makedirs(os.path.dirname(target), exist_ok=True)
-            compress_safetensors(path, target, lambda *_args: None)
-            _delta_sidecar_move(path, target)
+            if mm is not None:
+                opts = {"threads": 0, "paranoid": bool(paranoid)}
+                _run_native_job_sync(
+                    mm,
+                    task_id,
+                    lambda p=path, t=target, o=opts: mm.zipnn_compress(p, t, o),
+                    f"batch-compress {os.path.basename(path)}",
+                )
+            else:
+                compress_safetensors(path, target, lambda *_args: None)
+            _move_sidecars(mm, path, target)
             os.remove(path)
             progress(index + 1, total, "files")
         _prune_empty_dirs(folder, remove_root=not is_type_root)
         return {"files": len(files), "folder": bundle}
 
-    files = _walk_decompress_files(folder)
+    files = _walk_files(folder, "decompress", mm)
     total = max(1, len(files))
     restored = 0
     skipped = 0
@@ -1191,8 +1330,16 @@ def batch_process_folder(folder: str, mode: str, is_type_root: bool, progress: P
         if name.endswith(ZNN_SUFFIX):
             target = _decompress_target(path, folder, _plain_name(name), False)
             os.makedirs(os.path.dirname(target), exist_ok=True)
-            decompress_safetensors(path, target, lambda *_args: None)
-            _delta_sidecar_move(path, target)
+            if mm is not None:
+                _run_native_job_sync(
+                    mm,
+                    task_id,
+                    lambda p=path, t=target: mm.zipnn_decompress(p, t, {"threads": 0}),
+                    f"batch-decompress {name}",
+                )
+            else:
+                decompress_safetensors(path, target, lambda *_args: None)
+            _move_sidecars(mm, path, target)
             os.remove(path)
             restored += 1
         else:
@@ -1213,8 +1360,17 @@ def batch_process_folder(folder: str, mode: str, is_type_root: bool, progress: P
                 raise RuntimeError(f"base model not found for {name}: {base_base}")
             target = _decompress_target(path, folder, f"{ft_base}{SAFE_SUFFIX}", True)
             os.makedirs(os.path.dirname(target), exist_ok=True)
-            delta_decompress_file(base_path, path, target, lambda *_args: None)
-            _delta_sidecar_move(path, target)
+            if mm is not None:
+                meta = _read_delta_meta(path)
+                _run_native_job_sync(
+                    mm,
+                    task_id,
+                    lambda b=base_path, p=path, t=target, m=meta: mm.zipnn_delta_decompress(b, p, t, m, {"threads": 0}),
+                    f"batch-delta {name}",
+                )
+            else:
+                delta_decompress_file(base_path, path, target, lambda *_args: None)
+            _move_sidecars(mm, path, target)
             os.remove(path)
             sidecar = _delta_meta_path(path)
             if os.path.exists(sidecar):
@@ -1287,6 +1443,21 @@ def _delta_unpad(restored: bytes, pad: int) -> bytes:
 
 def _delta_meta_path(delta_path: str) -> str:
     return f"{delta_path}.neo-delta.json"
+
+
+def _read_delta_meta(delta_path: str) -> dict[str, Any]:
+    """The parsed ``.neo-delta.json`` sidecar ({} when missing/corrupt).
+
+    Same degradation as the legacy ``delta_decompress_file`` reader — the
+    length checks of the delta codec then fail with the legacy wording
+    unless the pads genuinely were zero.
+    """
+    try:
+        with open(_delta_meta_path(delta_path), encoding="utf-8") as f:
+            meta = json.load(f)
+        return meta if isinstance(meta, dict) else {}
+    except Exception:
+        return {}
 
 
 def _delta_sidecar_move(src_model: str, dst_model: str) -> None:
@@ -1391,7 +1562,34 @@ class ZipNNRoutes:
     def add_routes(self, routes):
         @routes.get("/model-manager/zipnn/available")
         async def zipnn_status(request):
-            return web.json_response({"success": True, "data": {"available": zipnn_available()}})
+            # Phase 2: capability = native core OR the legacy vendored path.
+            # The native probe is cheap and cached; when it answers, the
+            # legacy probe (which imports torch on first call) is skipped —
+            # that also keeps this diagnostic route from ever blocking the
+            # event loop on the native path. `engine`/`reason` are additive
+            # diagnostics; `available` keeps its legacy meaning for any
+            # external caller.
+            engine = None
+            reason = None
+            try:
+                if native_core() is not None:
+                    engine = "native"
+                else:
+                    reason = native.reason()
+                    if zipnn_available():
+                        engine = "legacy"
+            except Exception as e:  # diagnostics must never explode
+                reason = str(e)
+            return web.json_response(
+                {
+                    "success": True,
+                    "data": {
+                        "available": engine is not None,
+                        "engine": engine,
+                        "reason": reason,
+                    },
+                }
+            )
 
         @routes.post("/model-manager/zipnn/compress")
         async def zipnn_compress(request):
@@ -1449,12 +1647,17 @@ class ZipNNRoutes:
     async def _run_native_job(self, mm, task_id: str, mode: str, src: str, dst: str, paranoid: bool):
         """Drive one compress/decompress job on the Rust core (Phase 2 path).
 
-        Submits the job, polls its atomic progress at 10 Hz and re-emits the
-        legacy ws contract (`update_zipnn_progress` with the same payload
-        shape; phases mapped through `_WS_PHASE_FOR_NATIVE`). Returns the
-        stats dict on success, or None after reporting the failure through
-        `_fail` (partial outputs are cleaned up; `.corrupt` diagnostics of a
-        failed verification are deliberately kept).
+        Submits the job, then hands over to [`_poll_native_job`]. Returns
+        the stats dict on success, or None after reporting the failure
+        through `_fail`.
+
+        NO python-side `.tmp` cleanup here (unlike the legacy path): the Rust
+        pipeline removes its own partials on EVERY failure route (AtomicWriter
+        Drop guard, cancellation, panic unwind), and a blind sweep could
+        delete the tmp of a CONCURRENT job for the same target (the writer's
+        create-new guard rejects the second job — its failure handler must
+        not then destroy the first job's file). `.corrupt` diagnostics of a
+        failed verification are deliberately kept.
         """
         opts = {"threads": 0, "paranoid": bool(paranoid)}
         try:
@@ -1462,6 +1665,35 @@ class ZipNNRoutes:
         except Exception as e:
             await self._fail(task_id, src, f"native job could not start: {e}")
             return None
+        return await self._poll_native_job(mm, task_id, mode, src, handle, _WS_PHASE_FOR_NATIVE)
+
+    async def _run_native_delta_job(self, mm, task_id: str, mode: str, src: str, second: str, dst: str, paranoid: bool):
+        """Drive one delta job on the Rust core (Phase 3 path).
+
+        compress: `src` = base model, `second` = fine-tune → `dst` delta
+        file (+ `.neo-delta.json` sidecar, written by the job itself with
+        the new `ftSha256` integrity key). decompress: `src` = base model,
+        `second` = delta file → `dst` restored fine-tune; the sidecar is
+        parsed HERE (same missing/corrupt degradation as the legacy reader)
+        and passed across the boundary.
+        """
+        try:
+            if mode == "compress":
+                opts = {"threads": 0, "paranoid": bool(paranoid)}
+                handle = mm.zipnn_delta_compress(src, second, dst, opts)
+            else:
+                meta = _read_delta_meta(second)
+                handle = mm.zipnn_delta_decompress(src, second, dst, meta, {"threads": 0})
+        except Exception as e:
+            await self._fail(task_id, second, f"native job could not start: {e}")
+            return None
+        return await self._poll_native_job(mm, task_id, mode, second, handle, _WS_PHASE_FOR_DELTA)
+
+    async def _poll_native_job(self, mm, task_id: str, mode: str, src: str, handle, phase_map: dict[str, str]):
+        """Poll a submitted native job at 10 Hz and re-emit the legacy ws
+        contract (`update_zipnn_progress` with the same payload shape;
+        phases mapped through `phase_map`). Returns the stats dict on
+        success, or None after reporting the failure through `_fail`."""
         ZIPNN_TASKS[task_id]["handle"] = handle
 
         last_sent: tuple[float, str] | None = None
@@ -1470,12 +1702,11 @@ class ZipNNRoutes:
             try:
                 done, total, phase = mm.job_progress(handle)
             except Exception as e:
-                _cleanup_targets(dst)
                 await self._fail(task_id, src, f"native job vanished: {e}")
                 return None
             if phase not in ("done", "failed"):
                 pct = (done / total * 100) if total else 0.0
-                ws_phase = _WS_PHASE_FOR_NATIVE.get(phase, "tensors")
+                ws_phase = phase_map.get(phase, "tensors")
                 event = (round(pct, 3), ws_phase)
                 if event != last_sent:
                     last_sent = event
@@ -1488,7 +1719,6 @@ class ZipNNRoutes:
                     err = mm.job_error(handle)
                 except Exception:
                     err = None
-                _cleanup_targets(dst)
                 await self._fail(task_id, src, err or "native job failed")
                 return None
             if phase == "done":
@@ -1497,14 +1727,12 @@ class ZipNNRoutes:
         try:
             result = json.loads(mm.job_result(handle))
         except Exception as e:
-            _cleanup_targets(dst)
             await self._fail(task_id, src, f"native job result unreadable: {e}")
             return None
         for warning in result.get("warnings") or []:
             utils.print_warning(f"zipnn[{mode}]: {warning}")
         stats = result.get("stats")
         if not isinstance(stats, dict):
-            _cleanup_targets(dst)
             await self._fail(task_id, src, "native job returned no stats")
             return None
         return stats
@@ -1694,10 +1922,19 @@ class ZipNNRoutes:
         )
 
         folder_name = os.path.basename(folder.rstrip("/"))
+        # Native probe for the validation walks AND the worker. A hard
+        # MM_NATIVE=1 failure surfaces inside the worker through _fail (the
+        # probe here must not turn request validation into a 500).
+        mm = None
+        try:
+            mm = native_core()
+        except RuntimeError:
+            mm = None
+        paranoid = paranoid_enabled(request)
         if mode == "auto":
-            if _walk_model_files(folder, "compress", skip_bundles=True):
+            if _walk_files(folder, "compress", mm):
                 mode = "compress"
-            elif _walk_decompress_files(folder):
+            elif _walk_files(folder, "decompress", mm):
                 mode = "decompress"
             else:
                 return web.json_response(
@@ -1717,7 +1954,7 @@ class ZipNNRoutes:
                         ),
                     }
                 )
-            blockers = _batch_invariants_blockers(folder)
+            blockers = _walk_files(folder, "blockers", mm)
             if blockers:
                 names = ", ".join(os.path.basename(b) for b in blockers[:5])
                 return web.json_response(
@@ -1730,7 +1967,7 @@ class ZipNNRoutes:
                         ),
                     }
                 )
-            files = _walk_model_files(folder, "compress", skip_bundles=True)
+            files = _walk_files(folder, "compress", mm)
             if not files:
                 return web.json_response({"success": False, "error": "no .safetensors files to compress"})
             # Every compressed file MOVES into `<name>_DeltaZNN`; model-type
@@ -1741,7 +1978,7 @@ class ZipNNRoutes:
             # Bundles empty back into the folder they were named after;
             # legacy in-place compressed folders decompress where they are.
             dst_folder = folder
-            files = _walk_decompress_files(folder)
+            files = _walk_files(folder, "decompress", mm)
             if not files:
                 return web.json_response(
                     {
@@ -1771,16 +2008,36 @@ class ZipNNRoutes:
         loop = asyncio.get_running_loop()
 
         async def worker():
+            # ANY escaping exception must flip the task to "error" and emit
+            # zipnn_complete — a worker that dies silently would leave the UI
+            # spinner running forever (`_schedule` only logs).
             try:
-                await loop.run_in_executor(utils.cpu_executor(), ensure_zipnn, False)
+                await worker_body()
             except Exception as e:
-                await self._fail(
-                    task_id,
-                    folder,
-                    str(e),
-                    install_failed=isinstance(e, ZipNNInstallError),
-                )
+                try:
+                    await self._fail(task_id, folder, f"zipnn worker crashed: {e}")
+                except Exception:
+                    utils.print_error(f"zipnn worker crash could not be reported: {e}")
+
+        async def worker_body():
+            try:
+                mm_run = native_core()
+            except RuntimeError as e:
+                # MM_NATIVE=1 with an unavailable core: actionable reason()
+                await self._fail(task_id, folder, str(e))
                 return
+
+            if mm_run is None:
+                try:
+                    await loop.run_in_executor(utils.cpu_executor(), ensure_zipnn, False)
+                except Exception as e:
+                    await self._fail(
+                        task_id,
+                        folder,
+                        str(e),
+                        install_failed=isinstance(e, ZipNNInstallError),
+                    )
+                    return
 
             def progress(done: int, total: int, phase: str):
                 asyncio.run_coroutine_threadsafe(
@@ -1804,6 +2061,9 @@ class ZipNNRoutes:
                     mode,
                     is_type_root,
                     progress,
+                    mm_run,
+                    task_id,
+                    paranoid,
                 )
             except Exception as e:
                 await self._fail(task_id, folder, str(e))
@@ -1921,45 +2181,70 @@ class ZipNNRoutes:
             {"taskId": task_id, "progress": 0.0, "phase": "prepare", "mode": mode},
         )
         loop = asyncio.get_running_loop()
+        paranoid = paranoid_enabled(request)
 
         async def worker():
+            # ANY escaping exception must flip the task to "error" and emit
+            # zipnn_complete — a worker that dies silently would leave the UI
+            # spinner running forever (`_schedule` only logs).
             try:
-                await loop.run_in_executor(utils.cpu_executor(), ensure_zipnn, False)
+                await worker_body()
             except Exception as e:
-                await self._fail(
-                    task_id,
-                    second,
-                    str(e),
-                    install_failed=isinstance(e, ZipNNInstallError),
-                )
-                return
+                try:
+                    await self._fail(task_id, second, f"zipnn worker crashed: {e}")
+                except Exception:
+                    utils.print_error(f"zipnn worker crash could not be reported: {e}")
 
-            def progress(done: int, total: int, phase: str):
-                asyncio.run_coroutine_threadsafe(
-                    utils.send_json(
-                        "update_zipnn_progress",
-                        {
-                            "taskId": task_id,
-                            "progress": (done / total * 100) if total else 0.0,
-                            "phase": phase,
-                            "mode": mode,
-                        },
-                    ),
-                    loop,
-                )
-
-            fn = delta_compress_files if mode == "compress" else delta_decompress_file
+        async def worker_body():
             try:
-                stats = await loop.run_in_executor(utils.cpu_executor(), fn, src, second, dst, progress)
-            except Exception as e:
-                for candidate in (dst, f"{dst}.tmp"):
-                    if os.path.exists(candidate):
-                        try:
-                            os.remove(candidate)
-                        except OSError:
-                            pass
+                mm = native_core()
+            except RuntimeError as e:
+                # MM_NATIVE=1 with an unavailable core: the reason() text is
+                # actionable (missing binary / failed handshake) — surface it.
                 await self._fail(task_id, second, str(e))
                 return
+
+            if mm is not None:
+                stats = await self._run_native_delta_job(mm, task_id, mode, src, second, dst, paranoid)
+                if stats is None:
+                    # failure already reported; the Rust Drop guard removed
+                    # its own partials — only the committed-delta-without-
+                    # sidecar case needs Python's help
+                    _cleanup_delta_failure(dst, mode, native=True)
+                    return
+            else:
+                try:
+                    await loop.run_in_executor(utils.cpu_executor(), ensure_zipnn, False)
+                except Exception as e:
+                    await self._fail(
+                        task_id,
+                        second,
+                        str(e),
+                        install_failed=isinstance(e, ZipNNInstallError),
+                    )
+                    return
+
+                def progress(done: int, total: int, phase: str):
+                    asyncio.run_coroutine_threadsafe(
+                        utils.send_json(
+                            "update_zipnn_progress",
+                            {
+                                "taskId": task_id,
+                                "progress": (done / total * 100) if total else 0.0,
+                                "phase": phase,
+                                "mode": mode,
+                            },
+                        ),
+                        loop,
+                    )
+
+                fn = delta_compress_files if mode == "compress" else delta_decompress_file
+                try:
+                    stats = await loop.run_in_executor(utils.cpu_executor(), fn, src, second, dst, progress)
+                except Exception as e:
+                    _cleanup_delta_failure(dst, mode, native=False)
+                    await self._fail(task_id, second, str(e))
+                    return
 
             try:
                 if mode == "compress":
