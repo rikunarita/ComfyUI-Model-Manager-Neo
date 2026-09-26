@@ -1090,3 +1090,157 @@ where F: Ungil + FnOnce() -> T`。`PyErr` は `Ungil`（err/mod.rs L48）なの�
 - Phase 3 の Plan 完了条件 [x] は本監査の再検証で**実態と一致**を確認した。
   残るプロジェクト全体の残件: Phase 2 K2/K3 参照機再計測、実 UI 手動 QA
   （Phase 7 の USAGE 改訂時に統合）、Phase 4 以降。
+
+## 2026‑09‑26（第 2 独立セッション）— fuzz‑long run 5 監視 + Phase 0–3 最終バグチェック
+
+### GitHub Actions 確認結果（ユーザ質問「fuzz‑long が 1 時間 30 分経っても終わらない」への回答）
+
+**結論: run 5 は 3 h バジェットの正常実行中であり、修正は不要だった。**
+
+| run                         | head                  | 状態                                                                                                                                                                      |
+| --------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| native #32                  | `3ad33b6`（dev tip）  | **SUCCESS — 14 ジョブ全緑**（native‑test×3 OS / native‑build linux・macos・windows / abi3‑import 3.10・3.13 / integration×3 OS / native‑diff / fuzz‑smoke / size‑budget） |
+| CI #121                     | `3ad33b6`             | **SUCCESS**（verify: typecheck / lint / lint:css / deps / format / build / mypy / ruff / pytest）                                                                         |
+| fuzz‑long #5（36222860726） | `6bfe6d7`             | **in_progress**（06:08:37 UTC dispatch、workflow_dispatch、actor=rikunarita = 前セッションのディスパッチ）。l2‑full は SUCCESS、6 fuzz ターゲットは実行中                 |
+| native #30 / #31            | `fc59463` / `6bfe6d7` | cancelled — native.yml の concurrency `cancel‑in‑progress: true` による**設計動作**（短時間の 3 連続 push で旧 run が取消）。異常ではない                                 |
+
+**「1.5 h 経っても終わらない」の根拠（API 実測）**:`hours` 入力は REST API に露出しないため実測で裏取りした —
+各ターゲットの「Fuzz … for the scheduled budget」ステップ開始は **06:10:23–06:10:50 UTC**（jobs API の steps）、
+run 4 の同ステップ実測は **3 h 00 m 53 s**（17:38:19→20:39:12）→ **ETA は 09:11–09:15 UTC**。
+hours=1 なら ~07:11、hours=2 なら ~08:11 に終了しているはずで、08:15 時点で 6 ターゲット全て
+fuzz ステップ実行中という観測は hours=3 とのみ整合（前セッション MEMO の運営メモ「run 5 = 6 ターゲット × 3 h」とも一致）。
+libFuzzer はクラッシュ/OOM 検出時にジョブを即 fail するため、**2 h 超の走行継続 = ここまでクラッシュゼロ**
+（run 3/4 と同様の挙動）。09:00 UTC 時点でも 6 ターゲット in_progress を再確認した。
+
+head が tip `3ad33b6` でなく `6bfe6d7` なのは dispatch が最終コミットに先行したためで、
+両者の差分は **.gitignore の 6 行のみ**（`git diff --stat` で確認）= fuzz 対象コードはゼロ差。
+
+### 環境再構築（セッション冒頭ロールバック对策）
+
+apt（aliyun ミラーは今回 1.8 MB/s に回復 — package list 不完整が最初の install 失敗原因で、
+update 再実行で解消）→ build‑essential / clang / mold 1.10.1 / libpython3.11‑dev、
+rustup stable **1.98.1**、pip: ruff **0.16.8**（CI ピン）/ mypy / pytest / torch 2.14.0+cpu /
+safetensors 0.8.0 / cargo‑zigbuild 0.23.4 / ziglang 0.16.0 / maturin 1.15.0 /
+zipnn 0.5.4（ソースビルド成功）、corepack → pnpm 12.3.4 + `pnpm install --frozen-lockfile`。
+
+**新教訓**: `nohup … &` のバックグラウンドプロセスは、起動元のツール呼び出しがタイムアウト
+終了すると**プロセスグループごと巻き込まれて死ぬ**（実測: 最初の cargo 実行が ~9 分で静黙死）。
+長時間ビルドは **`setsid`** でセッションから切り離すこと（2 回目以降は完走）。
+
+### 全ゲート再検証（修正前ツリー 3ad33b6 に対し、全て本セッション実測・全緑）
+
+- cargo fmt ✓ / clippy `--workspace --all-targets --all-features -D warnings` ✓
+- cargo test: znn‑codec **132**（debug + release 両方）✓ / mm‑core `--no-default-features` **5** ✓
+- ruff check + format（39 files）✓ / mypy **14 files Success** ✓（huggingface_hub 2.x 環境 =
+  f4c1a4c の cast 修正が現行 PyPI 解決でも有効であることを再確認）
+- `.so` 再ビルド（build‑native.sh linux‑x86_64、zigbuild glibc 2.28）: **2,375,424 B —
+  前セッション記録とバイト単位で同一サイズ**（決定論的ビルド）、size gate OK、
+  `verify_native_binary.py` ok:true / **GLIBC_2.28** / libpython 非依存、
+  import 実証 `api_version()=3`・10 API 全存在・`core_version()=0.3.0‑alpha.0+3ad33b696`
+  （**MM_CORE_COMMIT スタンプが現行 tip = build.rs 陳腐化修正の実証**）
+- pytest **60 passed・skip ゼロ**（実バイナリ against — GIL 回帰テスト込み）
+- **L2 quick GATE PASS**: byte‑identical **1,121/1,121**・mismatch 0・付録 C クラス **63** 安全処理・
+  forbidden_rust_err 0・c_self_unverified 0（`--out /tmp` でコミット済み証跡は不変）
+- **L5 GATE PASS**（pip zipnn 0.5.4 実ビルド against）: A/B/C + **D1 / D2‑single / D2‑stream** 全方向
+
+### Phase 0–3 最終精査で発見し修正したバグ（1 件・本セッションの唯一のコード変更）
+
+**【低・潜在 API 欠陥】`delta::delta_decompress` の verify スイッチで match 腕が逆転** —
+テンソル側パイプライン（pipeline.rs）は期待 sha を verify でゲートしてから match する
+（`let src_sha = if opts.verify { sha_recorded } else { None }`）ため `verify=false` が
+正しく「Skipped + 正直な警告」になるが、デルタ側は **raw の `meta.ft_sha256`** で match し、
+ハッシャ有効化のみ `want_sha = verify && is_some()` でゲートしていた。帰結:
+
+1. `verify=false` + ftSha256 記録あり（**Neo デルタ成果物は全て記録あり**）→ digest=None が
+   `(Some, None)` 腕に落ちて **"internal: hasher produced no digest despite a recorded
+   ftSha256" エラーでジョブ失敗**（同腕の「unreachable」コメント自体が誤り — 到達可能だった）、
+2. `verify=false` + 記録なし → `(None, _)` 腕が **「ftSha256 is recorded but verification was
+   disabled」と嘘の警告**（記録がないのに「記録があるが無効化された」と言う）。
+
+**本番ルートは無影響**: py/compress.py のデルタ呼び出し 2 箇所（ルート L1686・バッチ L1368）は
+`{"threads": 0}` のみを渡し verify は既定 true。ただし `jobs.rs::parse_opts` は `"verify"` を
+受理し lib.rs の docstring も `verify (default true)` を公開しており、**API 文書に従う将来の
+呼び出し側が確実に踏む**生きた API 表面の欠陥だった（Plan §4.4.3‑2 の「検証 OFF スイッチは
+plan が示唆する対称性のためのもの」= スイッチは機能する前提で存在する）。
+
+- **修正**: pipeline.rs と同型化 — `sha_expected = if opts.verify { meta.ft_sha256.as_deref() }
+else { None }` を導入し `want_sha = sha_expected.is_some()`、match を `(sha_expected, digest)`
+  へ。`(Some, None)` が真に到達不能（内部不変条件）になり、`(None, _)` は**サイドカー記録の有無で
+  正直に分岐**（警告文 2 種は既存のものを正しい条件へ割り当て直しただけ）。
+- **A/B 実証**: 新回帰テスト `verify_off_skips_the_recorded_sha_with_an_honest_warning` が
+  **修正前コードで FAIL**（panic 文言 = `internal: hasher produced no digest despite a recorded
+ftSha256` — 予測と逐語一致）→ **修正後 PASS**。テストは両腕を固定: verify=false+記録あり →
+  Skipped + "disabled" 警告 + byte‑exact 復元 + `.corrupt`/tmp 残骸なし、記録なし →
+  "no ftSha256" 警告 **かつ** "disabled" 文言を出さない。
+- **修正後の再検証（全緑）**: fmt ✓ / clippy `-D warnings` ✓ / L1 **133**（debug + release）✓ /
+  mm‑core 5 ✓ / `.so` 再ビルド **2,375,264 B** + size gate + verify ok + api 3 ✓ /
+  pytest **60**（新バイナリ against）✓ / **L5 再実行 PASS** ✓ / **L2 quick 再実行 PASS**
+  （znn‑cli 再ビルド後 1,121/1,121・mismatch 0・付録 C 63）✓ / prettier `format:check` ✓
+  （pnpm 完全依存ツリー、lockfile ピン版）
+
+### 今セッションが fresh eyes で集中的に確認しバグなしと判定した領域（negative findings）
+
+- **mm‑core**: jobs.rs（レジストリ + gc（1 h / 4,096 cap）・spawn 失敗路の terminal 記録・
+  catch_unwind → ジョブエラー化・job_progress の outcome 権威 terminal 窓・handle 登録/払底）、
+  lib.rs（API_VERSION 3 = native.py exact レンジ / native.yml abi3 assert / lib.rs テストの三者同期）
+- **py/native.py**: origin guard（realpath + normcase）、ハンドシェイク、sys.modules 非汚染、
+  MM_NATIVE 4 モード、diagnostics
+- **py/compress.py 全ルート**: `_run` / `_run_batch` / `_run_delta` / `_poll_native_job` /
+  `_run_native_job_sync`（handle の finally 抹消、lambda 既定引数による late‑binding 回避）、
+  `_cleanup_targets`（dst 非削除）/ `_cleanup_delta_failure`（native 時 tmp 非接触・
+  committed‑but‑sidecar‑less のみ dst 削除）、`cleanup_stray_files`（15 分年齢ガード・
+  `.corrupt` 報告のみ）、cancel ルート（legacy 応答分岐）、worker 二重例外ガード
+- **batch.rs ⇔ Python parity**: 3 walker（拡張子**大文字小文字区別付き**比較 = splitext +
+  folder_paths と同一、symlink‑dir 非追跡・symlink‑file 候補・壊れ symlink = file 扱い
+  （os.walk の is_dir 例外挙動と一致）、不能読ディレクトリ静黙スキップ、root 非 prune、
+  sorted 安定順）、`py_splitext` の先頭ドット規則、move_with_sidecars（slot‑major 20×8・
+  desc sorted + isfile + 拡張子大文字小文字保持・never overwrite・makedirs・本体非移動）
+- **AtomicWriter**: create_new + 15 分 stale 引き継ぎ、commit = rename 地点、dir fsync
+  warning 化、reject_to、Drop ガード、`.tmp` 命名の両パイプライン一致
+- **delta.rs（修正箇所以外）**: Rendering 4 領域 copy_range の境界代数、Unpadder 状態機
+  （prefix 書換・pad skip・finish 枯渇検査）、decode_delta_container の remaining_expected
+  割り当てキャップ + fp8 クランプのデルタ面適用、streaming 連鎖の境界 walk（clen≥32・
+  checked_add・truncated エラー）、単一コンテナ受理、`create_dir_all`（legacy makedirs parity）、
+  paranoid（内部 Hooks progress=None・rename 前）、サイドカー原子コミット + 失敗 = ジョブ失敗
+- **pipeline.rs**: H_max 上界の構成（worst_infos 全集 + より長い shape/dtype + source
+  オフセットの単調性）、seek‑back patch が最後の書込みであること、rewrite_with_header
+  フォールバック（`.tmp.fix` = Python 掃除対象と一致）、並行 source sha（scoped thread・
+  cancel 伝播）、checked offset 累積、stream_write 4 MiB 分割、paranoid の `.verify.tmp`
+  二重 suffix も起動掃除に捕捉されること
+- **safetensors_io**: validate_entries（dense・exact‑coverage・ビット境界・サイズ一致）、
+  build_header_region（serde_json 最小エスケープ・8B スペースパディング・`__metadata__` 先頭）、
+  py_escape_json_string（json.dumps ensure_ascii: 小文字 hex・サロゲートペア）、
+  py_dumps_compressed_vectors（Python 既定 separators）
+- **znn_tensor / codec / header / dtype**: dtype 表 = MEMO の実証記録と一致、fp8 チャンク
+  クランプ（ヘッダーは 18・実行時のみ min(128 KiB)）、inspect の shape×elem==original_len、
+  blob×64 floor 16 MiB キャップ、CUSTOM_POOLS + MAX_EXPLICIT_THREADS=64 ガード（de1a153 の
+  修正が現行ツリーに生存）、ヘッダー バージョンゲート 0.5.0–0.5.4、decode_delta の method
+  ゲート免除 vs テンソル経路の厳格ゲート
+- **CI 配線**: native.yml 14 ジョブ / ci.yml（ruff 対象・pytest）/ fuzz‑long.yml（6 ターゲット・
+  ASAN_OPTIONS・rss_limit 4096）— 全て MEMO 記録と一致
+- **fuzz 6 ハーネス**: thread_local 再利用バッファ、threads=1 + プールキャッシュ前提、
+  delta ターゲットの単一 blob 両側導出 + 1 MiB 出力キャップ
+
+**バグではないが確認して記録する items**（Phase 0 以前からの既存設計・文書化済み既知残件 —
+いずれも今回の最終チェック範囲で意図的に未変更）:
+
+- `ZIPNN_TASKS` は増えるのみで削除されない（1 タスク ~200 B — HF upload タスクと同形の既存設計。
+  GC 方針の導入はスコープ外）
+- `is_enospc` は Linux EDQUOT(122) を列挙しない（メッセージ cosmetics のみ — 一般的な quota は
+  ErrorKind::StorageFull 経路で捕捉される）
+- コミット rename が「route の dst 存在チェック後に第三者が作った dst」を上書きする理論窓
+  （legacy の os.replace と同一窓 — Phase 2 精査時に既知として記録済み）
+
+### 運営メモ（次セッション / ユーザ向け）
+
+- 本セッションの push 構成: fix(znn‑codec)（verify スイッチ修正 + 回帰テスト）→ docs（MEMO/Plan）。
+  push で CI / native が新 tip に対して自動実行（fuzz‑smoke 6×60 s が fuzz 表面を再検証）。
+- **fuzz‑long run 6 はディスパッチしない判断**: 本修正は fuzz 表面に一切触れない
+  （`delta_restore_fuzz` → `delta_restore` / `decode_delta_container` / `Unpadder` はゼロ変更。
+  変更したのは fuzz が呼ばない `delta_decompress` の verify 分岐のみ）ため、**run 5
+  （head 6bfe6d7）の 3 h×6 証跡は現行ツリーに対してそのまま有効**。18 h ランナーバジェットの
+  保守的運用 + 週次スケジュール（日曜 18:00 UTC・6 ターゲット）が担保。
+- run 5 の ETA は **09:11–09:15 UTC** — ユーザ次ターンで完了確認を（全 7 ジョブ success +
+  クラッシュアーティファクト 0 件）。確認できたら本 MEMO の run 表に結果を追記すること。
+- プロジェクト全体の残件は不変: Phase 2 K2/K3 の参照機再計測、実 UI 手動 QA（Phase 7 統合）、
+  Phase 4 以降。

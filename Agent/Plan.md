@@ -1327,7 +1327,15 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
       12 コミットを SHA 回収・マージ復元したツリーに対して）: L1 132 /
       pytest 60 / L2 quick 1,121 / L5 D 節 / K4・K5 再計測が全て一致し、
       `walk_models`/`move_with_sidecars` の GIL 解放不備（§4.2.2 不変条件 2）を
-      修正 + 回帰テスト化（MEMO 同日）
+      修正 + 回帰テスト化（MEMO 同日）。**同日の最終バグチェック（第 2 独立
+      セッション）で `delta_decompress` の verify スイッチ match 腕逆転を発見・
+      修正**（`verify=false` + ftSha256 記録ありが「internal error」で失敗する
+      潜在 API 欠陥 — 本番ルートは verify 既定 true のため無影響。pipeline.rs の
+      `src_sha` ゲートと同型化 + 両腕の回帰テストで固定、L1 133。A/B 実証:
+      修正前で FAIL・修正後 PASS）し、全ゲートを再検証して緑（clippy
+      `-D warnings` / L1 133 debug+release / mm‑core 5 / pytest 60 /
+      L2 quick 1,121 / L5 PASS / `.so` 2,375,264 B + GLIBC_2.28 検証 —
+      MEMO 同日第 2 セッション）
 - [ ] **Phase 4** — dtype 大幅拡張（Neo 拡張帯 + 相互運用マトリクス）
 - [ ] **Phase 5** — スキャン/永続インデックス/ハッシュ/更新伝播（Quick Win A2/A3）
 - [ ] **Phase 6** — フロントエンド表示最適化（C1–C5、計測駆動）
