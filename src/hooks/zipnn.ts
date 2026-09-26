@@ -1,7 +1,7 @@
 import { computed, reactive } from 'vue'
 import { useI18nGlobal } from 'hooks/i18n'
 import { request } from 'hooks/request'
-import { useToast } from 'hooks/toast'
+import { confirmState, useToast } from 'hooks/toast'
 import { api } from 'scripts/comfyAPI'
 
 /**
@@ -268,9 +268,53 @@ const beginTask = async (
 }
 
 /**
+ * Phase 4 (Plan §4.6.4): the dtype breakdown behind the compress
+ * confirmation. `/zipnn/inspect` parses ONLY the safetensors header (in an
+ * executor on the backend), so this is cheap — but it touches the disk, so
+ * every failure degrades to `null` and the dialog keeps its generic message
+ * (a pre-check must never block a compression the user asked for).
+ */
+export interface ZipnnInspect {
+  compressed?: boolean
+  dtypes?: Record<string, number>
+  tensors?: number
+  extended?: boolean
+  extendedDtypes?: string[]
+  error?: string
+}
+
+export const inspectZipnnModel = async (model: {
+  type: string
+  pathIndex: number
+  subFolder: string
+  basename: string
+  extension: string
+}): Promise<ZipnnInspect | null> => {
+  try {
+    const fullname = [model.subFolder, `${model.basename}${model.extension}`]
+      .filter(Boolean)
+      .join('/')
+    return (await request('/zipnn/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: model.type, pathIndex: model.pathIndex, fullname }),
+    })) as ZipnnInspect
+  } catch {
+    return null
+  }
+}
+
+/**
  * The single-model compress/decompress confirmation, shared by the card
  * corner button and the model-detail action row (they rendered byte
  * identical confirm blocks before).
+ *
+ * Phase 4: while the dialog is open, the header-only `/zipnn/inspect`
+ * pre-check runs; when the model carries dtypes outside the official ZipNN
+ * band, the message is upgraded IN PLACE to say the artifact will be
+ * Neo-extended (still lossless here, but official ZipNN tools will refuse
+ * it — Plan §4.6.4 "圧縮確認ダイアログに明示"). The dialog itself is never
+ * delayed by the check.
  */
 export const confirmSingleZipnn = (
   model: {
@@ -283,6 +327,7 @@ export const confirmSingleZipnn = (
   modelKey: string,
 ): void => {
   const compressing = !model.basename.endsWith('.znn')
+  let settled = false
   confirm.require({
     message: compressing ? t('zipnnConfirmCompress') : t('zipnnConfirmDecompress'),
     header: compressing ? t('zipnnCompress') : t('zipnnDecompress'),
@@ -290,6 +335,7 @@ export const confirmSingleZipnn = (
     rejectProps: { label: t('cancel'), severity: 'secondary', outlined: true },
     acceptProps: { label: compressing ? t('zipnnCompress') : t('zipnnDecompress') },
     accept: () => {
+      settled = true
       void startZipnn(
         compressing ? 'compress' : 'decompress',
         {
@@ -302,7 +348,21 @@ export const confirmSingleZipnn = (
         modelKey,
       )
     },
-    reject: () => {},
+    reject: () => {
+      settled = true
+    },
+  })
+  if (!compressing) return
+  void inspectZipnnModel(model).then(info => {
+    // Only upgrade THIS dialog, and only while it is still open: the user
+    // may have accepted/rejected before the header read landed (the choice
+    // stays valid either way — the pre-check is informational).
+    if (!info?.extended || settled || !confirmState.visible || !confirmState.options) return
+    const dtypes = (info.extendedDtypes ?? []).join(', ')
+    confirmState.options = {
+      ...confirmState.options,
+      message: t('zipnnConfirmCompressExtended', { dtypes }),
+    }
   })
 }
 

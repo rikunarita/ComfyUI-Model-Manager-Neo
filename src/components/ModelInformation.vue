@@ -114,6 +114,31 @@
     </div>
 
     <!--
+      ZipNN compression breakdown (Plan §4.6.4): the dtype mix recorded in
+      `znn_compressed_vectors` plus the Neo-extension badge. The badge says
+      what interoperability the file has: Neo-extended files stay lossless
+      inside Neo but official ZipNN tools refuse their blobs.
+    -->
+    <div v-if="znnInfo && !editing" class="flex flex-col gap-2">
+      <div class="text-sm font-medium text-mm-muted-fg">{{ $t('info.znnCompression') }}</div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="font-mono text-xs break-all text-mm-fg">{{ znnInfo.summary }}</span>
+        <Tooltip v-if="znnInfo.extended" :delay-duration="200">
+          <TooltipTrigger as-child>
+            <span
+              class="rounded-full border border-mm-warning/40 bg-mm-warning/15 px-2 py-0.5 text-xs font-medium text-mm-warning"
+            >
+              {{ $t('info.znnExtended') }}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" class="max-w-sm">
+            {{ $t('info.znnExtendedTooltip') }}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
+
+    <!--
       The raw file metadata (safetensors `__metadata__`) keeps its own table
       below the parsed information, keys verbatim. It is skipped for download
       search results, whose `metadata` is the Civitai file metadata the parsed
@@ -241,6 +266,7 @@ import { useI18n } from 'vue-i18n'
 import InformationValue from 'components/InformationValue.vue'
 import { Button } from 'components/ui/button'
 import { Input } from 'components/ui/input'
+import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { useModelDescription, useModelMetadata } from 'hooks/model'
 import { useToast } from 'hooks/toast'
 import { type BaseModel, type SafetensorsTensor } from 'types/typings'
@@ -281,16 +307,57 @@ const stringify = (value: unknown): string => {
   }
 }
 
+/* ---- ZipNN compression breakdown (Plan §4.6.4) -------------------------- */
+
+/**
+ * The ZipNN/Neo bookkeeping keys of `__metadata__`. They get a dedicated
+ * rendering (the dtype breakdown row + the Neo-extension badge below, and
+ * the size breakdown rows of the base-info table) instead of the raw
+ * key/value dump - `znn_compressed_vectors` alone is a multi-kilobyte JSON
+ * string on MoE files.
+ */
+const ZNN_META_KEYS = /^znn_(compressed_vectors|neo_)/
+
+/**
+ * Compression summary of a `.znn.safetensors` model: the per-dtype tensor
+ * counts recorded in `znn_compressed_vectors` (`bfloat16×412, uint8×3`) and
+ * whether the file is Neo-extended (`znn_neo_extended="1"` - official ZipNN
+ * tools refuse its blobs with an explicit error, so the badge matters).
+ */
+const znnInfo = computed<{ summary: string; extended: boolean } | null>(() => {
+  const source = metadata.value
+  if (!source || (model.value as any).downloadPlatform) return null
+  const infosRaw = source['znn_compressed_vectors']
+  if (typeof infosRaw !== 'string' || !infosRaw) return null
+  let counts = new Map<string, number>()
+  try {
+    const infos = JSON.parse(infosRaw) as Record<string, { dtype?: unknown }>
+    for (const spec of Object.values(infos)) {
+      const dtype = String(spec?.dtype ?? '?')
+      counts.set(dtype, (counts.get(dtype) ?? 0) + 1)
+    }
+  } catch {
+    return null
+  }
+  if (!counts.size) return null
+  const summary = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([dtype, count]) => `${dtype}\u00d7${count}`)
+    .join(', ')
+  return { summary, extended: source['znn_neo_extended'] === '1' }
+})
+
 /**
  * Raw file metadata (safetensors `__metadata__`). Download search results
  * carry the Civitai *file* metadata here, which the parsed table above
  * already renders - showing it twice (including the `isRequired` / `size`
- * keys the table deliberately omits) would only be noise.
+ * keys the table deliberately omits) would only be noise. The ZipNN/Neo
+ * bookkeeping keys are rendered by the dedicated section instead.
  */
 const rawRows = computed(() => {
   const source = metadata.value
   if (!source || (model.value as any).downloadPlatform) return []
-  const entries = Object.entries(source)
+  const entries = Object.entries(source).filter(([key]) => !ZNN_META_KEYS.test(key))
   if (!entries.length) return []
   return entries.map(([key, value]) => ({ key, value: stringify(value) }))
 })
