@@ -6,6 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
+# Kernel core dumps (dropped at the process cwd when ulimit -c allows it —
+# a stray multi-MB `core` at the repo root must never be staged; observed
+# once during the 2026-09-26 audit session). Root-anchored on purpose: a
+# bare `core` pattern would also swallow any future directory named core/.
+/core
+
 # Distribution / packaging
 .Python
 build/
