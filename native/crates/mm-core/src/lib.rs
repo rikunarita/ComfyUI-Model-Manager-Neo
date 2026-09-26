@@ -126,18 +126,23 @@ mod mm_core {
 
     /// The parallel batch walk (`mode`: "compress"/"decompress"/
     /// "blockers"); returns a JSON array of paths in the legacy sorted
-    /// order. Synchronous — routes call it from executors.
+    /// order. Synchronous — routes call it from executors — with the GIL
+    /// released for the walk itself (Plan §4.2.2 invariant 2).
     #[pyfunction]
     #[pyo3(signature = (root, opts=None))]
-    fn walk_models(root: &str, opts: Option<&Bound<'_, PyDict>>) -> PyResult<String> {
-        super::jobs::walk_models(root, opts)
+    fn walk_models(
+        py: Python<'_>,
+        root: &str,
+        opts: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<String> {
+        super::jobs::walk_models(py, root, opts)
     }
 
     /// Move every sidecar of `src` (previews + notes) beside `dst`.
-    /// Synchronous; the model file itself is NOT moved.
+    /// Synchronous (GIL released); the model file itself is NOT moved.
     #[pyfunction]
-    fn move_with_sidecars(src: &str, dst: &str) -> PyResult<()> {
-        super::jobs::move_with_sidecars(src, dst)
+    fn move_with_sidecars(py: Python<'_>, src: &str, dst: &str) -> PyResult<()> {
+        super::jobs::move_with_sidecars(py, src, dst)
     }
 
     /// `(done, total, phase)` of a job; phase ∈ {prepare, tensors, write,

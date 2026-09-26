@@ -491,7 +491,10 @@ fn parse_delta_meta(meta: Option<&Bound<'_, PyDict>>) -> DeltaMeta {
 /// `os.walk`-faithful replacement of `py/compress.py`'s three Python
 /// walkers. SYNCHRONOUS (walks are latency-bound metadata scans the routes
 /// run inside executors anyway); returns a JSON array of path strings in
-/// the legacy `sorted(found)` order.
+/// the legacy `sorted(found)` order. The GIL is RELEASED for the walk
+/// itself (Plan §4.2.2 invariant 2 — a held GIL would freeze the ComfyUI
+/// event loop for the whole walk even though the caller is an executor
+/// thread; regression-pinned by `test_walk_models_releases_the_gil`).
 ///
 /// `opts`: `mode` ("compress" | "decompress" | "blockers" — required),
 /// `skipBundles` (bool), `bundleSuffixes` (list[str], default
@@ -500,7 +503,11 @@ fn parse_delta_meta(meta: Option<&Bound<'_, PyDict>>) -> DeltaMeta {
 ///
 /// # Errors
 /// An unknown `mode`.
-pub fn walk_models(root: &str, opts: Option<&Bound<'_, PyDict>>) -> PyResult<String> {
+pub fn walk_models(
+    py: Python<'_>,
+    root: &str,
+    opts: Option<&Bound<'_, PyDict>>,
+) -> PyResult<String> {
     let mode_str = opts
         .and_then(|d| d.get_item("mode").ok().flatten())
         .and_then(|v| v.extract::<String>().ok())
@@ -535,20 +542,33 @@ pub fn walk_models(root: &str, opts: Option<&Bound<'_, PyDict>>) -> PyResult<Str
         .unwrap_or_else(|| "_DeltaZNN".to_owned());
     let extensions = get_strings("extensions").unwrap_or_default();
 
-    let walk = WalkOpts {
-        mode,
-        skip_bundles: get_bool("skipBundles"),
-        bundle_suffixes: &bundle_suffixes,
-        delta_folder_suffix: &delta_folder_suffix,
-        extensions: &extensions,
-    };
-    let found = znn_codec::batch::walk_models(Path::new(root), &walk);
-    let names: Vec<String> = found
-        .iter()
-        .map(|p| p.to_string_lossy().into_owned())
-        .collect();
-    serde_json::to_string(&names)
-        .map_err(|e| PyRuntimeError::new_err(format!("walk result does not serialise: {e}")))
+    let skip_bundles = get_bool("skipBundles");
+
+    // The walk and its serialisation touch no Python object — release the
+    // GIL around them (Plan §4.2.2 invariant 2: long-running APIs must not
+    // freeze the interpreter). The batch routes call this from executors,
+    // where a held GIL would block the ComfyUI event loop for the WHOLE
+    // walk — seconds on network-storage libraries (the legacy `os.walk`
+    // interleaved at bytecode boundaries; the Rust walk must not regress
+    // that). `root` becomes owned: the extracted `&str` borrows the
+    // argument object, which the closure may not reference GIL-free.
+    let root = root.to_owned();
+    py.detach(move || {
+        let walk = WalkOpts {
+            mode,
+            skip_bundles,
+            bundle_suffixes: &bundle_suffixes,
+            delta_folder_suffix: &delta_folder_suffix,
+            extensions: &extensions,
+        };
+        let found = znn_codec::batch::walk_models(Path::new(&root), &walk);
+        let names: Vec<String> = found
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        serde_json::to_string(&names)
+            .map_err(|e| PyRuntimeError::new_err(format!("walk result does not serialise: {e}")))
+    })
 }
 
 /// Move every sidecar of `src` (20-slot previews + `.md`/`.txt` notes) to
@@ -556,13 +576,20 @@ pub fn walk_models(root: &str, opts: Option<&Bound<'_, PyDict>>) -> PyResult<Str
 /// `_sidecar_move` / `_delta_sidecar_move` replacement; bundle semantics
 /// stay in Python). The model file itself is NOT moved (callers keep the
 /// legacy ordering: artifact first, sidecars second, source removal last).
-/// SYNCHRONOUS — renames are metadata operations.
+/// SYNCHRONOUS — renames are metadata operations — but the directory
+/// listing and the renames still run GIL-free (Plan §4.2.2 invariant 2;
+/// `readdir` + `rename` on network storage are not instant).
 ///
 /// # Errors
 /// Rename failures (like the legacy `os.rename` `OSError`).
-pub fn move_with_sidecars(src: &str, dst: &str) -> PyResult<()> {
-    znn_codec::batch::move_with_sidecars(Path::new(src), Path::new(dst))
-        .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+pub fn move_with_sidecars(py: Python<'_>, src: &str, dst: &str) -> PyResult<()> {
+    // owned: the extracted &str borrows the Python argument objects
+    let src = PathBuf::from(src);
+    let dst = PathBuf::from(dst);
+    py.detach(move || {
+        znn_codec::batch::move_with_sidecars(&src, &dst)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    })
 }
 
 /// `(done, total, phase)` — phase is one of `prepare/tensors/write/verify/

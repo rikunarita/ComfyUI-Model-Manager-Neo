@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import itertools
 import json
 import os
 import struct
@@ -620,6 +621,52 @@ def test_walk_models_matches_the_python_walkers(model_lib):
     want = compress._batch_invariants_blockers(str(root))
     assert got == want, (got, want)
     assert got and all(g.endswith((".gguf", ".ckpt")) for g in got)
+
+
+def test_walk_models_releases_the_gil(tmp_path):
+    """Plan §4.2.2 invariant 2: long-running APIs must not hold the GIL.
+
+    The batch routes call ``walk_models`` from ``cpu_executor`` threads; a
+    GIL-holding walk would freeze the ComfyUI event loop (WebSocket
+    progress included) for the whole scan — the very class of bug Quick
+    Win A1 removed for the model-info route. Mechanical check: a busy
+    Python counter thread can only advance WHILE the walk runs if the
+    walk released the GIL (the main thread holds it otherwise, and the
+    few bytecodes between the snapshots cannot hit the 5 ms switch
+    interval)."""
+    mm = _native_core_or_skip()
+    root = tmp_path / "lib"
+    for d in range(150):
+        sub = root / f"sub{d:03d}"
+        sub.mkdir(parents=True)
+        for f in range(10):
+            (sub / f"m{f}.safetensors").write_bytes(b"x")
+
+    import threading
+
+    counter = itertools.count()
+    last = -1
+    stop = threading.Event()
+
+    def spin():
+        nonlocal last
+        while not stop.is_set():
+            last = next(counter)
+
+    t = threading.Thread(target=spin, daemon=True)
+    t.start()
+    try:
+        c0 = last
+        got = json.loads(mm.walk_models(str(root), {"mode": "compress"}))
+        c1 = last
+    finally:
+        stop.set()
+        t.join(timeout=5)
+    assert len(got) == 150 * 10, "sanity: the walk found every file"
+    assert c1 > c0, (
+        "the counter thread made no progress during walk_models — the GIL was held "
+        "for the whole walk (Plan §4.2.2 invariant 2 violation)"
+    )
 
 
 def test_move_with_sidecars_matches_the_python_mover(model_lib):
