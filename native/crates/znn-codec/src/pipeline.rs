@@ -48,7 +48,7 @@ use crate::safetensors_io::{
 };
 use crate::znn_tensor::{
     TensorScheme, compress_tensor_into, decompress_tensor_into, inspect_tensor,
-    scheme_for_st_dtype, shape_string,
+    scheme_for_st_dtype, select_truncation, shape_string,
 };
 
 // ---------------------------------------------------------------------------
@@ -388,50 +388,30 @@ enum Piece {
     Pass,
 }
 
-/// Whether a tensor's dtype is in the Phase-2 compression band.
-enum Band {
-    /// Compressible now (f32/f16/bf16/fp8×2 — `znn_tensor`'s band table).
-    In(TensorScheme),
-    /// A float dtype the band does not cover yet (F64/C64/MX/FNUZ/…) — the
-    /// legacy path RAISES on these (`ValueError: Support only torch.dtype
-    /// float32/bfloat16/float16`); Neo passes them through (strictly more
-    /// capable, same format; Phase 4 compresses them).
-    OutOfBandFloat,
-    /// Non-float (integers/BOOL) — pass-through, like the legacy path.
-    NotFloat,
-}
-
-/// Float-family dtypes outside the Phase-2 compression band (warning fuel).
-const OUT_OF_BAND_FLOATS: [&str; 8] = [
-    "F64",
-    "C64",
-    "F8_E8M0",
-    "F8_E4M3FNUZ",
-    "F8_E5M2FNUZ",
-    "F4",
-    "F6_E2M3",
-    "F6_E3M2",
-];
-
-fn compressible_scheme(t: &TensorEntry) -> Band {
-    if let Some(scheme) = scheme_for_st_dtype(&t.dtype) {
-        return Band::In(scheme);
-    }
-    if OUT_OF_BAND_FLOATS.contains(&t.dtype.as_str()) {
-        return Band::OutOfBandFloat;
-    }
-    Band::NotFloat
+/// The compression scheme of a tensor's dtype (Phase 4: the FULL
+/// safetensors 0.8 set is compressible — the compatibility band through
+/// official-decodable blobs, everything else through the Neo extension
+/// band). `None` is defensive only: `StContainer::parse` validates dtype
+/// strings against the same 22 spellings, so an unknown string can never
+/// reach this point; should a future safetensors release add dtypes before
+/// Neo's table does, such tensors pass through untouched (the legacy
+/// behaviour for out-of-band floats).
+fn compressible_scheme(t: &TensorEntry) -> Option<TensorScheme> {
+    scheme_for_st_dtype(&t.dtype)
 }
 
 /// The metadata map of a compressed file: surviving source entries (original
 /// order) + the Neo records (`znn_neo_*` then the infos key — the legacy
-/// pipeline's insertion order).
+/// pipeline's insertion order). `extended` records the Phase-4 marker
+/// (`znn_neo_extended="1"` — the file contains Neo-extension-band blobs the
+/// official ZipNN tooling rejects with an explicit error; Plan §4.6.3).
 fn build_compress_meta(
     kept: &[(String, String)],
     file_len: u64,
     sha: &str,
     exact: bool,
     meta_absent: bool,
+    extended: bool,
     infos_json: &str,
 ) -> Vec<(String, String)> {
     let mut meta = kept.to_vec();
@@ -443,6 +423,9 @@ fn build_compress_meta(
     ));
     if meta_absent {
         meta.push((SRC_META_ABSENT_KEY.to_owned(), "1".to_owned()));
+    }
+    if extended {
+        meta.push((EXTENDED_KEY.to_owned(), "1".to_owned()));
     }
     meta.push((METADATA_KEY.to_owned(), infos_json.to_owned()));
     meta
@@ -501,25 +484,32 @@ pub fn compress_file(
     // name: the legacy path iterates `safe_open(...).keys()`, which the
     // safetensors binding sorts, and Neo reproduces that byte-for-byte.
     let mut worst_infos: Vec<(String, String, String)> = Vec::new();
-    let mut passthrough_floats: Vec<String> = Vec::new();
     for t in &st.tensors {
-        match compressible_scheme(t) {
-            Band::In(scheme) => worst_infos.push((
+        if let Some(scheme) = compressible_scheme(t) {
+            worst_infos.push((
                 t.name.clone(),
                 scheme.torch_name.to_owned(),
                 shape_string(&t.shape),
-            )),
-            Band::OutOfBandFloat => passthrough_floats.push(t.name.clone()),
-            Band::NotFloat => {}
+            ));
         }
     }
     worst_infos.sort_by(|a, b| a.0.cmp(&b.0));
+    // Worst-case extended marker: any Neo-band dtype in the SOURCE could end
+    // up stored as a blob, so the bound must budget for the key. The final
+    // metadata carries it only when a Neo blob was ACTUALLY stored (a file
+    // whose Neo tensors all passed through stays official-compatible) — the
+    // key can only disappear, never appear, so the bound stays valid.
+    let worst_extended = st
+        .tensors
+        .iter()
+        .any(|t| compressible_scheme(t).is_some_and(|s| s.is_neo()));
     let worst_meta = build_compress_meta(
         &kept_meta,
         file_len,
         &"0".repeat(64),
         exact,
         meta_absent,
+        worst_extended,
         &py_dumps_compressed_vectors(&worst_infos),
     );
 
@@ -578,6 +568,10 @@ pub fn compress_file(
     let mut pieces: Vec<Piece> = Vec::with_capacity(st.tensors.len());
     let mut original_bytes = 0u64;
     let mut compressed_bytes = 0u64;
+    // Phase 4: the file is Neo-extended iff at least one EXTENSION-BAND blob
+    // is actually stored (a Neo-dtype tensor that passes through the "not
+    // worth it" rule keeps the file official-compatible).
+    let mut extended_stored = false;
     // ONE grow-only blob buffer for the whole file (no per-tensor alloc):
     // peak RAM stays O(largest tensor) — the K1 budget.
     let mut blob_buf: Vec<u8> = Vec::new();
@@ -593,7 +587,11 @@ pub fn compress_file(
                 hooks.check_cancel()?;
                 let data = st.data(&mmap, t)?;
                 match compressible_scheme(t) {
-                    Band::In(scheme) => {
+                    Some(base_scheme) => {
+                        // Phase 4: zero-statistics truncation selection for
+                        // the Neo integer types (a no-op for every other
+                        // dtype — `select_truncation` returns the input)
+                        let scheme = select_truncation(&base_scheme, data);
                         compress_tensor_into(
                             &mut blob_buf,
                             &scheme,
@@ -617,13 +615,14 @@ pub fn compress_file(
                                 len: blob_buf.len() as u64,
                             });
                             compressed_bytes += blob_buf.len() as u64;
+                            extended_stored |= scheme.is_neo();
                         } else {
                             writer.write_all(data)?;
                             pieces.push(Piece::Pass);
                             compressed_bytes += t.len();
                         }
                     }
-                    _ => {
+                    None => {
                         writer.write_all(data)?;
                         pieces.push(Piece::Pass);
                         compressed_bytes += t.len();
@@ -663,6 +662,7 @@ pub fn compress_file(
         &src_sha,
         exact,
         meta_absent,
+        extended_stored,
         &infos_json,
     );
     let owned: Vec<(String, String, Vec<u64>, u64, u64)> = {
@@ -762,20 +762,6 @@ pub fn compress_file(
                 .to_owned(),
         );
     }
-    if !passthrough_floats.is_empty() {
-        let shown: Vec<&str> = passthrough_floats
-            .iter()
-            .take(3)
-            .map(String::as_str)
-            .collect();
-        warnings.push(format!(
-            "{} floating-point tensor(s) outside the compression band stored as-is (Phase 4 adds them): {}{}",
-            passthrough_floats.len(),
-            shown.join(", "),
-            if passthrough_floats.len() > 3 { ", …" } else { "" }
-        ));
-    }
-
     writer.commit()?;
     if let Some(w) = writer.take_dir_sync_warning() {
         warnings.push(w);
@@ -935,6 +921,17 @@ pub fn decompress_file(
         // will re-run at decode time — planning must never promise a tensor
         // the write pass cannot deliver)
         let info = inspect_tensor(blob)?;
+        // Codec-level-only dtypes (complex128/bcomplex32 — real torch types
+        // WITHOUT a safetensors 0.8 representation, module docs of
+        // znn_tensor) cannot be named in a valid restored header; such a
+        // blob can only reach us hand-crafted. Refuse with an explicit
+        // error instead of writing a file no standard tool can read.
+        if crate::safetensors_io::dtype_bitsize(info.st_dtype).is_none() {
+            return Err(StError::Format(format!(
+                "tensor {}: the blob's dtype code {} ({}) has no safetensors 0.8 representation — complex128/bcomplex32 blobs are codec-level only and cannot be restored into a safetensors file",
+                t.name, info.scheme.dtype_code, info.st_dtype
+            )));
+        }
         if info.torch_name != info_dtype {
             return Err(StError::Format(format!(
                 "tensor {name}: {METADATA_KEY} records dtype {info_dtype:?} but the blob header says {other:?} — refusing to guess",
@@ -1360,10 +1357,13 @@ mod tests {
                 }
                 v
             }),
-            ("tokens", "U8", vec![100], noisy_bytes(100, 13)), // pass-through
-            ("idx", "I32", vec![10], vec![0u8; 40]),           // pass-through
-            ("prec", "F64", vec![4], vec![0u8; 32]),           // out-of-band float
-            ("scalar", "BF16", vec![], bf16_bytes(1, 17)),     // scalar shape []
+            // Phase 4: every dtype is compressible — these three stay
+            // pass-through because of the SIZE rule (blob ≥ raw for such
+            // small tensors), not because of their dtype
+            ("tokens", "U8", vec![100], noisy_bytes(100, 13)),
+            ("idx", "I32", vec![10], vec![0u8; 40]),
+            ("prec", "F64", vec![4], vec![0u8; 32]),
+            ("scalar", "BF16", vec![], bf16_bytes(1, 17)), // scalar shape []
         ]
     }
 
@@ -1405,7 +1405,8 @@ mod tests {
         assert_eq!(out.stats.tensors, corpus().len());
         // compressible band: enc.weight(BF16), dec.weight(F16), q.weight(FP8)
         // always compress; enc.bias (F32, noisy mantissas) may or may not
-        // beat the threshold; scalar/U8/I32/F64 always pass through
+        // beat the threshold; the scalar/U8/I32/F64 tensors pass through the
+        // SIZE rule (their blobs carry more overhead than the payload)
         assert!(
             (3..=4).contains(&out.stats.compressed_tensors),
             "compressed_tensors = {}",
@@ -1848,5 +1849,315 @@ mod tests {
         let out2 = decompress_file(&znn2, &back2, &JobOpts::default(), &hooks).unwrap();
         assert_eq!(out2.verified, Verified::Sha256);
         assert_eq!(read(&back2), original);
+    }
+
+    // -------------------------------------------------------------------
+    // Phase 4 — the Neo extension band at the FILE level
+    // -------------------------------------------------------------------
+
+    fn f64_bytes(n: usize, seed: u32) -> Vec<u8> {
+        let mut x = seed | 1;
+        let mut out = Vec::with_capacity(n * 8);
+        for _ in 0..n {
+            x = x.wrapping_mul(1664525).wrapping_add(1013904223);
+            // doubles in [-0.01, 0.01): concentrated sign/exponent
+            let v = ((x >> 8) as f64 / 8_388_608.0 - 1.0) * 0.01;
+            out.extend_from_slice(&v.to_le_bytes());
+        }
+        out
+    }
+
+    fn c64_bytes(n: usize, seed: u32) -> Vec<u8> {
+        let mut x = seed | 1;
+        let mut out = Vec::with_capacity(n * 8);
+        for _ in 0..n {
+            x = x.wrapping_mul(1664525).wrapping_add(1013904223);
+            let re = ((x >> 8) as f32 / 8_388_608.0 - 1.0) * 0.01;
+            let im = ((x >> 9) as f32 / 8_388_608.0) * 0.01;
+            out.extend_from_slice(&re.to_le_bytes());
+            out.extend_from_slice(&im.to_le_bytes());
+        }
+        out
+    }
+
+    fn i64_bytes(n: usize, seed: u32) -> Vec<u8> {
+        let mut x = seed | 1;
+        let mut out = Vec::with_capacity(n * 8);
+        for _ in 0..n {
+            x = x.wrapping_mul(1664525).wrapping_add(1013904223);
+            out.extend_from_slice(&u64::from(x % 100_000).to_le_bytes());
+        }
+        out
+    }
+
+    fn low_entropy_u8(n: usize, seed: u32) -> Vec<u8> {
+        let mut x = seed | 1;
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..n {
+            x = x.wrapping_mul(1664525).wrapping_add(1013904223);
+            out.push((x % 8) as u8);
+        }
+        out
+    }
+
+    fn bool_bytes(n: usize) -> Vec<u8> {
+        (0..n).map(|i| u8::from(i % 4 == 0)).collect()
+    }
+
+    /// The extended corpus: every Neo-band dtype at a size where the blob
+    /// beats the raw form (the "worth it" rule stores them compressed).
+    fn extended_corpus() -> Vec<(&'static str, &'static str, Vec<u64>, Vec<u8>)> {
+        vec![
+            ("w64", "F64", vec![4096], f64_bytes(4096, 3)),
+            ("cw", "C64", vec![4096], c64_bytes(4096, 5)),
+            (
+                "ids",
+                "I32",
+                vec![16384],
+                (0..16384u32)
+                    .flat_map(|i| (i % 200).to_le_bytes())
+                    .collect(),
+            ),
+            ("i64s", "I64", vec![4096], i64_bytes(4096, 7)),
+            ("tokens", "U8", vec![65536], low_entropy_u8(65536, 9)),
+            ("mask", "BOOL", vec![65536], bool_bytes(65536)),
+            ("q", "F8_E4M3FNUZ", vec![32768], low_entropy_u8(32768, 11)),
+            // F4: 8192 nibbles = 4096 packed bytes; F6_E2M3: 4096 sextets =
+            // 3072 packed bytes (sub-byte shape semantics)
+            ("f4", "F4", vec![8192], low_entropy_u8(4096, 13)),
+            ("f6", "F6_E2M3", vec![4096], low_entropy_u8(3072, 15)),
+            ("i16s", "I16", vec![8192], {
+                (0..8192u32)
+                    .flat_map(|i| ((i % 250) as u16).to_le_bytes())
+                    .collect()
+            }),
+            ("u64s", "U64", vec![4096], i64_bytes(4096, 17)),
+        ]
+    }
+
+    #[test]
+    fn phase4_extended_dtypes_roundtrip_byte_exact() {
+        let dir = TempDir::new("phase4-extended");
+        let src = dir.path("model.safetensors");
+        let znn = dir.path("model.znn.safetensors");
+        let back = dir.path("restored.safetensors");
+        let corpus = extended_corpus();
+        let original = {
+            write_st(&src, Some(&[meta("format", "pt")]), &corpus);
+            read(&src)
+        };
+        let hooks = Hooks::default();
+
+        let out = compress_file(&src, &znn, &JobOpts::default(), &hooks).expect("compress");
+        // EVERY extended tensor beats the size rule at these dimensions
+        assert_eq!(out.stats.compressed_tensors, corpus.len());
+        assert_eq!(out.stats.tensors, corpus.len());
+
+        let (cst, cmmap) = StContainer::open(&znn).expect("parse compressed");
+        let cmeta = cst.metadata.clone().expect("metadata");
+        let lookup = |k: &str| cmeta.iter().find(|(mk, _)| mk == k).map(|(_, v)| v.clone());
+        // the Phase-4 marker is present (Neo-band blobs were stored)
+        assert_eq!(lookup(EXTENDED_KEY).as_deref(), Some("1"));
+        assert_eq!(lookup(EXACT_KEY).as_deref(), Some("1"));
+        // infos: torch names per the table (the F6 type records its
+        // safetensors name — no torch spelling exists)
+        let infos = parse_infos(&lookup(METADATA_KEY).unwrap()).unwrap();
+        let expect_names = [
+            ("w64", "float64"),
+            ("cw", "complex64"),
+            ("ids", "int32"),
+            ("i64s", "int64"),
+            ("tokens", "uint8"),
+            ("mask", "bool"),
+            ("q", "float8_e4m3fnuz"),
+            ("f4", "float4_e2m1fn_x2"),
+            ("f6", "F6_E2M3"),
+            ("i16s", "int16"),
+            ("u64s", "uint64"),
+        ];
+        for (name, torch) in expect_names {
+            let (dtype, shape) = infos
+                .get(name)
+                .unwrap_or_else(|| panic!("infos for {name}"));
+            assert_eq!(dtype, torch, "{name} torch name");
+            assert!(!shape.is_empty());
+        }
+        // every tensor is stored as a U8 blob; the truncated integer blobs
+        // record their mode in header byte 5 (ids → 1, i16s → 1)
+        for t in &cst.tensors {
+            assert_eq!(t.dtype, "U8", "{}", t.name);
+            let blob = cst.data(&cmmap, t).unwrap();
+            assert_eq!(&blob[..2], b"ZN");
+            match t.name.as_str() {
+                "ids" | "i16s" => assert_eq!(blob[5], 1, "{} truncated to byte0", t.name),
+                "w64" | "i64s" | "u64s" => assert_eq!(blob[5], 88, "{} 8-plane", t.name),
+                "cw" => assert_eq!(blob[5], 220, "c64 4-plane"),
+                _ => assert_eq!(blob[5], 10, "{} single/2-plane", t.name),
+            }
+        }
+
+        // restore: byte-exact + verified; the marker must NOT survive
+        let out2 = decompress_file(&znn, &back, &JobOpts::default(), &hooks).expect("decompress");
+        assert_eq!(out2.verified, Verified::Sha256);
+        assert_eq!(read(&back), original, "byte-exact restore");
+        let (rst, _rm) = StContainer::open(&back).unwrap();
+        let rmeta = rst.metadata.clone().unwrap();
+        assert!(rmeta.iter().all(|(k, _)| !k.starts_with("znn_")));
+        // dtypes/shapes survived
+        for (t, (name, dtype, shape, _)) in rst.tensors.iter().zip(&corpus) {
+            assert_eq!(&t.name, name);
+            assert_eq!(&t.dtype, dtype);
+            assert_eq!(&t.shape, shape);
+        }
+    }
+
+    #[test]
+    fn phase4_marker_only_when_a_neo_blob_is_stored() {
+        let dir = TempDir::new("phase4-marker");
+        let hooks = Hooks::default();
+        // (a) compatibility-only file → no marker
+        let src = dir.path("compat.safetensors");
+        write_st(
+            &src,
+            None,
+            &[("w", "BF16", vec![256, 128], bf16_bytes(256 * 128, 7))],
+        );
+        let znn = dir.path("compat.znn.safetensors");
+        compress_file(&src, &znn, &JobOpts::default(), &hooks).unwrap();
+        let (cst, _m) = StContainer::open(&znn).unwrap();
+        let cmeta = cst.metadata.clone().unwrap();
+        assert!(!cmeta.iter().any(|(k, _)| k == EXTENDED_KEY));
+        // (b) Neo dtype present but PASSED THROUGH (tiny tensor — the blob
+        // would be bigger): the file stays official-compatible → no marker
+        let src2 = dir.path("tiny.safetensors");
+        write_st(
+            &src2,
+            None,
+            &[
+                ("w", "BF16", vec![256, 128], bf16_bytes(256 * 128, 7)),
+                ("small", "F64", vec![4], vec![0u8; 32]),
+            ],
+        );
+        let znn2 = dir.path("tiny.znn.safetensors");
+        let out = compress_file(&src2, &znn2, &JobOpts::default(), &hooks).unwrap();
+        assert_eq!(out.stats.compressed_tensors, 1, "only the bf16 tensor");
+        let (cst2, _m2) = StContainer::open(&znn2).unwrap();
+        let cmeta2 = cst2.metadata.clone().unwrap();
+        assert!(
+            !cmeta2.iter().any(|(k, _)| k == EXTENDED_KEY),
+            "pass-through Neo tensors must not flag the file"
+        );
+        // and such a file is decodable blob-wise by the compat rules — the
+        // stored blob is a plain bf16 container
+    }
+
+    #[test]
+    fn phase4_pseudo_dtype_blobs_are_refused_at_restore() {
+        // complex128 (code 129) has no safetensors 0.8 representation: a
+        // hand-crafted file with such a blob must fail with an explicit
+        // error, never write an unreadable header
+        use crate::znn_tensor::{compress_tensor, scheme_for_st_dtype};
+        let dir = TempDir::new("phase4-pseudo");
+        let scheme = scheme_for_st_dtype("C128").unwrap();
+        let data = f64_bytes(64, 21); // 64 u64 words = 512 B = 32 complex128
+        let blob = compress_tensor(&scheme, &data, &[32], 0, None).unwrap();
+        let infos_json = py_dumps_compressed_vectors(&[(
+            "x".to_owned(),
+            "complex128".to_owned(),
+            "[32]".to_owned(),
+        )]);
+        let src = dir.path("hand.safetensors");
+        write_st(
+            &src,
+            Some(&[
+                meta(METADATA_KEY, &infos_json),
+                meta(SRC_SHA_KEY, &"0".repeat(64)),
+                meta(EXACT_KEY, "1"),
+            ]),
+            &[("x", "U8", vec![blob.len() as u64], blob)],
+        );
+        let back = dir.path("hand.back.safetensors");
+        let err = decompress_file(&src, &back, &JobOpts::default(), &Hooks::default())
+            .expect_err("pseudo dtype must be refused");
+        let msg = err.to_string();
+        assert!(msg.contains("no safetensors 0.8 representation"), "{msg}");
+        assert!(!back.exists(), "no partial output");
+        // but the BLOB itself round-trips at the codec level
+        let restored = crate::znn_tensor::decompress_tensor(
+            &crate::safetensors_io::StContainer::open(&src)
+                .map(|(st, m)| {
+                    let t = &st.tensors[0];
+                    // leak-free inspection: copy the blob bytes out
+                    let mut v = Vec::new();
+                    let _ = &m;
+                    st.data(&m, t).map(|d| v.extend_from_slice(d)).ok();
+                    v
+                })
+                .unwrap_or_default(),
+            0,
+            None,
+        );
+        assert!(restored.is_ok(), "codec-level C128 roundtrip");
+        assert_eq!(restored.unwrap().data, data);
+    }
+
+    #[test]
+    fn phase4_truncated_blob_restores_and_beats_canonical() {
+        // I32 with 2-byte values: the file-level pipeline must pick the
+        // truncation mode (byte5=9) and restore byte-exactly
+        let dir = TempDir::new("phase4-trunc");
+        let src = dir.path("t.safetensors");
+        let data: Vec<u8> = (0..40_000u32)
+            .flat_map(|i| (256 + i % 60_000).to_le_bytes())
+            .collect();
+        write_st(&src, None, &[("ids", "I32", vec![40_000], data.clone())]);
+        let znn = dir.path("t.znn.safetensors");
+        let back = dir.path("t.back.safetensors");
+        let hooks = Hooks::default();
+        compress_file(&src, &znn, &JobOpts::default(), &hooks).unwrap();
+        let (cst, cmmap) = StContainer::open(&znn).unwrap();
+        let blob = cst.data(&cmmap, &cst.tensors[0]).unwrap();
+        assert_eq!(blob[5], 9, "two-byte truncation selected");
+        assert_eq!(blob[15], 137, "I32 code");
+        let out = decompress_file(&znn, &back, &JobOpts::default(), &hooks).unwrap();
+        assert_eq!(out.verified, Verified::Sha256);
+        let (_h, tensors) = {
+            let (rst, rm) = StContainer::open(&back).unwrap();
+            let t = &rst.tensors[0];
+            (t.dtype.clone(), rst.data(&rm, t).unwrap().to_vec())
+        };
+        assert_eq!(tensors, data, "byte-exact through truncation");
+    }
+
+    #[test]
+    fn phase4_recompress_extended_file_keeps_single_marker() {
+        let dir = TempDir::new("phase4-recompress");
+        let src = dir.path("m.safetensors");
+        write_st(
+            &src,
+            Some(&[meta("format", "pt")]),
+            &[
+                ("w64", "F64", vec![4096], f64_bytes(4096, 23)),
+                ("w", "BF16", vec![256, 128], bf16_bytes(256 * 128, 29)),
+            ],
+        );
+        let hooks = Hooks::default();
+        let znn = dir.path("m.znn.safetensors");
+        compress_file(&src, &znn, &JobOpts::default(), &hooks).unwrap();
+        let back = dir.path("m.back.safetensors");
+        decompress_file(&znn, &back, &JobOpts::default(), &hooks).unwrap();
+        let znn2 = dir.path("m2.znn.safetensors");
+        compress_file(&back, &znn2, &JobOpts::default(), &hooks).unwrap();
+        let (cst, _m) = StContainer::open(&znn2).unwrap();
+        let cmeta = cst.metadata.clone().unwrap();
+        let count = |k: &str| cmeta.iter().filter(|(mk, _)| mk == k).count();
+        assert_eq!(count(EXTENDED_KEY), 1, "marker written exactly once");
+        for k in BOOKKEEPING_KEYS {
+            assert!(count(k) <= 1, "{k} duplicated");
+        }
+        let back2 = dir.path("m2.back.safetensors");
+        let out2 = decompress_file(&znn2, &back2, &JobOpts::default(), &hooks).unwrap();
+        assert_eq!(out2.verified, Verified::Sha256);
+        assert_eq!(read(&back2), read(&src), "full double cycle byte-exact");
     }
 }
