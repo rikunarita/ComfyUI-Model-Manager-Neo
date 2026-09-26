@@ -501,6 +501,28 @@ reversible**: the plain `.safetensors` is only removed after the
 `.znn.safetensors` file has been fully written, and a failed run cleans up its
 partial output.
 
+#### dtype coverage & interoperability (native Rust core)
+
+The Rust core — the default engine whenever it is present — compresses **every
+dtype safetensors 0.8 defines** (all 22), in two interoperability bands:
+
+| Band                               | dtypes                                                                                                                          | Official ZipNN 0.5.4 tools                                                                            |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Upstream-compatible (codes 1–30)   | `F32` `F16` `BF16` `F8_E4M3` `F8_E5M2`                                                                                          | decode Neo's files unchanged                                                                          |
+| Neo extension band (codes 128–146) | `F64` `C64` `I8` `U8` `BOOL` `I16` `U16` `I32` `U32` `I64` `U64` `F8_E4M3FNUZ` `F8_E5M2FNUZ` `F8_E8M0` `F4` `F6_E2M3` `F6_E3M2` | refuse with an explicit `ValueError: Unsupported Dtype` — never a silent mis-decode (CI-demonstrated) |
+
+A file that contains extension-band tensors is marked `znn_neo_extended="1"`:
+the Information tab then shows a **Neo Extended** badge (with a tooltip
+explaining the interoperability) plus a **Compression** row aggregating the
+stored dtypes (`bfloat16×412, uint8×3, …`), and the compress confirmation says
+up-front that the artifact will be Neo-extended. Integer tensors whose high
+bytes are all zero (small `int32` indices, masks, scale tables) additionally
+use the truncation modes — the all-zero byte planes are dropped from the
+payload, losslessly (the compressor only drops planes it verified to be zero
+across the whole tensor). The legacy vendored engine (the fallback when the
+Rust core is absent) keeps its historical behaviour: it compresses the float
+band only and copies every other dtype through.
+
 **No installation step.** ZipNN is _vendored_ inside the extension
 ([`third_party/`](../third_party/)), together with **prebuilt `zipnn_core`
 binaries** for Linux x86_64 (CPython 3.10–3.15). On those platforms the first

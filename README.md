@@ -431,6 +431,42 @@ reads a Neo-compressed model transparently. Realistic checkpoints typically land
 around **60–80 %** of their original size (random-ish data compresses far less;
 low-entropy weights compress much more).
 
+### dtype coverage & the interoperability matrix
+
+The Rust core (the default engine whenever it is present) compresses **every
+dtype safetensors 0.8 defines** — 22 of them — in two interoperability bands
+(Plan §4.6.3). The band of a compressed file is recorded in its metadata
+(`znn_neo_extended="1"` for the extension band) and shown in the UI: a
+**Neo Extended** badge on the Information tab, the dtype breakdown row
+(`bfloat16×412, uint8×3, …`), and an explicit note in the compress
+confirmation before you commit.
+
+| Tensor dtype                                                                                                                    | ZipNN dtype code   | Official ZipNN 0.5.4 tools                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `F32` `F16` `BF16` `F8_E4M3` `F8_E5M2`                                                                                          | 1–30 (upstream)    | **decode Neo's files unchanged**                                                                                                 |
+| `F64` `C64` `I8` `U8` `BOOL` `I16` `U16` `I32` `U32` `I64` `U64` `F8_E4M3FNUZ` `F8_E5M2FNUZ` `F8_E8M0` `F4` `F6_E2M3` `F6_E3M2` | 128–146 (Neo band) | **refuse with an explicit error** (never silent corruption — demonstrated against the pip release in CI, `scripts/l5` section E) |
+
+Details worth knowing:
+
+- the official decoder rejects every dtype code it does not implement with
+  `ValueError: Unsupported Dtype N` — a Neo-extended file simply cannot be
+  mis-decoded by upstream tooling; inside Neo it restores byte-exactly with
+  SHA‑256 verification like any other file;
+- `complex64` uses the Neo band (code 130) even though the upstream enum
+  reserves code 9 for it: the official 0.5.4 decoder has **no arm for code 9**
+  and rejects it exactly like the Neo codes (proven by test, not by reading —
+  L5 section E2), so there is nothing to be compatible _with_;
+- integer tensors with zero high bytes (`int32` indices `< 65536`, masks,
+  scale tables, …) additionally use the **truncation modes**: the all-zero
+  byte planes are dropped from the payload entirely — lossless by
+  construction, since the compressor only drops planes it verified to be
+  zero across the whole tensor;
+- `complex128`/`bcomplex32` exist at the codec level (codes 129/131) but have
+  no safetensors representation — no `.safetensors` file can carry them;
+- the legacy vendored engine (the fallback when the Rust core is absent)
+  keeps its historical behaviour: it compresses `f32/f16/bf16/fp8` only and
+  passes everything else through.
+
 ### Using it
 
 Open any `.safetensors` model. In the gap between the preview and the info table
