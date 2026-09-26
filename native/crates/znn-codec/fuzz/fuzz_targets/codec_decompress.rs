@@ -21,7 +21,8 @@ fuzz_target!(|data: &[u8]| {
         1 => 2,
         _ => 4,
     };
-    let chunk = (u32::from_le_bytes([data[3], data[4], data[4], data[3]]) as usize % (512 * 1024)) + 1;
+    let chunk =
+        (u32::from_le_bytes([data[3], data[4], data[4], data[3]]) as usize % (512 * 1024)) + 1;
     let params = CoreParams {
         num_buf,
         bit_reorder: data[1] & 3, // includes illegal values on purpose

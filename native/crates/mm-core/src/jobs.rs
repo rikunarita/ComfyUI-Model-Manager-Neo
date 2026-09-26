@@ -24,15 +24,17 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use pyo3::exceptions::{PyKeyError, PyRuntimeError};
+use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::Serialize;
+use znn_codec::batch::{WalkMode, WalkOpts};
+use znn_codec::delta::{self, DeltaCompressOutcome, DeltaDecompressOutcome, DeltaMeta};
 use znn_codec::pipeline::{
     self, CompressOutcome, DecompressOutcome, Hooks, JobOpts, Phase, Progress,
 };
@@ -148,6 +150,71 @@ struct DecompressStatsJson {
     decompressed_tensors: usize,
 }
 
+/// The JSON shape of `job_result` for a delta-compress job: `stats` is the
+/// legacy delta ws payload (`originalBytes` = the PADDED rendering length,
+/// `compressedBytes` = the delta file size — no tensor counts on delta),
+/// `meta` mirrors the committed sidecar.
+#[derive(Serialize)]
+struct DeltaCompressResult<'a> {
+    stats: DeltaStatsJson,
+    meta: DeltaMetaJson<'a>,
+    warnings: &'a [String],
+}
+
+/// The JSON shape of `job_result` for a delta-decompress job.
+#[derive(Serialize)]
+struct DeltaDecompressResult<'a> {
+    stats: DeltaStatsJson,
+    verified: &'a str,
+    warnings: &'a [String],
+}
+
+#[derive(Serialize)]
+struct DeltaStatsJson {
+    #[serde(rename = "originalBytes")]
+    original_bytes: u64,
+    #[serde(rename = "compressedBytes")]
+    compressed_bytes: u64,
+}
+
+#[derive(Serialize)]
+struct DeltaMetaJson<'a> {
+    #[serde(rename = "basePad")]
+    base_pad: u64,
+    #[serde(rename = "ftPad")]
+    ft_pad: u64,
+    #[serde(rename = "ftSha256", skip_serializing_if = "Option::is_none")]
+    ft_sha256: Option<&'a str>,
+}
+
+fn delta_compress_json(o: &DeltaCompressOutcome) -> String {
+    serde_json::to_string(&DeltaCompressResult {
+        stats: DeltaStatsJson {
+            original_bytes: o.stats.original_bytes,
+            compressed_bytes: o.stats.compressed_bytes,
+        },
+        meta: DeltaMetaJson {
+            base_pad: o.meta.base_pad,
+            ft_pad: o.meta.ft_pad,
+            ft_sha256: o.meta.ft_sha256.as_deref(),
+        },
+        warnings: &o.warnings,
+    })
+    .expect("outcome serialises")
+}
+
+fn delta_decompress_json(o: &DeltaDecompressOutcome) -> String {
+    serde_json::to_string(&DeltaDecompressResult {
+        stats: DeltaStatsJson {
+            original_bytes: o.stats.original_bytes,
+            compressed_bytes: o.stats.compressed_bytes,
+        },
+        verified: o.verified.as_str(),
+        warnings: &o.warnings,
+    })
+    .expect("outcome serialises")
+}
+
 fn compress_json(o: &CompressOutcome) -> String {
     serde_json::to_string(&CompressResult {
         stats: CompressStatsJson {
@@ -194,10 +261,20 @@ fn panic_text(payload: &Box<dyn Any + Send>) -> String {
     }
 }
 
-#[derive(Clone, Copy)]
 enum Kind {
     Compress,
     Decompress,
+    /// Delta compression: `src` is the FINE-TUNE, `base` the base model,
+    /// `dst` the delta file (+ its sidecar).
+    DeltaCompress {
+        base: PathBuf,
+    },
+    /// Delta decompression: `src` is the DELTA file, `base` the base model,
+    /// `dst` the restored fine-tune; `meta` is the parsed sidecar.
+    DeltaDecompress {
+        base: PathBuf,
+        meta: DeltaMeta,
+    },
 }
 
 /// Spawn a pipeline job on a dedicated thread; returns the handle.
@@ -232,6 +309,14 @@ fn spawn(kind: Kind, src: PathBuf, dst: PathBuf, opts: JobOpts) -> u64 {
                         .map(|o| compress_json(&o)),
                     Kind::Decompress => pipeline::decompress_file(&src, &dst, &opts, &hooks)
                         .map(|o| decompress_json(&o)),
+                    Kind::DeltaCompress { base } => {
+                        delta::delta_compress(&base, &src, &dst, &opts, &hooks)
+                            .map(|o| delta_compress_json(&o))
+                    }
+                    Kind::DeltaDecompress { base, meta } => {
+                        delta::delta_decompress(&base, &src, &dst, &meta, &opts, &hooks)
+                            .map(|o| delta_decompress_json(&o))
+                    }
                 }
             }));
             let outcome = match ran {
@@ -336,8 +421,179 @@ pub fn zipnn_decompress(src: &str, dst: &str, opts: Option<&Bound<'_, PyDict>>) 
     )
 }
 
+/// Start a delta-compress job (`ft` against `base` → `out` + sidecar);
+/// returns the handle.
+pub fn zipnn_delta_compress(
+    base: &str,
+    ft: &str,
+    out: &str,
+    opts: Option<&Bound<'_, PyDict>>,
+) -> u64 {
+    spawn(
+        Kind::DeltaCompress {
+            base: PathBuf::from(base),
+        },
+        PathBuf::from(ft),
+        PathBuf::from(out),
+        parse_opts(opts),
+    )
+}
+
+/// Start a delta-decompress job (`base` + `delta` → `out`); returns the
+/// handle. `meta` is the parsed `.neo-delta.json` sidecar (missing keys
+/// degrade like the legacy reader: pads 0, no verification).
+pub fn zipnn_delta_decompress(
+    base: &str,
+    delta: &str,
+    out: &str,
+    meta: Option<&Bound<'_, PyDict>>,
+    opts: Option<&Bound<'_, PyDict>>,
+) -> u64 {
+    spawn(
+        Kind::DeltaDecompress {
+            base: PathBuf::from(base),
+            meta: parse_delta_meta(meta),
+        },
+        PathBuf::from(delta),
+        PathBuf::from(out),
+        parse_opts(opts),
+    )
+}
+
+/// Tolerant sidecar-dict extraction — mirrors the legacy
+/// `int(meta.get("basePad", 0))` reader (a missing/corrupt sidecar arrives
+/// as an empty dict; wrong-typed values degrade to the defaults instead of
+/// raising, and the length checks then fail with the legacy wording).
+fn parse_delta_meta(meta: Option<&Bound<'_, PyDict>>) -> DeltaMeta {
+    let Some(dict) = meta else {
+        return DeltaMeta::default();
+    };
+    let num = |key: &str| -> u64 {
+        dict.get_item(key)
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<u64>().ok())
+            .unwrap_or(0)
+    };
+    DeltaMeta {
+        base_pad: num("basePad"),
+        ft_pad: num("ftPad"),
+        ft_sha256: dict
+            .get_item("ftSha256")
+            .ok()
+            .flatten()
+            .and_then(|v| v.extract::<String>().ok())
+            .filter(|s| !s.is_empty()),
+    }
+}
+
+/// The batch walk primitive (Plan §4.2.2 `walk_models`): the parallel,
+/// `os.walk`-faithful replacement of `py/compress.py`'s three Python
+/// walkers. SYNCHRONOUS (walks are latency-bound metadata scans the routes
+/// run inside executors anyway); returns a JSON array of path strings in
+/// the legacy `sorted(found)` order. The GIL is RELEASED for the walk
+/// itself (Plan §4.2.2 invariant 2 — a held GIL would freeze the ComfyUI
+/// event loop for the whole walk even though the caller is an executor
+/// thread; regression-pinned by `test_walk_models_releases_the_gil`).
+///
+/// `opts`: `mode` ("compress" | "decompress" | "blockers" — required),
+/// `skipBundles` (bool), `bundleSuffixes` (list[str], default
+/// `["_DeltaZNN", "_ZNN"]`), `deltaFolderSuffix` (str, default
+/// `"_DeltaZNN"`), `extensions` (list[str] — "blockers" only).
+///
+/// # Errors
+/// An unknown `mode`.
+pub fn walk_models(
+    py: Python<'_>,
+    root: &str,
+    opts: Option<&Bound<'_, PyDict>>,
+) -> PyResult<String> {
+    let mode_str = opts
+        .and_then(|d| d.get_item("mode").ok().flatten())
+        .and_then(|v| v.extract::<String>().ok())
+        .unwrap_or_default();
+    let mode = match mode_str.as_str() {
+        "compress" => WalkMode::Compress,
+        "decompress" => WalkMode::Decompress,
+        "blockers" => WalkMode::Blockers,
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "unknown walk mode {other:?} (expected compress/decompress/blockers)"
+            )));
+        }
+    };
+    let get_bool = |key: &str| -> bool {
+        opts.and_then(|d| d.get_item(key).ok().flatten())
+            .and_then(|v| v.extract::<bool>().ok())
+            .unwrap_or(false)
+    };
+    let get_strings = |key: &str| -> Option<Vec<String>> {
+        opts.and_then(|d| d.get_item(key).ok().flatten())
+            .and_then(|v| v.extract::<Vec<String>>().ok())
+    };
+    let default_bundles: Vec<String> = vec!["_DeltaZNN".to_owned(), "_ZNN".to_owned()];
+    let bundle_suffixes = get_strings("bundleSuffixes")
+        .filter(|v| !v.is_empty())
+        .unwrap_or(default_bundles);
+    let delta_folder_suffix = opts
+        .and_then(|d| d.get_item("deltaFolderSuffix").ok().flatten())
+        .and_then(|v| v.extract::<String>().ok())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "_DeltaZNN".to_owned());
+    let extensions = get_strings("extensions").unwrap_or_default();
+
+    let skip_bundles = get_bool("skipBundles");
+
+    // The walk and its serialisation touch no Python object — release the
+    // GIL around them (Plan §4.2.2 invariant 2: long-running APIs must not
+    // freeze the interpreter). The batch routes call this from executors,
+    // where a held GIL would block the ComfyUI event loop for the WHOLE
+    // walk — seconds on network-storage libraries (the legacy `os.walk`
+    // interleaved at bytecode boundaries; the Rust walk must not regress
+    // that). `root` becomes owned: the extracted `&str` borrows the
+    // argument object, which the closure may not reference GIL-free.
+    let root = root.to_owned();
+    py.detach(move || {
+        let walk = WalkOpts {
+            mode,
+            skip_bundles,
+            bundle_suffixes: &bundle_suffixes,
+            delta_folder_suffix: &delta_folder_suffix,
+            extensions: &extensions,
+        };
+        let found = znn_codec::batch::walk_models(Path::new(&root), &walk);
+        let names: Vec<String> = found
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        serde_json::to_string(&names)
+            .map_err(|e| PyRuntimeError::new_err(format!("walk result does not serialise: {e}")))
+    })
+}
+
+/// Move every sidecar of `src` (20-slot previews + `.md`/`.txt` notes) to
+/// the matching names beside `dst` (Plan §4.2.2 `move_with_sidecars` — the
+/// `_sidecar_move` / `_delta_sidecar_move` replacement; bundle semantics
+/// stay in Python). The model file itself is NOT moved (callers keep the
+/// legacy ordering: artifact first, sidecars second, source removal last).
+/// SYNCHRONOUS — renames are metadata operations — but the directory
+/// listing and the renames still run GIL-free (Plan §4.2.2 invariant 2;
+/// `readdir` + `rename` on network storage are not instant).
+///
+/// # Errors
+/// Rename failures (like the legacy `os.rename` `OSError`).
+pub fn move_with_sidecars(py: Python<'_>, src: &str, dst: &str) -> PyResult<()> {
+    // owned: the extracted &str borrows the Python argument objects
+    let src = PathBuf::from(src);
+    let dst = PathBuf::from(dst);
+    py.detach(move || {
+        znn_codec::batch::move_with_sidecars(&src, &dst)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    })
+}
+
 /// `(done, total, phase)` — phase is one of `prepare/tensors/write/verify/
-/// done/failed`; `done`+`failed` are terminal.
+/// delta/done/failed`; `done`+`failed` are terminal.
 ///
 /// The OUTCOME record is the sole terminal signal: the pipeline sets its
 /// `Done` phase before the worker thread stores the outcome, so reporting

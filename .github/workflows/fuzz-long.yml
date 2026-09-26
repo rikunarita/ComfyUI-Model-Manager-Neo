@@ -1,7 +1,8 @@
 # Long-running L3 fuzz budget (Plan §5.1 L3: ">=8 hours, 0 panic/OOM/hang";
 # §6.2 Phase 1 completion condition "fuzz >=8 h"). GitHub's 6 h per-job limit
-# means the budget runs as a 5-target matrix x 3 h = 15 h total per schedule
-# (each job well inside the limit; Phase 2 adds st_parse + blob_decompress).
+# means the budget runs as a 6-target matrix x 3 h = 18 h total per schedule
+# (each job well inside the limit; Phase 2 added st_parse + blob_decompress,
+# Phase 3 delta_decompress).
 # Crashes fail the job and are uploaded as artifacts; the committed corpus
 # (incl. the Phase-1 regression seeds found by the fuzzer) replays every run.
 #
@@ -30,7 +31,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [huf_decompress, zn_header, codec_decompress, st_parse, blob_decompress]
+        target:
+          [huf_decompress, zn_header, codec_decompress, st_parse, blob_decompress, delta_decompress]
     defaults:
       run:
         working-directory: native/crates/znn-codec/fuzz
@@ -65,9 +67,17 @@ jobs:
         run: |
           HOURS="${{ github.event.inputs.hours || '3' }}"
           SECS=$(( HOURS * 3600 ))
+          # ASan allocator tuning: the default quarantine (256 MB) + lazy
+          # page release retains hundreds of MB of already-freed pages over
+          # a 3 h run — that tripped the old 2048 MB rss_limit in the first
+          # blob_decompress long run (live heap was ~25 MB; not a leak).
+          # Small quarantine + eager release keeps RSS near-flat:
+          # 427 MB -> 127 MB in a matched local A/B (410 k execs).
+          export ASAN_OPTIONS="quarantine_size_mb=32:release_to_os_interval_ms=200"
+          # rss_limit 4096: headroom for the (decaying) residual retention.
           cargo +nightly fuzz run "${{ matrix.target }}" \
             --target x86_64-unknown-linux-gnu -- \
-            -max_total_time="$SECS" -rss_limit_mb=2048 -timeout=30 \
+            -max_total_time="$SECS" -rss_limit_mb=4096 -timeout=30 \
             -artifact_prefix=artifacts/${{ matrix.target }}/
 
       - name: Upload crash artifacts

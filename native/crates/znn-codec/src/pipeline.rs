@@ -112,6 +112,10 @@ pub enum Phase {
     Done = 4,
     /// Terminal: failed (see the job's error).
     Failed = 5,
+    /// The delta chunk loop (Phase 3 — the legacy ws phase vocabulary of
+    /// Plan §4.2.3 is `prepare/tensors/delta/done`; delta routes report
+    /// their work under `"delta"` exactly like the legacy 3-step progress).
+    Delta = 6,
 }
 
 impl Phase {
@@ -125,6 +129,7 @@ impl Phase {
             Self::Verify => "verify",
             Self::Done => "done",
             Self::Failed => "failed",
+            Self::Delta => "delta",
         }
     }
 
@@ -137,6 +142,7 @@ impl Phase {
             3 => Self::Verify,
             4 => Self::Done,
             5 => Self::Failed,
+            6 => Self::Delta,
             _ => Self::Prepare,
         }
     }
@@ -198,22 +204,22 @@ pub struct Hooks<'a> {
 }
 
 impl Hooks<'_> {
-    fn cancelled(&self) -> bool {
+    pub(crate) fn cancelled(&self) -> bool {
         self.cancel.is_some_and(|c| c.load(Ordering::Relaxed))
     }
-    fn check_cancel(&self) -> StResult<()> {
+    pub(crate) fn check_cancel(&self) -> StResult<()> {
         if self.cancelled() {
             Err(StError::Cancelled)
         } else {
             Ok(())
         }
     }
-    fn phase(&self, p: Phase) {
+    pub(crate) fn phase(&self, p: Phase) {
         if let Some(pr) = self.progress {
             pr.set_phase(p);
         }
     }
-    fn bump(&self) {
+    pub(crate) fn bump(&self) {
         if let Some(pr) = self.progress {
             pr.bump();
         }
@@ -334,7 +340,22 @@ pub struct DecompressOutcome {
     pub warnings: Vec<String>,
 }
 
-fn io_ctx(e: std::io::Error, what: &str, path: &Path) -> StError {
+/// Refuse to WRITE a container the reference reader would reject: its
+/// header region is capped at 100 MB (`MAX_HEADER_SIZE`). Only reachable
+/// with pathological inputs (a source header already near the cap plus a
+/// huge infos record) — but producing a file no standard tool can read
+/// back is worse than an explicit error.
+fn guard_header_size(region: &[u8]) -> StResult<()> {
+    if region.len() as u64 > crate::safetensors_io::MAX_HEADER_SIZE {
+        return Err(StError::Format(format!(
+            "the output header ({} bytes) would exceed the safetensors 100 MB header cap — the file could not be read back by standard tools",
+            region.len()
+        )));
+    }
+    Ok(())
+}
+
+pub(crate) fn io_ctx(e: std::io::Error, what: &str, path: &Path) -> StError {
     if is_enospc(&e) {
         StError::Io(std::io::Error::new(
             e.kind(),
@@ -676,6 +697,7 @@ pub fn compress_file(
         })
         .collect();
     let region = build_header_region(Some(&meta), &entries);
+    guard_header_size(&region)?;
     let json = trim_json_tail(&region);
     if json.len() > h_max {
         // Defensive fallback — the bound construction above makes this
@@ -755,6 +777,9 @@ pub fn compress_file(
     }
 
     writer.commit()?;
+    if let Some(w) = writer.take_dir_sync_warning() {
+        warnings.push(w);
+    }
     hooks.phase(Phase::Done);
     Ok(CompressOutcome {
         stats: CompressStats {
@@ -990,6 +1015,7 @@ pub fn decompress_file(
         })
         .collect();
     let region = build_header_region(restored_meta.as_deref(), &entries);
+    guard_header_size(&region)?;
 
     // Streaming write pass with the INLINE sha (hasher only when a recorded
     // digest exists to compare against — zero-cost otherwise).
@@ -1101,6 +1127,9 @@ pub fn decompress_file(
         }
     };
     writer.commit()?;
+    if let Some(w) = writer.take_dir_sync_warning() {
+        warnings.push(w);
+    }
     hooks.phase(Phase::Done);
     Ok(DecompressOutcome {
         stats: DecompressStats {
@@ -1739,6 +1768,18 @@ mod tests {
         let err = decompress_file(&bad_json, &back, &JobOpts::default(), &hooks).unwrap_err();
         assert!(err.to_string().contains(METADATA_KEY), "{err}");
         assert!(!back.exists());
+    }
+
+    /// The write-side MAX_HEADER_SIZE guard: an output the reference reader
+    /// would reject must never be produced (only reachable with pathological
+    /// sources — guard tested directly).
+    #[test]
+    fn header_size_guard_rejects_oversized_regions() {
+        let ok = vec![b'x'; crate::safetensors_io::MAX_HEADER_SIZE as usize];
+        assert!(guard_header_size(&ok).is_ok());
+        let too_big = vec![b'x'; crate::safetensors_io::MAX_HEADER_SIZE as usize + 1];
+        let err = guard_header_size(&too_big).unwrap_err().to_string();
+        assert!(err.contains("100 MB") || err.contains("header"), "{err}");
     }
 
     #[test]

@@ -508,6 +508,31 @@ async def test_native_required_but_missing_fails_cleanly(prompt_server, model_li
         sys.modules.pop("mm_core", None)
 
 
+def test_cleanup_targets_never_deletes_dst_itself(tmp_path):
+    """A failed run must clean its PARTIALS but never the destination path:
+    both pipelines create dst only via a final atomic rename, so a dst that
+    exists during a failure cleanup belongs to someone else (race) — the
+    earlier dst-deleting behaviour was a (narrow) data-loss bug."""
+    compress = _compress_mod()
+    dst = tmp_path / "model.safetensors"
+    dst.write_bytes(b"somebody elses finished file")
+    partials = [
+        tmp_path / "model.safetensors.tmp",
+        tmp_path / "model.safetensors.verify.tmp",
+        tmp_path / "model.safetensors.tmp.fix",
+    ]
+    for partial in partials:
+        partial.write_bytes(b"partial")
+    corrupt = tmp_path / "model.safetensors.corrupt"
+    corrupt.write_bytes(b"diagnostic")
+
+    compress._cleanup_targets(str(dst))
+    assert dst.read_bytes() == b"somebody elses finished file", "dst must survive"
+    assert corrupt.exists(), ".corrupt diagnostics must survive"
+    for partial in partials:
+        assert not partial.exists(), f"{partial.name} must be removed"
+
+
 def test_startup_cleanup_sweeps_tmp_and_reports_corrupt(model_lib):
     compress = _compress_mod()
     checkpoints = model_lib / "checkpoints"

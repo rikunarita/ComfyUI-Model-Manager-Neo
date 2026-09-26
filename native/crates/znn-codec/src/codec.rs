@@ -33,8 +33,9 @@
 //! `threads=min(cpu_count(), 16)`. Output is deterministic regardless of
 //! thread count (the assembly pass is sequential).
 
-use std::sync::OnceLock;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 
 use rayon::prelude::*;
 
@@ -121,6 +122,19 @@ type DecScratch = (Vec<Vec<u8>>, Option<Box<huf::decode::DTableEntries>>);
 
 static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
 
+/// Pools for EXPLICIT thread counts, cached per count. Building (and
+/// dropping) a rayon pool on every call churns OS threads: each spawned
+/// thread leaves runtime metadata behind that accumulates for the process
+/// lifetime — under ASan this measured ~35–100 B per exec (live heap stayed
+/// ~25 MB while RSS grew linearly with the exec count), which tripped the
+/// libFuzzer `rss_limit` in the 3 h `blob_decompress` long runs (36088280583
+/// / 36114455354; the harness pins `threads = 1`). Production pays the same
+/// pool-construction cost per call for any explicit count (e.g. Plan §3.5's
+/// "halve threads while a prompt executes" option). Pools are tiny and the
+/// set of distinct counts is small, so cache one pool per count instead.
+static CUSTOM_POOLS: LazyLock<Mutex<HashMap<usize, Arc<rayon::ThreadPool>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
 fn default_threads() -> usize {
     std::thread::available_parallelism()
         .map(|n| n.get())
@@ -138,10 +152,41 @@ fn global_pool() -> &'static rayon::ThreadPool {
     })
 }
 
+/// Upper bound for cached explicit-count pools. Counts beyond this are
+/// pathological (rayon oversubscribes past the physical cores and the global
+/// pool itself is `min(parallelism, 16)`), and every cached pool retains its
+/// threads for the process lifetime — so `with_threads` refuses to build one
+/// and falls back to the global pool. Output bytes are thread-count
+/// independent (`threads_param_does_not_change_output`), so the fallback is
+/// byte-safe.
+const MAX_EXPLICIT_THREADS: usize = 64;
+
+/// The cached pool for an explicit thread count (`None` only when the pool
+/// cannot be built or the cache mutex is poisoned — callers fall back to the
+/// global pool rather than fail).
+fn custom_pool(want: usize) -> Option<Arc<rayon::ThreadPool>> {
+    if want > MAX_EXPLICIT_THREADS {
+        return None;
+    }
+    let mut cache = CUSTOM_POOLS.lock().ok()?;
+    if let Some(pool) = cache.get(&want) {
+        return Some(Arc::clone(pool));
+    }
+    let pool = Arc::new(
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(want)
+            .thread_name(move |i| format!("znn-codec-t{want}-{i}"))
+            .build()
+            .ok()?,
+    );
+    cache.insert(want, Arc::clone(&pool));
+    Some(pool)
+}
+
 /// Run `f` on a pool with the requested thread count: the shared dedicated
-/// pool for the default (or 0 = default), a one-off local pool otherwise
-/// (the C ABI takes `threads` per call; building a scratch pool keeps the
-/// contract without resizing the shared one).
+/// pool for the default (or 0 = default), a CACHED per-count pool otherwise
+/// (the C ABI takes `threads` per call; caching keeps the contract without
+/// resizing the shared pool and without per-call thread churn).
 fn with_threads<F, T>(threads: usize, f: F) -> T
 where
     F: FnOnce() -> T + Send,
@@ -155,13 +200,9 @@ where
     if want == default_threads() || want == 0 {
         global_pool().install(f)
     } else {
-        match rayon::ThreadPoolBuilder::new()
-            .num_threads(want)
-            .thread_name(move |i| format!("znn-codec-t{want}-{i}"))
-            .build()
-        {
-            Ok(pool) => pool.install(f),
-            Err(_) => global_pool().install(f), // fall back rather than fail
+        match custom_pool(want) {
+            Some(pool) => pool.install(f),
+            None => global_pool().install(f), // fall back rather than fail
         }
     }
 }
@@ -1018,6 +1059,43 @@ mod tests {
             let out = combine_dtype(&c[32..], data.len(), &p, None).expect("d");
             assert_eq!(out, data);
         }
+    }
+
+    /// Regression (fuzz-long runs 36088280583 / 36114455354): an explicit
+    /// thread count must NOT build a fresh rayon pool per call. The per-call
+    /// build+destroy churned one OS thread per exec and accumulated runtime
+    /// metadata (~35–100 B/thread under ASan) until libFuzzer's rss_limit
+    /// aborted the 3 h `blob_decompress` run with only ~25 MB of live heap.
+    #[test]
+    fn explicit_thread_counts_reuse_cached_pools() {
+        let a = custom_pool(1).expect("pool builds");
+        let b = custom_pool(1).expect("pool builds");
+        assert!(
+            Arc::ptr_eq(&a, &b),
+            "custom_pool must return the SAME cached pool per thread count"
+        );
+        // ...and `with_threads` must actually run on it (no per-call pool):
+        let on_pool_thread = with_threads(1, || std::thread::current().id());
+        let again = with_threads(1, || std::thread::current().id());
+        assert_eq!(
+            on_pool_thread, again,
+            "with_threads(1) must reuse one worker"
+        );
+        assert_ne!(
+            on_pool_thread,
+            std::thread::current().id(),
+            "install runs the closure on the pool worker, not the caller"
+        );
+        // distinct counts get distinct pools
+        let c = custom_pool(3).expect("pool builds");
+        assert!(!Arc::ptr_eq(&a, &c));
+        // pathological counts are NOT built/cached (thread-bomb guard) —
+        // with_threads falls back to the global pool and still computes
+        let huge = MAX_EXPLICIT_THREADS + 1;
+        assert!(custom_pool(huge).is_none());
+        assert!(custom_pool(usize::MAX).is_none());
+        let got = with_threads(usize::MAX, || 7usize);
+        assert_eq!(got, 7);
     }
 
     #[test]
