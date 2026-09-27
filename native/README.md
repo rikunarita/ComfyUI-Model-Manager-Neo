@@ -45,6 +45,39 @@ Neo クリーン正式実装（ゼロ統計自動選択 `select_truncation`・�
 **complex128/bcomplex32（code 129/131）は codec 級のみ** — safetensors 0.8
 表現が存在しないため、パイプラインの復元は明示エラーで拒否します。
 
+**Phase 5（スキャン / インデックス / ハッシュ / ヘッダー）実装済み**
+（api_version=**4**）: `py/manager.py` のライブラリスキャンと
+`py/identify.py` のハッシュ、`py/utils.py` の safetensors ヘッダー解析、
+`py/download.py` のダウンロード検証を Rust 化（docs/BENCH.md §10 = K7–K11
+の証跡）。新モジュール:
+
+- `scan.rs` — `scan_models`（std::fs + rayon の自前並列 walk。`os.scandir`
+  意味論の忠実移植: dir symlink 追従 + canonical visited ガード、hidden を
+  name set に残す、拡張子大文字小文字区別、20 スロット preview 解決、
+  front-matter 4 値、`round(st_ctime_ns/1e6)` を `f64::round_ties_even` で
+  Python とビット一致）+ `scan_hygiene`（`os.walk(followlinks=False)` =
+  orphan サイドカー + empty フォルダ）。JSON 形状は現行ルートと厳密一致
+  （golden parity = `tests/test_phase5_scan.py`）。
+- `index.rs` — 永続 front-matter インデックス（bincode 2.0.1 スナップショット
+  - blake3 チェックサム + 原子入替 + 破損時自動全再構築 = 常に派生データ）。
+    `(path, mtime_ns, size)` → 4 値。`_SITE_CACHE` のプロセス内限界を解消し
+    再起動を跨ぐ（K10）。
+- `hash.rs` — `MultiHasher`（SHA256 + AutoV1 窓 + AutoV2 + CRC32 バイト反転
+  - BLAKE3 を 1 パス、K8）+ `hash_file` + インクリメンタル API
+    （`hasher_new/update/finalize` = download インライン検証、K7）。Civitai
+    表記は Python 定義とバイト一致で golden 固定。
+- `safetensors_io.rs::header_display_json` — ヘッダ専用 jiter 解析（データ
+  領域無検証・B4 32 MiB 統一ガード・`{metadata, tensors}` processed JSON）。
+  **重複テンソル名検査を HashMap O(1) 化**（旧 O(n²) は 64k テンソル MoE
+  ヘッダで 6 s の重大退行 → 212 ms。compress パイプラインも共有経路で高速化）。
+
+mm-core（`phase5.rs`）が `scan_models` / `scan_hygiene` / `safetensors_header`
+/ `hash_file` / `hasher_*` / `phase5_diagnostics` を公開（同期・`py.detach()`
+で GIL 解放 = 不変条件 2）。SiteIndex のグローバル レジストリ（indexDir 単位）
+とハッシャ レジストリ（cap 4096）を保持。**任意項目 A3（requests→aiohttp）と
+watch_roots は本フェーズ見送り**（Plan の「任意」表記・`watch` feature は
+宣言済みで将来の土台 — BENCH §10.5）。
+
 ## テスト配置と cargo ワークフロー（Plan §3.4.3）
 
 - **単体テスト**: 各 `src/*.rs` のインライン `#[cfg(test)]`（private API に

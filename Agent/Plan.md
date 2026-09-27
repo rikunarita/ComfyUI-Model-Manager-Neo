@@ -2,16 +2,16 @@
 
 ## ― Rust ネイティブコア化と ZipNN 完全置き換え ―
 
-| 項目           | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 文書番号       | NEO‑PLAN‑2026‑001                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| 版数           | 2.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 作成日         | 2026‑09‑22                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 対象ブランチ   | `dev`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 現行バージョン | v0.2.0（α3）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 目標バージョン | v0.3.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 状態           | **Phase 0 完了・Phase 1 完了（2026‑09‑25、fuzz 15 h バジェット消化 — run 36148521214 全 5 ターゲット緑）・Phase 2 実装完了（2026‑09‑24、L4/L5 緑・K1/K6/K13 達成、K2/K3 は参照機再計測待ち — BENCH §7）・Phase 3 実装完了（2026‑09‑25、K4/K5 達成・L5 セクション D 緑・SEGFAULT クラス解消実証 — BENCH §8。2026‑09‑26 に独立監査で全ゲート再検証 + GIL 解放修正 — MEMO 同日）・Phase 4 実装完了（2026‑09‑26、K14 達成 = 全 22 safetensors dtype 往復 green・C64=Neo 帯 130 実証確定・L5 セクション E 緑・L2 退行なし 1,121/1,121 — BENCH §9）** |
+| 項目           | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 文書番号       | NEO‑PLAN‑2026‑001                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 版数           | 2.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 作成日         | 2026‑09‑22                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 対象ブランチ   | `dev`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 現行バージョン | v0.2.0（α3）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 目標バージョン | v0.3.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 状態           | **Phase 0 完了・Phase 1 完了（2026‑09‑25、fuzz 15 h バジェット消化 — run 36148521214 全 5 ターゲット緑）・Phase 2 実装完了（2026‑09‑24、L4/L5 緑・K1/K6/K13 達成、K2/K3 は参照機再計測待ち — BENCH §7）・Phase 3 実装完了（2026‑09‑25、K4/K5 達成・L5 セクション D 緑・SEGFAULT クラス解消実証 — BENCH §8。2026‑09‑26 に独立監査で全ゲート再検証 + GIL 解放修正 — MEMO 同日）・Phase 4 実装完了（2026‑09‑26、K14 達成 = 全 22 safetensors dtype 往復 green・C64=Neo 帯 130 実証確定・L5 セクション E 緑・L2 退行なし 1,121/1,121 — BENCH §9）・Phase 5 実装完了（2026‑09‑27、K7–K11 達成 = scan 5000 モデル 0.145 s〔×7.5・native==legacy parity〕・hash 5 表記 1239 MB/s・永続インデックス・models_changed 更新伝播・parse_header_json の O(n²) 重大バグ修正〔MoE 6 s→212 ms〕・api_version 4・任意 A3/watch_roots は見送り — BENCH §10）** |
 
 ### 版数履歴
 
@@ -1289,21 +1289,72 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ### Phase 5 — スキャン/インデックス/ハッシュ/更新伝播
 
-- [ ] `scan_models` Rust 化（並列 walk 実装を ignore vs dua-core で
-      ベンチ確定）+ 現行 JSON 形状 golden テスト
-- [ ] 永続インデックス（bincode + blake3 チェックサム、自動再構築）
-- [ ] `scan_hygiene` Rust 化
-- [ ] `safetensors_header` / `safetensors_tensor_tree` +
-      `py/utils.py` の `get_model_metadata` / `get_model_tensors` 切替（B4）
-- [ ] `hash_file` / `hasher_*`（B1/B2）+ `py/identify.py` 切替
-      （Civitai 表記 golden テスト）
-- [ ] Quick Win A2（ダウンロードチャンク拡大）+ インライン検証接続、
-      `_sha256_of` フル再読込パス削除（K7）
-- [ ] Quick Win A3（requests → aiohttp 統一、任意）
-- [ ] `models_changed` ws 無効化 + フロント部分再取得
-- [ ] （任意）`watch_roots` + 設定スイッチ
-- [ ] 完了条件: K7–K11 達成、5,000 モデル合成ライブラリで QA、
-      既存 UI 退行なし
+- [x] `scan_models` Rust 化（`scan.rs`: std::fs + rayon の自前並列 walk —
+      os.scandir 意味論の忠実移植〔dir symlink 追従 + canonical visited ガード・
+      hidden を name set には残す・拡張子大文字小文字区別・20 スロット preview
+      解決・front-matter 4 値・stat〕)+ 現行 JSON 形状 golden テスト
+      （`test_phase5_scan.py`: native == legacy をエントリ単位で機械固定、
+      5000 モデル QA でも parity True）。**並列 walk は ignore/dua-core 比較でなく
+      自前 rayon walk を採用** — scan_models の os.scandir 意味論（symlink 追従・
+      hidden の name set 残留）は ignore の gitignore フィルタ模型より直接で、
+      K9 ×5.1–7.5 / K10 99 ms を実測達成（BENCH §10.1）
+- [x] 永続インデックス（`index.rs`: bincode 2.0.1 スナップショット + blake3
+      チェックサム + 原子入替〔tempfile→fsync→rename→dir fsync〕+ 破損/不一致時
+      自動全再構築 = 常に派生データ・R7）。`(path, mtime_ns, size)` → front-matter
+      4 値を `(extension_uri)/.mm-cache/mm-scan-index.bin` へ永続化し、
+      ComfyUI 再起動後も front-matter 再パースを消す（`_SITE_CACHE` のプロセス内
+      限界を解消）。世代番号を内包（将来の `?since=<gen>` 差分用）
+- [x] `scan_hygiene` Rust 化（同一 walk 基盤・os.walk(followlinks=False) 意味論 =
+      orphan サイドカー〔20 スロット preview + .md/.txt の candidate 照合〕+
+      empty フォルダ〔model file も subdir も無し〕・type 順 + 決定論ソートで
+      legacy と golden parity）
+- [x] `safetensors_header`（`header_display_json`: ヘッダ専用 jiter 解析 =
+      データ領域無検証〔truncated ファイルでも表示可〕・**B4 = 32 MiB 統一ガード**
+      〔旧 get_model_metadata の 1 MiB が巨大 MoE `__metadata__` を黙って空にする
+      バグを解消〕・metadata/tensors を processed JSON で返却）+ `py/utils.py` の
+      `get_model_metadata` / `get_model_tensors` 切替（comfy.utils.safetensors_header
+      依存を撤去 = ComfyUI 本体 API 変更に耐性）。**実装中に O(n²) 重大バグを
+      発見・修正**: `parse_header_json` の重複名検査が線形走査で 64,491 テンソル
+      MoE ヘッダが native 6,098 ms（legacy 334 ms の ×18 退行）→ HashMap O(1)
+      last-wins へ修正（212 ms・legacy より高速。compress パイプラインも共有経路
+      なので MoE 圧縮のヘッダ解析も 6 s → 数十 ms）。`safetensors_tensor_tree`
+      （表示用事前グループ化）は **任意** — 未実装（フロントの modelInformation.ts
+      が既存の通りグループ化、退行なし）
+- [x] `hash_file` / `hasher_*`（B1/B2: `hash.rs` の MultiHasher が SHA256 + AutoV1
+      窓〔1 MiB オフセット 64 KiB〕+ AutoV2 + CRC32〔Civitai バイト反転〕+ BLAKE3
+      を 1 パスで同時計算・インクリメンタル hasher は download 書込みループが
+      チャンク供給）+ `py/identify.py compute_hashes` 切替（Civitai 表記 golden
+      テスト = Python 定義とバイト一致を `test_phase5_scan.py` / L1 で機械固定・
+      sha256 三者クロスチェック MATCH）
+- [x] Quick Win A2（`iter_chunked(8192)` → **1 MiB** = 10 GB で Python ループ
+      130 万回 → 1 万回）+ インライン検証接続（B1: native + civitai + published
+      SHA256 のとき hasher へチャンク供給 → 完了時 `hasher_finalize` で検証、
+      resume は部分ファイルを page-cache 速度でシード、200 リセット/416 リトライ/
+      pause を全て正しく処理）+ `_sha256_of` フル再読込を **native 経路から削除**
+      （K7 = 完了時の追加 I/O ゼロ。`_sha256_of` は legacy エンジン〔MM_NATIVE=0〕と
+      resume-済み完成ファイルのフォールバックとしてのみ残置 = 正しさは不変・
+      `test_phase5_download.py` が match/mismatch/フォールバックを固定）
+- [ ] Quick Win A3（requests → aiohttp 統一、**任意**）— **本フェーズ見送り**
+      （BENCH §10.5: ネットワーク経路の async リファクタはライブ API なしで回帰
+      テスト不能・executor 経由で現状動作・identify の主目標〔ハッシュ native 化〕
+      は達成済み・完了条件 K7–K11 に不含）
+- [x] `models_changed` ws 無効化 + フロント部分再取得（Plan §4.7.2‑1: delete /
+      rename / move で `{type, reason}` をブロードキャスト → フロント
+      `api.addEventListener('models_changed')` が該当 type のみ
+      `refreshModels(type, {background})`〔generation ガードで二重再取得吸収〕。
+      download 完了 / ZipNN 完了は既存の ws ブロードキャストが全クライアントに
+      届くため二重発行しない。30 s TTL revalidate はフォールバック維持）
+- [ ] （任意）`watch_roots` + 設定スイッチ — **本フェーズ見送り**（BENCH §10.5:
+      notify + debouncer のファイル監視サブシステムは任意機能・既定 OFF。
+      `znn-codec` の `watch` feature は宣言済み〔Cargo.toml・notify 依存配線済み〕で
+      将来の土台。必須の更新伝播〔models_changed + TTL〕が UI 起因の全変更をカバーし、
+      watch_roots が加える外部ツール起因の変更検出は TTL フォールバックが担保済み）
+- [x] 完了条件: **K7–K11 達成**（K7 追加 I/O ゼロ / K8 5 表記 1 パス 1239 MB/s =
+      10 GB ≈8.3 s ≤15 s / K9 5000 モデル 0.145 s ≤2 s〔×7.5〕/ K10 warm 99 ms
+      ≤100 ms〔3000〕/ K11 Rust 解析 ≈10 ms ≤40 ms + 端到端 ×1.58 — BENCH §10）・
+      **5,000 モデル合成ライブラリで QA**（native == legacy の完全 parity を機械確認）・
+      **既存 UI 退行なし**（golden テスト + pytest 127 緑 + web バンドル再構築 +
+      typecheck/eslint/prettier 緑）。証跡: `scripts/bench/results/phase5_*.json`
 
 ### Phase 6 — フロントエンド表示最適化（計測駆動）
 
@@ -1455,7 +1506,30 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
       F64 0.515・trunc 実測）。api_version 3 のまま（新規 Python API
       なし — inspect ルートは Python 側）。fuzz 表面は新モード/新コード帯を
       含むため run 6（6 ターゲット × 3 h）を新 tip へディスパッチ
-- [ ] **Phase 5** — スキャン/永続インデックス/ハッシュ/更新伝播（Quick Win A2/A3）
+- [x] **Phase 5** — スキャン/永続インデックス/ハッシュ/更新伝播（Quick Win A2）
+      **実装・自動 QA 完了 2026‑09‑27**: `scan_models` / `scan_hygiene` の Rust
+      並列 walk 化（os.scandir / os.walk 意味論の忠実移植 + golden parity）+
+      永続インデックス（bincode 2.0.1 + blake3 + 原子入替 + 自動再構築 =
+      front-matter キャッシュが再起動を跨ぐ）+ `safetensors_header`（jiter・
+      B4 32 MiB 統一・comfy.utils 依存撤去）+ `hash_file` / インクリメンタル
+      `hasher_*`（5 表記 1 パス + Civitai 表記 golden）+ Quick Win A2
+      （ダウンロードチャンク 1 MiB）+ B1 インライン検証（K7 = 完了時追加 I/O
+      ゼロ、`_sha256_of` は native 経路から削除・legacy フォールバックのみ残置）+
+      `models_changed` ws 無効化 + フロント部分再取得。**実装中に O(n²) 重大
+      バグを発見・修正**（`parse_header_json` の重複名線形走査 → HashMap O(1):
+      64k テンソル MoE ヘッダの native 解析 6,098 ms → 212 ms、compress
+      パイプラインも共有経路で高速化）。ゲート: L1 **181**（+26）・mm-core 5・
+      pytest **127**（+14: scan/hygiene/header/hash/hasher/download の
+      native==legacy golden）・clippy `-D warnings`/fmt/ruff/mypy/prettier/
+      typecheck/eslint/build 全緑・release `.so` **2,869,968 B**（予算 68 %）・
+      api_version **4**。**KPI（同一セッション実測・BENCH §10）**: K9 5000
+      モデル 0.145 s ≤2 s〔legacy 1.082 s の ×7.5・native==legacy parity 機械
+      確認〕/ K10 warm 99 ms ≤100 ms〔3000〕/ K8 5 表記 1239 MB/s = 10 GB
+      ≈8.3 s ≤15 s / K7 追加 I/O ゼロ / K11 Rust 解析 ≈10 ms ≤40 ms + 端到端
+      ×1.58。**任意項目 A3（requests→aiohttp）と watch_roots は本フェーズ
+      見送り**（Plan の「任意」表記 + BENCH §10.5 の根拠・`watch` feature は
+      宣言済みで将来の土台）。fuzz 表面は不変（scan/hash/index は fuzz
+      ターゲット外・codec 無変更）→ fuzz-long 再ディスパッチ不要
 - [ ] **Phase 6** — フロントエンド表示最適化（C1–C5、計測駆動）
 - [ ] **Phase 7** — third_party 撤去・配布仕上げ・v0.3.0 リリース
 

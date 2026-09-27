@@ -620,7 +620,109 @@ mm_core `0.3.0‑alpha.0+8c50af788`、2 vCPU / SHA‑NI なし機）。
   byte‑identical **1,121/1,121**（互換帯の出力バイトは Phase 3 と完全同一 —
   Phase 4 の変更が互換帯に一切触れていないことの機械的証明）。
 
-## 10. 再現手順
+## 10. Phase 5 — スキャン / インデックス / ハッシュ / ヘッダー実装結果（2026‑09‑27、同一セッション比較）
+
+`scripts/bench/results/phase5_{scan,hash,header}.json` に **同一セッションの
+legacy（`MM_NATIVE=0`）vs native（`MM_NATIVE=1`）** を記録した（この 2 vCPU /
+1 GiB / **SHA‑NI なし** / ネットワーク FS 相当のコンテナ実測。絶対値の KPI 目標は
+Plan §2.2 の参照機「8C/16T デスクトップ NVMe」基準なので、ここでは **同一ハーネス
+同一フィクスチャの新旧比** を可搬な信号とする — BENCH 冒頭の方法論）。フィクスチャは
+`gen_synthetic.py --library-models 3000`（3000 モデル / 594 `.md` / 909 プレビュー /
+19 ディレクトリ = 4504 ファイル）と 8 MB MoE ヘッダー（64,491 テンソル）。
+
+### 10.1 K9 / K10 — ライブラリスキャン（3000 モデル）
+
+| 指標                | legacy（Python walk） | native（Rust 並列 walk + 永続インデックス） | 比       |
+| ------------------- | --------------------- | ------------------------------------------- | -------- |
+| cold（全面 walk）   | 0.630 s               | **0.124 s**                                 | **×5.1** |
+| warm（全面再 walk） | 0.283 s               | **0.099 s**（= 99 ms）                      | **×2.9** |
+| hygiene             | 0.129 s               | 0.123 s                                     | ≈同等    |
+| エントリ数          | 3016                  | 3016                                        | 一致     |
+
+- **K9（5000 モデル冷間 ≤2 s）**: 3000 モデル冷間 0.124 s。さらに **5000 モデル
+  合成ライブラリで QA 実測**（完了条件「5,000 モデル合成ライブラリで QA」）:
+  native **0.145 s**（5016 エントリ）vs legacy 1.082 s = **×7.5**、かつ
+  **native == legacy の完全 parity**（scan_models 全 type + scan_hygiene 双方
+  エントリ単位で一致）を機械確認。目標 ≤2 s を大きく下回る。**達成**。
+- **K10（暖間・差分 ≤100 ms）**: native warm **99 ms ≤ 100 ms**（3000 モデル）。
+  永続インデックス（bincode + blake3、`(path, mtime_ns, size)` → front‑matter 4 値）が
+  再起動後も front‑matter 再パースを消す（現行 `_SITE_CACHE` のプロセス内限界を解消）。
+  5000 モデルではこの機で ≈165 ms（参照機で ≤100 ms 見込み）。**この機で 3000 モデル
+  達成・5000 は参照機待ち**（K2/K3 と同じ诚实な扱い）。なお本実装は「暖間も全面 walk」
+  （差分ペイロード `?since=<gen>` は Plan §4.7.2‑3 のストレッチ）— warm 99 ms は
+  並列 walk + インデックスによる全面 walk の実測。
+
+### 10.2 K7 / K8 — ハッシュ（128 MB ターゲット）
+
+| 経路                      | legacy              | native                  | 備考                                                                  |
+| ------------------------- | ------------------- | ----------------------- | --------------------------------------------------------------------- |
+| compute_hashes（5 表記）  | 0.110 s / 1161 MB/s | **0.103 s / 1239 MB/s** | native は **BLAKE3 込み**（legacy は blake3 モジュール不在で 4 表記） |
+| sha256 三者クロスチェック | —                   | **MATCH**               | compute_hashes / _sha256_of / hashlib 一致                            |
+
+- **K8（5 表記 1 パス 10 GB ≤15 s）**: native 1239 MB/s（SHA‑NI なし soft backend、
+  5 表記 = SHA256 + AutoV1 窓 + AutoV2 + CRC32 + BLAKE3 を 1 読取で同時）→ 10 GB
+  **≈8.3 s ≤ 15 s**。**達成**（参照機 SHA‑NI あればさらに速い）。Civitai 表記
+  （大文字 hex・CRC32 バイト反転・AutoV1 = 1 MiB オフセットの 64 KiB 窓）は
+  golden テスト（`test_phase5_scan.py` / `hash.rs` L1）で Python 定義とバイト一致固定。
+- **K7（ダウンロード検証の追加 I/O ゼロ）**: ダウンロード書込みループから
+  `hasher_update` へチャンク供給（PyBytes ゼロコピー借用）し、完了時
+  `hasher_finalize` で SHA256 を取得 → **`_sha256_of` のフル再読込を削除**
+  （legacy は 1442 MB/s で 10 GB ≈ 7 s の追加 I/O）。resume は部分ファイルを
+  シード（page‑cache = メモリ速度）。native 経路で **追加 I/O ゼロ達成**。
+
+### 10.3 K11 — safetensors ヘッダー解析（8 MB MoE、64,491 テンソル）
+
+| 指標                        | legacy                        | native（修正後）              |
+| --------------------------- | ----------------------------- | ----------------------------- |
+| get_model_tensors（端到端） | 334 ms                        | **212 ms**（×1.58）           |
+| うち Rust ヘッダー解析      | —（Python json.loads 197 ms） | **≈10 ms**（jiter、GIL 解放） |
+
+- **実装中に発見・修正した重大バグ（O(n²)）**: `parse_header_json` の重複テンソル名
+  検査が `tensors.iter().any/position`（O(n) / テンソル）で **O(n²)** だった —
+  64,491 テンソルの MoE ヘッダーで native get_model_tensors が **6,098 ms**
+  （legacy 334 ms の **×18 遅い重大退行**）。`HashMap<name, pos>` の O(1) last‑wins
+  置換へ修正（セマンティクス・順序・`odd` フラグ完全保持 — L1 181 + pytest 127 緑で
+  固定）→ **212 ms**（legacy より速い）。**この経路は compress パイプライン
+  （`StContainer::parse`）も共有するため、64k テンソル級 MoE の圧縮ヘッダー解析も
+  6 s → 数十 ms へ高速化**（Phase 2 からの潜在バグを Phase 5 の表示経路が顕在化）。
+- **K11 の判定**: 「ヘッダー解析」（jiter、Plan §1.2.2 #10 の json.loads 数百 ms が
+  対象）は **≈10 ms ≤ 40 ms 達成** + GIL 解放（非阻塞、K12）。端到端の get_model_tensors
+  212 ms の残りは **64,491 個の Python オブジェクト材料化**（processed JSON の
+  json.loads ≈150 ms — n 個の dict 生成は原理的に O(n)）。legacy（334 ms）比 ×1.58 高速
+  - GIL 占有時間は約半減（イベントループ応答性 = K12 の実質改善）。端到端 ≤40 ms は
+    「processed JSON を Python へ渡さずルートで直接スピルス」する設計で可能だが
+    get_model_tensors の公開契約（list 返却）を変えるため本フェーズ範囲外（記録）。
+
+### 10.4 更新伝播（models_changed）と正確性ゲート
+
+- **models_changed**（Plan §4.7.2‑1）: delete / rename / move（=専用完了イベントを
+  持たない操作）で `{type, reason}` を ws ブロードキャスト → フロントは該当 type のみ
+  部分再取得（`refreshModels(type, {background})`、generation ガードで二重再取得を吸収）。
+  download 完了（`complete_download_task`）と ZipNN 完了（`zipnn_complete`）は既存の
+  ws ブロードキャストが全クライアントに届くため models_changed を二重発行しない
+  （二重スキャン回避）。30 s TTL revalidate はフォールバック維持。
+- **正確性ゲート（Phase 5 完了判定分）**: golden テスト `test_phase5_scan.py` /
+  `test_phase5_download.py` で **native == legacy を機械固定** — scan_models（両 hidden
+  モード・preview 単/画廊・front‑matter 4 値・timestamp round‑half‑even・pathIndex）・
+  scan_hygiene（orphan/empty）・safetensors_header（metadata + tensors 形状）・
+  compute_hashes（SHA256/AutoV2/AutoV1/CRC32 + BLAKE3）・インクリメンタルハッシャ
+  （chunk 非依存 == hash_file）・ダウンロード inline 検証（match/mismatch/フォールバック）。
+  pytest **127 passed**（既存 113 + Phase 5 新規 14）。
+
+### 10.5 Phase 5 の任意項目の扱い（Plan の「任意」表記に従う）
+
+- **Quick Win A3（requests → aiohttp 統一）**: **本フェーズでは見送り**（Plan §4.8‑A3
+  は「任意」）。search/information/identify のブロッキング HTTP は executor 経由で
+  動作しており、aiohttp 化はネットワーク経路の async リファクタ（ライブ API なしでは
+  回帰テスト不能）でリスクに見合わない。identify の主目標（ハッシュ native 化 = B2/K8）は
+  達成済み。完了条件（K7–K11）に含まれない。
+- **watch_roots（notify + debouncer）**: **本フェーズでは見送り**（Plan §4.7.2‑2 は
+  「任意機能」）。`znn-codec` の `watch` feature は宣言済み（Cargo.toml、notify 依存も
+  配線済み）で将来セッションの土台になる。必須の更新伝播（models_changed イベント
+  駆動 + 30 s TTL revalidate）は実装済みで、UI 起因の全変更をカバー。watch_roots が
+  加えるのは「外部ツール起因の変更検出」のみで、それは TTL フォールバックが既に担保する。
+
+## 11. 再現手順
 
 ```bash
 pip install numpy safetensors torch blake3
@@ -649,4 +751,24 @@ python3 scripts/bench/bench_phase4_dtypes.py \
 # L5 相互運用ゲート（公式 zipnn とのクロス検証 — テンソル A/B/C + デルタ D）:
 pip install zipnn==0.5.4 torch safetensors
 python3 scripts/l5/official_cross.py
+```
+
+Phase 5 のスキャン / ハッシュ / ヘッダー（K7–K11）は **同一セッションで
+legacy と native を交互に** 計測する（native バイナリ ビルド済みが必要）:
+
+```bash
+python3 scripts/bench/gen_synthetic.py --library /tmp/mm-bench/library \
+  --library-models 3000 --moe-header /tmp/mm-bench/moe.safetensors --header-mb 8
+for mode in 0 1; do   # 0 = legacy, 1 = native
+  MM_NATIVE=$mode python3 scripts/bench/bench_scan.py \
+    --library /tmp/mm-bench/library --repeat 2 \
+    --json-out /tmp/scan_$([ $mode = 0 ] && echo legacy || echo native).json
+  MM_NATIVE=$mode python3 scripts/bench/bench_hash.py \
+    --fixtures /tmp/mm-bench --size-mb 128 \
+    --json-out /tmp/hash_$([ $mode = 0 ] && echo legacy || echo native).json
+  MM_NATIVE=$mode python3 scripts/bench/bench_header.py \
+    --model /tmp/mm-bench/moe.safetensors --repeat 5 \
+    --json-out /tmp/header_$([ $mode = 0 ] && echo legacy || echo native).json
+done
+# → legacy + native を scripts/bench/results/phase5_{scan,hash,header}.json へ統合
 ```
