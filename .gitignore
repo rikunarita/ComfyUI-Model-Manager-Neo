@@ -236,3 +236,6 @@ dependency_graph.svg
 
 # cargo-fuzz crash artifacts (regression seeds are copied into corpus/ and committed)
 native/crates/znn-codec/fuzz/artifacts/
+
+# Phase 5 persistent scan index (derived data — rebuilt automatically)
+.mm-cache/

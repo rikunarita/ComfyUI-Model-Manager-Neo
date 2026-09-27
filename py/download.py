@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import hashlib
+import json
 import os
 import pathlib
 import shutil
@@ -16,7 +17,12 @@ import aiohttp
 import folder_paths
 from aiohttp import web
 
-from . import auth, config, thread, utils
+from . import auth, config, native, thread, utils
+
+# Quick Win A2 (Plan §4.8-A2): the download write loop used to pull 8 KiB
+# chunks (1.3 M Python-loop iterations for a 10 GB file). 1 MiB cuts that to
+# ~10 K, freeing the event loop and feeding the inline hasher (B1) efficiently.
+_DOWNLOAD_CHUNK = 1024 * 1024
 
 
 @dataclass
@@ -152,6 +158,13 @@ def _is_task_id(task_id: str) -> bool:
 class ModelDownload:
     def __init__(self):
         self.api_key = auth.get_api_key()
+        # Inline Civitai verification (Plan §4.8-B1 / K7): the download write
+        # loop feeds a native hasher as bytes land, so a finished download's
+        # SHA256 is known WITHOUT the extra full re-read `_sha256_of` did. The
+        # digest is staged here (keyed by task) for `_download_complete` to
+        # consume; absent (legacy path, paused, or a resumed-complete file) it
+        # falls back to the re-read.
+        self._inline_sha256: dict[str, str] = {}
 
     def add_routes(self, routes):
         @routes.post("/model-manager/download/init")
@@ -525,8 +538,15 @@ class ModelDownload:
         # never masquerade as a finished download.
         expected_sha = (task_content.hashes or {}).get("SHA256")
         if task_content.downloadPlatform == "civitai" and expected_sha:
-            loop = asyncio.get_running_loop()
-            actual_sha = await loop.run_in_executor(utils.cpu_executor(), _sha256_of, download_tmp_file)
+            # B1 (Plan §4.8 / K7): prefer the INLINE digest the write loop fed
+            # the native hasher — verifying costs ZERO extra I/O. Fall back to
+            # the full re-read only when no inline digest was staged (the
+            # legacy MM_NATIVE=0 engine, a file that was already complete on
+            # resume, or a task whose hasher was dropped on pause).
+            actual_sha = self._inline_sha256.pop(task_id, None)
+            if actual_sha is None:
+                loop = asyncio.get_running_loop()
+                actual_sha = await loop.run_in_executor(utils.cpu_executor(), _sha256_of, download_tmp_file)
             if actual_sha and actual_sha.casefold() != str(expected_sha).casefold():
                 if os.path.isfile(download_tmp_file):
                     os.remove(download_tmp_file)
@@ -543,6 +563,10 @@ class ModelDownload:
         task_file = utils.join_path(download_path, f"{task_id}.task")
         if os.path.exists(task_file):
             os.remove(task_file)
+        # `complete_download_task` is itself a ws BROADCAST and the client
+        # handler already re-scans the landing type on every client (Plan
+        # §4.7.2-1's "download complete" trigger is satisfied by it), so no
+        # separate `models_changed` is needed here — that would double-scan.
         await utils.send_json("complete_download_task", task_id)
 
     async def download_model_file_http(
@@ -578,6 +602,21 @@ class ModelDownload:
 
         task_status = self.get_task_status(task_id)
         task_content = self.get_task_content(task_id)
+
+        # Inline Civitai verification (Plan §4.8-B1 / K7): when the native core
+        # is available and this is a Civitai download with a published SHA256, a
+        # streaming hasher consumes each written chunk, so the finished file's
+        # digest is known WITHOUT the extra full re-read `_sha256_of` did. The
+        # hasher is (re)created per attempt below, once the resume/reset state
+        # is settled (a 206 resume seeds it from the partial file — page-cached,
+        # cheap; a 200 reset starts it fresh).
+        mm = native.core_if_enabled()
+        expected_sha = (task_content.hashes or {}).get("SHA256")
+        use_inline_hash = bool(mm is not None and task_content.downloadPlatform == "civitai" and expected_sha)
+        # Drop any digest staged by a previous attempt of this task so the
+        # early-complete path below can never verify against a stale value (it
+        # falls back to the re-read instead).
+        self._inline_sha256.pop(task_id, None)
 
         model_url = task_content.downloadUrl
         if not model_url:
@@ -676,13 +715,30 @@ class ModelDownload:
                             self.set_task_content(task_id, task_content)
                             await utils.send_json("update_download_task", task_status.to_dict())
 
+                    # (Re)create the inline hasher now that downloaded_size and
+                    # open_mode are settled. A 206 resume seeds it with the
+                    # existing partial file (just written → page-cached, so the
+                    # re-read is memory-speed, not disk); a 200 reset starts it
+                    # fresh (downloaded_size == 0).
+                    hasher = None
+                    if use_inline_hash and mm is not None:
+                        hasher = mm.hasher_new(["SHA256"])
+                        if downloaded_size > 0 and os.path.isfile(download_tmp_file):
+                            with open(download_tmp_file, "rb") as pf:
+                                for block in iter(lambda: pf.read(_DOWNLOAD_CHUNK), b""):
+                                    mm.hasher_update(hasher, block)
+
                     with open(download_tmp_file, open_mode) as f:
-                        async for chunk in response.content.iter_chunked(8192):
+                        async for chunk in response.content.iter_chunked(_DOWNLOAD_CHUNK):
                             # Cooperative pause, checked exactly as before.
                             if task_status.status == "pause":
                                 break
 
                             f.write(chunk)
+                            if hasher is not None and mm is not None:
+                                # Zero-copy: the chunk is borrowed at the PyO3
+                                # boundary, never copied into Rust.
+                                mm.hasher_update(hasher, chunk)
                             downloaded_size += len(chunk)
 
                             if time.time() - last_update_time >= interval:
@@ -691,6 +747,25 @@ class ModelDownload:
                                 last_downloaded_size = downloaded_size
 
                     await push_progress(downloaded_size - last_downloaded_size)
+
+                    # Settle the inline hasher: a COMPLETE download stages its
+                    # digest for `_download_complete` (verifying then costs zero
+                    # extra I/O — K7); a paused/incomplete one drops it (the
+                    # resume re-seeds from the partial file). A finalize failure
+                    # degrades to the re-read fallback in `_download_complete`.
+                    if hasher is not None and mm is not None:
+                        if total_size > 0 and downloaded_size == total_size:
+                            try:
+                                digest = json.loads(mm.hasher_finalize(hasher)).get("SHA256")
+                                if digest:
+                                    self._inline_sha256[task_id] = digest
+                            except Exception as e:  # fall back to the re-read
+                                utils.print_warning(f"inline hasher finalize failed ({e}); will re-read to verify")
+                        else:
+                            try:
+                                mm.hasher_finalize(hasher)  # drop it from the registry
+                            except Exception:  # best-effort cleanup
+                                pass
                 break
 
         if total_size > 0 and downloaded_size == total_size:

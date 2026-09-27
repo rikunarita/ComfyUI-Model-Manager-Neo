@@ -440,6 +440,24 @@ export const useModels = defineStore('models', store => {
     api.getSystemStats().then((res: any) => {
       systemStat.value = res
     })
+    // Unified invalidation (Plan §4.7.2-1): the backend broadcasts
+    // `models_changed {type, reason}` after operations that have no dedicated
+    // completion event of their own (rename / move / delete). Re-fetch ONLY the
+    // affected type (a partial refresh — the generation guard in refreshModels
+    // dedupes against the operating client's own refresh); a null type means
+    // "everything changed" → a full background sweep. Guarded by loadedOnce so
+    // a manager that was never opened does not scan on someone else's edit.
+    // The 30 s TTL revalidate stays as the fallback for changes no event saw.
+    api.addEventListener('models_changed', (event: CustomEvent) => {
+      if (!loadedOnce.value) return
+      const detail = event.detail as { type?: string | null; reason?: string } | undefined
+      const type = detail?.type
+      if (type) {
+        refreshModels(type, { background: true }).catch(() => {})
+      } else {
+        refreshAllModels(true, { background: true }).catch(() => {})
+      }
+    })
   })
 
   return {
