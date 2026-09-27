@@ -17,14 +17,28 @@ sha2 = { workspace = true }
 # Phase 3: the parallel directory walk behind `walk_models` (batch
 # primitives — Plan §3.7 "並列 walk ignore 第一候補").
 ignore = { workspace = true }
+# Phase 5 (Plan §3.7 catalog, §4.7): the library scan (front-matter YAML +
+# JSON wire shape), the persistent index (bincode snapshot + blake3 checksum)
+# and the multi-algorithm hash pass (sha2 + blake3 + crc32fast).
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+blake3 = { workspace = true }
+crc32fast = { workspace = true }
+yaml-rust2 = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 # delta tests parse the `.neo-delta.json` sidecar with a real JSON reader
 serde_json = { workspace = true }
+tempfile = { workspace = true }
 
 [features]
 default = []
 # Declared (empty) from Phase 0 so the feature name — and with it the CI
-# `--all-features` surface — is stable; wired to notify + debouncer in Phase 5.
+# `--all-features` surface — is stable. Plan §4.7.2-2 marks `watch_roots`
+# OPTIONAL; it is deferred (BENCH §10.5), so this stays empty — wiring it to
+# notify + notify-debouncer-full would compile an unused dependency tree under
+# CI's `--all-features`. A future session implementing watch_roots flips it to
+# `["dep:notify", "dep:notify-debouncer-full"]` and adds those optional deps.
 watch = []

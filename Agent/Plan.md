@@ -2,16 +2,16 @@
 
 ## ― Rust ネイティブコア化と ZipNN 完全置き換え ―
 
-| 項目           | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 文書番号       | NEO‑PLAN‑2026‑001                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| 版数           | 2.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 作成日         | 2026‑09‑22                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 対象ブランチ   | `dev`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 現行バージョン | v0.2.0（α3）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 目標バージョン | v0.3.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 状態           | **Phase 0 完了・Phase 1 完了（2026‑09‑25、fuzz 15 h バジェット消化 — run 36148521214 全 5 ターゲット緑）・Phase 2 実装完了（2026‑09‑24、L4/L5 緑・K1/K6/K13 達成、K2/K3 は参照機再計測待ち — BENCH §7）・Phase 3 実装完了（2026‑09‑25、K4/K5 達成・L5 セクション D 緑・SEGFAULT クラス解消実証 — BENCH §8。2026‑09‑26 に独立監査で全ゲート再検証 + GIL 解放修正 — MEMO 同日）・Phase 4 実装完了（2026‑09‑26、K14 達成 = 全 22 safetensors dtype 往復 green・C64=Neo 帯 130 実証確定・L5 セクション E 緑・L2 退行なし 1,121/1,121 — BENCH §9）** |
+| 項目           | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 文書番号       | NEO‑PLAN‑2026‑001                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 版数           | 2.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 作成日         | 2026‑09‑22                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 対象ブランチ   | `dev`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 現行バージョン | v0.2.0（α3）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 目標バージョン | v0.3.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 状態           | **Phase 0 完了・Phase 1 完了（2026‑09‑25、fuzz 15 h バジェット消化 — run 36148521214 全 5 ターゲット緑）・Phase 2 実装完了（2026‑09‑24、L4/L5 緑・K1/K6/K13 達成、K2/K3 は参照機再計測待ち — BENCH §7）・Phase 3 実装完了（2026‑09‑25、K4/K5 達成・L5 セクション D 緑・SEGFAULT クラス解消実証 — BENCH §8。2026‑09‑26 に独立監査で全ゲート再検証 + GIL 解放修正 — MEMO 同日）・Phase 4 実装完了（2026‑09‑26、K14 達成 = 全 22 safetensors dtype 往復 green・C64=Neo 帯 130 実証確定・L5 セクション E 緑・L2 退行なし 1,121/1,121 — BENCH §9）・Phase 5 実装完了（2026‑09‑27、K7–K11 達成 = scan 5000 モデル 0.145 s〔×7.5・native==legacy parity〕・hash 5 表記 1239 MB/s・永続インデックス・models_changed 更新伝播・parse_header_json の O(n²) 重大バグ修正〔MoE 6 s→212 ms〕・api_version 4・任意 A3/watch_roots は Phase 6 へ移管〔Rust 化しない/extended-notify 不導入〕 — BENCH §10）** |
 
 ### 版数履歴
 
@@ -271,23 +271,23 @@ third_party/
 
 ## 3.1 選定結果サマリー
 
-| 領域                  | 採用                                                  | バージョン             | 不採用とした主要候補                                                                                    |
-| --------------------- | ----------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------- |
-| Python バインディング | **PyO3**（abi3）                                      | 0.29.2                 | uniffi / cffi+cbindgen / Cython / rust-cpython                                                          |
-| ビルド・配布          | **maturin** + cargo-zigbuild                          | 1.15.0 / 0.23.4        | cibuildwheel+wheel 配布（clone 配布哲学に不適合）                                                       |
-| リンカー              | **mold**（Linux）                                     | 2.42.1                 | rust-lld（Rust 1.90+ 既定。mold を明示採用する指示に基づく）                                            |
-| フォーマッタ          | **rustfmt**                                           | Rust 1.98.1 同梱       | —（指示に基づく採用）                                                                                   |
-| Linter                | **clippy**（`-D warnings`）                           | Rust 1.98.1 同梱       | —（指示に基づく採用）                                                                                   |
-| 並列化                | **rayon**（専用プール）                               | 1.12.0                 | std::thread 手動管理 / tokio（CPU バウンドに不向き）                                                    |
-| エントロピー符号      | **自社ポート `znn-codec`**                            | —                      | huff0 crate（2018 年死蔵）/ ruzstd（huff0 非公開）/ zstd C バインディング（C 依存残存）                 |
-| safetensors I/O       | 読取: **memmap2 + 自前パーサ**、書込: **自前 Writer** | memmap2 0.9.11         | safetensors crate の serialize（キーをソートするため byte‑exact 復元に不適合）                          |
-| JSON                  | **jiter**（第一候補）                                 | 0.17.0                 | simd-json 0.18.1（in‑place 変換を要し read‑only mmap と相性が悪い。Phase 0 で両者ベンチし確定）         |
-| ハッシュ              | **sha2 / blake3 / crc32fast**                         | 0.11.0 / 1.8.7 / 1.5.2 | OpenSSL バインディング（C 依存）                                                                        |
-| 並列ディレクトリ走査  | **ignore**（第一候補）                                | 0.4.33                 | jwalk 0.9.0（「Use dua-core instead」表記で事実上 maintenance）/ dua-core 4.1.0（Phase 5 でベンチ比較） |
-| インデックス永続化    | **bincode** スナップショット（下記の注記参照）        | 2.0.1                  | rusqlite（SQLite = C のビルド混入）/ postcard 1.1.3（代替候補）                                         |
-| ファイル監視（任意）  | **notify + notify-debouncer-full**                    | 8.2.0 / 0.7.0          | Python watchdog（GIL 下ポーリング）                                                                     |
-| f16/bf16              | **half**                                              | 2.7.1                  | —                                                                                                       |
-| YAML                  | **yaml-rust2**                                        | 0.13.0                 | serde_yaml（**deprecated 確認済み**）/ serde_yml（同）                                                  |
+| 領域                  | 採用                                                  | バージョン             | 不採用とした主要候補                                                                                                                                                                        |
+| --------------------- | ----------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Python バインディング | **PyO3**（abi3）                                      | 0.29.2                 | uniffi / cffi+cbindgen / Cython / rust-cpython                                                                                                                                              |
+| ビルド・配布          | **maturin** + cargo-zigbuild                          | 1.15.0 / 0.23.4        | cibuildwheel+wheel 配布（clone 配布哲学に不適合）                                                                                                                                           |
+| リンカー              | **mold**（Linux）                                     | 2.42.1                 | rust-lld（Rust 1.90+ 既定。mold を明示採用する指示に基づく）                                                                                                                                |
+| フォーマッタ          | **rustfmt**                                           | Rust 1.98.1 同梱       | —（指示に基づく採用）                                                                                                                                                                       |
+| Linter                | **clippy**（`-D warnings`）                           | Rust 1.98.1 同梱       | —（指示に基づく採用）                                                                                                                                                                       |
+| 並列化                | **rayon**（専用プール）                               | 1.12.0                 | std::thread 手動管理 / tokio（CPU バウンドに不向き）                                                                                                                                        |
+| エントロピー符号      | **自社ポート `znn-codec`**                            | —                      | huff0 crate（2018 年死蔵）/ ruzstd（huff0 非公開）/ zstd C バインディング（C 依存残存）                                                                                                     |
+| safetensors I/O       | 読取: **memmap2 + 自前パーサ**、書込: **自前 Writer** | memmap2 0.9.11         | safetensors crate の serialize（キーをソートするため byte‑exact 復元に不適合）                                                                                                              |
+| JSON                  | **jiter**（第一候補）                                 | 0.17.0                 | simd-json 0.18.1（in‑place 変換を要し read‑only mmap と相性が悪い。Phase 0 で両者ベンチし確定）                                                                                             |
+| ハッシュ              | **sha2 / blake3 / crc32fast**                         | 0.11.0 / 1.8.7 / 1.5.2 | OpenSSL バインディング（C 依存）                                                                                                                                                            |
+| 並列ディレクトリ走査  | **ignore**（第一候補）                                | 0.4.33                 | jwalk 0.9.0（「Use dua-core instead」表記で事実上 maintenance）/ dua-core 4.1.0（Phase 5 でベンチ比較）                                                                                     |
+| インデックス永続化    | **bincode** スナップショット（下記の注記参照）        | 2.0.1                  | rusqlite（SQLite = C のビルド混入）/ postcard 1.1.3（代替候補）                                                                                                                             |
+| ファイル監視（任意）  | **notify + notify-debouncer-full**                    | 8.2.0 / 0.7.0          | extended-notify 0.1.3（notify の若いラッパー: 0.1.x・DL 1,286・tokio 混入・debouncer-full ^0.6 の 1 世代後ろピン — 2026‑09‑27 ユーザ決定で**不導入**）/ Python watchdog（GIL 下ポーリング） |
+| f16/bf16              | **half**                                              | 2.7.1                  | —                                                                                                                                                                                           |
+| YAML                  | **yaml-rust2**                                        | 0.13.0                 | serde_yaml（**deprecated 確認済み**）/ serde_yml（同）                                                                                                                                      |
 
 > 〔Phase 0 実装注記 2026‑09‑23・bincode〕 crates.io の `max_stable_version`
 > は 3.0.0 だが、同リリースは **コンパイル不能なプレースホルダ**（lib.rs 全体が
@@ -323,7 +323,22 @@ third_party/
 - パニック戦略は **`panic = "unwind"` 固定**（PyO3 が境界でパニックを捕捉し
   Python 例外化する。`abort` は ComfyUI プロセスを殺すため禁止）。
 - サイズ予算: `opt-level`・`lto = "fat"`・`codegen-units = 1`・`strip` で
-  **1 バイナリ ≤ 4 MB**、5 ファイル合計 ≤ 20 MB（Phase 0 で実測検証）。
+  **1 バイナリ ≤ 4 MB（目安）**、5 ファイル合計 ≤ 20 MB（Phase 0 で実測検証）。
+  〔2026‑09‑27 ユーザ決定〕**「1 バイナリ ≤ 4 MB」は絶対条件ではなく「目安」**:
+  CI のサイズゲートはリポジトリ肥大の早期警戒装置として維持するが、超過は
+  計画違反ではなくユーザ判断での上限改定で解決する（§6.3 規程・下記の
+  universal2 per‑slice 判定がその先例）。合計 ≤ 20 MB（R6）はガードとして維持。
+  〔Phase 5 実装注記 2026‑09‑27〕**macos‑universal2 は x86_64 + arm64 の
+  2 アーキテクチャを含む fat binary** のため、「1 バイナリ ≤ 4 MB」は
+  **アーキテクチャ スライス単位**で適用する（`build-native.sh` が `lipo -thin`
+  の各スライスを ≤4 MB でゲート。fat ファイル自体は自然に約 2 倍 = ≤8 MB）。
+  Phase 5 の機能追加（scan/hash/index/header + blake3/bincode/crc32fast/
+  yaml‑rust2）で linux‑x86_64 が 2.4→2.87 MB へ成長し、universal2 fat が
+  4.8 MB と単一ファイル 4 MB を超えたため、size‑budget ゲートは FAT_MAGIC
+  （0xcafebabe/0xcafebabf）を content 判定して fat のみ 8 MB 予算を適用
+  （ubuntu ジョブは lipo 不可のため magic 判定、macOS ジョブは per‑slice）。
+  **native‑bin 4 ファイル合計 ≈12 MB ≤ 20 MB（R6 のリポジトリ肥大ガードは
+  充足）**。単一アーキ成果物（linux x86_64/aarch64・windows）は全て ≤4 MB。
 
 ## 3.4 ツールチェーン標準: mold / rustfmt / clippy（採用確定）
 
@@ -472,6 +487,14 @@ crates.io 全件調査の結果、ZipNN が要求する**生 huff0 ブロック*
   ただし `search.py` / `information.py` / `identify.py` の
   **ブロッキング `requests.get`（executor 経由）は aiohttp へ統一**する
   （スレッドホップの除去・タイムアウト/プロキシ設定の一元化。§4.8‑B2）。
+  〔2026‑09‑27 ユーザ決定〕**この統一の Rust 化（reqwest 等）は行わない**:
+  reqwest 0.13 の rustls 経路は aws-lc-sys/ring（C/asm・cmake 必須）を引き
+  「コンパイラ不要」配布哲学（§2.1‑5）と zigbuild glibc 2.28 パイプラインに
+  衝突、最小プローブ cdylib 実測 **4.9 MB** でサイズ目安超過、依存グラフ
+  167 crates、huggingface_hub 2.0 は httpx2 基盤のためスタックは「統一」
+  されない。axum（サーバ フレームワーク）/ utoipa（Rust ハンドラの OpenAPI
+  生成）は、ルートが ComfyUI の aiohttp PromptServer 登録である本拡張に
+  非該当。実測詳細は MEMO 2026‑09‑27。
 
 ---
 
@@ -873,6 +896,8 @@ bcomplex32 も safetensors 表現は持たないが、計画通り codec 級コ�
 2. **外部変更検出（任意機能）**: `watch_roots`（notify +
    notify-debouncer-full、500 ms デバウンス）。ネットワークストレージでは
    自動無効化し定期ポーリングへフォールバック。設定で OFF 可。
+   （実装は **Phase 6** — 2026‑09‑27 に Phase 5 から移管。crate は notify +
+   notify-debouncer-full の直接採用で確定、extended-notify は不導入 — §3.1）
 3. **差分ペイロード（ストレッチ）**: インデックス世代番号による
    `?since=<gen>` 差分取得。
 
@@ -901,11 +926,11 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ### A. バックエンド（Python 側の即時改善 — Quick Win）
 
-| #   | 項目                       | 内容                                                                                                                             | 効果                                                                      | 実施フェーズ     |
-| --- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------------- |
-| A1  | モデル詳細ルートの非阻塞化 | `py/manager.py` L135–160 の `get_model_info` 同期呼び出しを `run_in_executor` へ（scan/hygiene/update と同じ修正パターンを適用） | サーバー全体のフリーズ解消（K12 の前半）。**Rust 化を待たず即時実施可能** | Phase 0 と並行可 |
-| A2  | ダウンロードチャンク拡大   | `iter_chunked(8192)`（L680）→ 512 KB–1 MB（10 GB で Python ループ 130 万回 → 1 万回）                                            | CPU 減・イベントループ余裕。インラインハッシュの前提                      | Phase 5          |
-| A3  | ブロッキング HTTP の統一   | `search.py`/`information.py`/`identify.py` の `requests.get`（executor 経由）を共有 aiohttp セッションへ                         | スレッドホップ除去・タイムアウト一元化・IO プール枯渇リスク低減           | Phase 5（任意）  |
+| #   | 項目                       | 内容                                                                                                                             | 効果                                                                      | 実施フェーズ                                          |
+| --- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------- |
+| A1  | モデル詳細ルートの非阻塞化 | `py/manager.py` L135–160 の `get_model_info` 同期呼び出しを `run_in_executor` へ（scan/hygiene/update と同じ修正パターンを適用） | サーバー全体のフリーズ解消（K12 の前半）。**Rust 化を待たず即時実施可能** | Phase 0 と並行可                                      |
+| A2  | ダウンロードチャンク拡大   | `iter_chunked(8192)`（L680）→ 512 KB–1 MB（10 GB で Python ループ 130 万回 → 1 万回）                                            | CPU 減・イベントループ余裕。インラインハッシュの前提                      | Phase 5                                               |
+| A3  | ブロッキング HTTP の統一   | `search.py`/`information.py`/`identify.py` の `requests.get`（executor 経由）を共有 aiohttp セッションへ                         | スレッドホップ除去・タイムアウト一元化・IO プール枯渇リスク低減           | Phase 6（任意 — 2026‑09‑27 移管・Rust 化しない §3.8） |
 
 ### B. ネイティブコアに統合（Rust 化と同時）
 
@@ -948,13 +973,13 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ## 5.3 CI/CD
 
-| ジョブ                | ランナー                 | 内容                                                                         |
-| --------------------- | ------------------------ | ---------------------------------------------------------------------------- |
-| ci（既存）            | ubuntu                   | lint/typecheck/build/mypy/ruff（維持）                                       |
-| native-test           | ubuntu / windows / macos | `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test`、fuzz スモーク |
-| native-cross          | ubuntu（zig）            | linux x86_64/aarch64（glibc ≥2.28）ビルド + サイズ予算ゲート（≤4 MB/本）     |
-| native-diff（移行期） | ubuntu                   | L2 差分テスト（C プリビルド使用）                                            |
-| integration           | ubuntu / windows / macos | L4/L5（pytest + 公式 zipnn クロス検証）                                      |
+| ジョブ                | ランナー                 | 内容                                                                                                            |
+| --------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| ci（既存）            | ubuntu                   | lint/typecheck/build/mypy/ruff（維持）                                                                          |
+| native-test           | ubuntu / windows / macos | `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test`、fuzz スモーク                                    |
+| native-cross          | ubuntu（zig）            | linux x86_64/aarch64（glibc ≥2.28）ビルド + サイズゲート（4 MB/本 = 目安・universal2 は per‑slice 判定 — §3.3） |
+| native-diff（移行期） | ubuntu                   | L2 差分テスト（C プリビルド使用）                                                                               |
+| integration           | ubuntu / windows / macos | L4/L5（pytest + 公式 zipnn クロス検証）                                                                         |
 
 - mold は native-test（ubuntu）とローカル開発で使用（§3.4.1）。
   クロスビルド（zig）は zig 側 LLD のため mold 対象外。
@@ -977,16 +1002,16 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ## 6.1 フェーズ総覧
 
-| Phase | 名称                                | 主成果物                         | 完了条件（要約）                                     |
-| ----- | ----------------------------------- | -------------------------------- | ---------------------------------------------------- |
-| 0     | 基盤準備                            | ワークスペース・CI・ベンチ基盤   | 全ターゲットで abi3 ビルド疎通、KPI ベースライン記録 |
-| 1     | znn-codec フォーマット中核          | ヘッダー/平面/huff0・FSE/codec   | L1–L3 green、C 版との圧縮率差 ±0.5%・速度同等以上    |
-| 2     | safetensors 圧縮/解凍 + 接続        | mm-core API、compress.py 切替    | L4 green、K1–K3/K6 達成、UI QA                       |
-| 3     | デルタ + バッチ                     | delta.rs、バッチプリミティブ     | K4/K5 達成、現行と同一挙動 QA                        |
-| 4     | dtype 大幅拡張                      | 8 平面/f64/整数/MX 系、UI バッジ | 全拡張 dtype 往復 green、L5 退行なし                 |
-| 5     | スキャン/インデックス/ハッシュ/更新 | scan.rs、hash.rs、models_changed | K7–K11 達成、UI 退行なし                             |
-| 6     | フロントエンド表示最適化            | C1–C5                            | K15 計測実証                                         |
-| 7     | third_party 撤去・配布仕上げ        | native-bin 単一経路、v0.3.0      | 全新規 clone で全 OS 動作                            |
+| Phase | 名称                                              | 主成果物                         | 完了条件（要約）                                     |
+| ----- | ------------------------------------------------- | -------------------------------- | ---------------------------------------------------- |
+| 0     | 基盤準備                                          | ワークスペース・CI・ベンチ基盤   | 全ターゲットで abi3 ビルド疎通、KPI ベースライン記録 |
+| 1     | znn-codec フォーマット中核                        | ヘッダー/平面/huff0・FSE/codec   | L1–L3 green、C 版との圧縮率差 ±0.5%・速度同等以上    |
+| 2     | safetensors 圧縮/解凍 + 接続                      | mm-core API、compress.py 切替    | L4 green、K1–K3/K6 達成、UI QA                       |
+| 3     | デルタ + バッチ                                   | delta.rs、バッチプリミティブ     | K4/K5 達成、現行と同一挙動 QA                        |
+| 4     | dtype 大幅拡張                                    | 8 平面/f64/整数/MX 系、UI バッジ | 全拡張 dtype 往復 green、L5 退行なし                 |
+| 5     | スキャン/インデックス/ハッシュ/更新               | scan.rs、hash.rs、models_changed | K7–K11 達成、UI 退行なし                             |
+| 6     | フロントエンド表示最適化 + Phase 5 移管の任意項目 | C1–C5、A3、watch_roots（任意）   | K15 計測実証（任意項目は実施時のみ判定）             |
+| 7     | third_party 撤去・配布仕上げ                      | native-bin 単一経路、v0.3.0      | 全新規 clone で全 OS 動作                            |
 
 ## 6.2 フェーズ詳細
 
@@ -1289,32 +1314,98 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ### Phase 5 — スキャン/インデックス/ハッシュ/更新伝播
 
-- [ ] `scan_models` Rust 化（並列 walk 実装を ignore vs dua-core で
-      ベンチ確定）+ 現行 JSON 形状 golden テスト
-- [ ] 永続インデックス（bincode + blake3 チェックサム、自動再構築）
-- [ ] `scan_hygiene` Rust 化
-- [ ] `safetensors_header` / `safetensors_tensor_tree` +
-      `py/utils.py` の `get_model_metadata` / `get_model_tensors` 切替（B4）
-- [ ] `hash_file` / `hasher_*`（B1/B2）+ `py/identify.py` 切替
-      （Civitai 表記 golden テスト）
-- [ ] Quick Win A2（ダウンロードチャンク拡大）+ インライン検証接続、
-      `_sha256_of` フル再読込パス削除（K7）
-- [ ] Quick Win A3（requests → aiohttp 統一、任意）
-- [ ] `models_changed` ws 無効化 + フロント部分再取得
-- [ ] （任意）`watch_roots` + 設定スイッチ
-- [ ] 完了条件: K7–K11 達成、5,000 モデル合成ライブラリで QA、
-      既存 UI 退行なし
+- [x] `scan_models` Rust 化（`scan.rs`: std::fs + rayon の自前並列 walk —
+      os.scandir 意味論の忠実移植〔dir symlink 追従 + canonical visited ガード・
+      hidden を name set には残す・拡張子大文字小文字区別・20 スロット preview
+      解決・front-matter 4 値・stat〕)+ 現行 JSON 形状 golden テスト
+      （`test_phase5_scan.py`: native == legacy をエントリ単位で機械固定、
+      5000 モデル QA でも parity True）。**並列 walk は ignore/dua-core 比較でなく
+      自前 rayon walk を採用** — scan_models の os.scandir 意味論（symlink 追従・
+      hidden の name set 残留）は ignore の gitignore フィルタ模型より直接で、
+      K9 ×5.1–7.5 / K10 99 ms を実測達成（BENCH §10.1）
+- [x] 永続インデックス（`index.rs`: bincode 2.0.1 スナップショット + blake3
+      チェックサム + 原子入替〔tempfile→fsync→rename→dir fsync〕+ 破損/不一致時
+      自動全再構築 = 常に派生データ・R7）。`(path, mtime_ns, size)` → front-matter
+      4 値を `(extension_uri)/.mm-cache/mm-scan-index.bin` へ永続化し、
+      ComfyUI 再起動後も front-matter 再パースを消す（`_SITE_CACHE` のプロセス内
+      限界を解消）。世代番号を内包（将来の `?since=<gen>` 差分用）
+- [x] `scan_hygiene` Rust 化（同一 walk 基盤・os.walk(followlinks=False) 意味論 =
+      orphan サイドカー〔20 スロット preview + .md/.txt の candidate 照合〕+
+      empty フォルダ〔model file も subdir も無し〕・type 順 + 決定論ソートで
+      legacy と golden parity）
+- [x] `safetensors_header`（`header_display_json`: ヘッダ専用 jiter 解析 =
+      データ領域無検証〔truncated ファイルでも表示可〕・**B4 = 32 MiB 統一ガード**
+      〔旧 get_model_metadata の 1 MiB が巨大 MoE `__metadata__` を黙って空にする
+      バグを解消〕・metadata/tensors を processed JSON で返却）+ `py/utils.py` の
+      `get_model_metadata` / `get_model_tensors` 切替（comfy.utils.safetensors_header
+      依存を撤去 = ComfyUI 本体 API 変更に耐性）。**実装中に O(n²) 重大バグを
+      発見・修正**: `parse_header_json` の重複名検査が線形走査で 64,491 テンソル
+      MoE ヘッダが native 6,098 ms（legacy 334 ms の ×18 退行）→ HashMap O(1)
+      last-wins へ修正（212 ms・legacy より高速。compress パイプラインも共有経路
+      なので MoE 圧縮のヘッダ解析も 6 s → 数十 ms）。`safetensors_tensor_tree`
+      （表示用事前グループ化）は **任意** — 未実装（フロントの modelInformation.ts
+      が既存の通りグループ化、退行なし）
+- [x] `hash_file` / `hasher_*`（B1/B2: `hash.rs` の MultiHasher が SHA256 + AutoV1
+      窓〔1 MiB オフセット 64 KiB〕+ AutoV2 + CRC32〔Civitai バイト反転〕+ BLAKE3
+      を 1 パスで同時計算・インクリメンタル hasher は download 書込みループが
+      チャンク供給）+ `py/identify.py compute_hashes` 切替（Civitai 表記 golden
+      テスト = Python 定義とバイト一致を `test_phase5_scan.py` / L1 で機械固定・
+      sha256 三者クロスチェック MATCH）
+- [x] Quick Win A2（`iter_chunked(8192)` → **1 MiB** = 10 GB で Python ループ
+      130 万回 → 1 万回）+ インライン検証接続（B1: native + civitai + published
+      SHA256 のとき hasher へチャンク供給 → 完了時 `hasher_finalize` で検証、
+      resume は部分ファイルを page-cache 速度でシード、200 リセット/416 リトライ/
+      pause を全て正しく処理）+ `_sha256_of` フル再読込を **native 経路から削除**
+      （K7 = 完了時の追加 I/O ゼロ。`_sha256_of` は legacy エンジン〔MM_NATIVE=0〕と
+      resume-済み完成ファイルのフォールバックとしてのみ残置 = 正しさは不変・
+      `test_phase5_download.py` が match/mismatch/フォールバックを固定）
+- [x] `models_changed` ws 無効化 + フロント部分再取得（Plan §4.7.2‑1: delete /
+      rename / move で `{type, reason}` をブロードキャスト → フロント
+      `api.addEventListener('models_changed')` が該当 type のみ
+      `refreshModels(type, {background})`〔generation ガードで二重再取得吸収〕。
+      download 完了 / ZipNN 完了は既存の ws ブロードキャストが全クライアントに
+      届くため二重発行しない。30 s TTL revalidate はフォールバック維持）
+- [x] 完了条件: **K7–K11 達成**（K7 追加 I/O ゼロ / K8 5 表記 1 パス 1239 MB/s =
+      10 GB ≈8.3 s ≤15 s / K9 5000 モデル 0.145 s ≤2 s〔×7.5〕/ K10 warm 99 ms
+      ≤100 ms〔3000〕/ K11 Rust 解析 ≈10 ms ≤40 ms + 端到端 ×1.58 — BENCH §10）・
+      **5,000 モデル合成ライブラリで QA**（native == legacy の完全 parity を機械確認）・
+      **既存 UI 退行なし**（golden テスト + pytest 127 緑 + web バンドル再構築 +
+      typecheck/eslint/prettier 緑）。証跡: `scripts/bench/results/phase5_*.json`
 
-### Phase 6 — フロントエンド表示最適化（計測駆動）
+### Phase 6 — フロントエンド表示最適化（計測駆動）+ Phase 5 移管の任意項目
 
 - [ ] C5 performance mark 計測基盤
 - [ ] C1 正規表現ホイスティング
 - [ ] C2 Intl.Collator 化（4 箇所）
 - [ ] C3 shallowRef 化（影響棚卸し → 移行 → 計測）
 - [ ] C4 `decoding="async"`
-- [ ] テンソルツリー Rust 事前グループ化接続（MoE 実モデルで計測）
+- [ ] テンソルツリー Rust 事前グループ化接続（MoE 実モデルで計測。Phase 5 の
+      `safetensors_tensor_tree`〔任意・未実装〕はここに統合 — 2026‑09‑27 確認）
+- [ ] **Quick Win A3: requests → aiohttp 統一**（**任意** — Phase 5 から移管、
+      2026‑09‑27 ユーザ決定。`search.py`/`information.py`/`identify.py` の
+      ブロッキング `requests.get` 11 箇所を共有 aiohttp セッションへ。
+      **Rust 化はしない — ユーザ決定で確定**: reqwest/axum/utoipa は不採用
+      （§3.8 注記 + MEMO 2026‑09‑27 の実測根拠: reqwest 0.13 の rustls 経路は
+      aws-lc-sys〔C/asm・cmake 必須〕を引き「コンパイラ不要」配布と衝突、
+      最小プローブ cdylib 4.9 MB でサイズ目安超過、依存 167 crates、
+      huggingface_hub 2.0 は httpx2 基盤のため「統一」にならない。axum/utoipa は
+      サーバ側ツールで aiohttp PromptServer 登録モデルに非該当）。
+      実施時の条件: 挙動 parity（タイムアウト/エラー文言/UI 表示不変）+
+      ライブ API 依存のないモックテスト
+- [ ] **`watch_roots` + 設定スイッチ**（**任意** — Phase 5 から移管、
+      2026‑09‑27 ユーザ決定。notify 8.2.0 + notify-debouncer-full 0.7.0 を
+      **直接採用 — extended-notify は不導入（ユーザ決定で確定）**: §3.1 注記の
+      通り 0.1.x/DL 1,286 の若いラッパーで tokio を引き込み、debouncer-full を
+      ^0.6 に後ろピンする）。`znn-codec` の `watch` feature は宣言済み。
+      設計は §4.7.2‑2（500 ms デバウンス・ネットワークストレージでは自動無効化し
+      TTL ポーリングへフォールバック・設定で OFF 可 = **既定 OFF**）+
+      inotify watch 予算管理（Linux の per-directory watch 枯渇時は TTL へ degrade）。
+      フロントは Phase 5 実装済みの `models_changed` リスナーを再利用（無改修）
 - [ ] 完了条件: K15 達成（検索 keystroke→描画 ≤16 ms P95、
-      初回グリッド描画 ≤1 s、5,000 モデル）
+      初回グリッド描画 ≤1 s、5,000 モデル）。A3/watch_roots は任意項目 —
+      未実施でもフェーズ完了に影響しない。実施時は各自の条件
+      （A3: 挙動 parity + モックテスト / watch_roots: 既定 OFF + degrade 動作 +
+      primitive テスト）で判定
 
 ### Phase 7 — third_party 撤去・配布仕上げ・リリース
 
@@ -1325,9 +1416,14 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 - [ ] README / README‑JP / USAGE×3 の全面改訂
       （ZipNN 節を「純 Rust 実装」へ、対応 OS 表・相互運用マトリクス追加）
 - [ ] pyproject / requirements 整理、`native-bin/README.md` 整備
-- [ ] バイナリサイズ最終最適化（≤4 MB/本）
+- [ ] バイナリサイズ最終最適化（**4 MB/本 = 目安** — 2026‑09‑27 ユーザ決定で
+      絶対条件から降格。§3.3 参照）
 - [ ] （ストレッチ）自由スレッド Python 向け abi3t ビルド実験
-- [ ] リリース v0.3.0（version.yaml / package.json / pyproject 同期）
+- [ ] リリース v0.3.0 の**公開準備**（version.yaml / package.json / pyproject 同期）。
+      **公開作業そのもの（GitHub Release の作成・タグの publish・registry への
+      公開等）はユーザが実施する — セッションは勝手に公開しない**
+      （2026‑09‑27 ユーザ指示・§6.3 の恒久規程）。セッションが行うのは
+      バージョン同期コミットと公開前検証（K16 スモーク）まで
 - [ ] 完了条件: 全新規 clone（Linux/Windows/macOS）で
       コンパイラ・pip・ネットワークなしに ZipNN 機能が動作（K16）
 
@@ -1339,26 +1435,38 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 - KPI 未達・テスト red の状態でフェーズを閉じない。
 - 開発ループの cargo 使用規程は §3.4.3（check 常用・test は必要なとき・
   fmt/clippy 活用・build は最終確認のみ。テストは `tests/` で管理）。
+- **リリース公開はユーザ専任**（2026‑09‑27 ユーザ指示）: v0.3.0 等の
+  公開作業（GitHub Release の作成・タグの publish・registry への公開・
+  `main` へのマージ PR の作成/マージ）は**ユーザが実施する**。エージェント
+  セッションは「公開準備」（バージョン番号同期・公開前検証・dev への
+  コミット/プッシュ）までを行い、**勝手に公開しない**。dev→main マージは
+  現行運用通りユーザの PR 操作による（MEMO の各セッション記録参照）。
+- **サイズ予算は目安**（2026‑09‑27 ユーザ決定）: 「1 バイナリ ≤ 4 MB」は
+  絶対条件ではなく目安（§3.3）。CI のサイズゲートはリポジトリ肥大の
+  早期警戒装置として維持するが、ゲート超過は計画違反ではなく
+  **ユーザ判断で上限を改定する**運用（universal2 fat binary の per-slice
+  判定化がその先例）。native-bin 合計 ≤ 20 MB（R6）はリポジトリ肥大
+  ガードとして維持。
 
 ---
 
 # 7. リスク管理
 
-| #   | リスク                                       | 確率 | 影響 | 緩和策                                                                                                                                                                      | 対応フェーズ |
-| --- | -------------------------------------------- | ---- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| R1  | huff0 ポートのビットレベルバグ（静かな破損） | 中   | 大   | L2 差分テスト + L3 fuzz + `znn_neo_src_sha256` 端到端検証（破損は**検知される**）。third_party は Phase 7 まで保持                                                          | 1–7          |
-| R2  | 公式 zipnn との非互換（エコシステム分断）    | 低   | 大   | 互換帯は L5 を CI ゲート化。拡張帯はマーキング + UI 明示 + 明示エラー（静かな破損なし）                                                                                     | 1,4          |
-| R3  | abi3 バイナリの環境非互換（古い glibc 等）   | 中   | 中   | zigbuild glibc 2.28（現行 C の 2.34 要件より広い）、CI に旧環境スモーク、失敗時は明確なエラー表示                                                                           | 0,7          |
-| R4  | Windows の mmap/ロック競合（AV・OneDrive）   | 中   | 中   | 読取専用共有 mmap、書込は tempfile+rename、Windows QA チェックリスト                                                                                                        | 2            |
-| R5  | rayon が ComfyUI 推論と CPU 競合             | 中   | 中   | 専用プール + `min(cpu,16)` 既定 + 実行中スレッド半減オプション                                                                                                              | 2            |
-| R6  | リポジトリ肥大（native-bin ≤20 MB）          | 中   | 小   | サイズ予算 CI ゲート。超過時は GitHub Releases 配信へ切替（ローダーに取得経路を設計時内蔵）                                                                                 | 0,7          |
-| R7  | 永続インデックスの破損/陳腐化                | 低   | 小   | チェックサム + 世代番号。不一致時は自動全再構築（常に派生データ）                                                                                                           | 5            |
-| R8  | shallowRef 移行による UI 退行                | 中   | 中   | 影響棚卸し先行・段階移行・計測比較。問題時は対象ストアのみロールバック                                                                                                      | 6            |
-| R9  | PyO3/maturin の破壊的変更                    | 低   | 小   | Cargo.lock 同梱でピン留め、更新は専用 PR                                                                                                                                    | 全           |
-| R10 | 上流 zipnn の将来フォーマット変更            | 低   | 中   | ヘッダーのバージョンバイト厳密検査、上流リリース監視の CI 定期ジョブ化                                                                                                      | 1,7          |
-| R11 | f64 8 平面方式の圧縮率が期待未満             | 中   | 小   | 方式のモジュール化。目標は「破損せず現行（パススルー）以上」。測定後にトランケート等で改善                                                                                  | 4            |
-| R12 | 既存デルタファイル（C 版生成）の復旧不能     | 低   | 大   | C 版の往復は非クラッシュケースで全て正しいことを実証済み（付録 C.3）。Rust 解凍器は C 出力を 100% 受理（L2/L5）。万一の不一致ファイルは `.corrupt` 退避で原本（base）を保持 | 3            |
-| R13 | free-threaded Python 普及時の abi3 非対応    | 低   | 小   | PyO3 `abi3t-py315` 対応済み。需要確認後に追加ビルド（ストレッチ）                                                                                                           | 7            |
+| #   | リスク                                       | 確率 | 影響 | 緩和策                                                                                                                                                                              | 対応フェーズ |
+| --- | -------------------------------------------- | ---- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| R1  | huff0 ポートのビットレベルバグ（静かな破損） | 中   | 大   | L2 差分テスト + L3 fuzz + `znn_neo_src_sha256` 端到端検証（破損は**検知される**）。third_party は Phase 7 まで保持                                                                  | 1–7          |
+| R2  | 公式 zipnn との非互換（エコシステム分断）    | 低   | 大   | 互換帯は L5 を CI ゲート化。拡張帯はマーキング + UI 明示 + 明示エラー（静かな破損なし）                                                                                             | 1,4          |
+| R3  | abi3 バイナリの環境非互換（古い glibc 等）   | 中   | 中   | zigbuild glibc 2.28（現行 C の 2.34 要件より広い）、CI に旧環境スモーク、失敗時は明確なエラー表示                                                                                   | 0,7          |
+| R4  | Windows の mmap/ロック競合（AV・OneDrive）   | 中   | 中   | 読取専用共有 mmap、書込は tempfile+rename、Windows QA チェックリスト                                                                                                                | 2            |
+| R5  | rayon が ComfyUI 推論と CPU 競合             | 中   | 中   | 専用プール + `min(cpu,16)` 既定 + 実行中スレッド半減オプション                                                                                                                      | 2            |
+| R6  | リポジトリ肥大（native-bin ≤20 MB）          | 中   | 小   | サイズ CI ゲート（4 MB/本 = **目安** — 超過はユーザ判断で上限改定: §3.3/§6.3。合計 ≤20 MB はハード上限）。合計超過時は GitHub Releases 配信へ切替（ローダーに取得経路を設計時内蔵） | 0,7          |
+| R7  | 永続インデックスの破損/陳腐化                | 低   | 小   | チェックサム + 世代番号。不一致時は自動全再構築（常に派生データ）                                                                                                                   | 5            |
+| R8  | shallowRef 移行による UI 退行                | 中   | 中   | 影響棚卸し先行・段階移行・計測比較。問題時は対象ストアのみロールバック                                                                                                              | 6            |
+| R9  | PyO3/maturin の破壊的変更                    | 低   | 小   | Cargo.lock 同梱でピン留め、更新は専用 PR                                                                                                                                            | 全           |
+| R10 | 上流 zipnn の将来フォーマット変更            | 低   | 中   | ヘッダーのバージョンバイト厳密検査、上流リリース監視の CI 定期ジョブ化                                                                                                              | 1,7          |
+| R11 | f64 8 平面方式の圧縮率が期待未満             | 中   | 小   | 方式のモジュール化。目標は「破損せず現行（パススルー）以上」。測定後にトランケート等で改善                                                                                          | 4            |
+| R12 | 既存デルタファイル（C 版生成）の復旧不能     | 低   | 大   | C 版の往復は非クラッシュケースで全て正しいことを実証済み（付録 C.3）。Rust 解凍器は C 出力を 100% 受理（L2/L5）。万一の不一致ファイルは `.corrupt` 退避で原本（base）を保持         | 3            |
+| R13 | free-threaded Python 普及時の abi3 非対応    | 低   | 小   | PyO3 `abi3t-py315` 対応済み。需要確認後に追加ビルド（ストレッチ）                                                                                                                   | 7            |
 
 ---
 
@@ -1455,8 +1563,35 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
       F64 0.515・trunc 実測）。api_version 3 のまま（新規 Python API
       なし — inspect ルートは Python 側）。fuzz 表面は新モード/新コード帯を
       含むため run 6（6 ターゲット × 3 h）を新 tip へディスパッチ
-- [ ] **Phase 5** — スキャン/永続インデックス/ハッシュ/更新伝播（Quick Win A2/A3）
-- [ ] **Phase 6** — フロントエンド表示最適化（C1–C5、計測駆動）
+- [x] **Phase 5** — スキャン/永続インデックス/ハッシュ/更新伝播（Quick Win A2）
+      **実装・自動 QA 完了 2026‑09‑27**: `scan_models` / `scan_hygiene` の Rust
+      並列 walk 化（os.scandir / os.walk 意味論の忠実移植 + golden parity）+
+      永続インデックス（bincode 2.0.1 + blake3 + 原子入替 + 自動再構築 =
+      front-matter キャッシュが再起動を跨ぐ）+ `safetensors_header`（jiter・
+      B4 32 MiB 統一・comfy.utils 依存撤去）+ `hash_file` / インクリメンタル
+      `hasher_*`（5 表記 1 パス + Civitai 表記 golden）+ Quick Win A2
+      （ダウンロードチャンク 1 MiB）+ B1 インライン検証（K7 = 完了時追加 I/O
+      ゼロ、`_sha256_of` は native 経路から削除・legacy フォールバックのみ残置）+
+      `models_changed` ws 無効化 + フロント部分再取得。**実装中に O(n²) 重大
+      バグを発見・修正**（`parse_header_json` の重複名線形走査 → HashMap O(1):
+      64k テンソル MoE ヘッダの native 解析 6,098 ms → 212 ms、compress
+      パイプラインも共有経路で高速化）。ゲート: L1 **181**（+26）・mm-core 5・
+      pytest **127**（+14: scan/hygiene/header/hash/hasher/download の
+      native==legacy golden）・clippy `-D warnings`/fmt/ruff/mypy/prettier/
+      typecheck/eslint/build 全緑・release `.so` **2,869,968 B**（予算 68 %）・
+      api_version **4**。**KPI（同一セッション実測・BENCH §10）**: K9 5000
+      モデル 0.145 s ≤2 s〔legacy 1.082 s の ×7.5・native==legacy parity 機械
+      確認〕/ K10 warm 99 ms ≤100 ms〔3000〕/ K8 5 表記 1239 MB/s = 10 GB
+      ≈8.3 s ≤15 s / K7 追加 I/O ゼロ / K11 Rust 解析 ≈10 ms ≤40 ms + 端到端
+      ×1.58。**任意項目 A3（requests→aiohttp）と watch_roots は Phase 6 へ
+      移管**（2026‑09‑27 ユーザ決定 — 見送り根拠は BENCH §10.5 に記録。
+      A3 は aiohttp 統一のまま **Rust 化しない**〔reqwest 不採用 — §3.8 注記〕、
+      watch_roots は notify + notify-debouncer-full **直接採用で確定**
+      〔extended-notify 不導入 — §3.1 注記〕。`watch` feature は宣言済み）。fuzz 表面は不変（scan/hash/index は fuzz
+      ターゲット外・codec 無変更）→ fuzz-long 再ディスパッチ不要
+- [ ] **Phase 6** — フロントエンド表示最適化（C1–C5、計測駆動）+
+      Phase 5 移管の任意項目（A3 = requests→aiohttp 統一〔Rust 化しない〕・
+      watch_roots = notify 直接採用〔extended-notify 不導入〕— 2026‑09‑27 移管）
 - [ ] **Phase 7** — third_party 撤去・配布仕上げ・v0.3.0 リリース
 
 ---

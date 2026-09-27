@@ -20,6 +20,7 @@ GET /model-manager/identify-by-hash?type=&index=&filename=
 import asyncio
 import binascii
 import hashlib
+import json
 import os
 import struct
 
@@ -27,13 +28,17 @@ import requests
 import yaml
 from aiohttp import web
 
-from . import auth, utils
+from . import auth, native, utils
 
 _AUTOV1_OFFSET = 0x100000  # 1 MiB
 _AUTOV1_WINDOW = 0x10000  # 64 KiB
 _CHUNK = 1024 * 1024
 _LOOKUP_ORDER = ("SHA256", "AutoV2", "BLAKE3", "CRC32", "AutoV1")
 _LOOKUP_TIMEOUT = 12.0
+# The notations identify always needs (BLAKE3 is optional — the legacy Python
+# hasher only emits it when the `blake3` module is importable; the native Rust
+# hasher always can, so the two are compared on the always-present set).
+_HASH_ALGOS = ["SHA256", "AutoV2", "AutoV1", "CRC32", "BLAKE3"]
 
 
 def _crc32_hex(value: int) -> str:
@@ -44,7 +49,20 @@ def _crc32_hex(value: int) -> str:
 
 
 def compute_hashes(path: str) -> dict[str, str]:
-    """Single streaming pass over the file: every hash notation at once."""
+    """Single streaming pass over the file: every hash notation at once.
+
+    Native path (Phase 5, Plan §4.8-B2 / K8): ``mm_core.hash_file`` computes
+    all five notations in one pass in Rust (SHA-NI / AVX2 backends, GIL
+    released), golden-tested against the Python definitions below byte-for-byte
+    (upper-case hex, CRC32 byte-swapped, AutoV1 = the 64 KiB window at 1 MiB,
+    AutoV2 = ``SHA256[:10]``).
+    """
+    mm = native.core_if_enabled()
+    if mm is not None:
+        try:
+            return json.loads(mm.hash_file(path, _HASH_ALGOS))
+        except Exception as e:  # fall back to the Python hasher
+            utils.print_warning(f"native hash_file failed ({e}); using the Python hasher")
     sha = hashlib.sha256()
     autov1 = hashlib.sha256()
     crc = 0

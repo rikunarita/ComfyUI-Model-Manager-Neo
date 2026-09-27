@@ -20,15 +20,23 @@ from harness import REPO_ROOT, import_ext
 
 @pytest.fixture(autouse=True)
 def _isolate_loader_state(monkeypatch):
-    """Undo the loader's global side effects between tests."""
+    """Undo the loader's global side effects between tests.
+
+    Also scrub any real ``native-bin`` directory another test file left on
+    ``sys.path`` (e.g. a route test whose ``get_model_metadata`` /
+    ``scan_models`` called ``native.load()`` on the built artifact): the loader
+    APPENDS its bin_dir, so a pre-existing real entry would shadow the per-test
+    fake these loader tests install and the origin guard would fire before the
+    version check they are asserting. Removing it at setup is safe — the tests
+    that need the real prebuilt re-add it through ``native.load()``.
+    """
     monkeypatch.delenv("MM_NATIVE", raising=False)
+    sys.path[:] = [p for p in sys.path if "native-bin" not in p]
+    sys.modules.pop("mm_core", None)
     path_snapshot = list(sys.path)
-    module_snapshot = sys.modules.get("mm_core")
     yield
     sys.path[:] = path_snapshot
     sys.modules.pop("mm_core", None)
-    if module_snapshot is not None:
-        sys.modules["mm_core"] = module_snapshot
 
 
 def _fresh_native():

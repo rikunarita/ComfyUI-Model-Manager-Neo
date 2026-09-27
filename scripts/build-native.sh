@@ -75,6 +75,11 @@ PY
 
 finish() {
   local dst="$1"
+  # Per-binary size budget (Plan §3.3/R6). Callers pass a doubled budget for
+  # the macOS universal2 FAT binary (two architecture slices — see
+  # build_macos_universal2, which gates each thinned slice at the single-binary
+  # budget); every other target is one architecture and uses the default.
+  local budget="${2:-$SIZE_BUDGET}"
   [[ -f "$dst" ]] || { echo "artifact missing: $dst" >&2; exit 1; }
   local size sha
   size=$(wc -c < "$dst" | tr -d ' ')
@@ -83,11 +88,11 @@ finish() {
   log "size:     $size bytes"
   log "sha256:   $sha"
   if [[ "$SIZE_GATE" -eq 1 ]]; then
-    if [[ "$size" -gt "$SIZE_BUDGET" ]]; then
-      echo "SIZE BUDGET EXCEEDED: $size > $SIZE_BUDGET bytes ($dst)" >&2
+    if [[ "$size" -gt "$budget" ]]; then
+      echo "SIZE BUDGET EXCEEDED: $size > $budget bytes ($dst)" >&2
       exit 1
     fi
-    log "size gate: OK (<= $SIZE_BUDGET bytes)"
+    log "size gate: OK (<= $budget bytes)"
   fi
 }
 
@@ -116,7 +121,26 @@ build_macos_universal2() {
   mkdir -p "$out_dir"
   extract_from_wheel "$wheel" ".abi3.so" "$out_dir/mm_core.abi3.so"
   lipo -info "$out_dir/mm_core.abi3.so" || true
-  finish "$out_dir/mm_core.abi3.so"
+  # universal2 is a FAT binary (x86_64 + arm64). Plan §3.3's "<= 4 MB per
+  # binary" is a PER-ARCHITECTURE budget, so gate each thinned slice at
+  # SIZE_BUDGET; the fat file itself is naturally ~2x and is checked against a
+  # doubled budget in finish() (the whole native-bin set still has to fit the
+  # 20 MB total — the size-budget CI job enforces that).
+  if [[ "$SIZE_GATE" -eq 1 ]]; then
+    local arch slice ssz
+    for arch in x86_64 arm64; do
+      slice="$out_dir/.slice-$arch"
+      lipo "$out_dir/mm_core.abi3.so" -thin "$arch" -output "$slice" 2>/dev/null || continue
+      ssz=$(wc -c < "$slice" | tr -d ' ')
+      rm -f "$slice"
+      if [[ "$ssz" -gt "$SIZE_BUDGET" ]]; then
+        echo "SIZE BUDGET EXCEEDED ($arch slice): $ssz > $SIZE_BUDGET bytes" >&2
+        exit 1
+      fi
+      log "size gate ($arch slice): OK ($ssz <= $SIZE_BUDGET bytes)"
+    done
+  fi
+  finish "$out_dir/mm_core.abi3.so" $((SIZE_BUDGET * 2))
 }
 
 build_windows() {

@@ -1,0 +1,105 @@
+{
+  "phase": 5,
+  "kind": "hash",
+  "note": "Same-session legacy (MM_NATIVE=0) vs native (MM_NATIVE=1) on the 2 vCPU / 1 GiB / no-SHA-NI dev container. Absolute KPI targets are for the reference 8C/16T NVMe machine (Plan §2.2); the ratio is the portable signal (BENCH methodology).",
+  "legacy": {
+    "env": {
+      "date": "2026-09-27T07:26:15+0000",
+      "host": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.36",
+      "python": "3.11.2",
+      "cpus": 2,
+      "memTotal": "1090500 kB",
+      "machine": "x86_64"
+    },
+    "sizeMb": 128,
+    "measurements": [
+      {
+        "kind": "hash",
+        "what": "compute_hashes",
+        "bytes": 134217728,
+        "seconds": 0.11028205699949467,
+        "MBps": 1160.660251382385,
+        "algos": ["AutoV1", "AutoV2", "CRC32", "SHA256"],
+        "blake3Available": false,
+        "sha256": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E",
+        "peakRssMib": 46.9140625
+      },
+      {
+        "kind": "hash",
+        "what": "sha256_of",
+        "bytes": 134217728,
+        "seconds": 0.08875482700022985,
+        "MBps": 1442.1750830483677,
+        "sha256": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E",
+        "peakRssMib": 45.75390625
+      },
+      {
+        "kind": "hash",
+        "what": "sha256_reference",
+        "bytes": 134217728,
+        "seconds": 0.08556649900037883,
+        "MBps": 1495.9125533397516,
+        "sha256": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E",
+        "peakRssMib": 18.06640625
+      }
+    ],
+    "sha256CrossCheck": {
+      "values": {
+        "compute_hashes": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E",
+        "sha256_of": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E",
+        "sha256_reference": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E"
+      },
+      "allEqual": true
+    }
+  },
+  "native": {
+    "env": {
+      "date": "2026-09-27T07:26:16+0000",
+      "host": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.36",
+      "python": "3.11.2",
+      "cpus": 2,
+      "memTotal": "1090500 kB",
+      "machine": "x86_64"
+    },
+    "sizeMb": 128,
+    "measurements": [
+      {
+        "kind": "hash",
+        "what": "compute_hashes",
+        "bytes": 134217728,
+        "seconds": 0.10328246700009913,
+        "MBps": 1239.3197385561787,
+        "algos": ["AutoV1", "AutoV2", "BLAKE3", "CRC32", "SHA256"],
+        "blake3Available": false,
+        "sha256": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E",
+        "peakRssMib": 46.67578125
+      },
+      {
+        "kind": "hash",
+        "what": "sha256_of",
+        "bytes": 134217728,
+        "seconds": 0.08756165400063765,
+        "MBps": 1461.827114401789,
+        "sha256": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E",
+        "peakRssMib": 45.6953125
+      },
+      {
+        "kind": "hash",
+        "what": "sha256_reference",
+        "bytes": 134217728,
+        "seconds": 0.09102438199988683,
+        "MBps": 1406.2166332550232,
+        "sha256": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E",
+        "peakRssMib": 18.046875
+      }
+    ],
+    "sha256CrossCheck": {
+      "values": {
+        "compute_hashes": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E",
+        "sha256_of": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E",
+        "sha256_reference": "F5EE493B1C2D2939F83406B4BC1A56BFEF473F5DA82F2F3EE6F6F4C6507CDC8E"
+      },
+      "allEqual": true
+    }
+  }
+}

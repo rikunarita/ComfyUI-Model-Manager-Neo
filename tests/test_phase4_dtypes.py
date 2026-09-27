@@ -454,13 +454,26 @@ def test_torch_saved_dtypes_roundtrip(mm, tmp_path):
         assert torch.equal(got, want), k
 
 
-def test_repo_native_loader_still_pins_api_3():
-    """Phase 4 adds NO new Python-facing API (the dtype work is inside the
-    codec) — the loader's exact-range handshake must stay [3, 3]."""
+def test_repo_native_loader_pins_api_4():
+    """Phase 5 ADDS the scan / hygiene / header / hash surface, so the loader's
+    exact-range handshake moves to [4, 4] (a v3 binary lacks `scan_models` and
+    must be rejected at load, not fail with an AttributeError mid-scan)."""
     native = import_ext("native")
-    assert (native.MIN_API_VERSION, native.MAX_API_VERSION) == (3, 3)
+    assert (native.MIN_API_VERSION, native.MAX_API_VERSION) == (4, 4)
     if not (REPO_ROOT / "native" / "native-bin").exists():
         return
     sys.modules.pop("mm_core", None)
     if native.load():
-        assert native.core().api_version() == 3
+        assert native.core().api_version() == 4
+        # The Phase 5 surface is present.
+        phase5_fns = (
+            "scan_models",
+            "scan_hygiene",
+            "safetensors_header",
+            "hash_file",
+            "hasher_new",
+            "hasher_update",
+            "hasher_finalize",
+        )
+        for fn in phase5_fns:
+            assert hasattr(native.core(), fn), f"mm_core.{fn} missing"

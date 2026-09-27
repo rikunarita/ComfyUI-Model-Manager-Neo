@@ -308,6 +308,21 @@ def get_download_path():
     return download_path
 
 
+def get_index_cache_dir() -> str:
+    """Directory of the persistent scan index (Plan §4.7.1-3, B3).
+
+    Derived data under the extension dir (`.mm-cache`, gitignored), created on
+    demand. The native scan stores its front-matter snapshot (bincode +
+    blake3) here so the cache survives ComfyUI restarts — fixing the
+    process-local limit of `manager._SITE_CACHE` (Plan §1.2.2 #9). A missing or
+    corrupt snapshot is never an error: the native index rebuilds it.
+    """
+    cache_dir = join_path(config.extension_uri, ".mm-cache")
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+
 def search_files(directory: str):
     entries = os.listdir(directory)
     return [f for f in entries if os.path.isfile(join_path(directory, f))]
@@ -321,11 +336,40 @@ def file_list_to_name_dict(files: list[str]):
     return file_dict
 
 
+def _native_core():
+    """The loaded ``mm_core`` for the header path, or None.
+
+    Lazy import: ``py/native.py`` imports ``py/utils.py`` at module level, so a
+    module-level ``from . import native`` here would be circular.
+    """
+    from . import native
+
+    return native.core_if_enabled()
+
+
 def get_model_metadata(filename: str):
+    """The ``__metadata__`` block of a safetensors file ({} when absent).
+
+    Native path (Phase 5, Plan §4.7.3 / B4): ``mm_core.safetensors_header``
+    parses the header with jiter (K11 — an 8 MB MoE header in tens of
+    milliseconds, not the ~500 ms ``json.loads`` of the raw header) and drops
+    the ``comfy.utils.safetensors_header`` dependency (resilient to ComfyUI API
+    churn). B4 also unifies the header cap at 32 MiB — the legacy 1 MiB guard
+    silently emptied a large MoE ``__metadata__``.
+    """
     if not filename.endswith(".safetensors"):
         return {}
+    mm = _native_core()
+    if mm is not None:
+        try:
+            header = json.loads(mm.safetensors_header(filename))
+            meta = header.get("metadata")
+            return meta if isinstance(meta, dict) else {}
+        except Exception:
+            return {}
     try:
-        out = comfy.utils.safetensors_header(filename, max_size=1024 * 1024)
+        # B4: 32 MiB (was 1 MiB, which silently emptied large MoE metadata).
+        out = comfy.utils.safetensors_header(filename, max_size=1024 * 1024 * 32)
         if out is None:
             return {}
         dt = json.loads(out)
@@ -343,9 +387,21 @@ def get_model_tensors(filename: str):
     library writes), so the Information tab can render a faithful tensor
     table - name / dtype / shape - like Hugging Face's safetensors viewer.
     The `__metadata__` entry is skipped; it has its own section.
+
+    Native path (Phase 5, Plan §4.7.3 / B4): `mm_core.safetensors_header`
+    parses with jiter (K11) and returns the tensor list directly — the output
+    shape is byte-identical to the legacy parse (golden-tested).
     """
     if not filename.endswith(".safetensors"):
         return []
+    mm = _native_core()
+    if mm is not None:
+        try:
+            header = json.loads(mm.safetensors_header(filename))
+            tensors = header.get("tensors")
+            return tensors if isinstance(tensors, list) else []
+        except Exception:
+            return []
     try:
         # MoE headers run into the megabytes; 32 MiB covers every real model.
         out = comfy.utils.safetensors_header(filename, max_size=1024 * 1024 * 32)
@@ -845,6 +901,23 @@ def get_setting_value(request: web.Request, key: str, default: Any = None) -> An
 
 async def send_json(event: str, data: Any, sid: str | None = None):
     await config.serverInstance.send_json(event, data, sid)
+
+
+async def notify_models_changed(model_type: str | None, reason: str) -> None:
+    """Broadcast that a model type's on-disk listing changed (Plan §4.7.2-1).
+
+    Sent after a download completes, a rename/move/delete, a ZipNN settle or an
+    upload registers — every client re-fetches ONLY that type (a partial
+    refresh), and the 30 s TTL revalidate stays as the fallback for changes the
+    events miss (external tools). `model_type` None means "everything changed"
+    (the client does a full background sweep). A broadcast failure is swallowed
+    — invalidation is an optimisation, never a reason to fail the operation
+    that triggered it.
+    """
+    try:
+        await send_json("models_changed", {"type": model_type, "reason": reason})
+    except Exception:  # a ws hiccup must not fail the operation
+        pass
 
 
 import importlib.metadata

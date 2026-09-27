@@ -1424,7 +1424,7 @@ bef8f08（bench_phase4_dtypes.py + K14 証跡 JSON + BENCH §9）→ f124c90（R
   — Phase 4 のスコープ外（既存制限、実測 600 テンソル級では ~48 KB で無影響）。
 - F6 系 infos の dtype 文字列は safetensors 名（"F6_E2M3"）— torch 名が
   実在しないため（実機確認）。legacy 解凍側はどのみち code 145/146 で
-  明示拒否なので infos 文字列の消費자는 Neo/UI のみ。
+  明示拒否なので infos 文字列の消費者は Neo/UI のみ。
 - I64/U64 にトランケーションなし（Plan §4.6.2 表の通り — 8 平面の
   ゼロ上位面は huff0 が数バイトへ潰すため実測上の損失は小さい:
   I64 0.313）。
@@ -1672,3 +1672,307 @@ JSON パーサ選定の再現経路）、`fuzz/corpus/*`（Phase 1 からの意�
 - 残件は不変: Phase 2 K2/K3 参照機再計測、実 UI 手動 QA（Phase 7 統合）、
   Phase 5 以降。**次フェーズ（Phase 5）着手時は §3.4.3 の cargo 規程と
   tests/ 管理規程に従うこと**。
+
+## 2026-09-27（第 6 セッション）— Phase 5 実装（スキャン/インデックス/ハッシュ/更新伝播）+ Phase 4 最終バグチェック
+
+**完了**: Plan §6.2 Phase 5 の必須項目を全て実装・全ゲート緑・[x] 化。任意項目
+（A3 requests→aiohttp / watch_roots）は Plan の「任意」表記に従い本フェーズ見送り
+（根拠は BENCH §10.5）。api_version 3→4。
+
+### 環境再構築（セッション冒頭ロールバック対策）
+
+前ターン後にサンドボックスがロールバック: rustc/cargo/gcc/clang 消失・pip パッケージ
+消失（ソースツリーと `.git` は生存）。apt（build-essential/clang/mold/libpython3.11-dev）
+→ rustup stable 1.98.1（+rustfmt/clippy）→ pip（ruff 0.16.8/mypy/pytest/maturin 1.15.0
+
+- numpy/safetensors/torch 2.14.0+cpu）→ pnpm install --frozen-lockfile。apt ミラーは
+  今回 9 MB/s と高速。cargo は 1 GiB 制約で CARGO_BUILD_JOBS=1。
+
+### crate バージョンの一次確認（推測ゼロ）
+
+crates.io API で再確認（2026-09-27）: **bincode 3.0.0 は依然 compile_error!
+プレースホルダ**（xkcd 2347、.crate 実展開で lib.rs 全体が compile_error! と確認）→
+実体安定版 **2.0.1**（70 KB）を Plan §3.1 注記通り採用。blake3 1.8.7 / crc32fast 1.5.2
+/ yaml-rust2 0.13.0 / notify 8.2.0 / notify-debouncer-full 0.7.0 = Plan 確認値と一致。
+
+### 実装（znn-codec 新モジュール + mm-core + Python 切替 + フロント）
+
+- **scan.rs**（新）: std::fs + rayon の自前並列 walk（os.scandir 意味論の忠実移植 =
+  dir symlink 追従 + canonical visited ガード〔循環 symlink でハングしない robustness
+  改善〕・hidden を name set に残す・拡張子大文字小文字区別・20 スロット preview 解決・
+  front-matter 4 値・stat）+ scan_hygiene（os.walk(followlinks=False) 意味論 = orphan
+  サイドカー + empty フォルダ）。JSON 形状は現行 scan_models と厳密一致（serde
+  camelCase + 安定ソート (pathIndex, path)）。**createdAt/updatedAt = round(st_ctime_ns/1e6)
+  を f64::round_ties_even で Python とビット一致**（実機 stat で cross-check 実証・
+  Linux/macOS は OS 別 MetadataExt::st_ctime、Windows は created()）。
+- **index.rs**（新）: 永続インデックス（bincode 2.0.1 スナップショット + blake3
+  チェックサム + 原子入替 + 破損/不一致時自動全再構築 = 常に派生データ R7）。
+  (path, mtime_ns, size) → front-matter 4 値。RwLock で並列 scan から共有。
+- **hash.rs**（新）: MultiHasher（SHA256 + AutoV1 窓 + AutoV2 + CRC32 バイト反転 +
+  BLAKE3 を 1 パス）+ hash_file + インクリメンタル API（download インライン検証用）。
+  Civitai 表記を Python 定義とバイト一致で L1 固定。
+- **safetensors_io.rs**: header_display_json 追加（ヘッダ専用 jiter 解析・データ領域
+  無検証 = truncated ファイルでも表示可・B4 32 MiB 統一ガード・processed JSON 返却）。
+- **mm-core phase5.rs**（新）: scan_models/scan_hygiene/safetensors_header/hash_file/
+  hasher_new・update・finalize/phase5_diagnostics を PyO3 公開（同期・py.detach で
+  GIL 解放 = 不変条件 2）。SiteIndex のグローバルレジストリ（indexDir 単位）+ ハッシャ
+  レジストリ（cap 4096 + oldest eviction）。**api_version 3→4**。
+- **Python 切替**: native.py に core_if_enabled()（共有ヘルパ・MM_NATIVE 尊重・
+  compress.py native_core() もこれへ委譲）/ manager.py scan_models・scan_hygiene
+  （native + legacy 双方に安定ソート追加 = golden parity・失敗時 legacy フォールバック）/
+  utils.py get_model_metadata・get_model_tensors（B4・native + legacy 32 MiB）+
+  get_index_cache_dir / identify.py compute_hashes（native hash_file・Civitai 4 表記
+  golden）/ download.py A2（_DOWNLOAD_CHUNK 1 MiB）+ B1 インライン検証（hasher へ
+  チャンク供給・resume は部分ファイル page-cache シード・200 リセット/416 リトライ/
+  pause を全分岐処理・_download_complete は inline sha 優先 + _sha256_of フォールバック）。
+- **models_changed**: utils.notify_models_changed（delete/update でブロードキャスト・
+  download 完了/ZipNN 完了は既存 ws ブロードキャストが届くため二重発行せず）+
+  フロント model.ts リスナー（部分再取得 refreshModels(type,{background})・generation
+  ガードで二重再取得吸収・loadedOnce ガード）。web バンドル再構築。
+
+### テスト（golden parity = native == legacy を機械固定）
+
+- test_phase5_scan.py（11）: scan_models（両 hidden モード・preview 単/画廊・
+  front-matter 4 値・timestamp・pathIndex・index 永続）・scan_hygiene（orphan/empty）・
+  safetensors_header（metadata + tensors 形状）・compute_hashes（SHA256/AutoV2/AutoV1/
+  CRC32 + BLAKE3）・インクリメンタル hasher（chunk 非依存 == hash_file）。
+- test_phase5_download.py（3）: _download_complete の inline sha 検証（match 完了/
+  mismatch 削除+raise/フォールバック _sha256_of）。
+- **フルスイート 127 passed**（既存 113 + Phase 5 新規 14・torch 2.14/safetensors 0.8
+  同梱・release .so against）。既存テストの api_version==3 アサートを 4 へ更新
+  （native.yml/py.native.py/mm-core lib.rs test/pytest の四者同期）。
+- **test_phase0_native_loader の sys.path 分離を強化**: get_model_metadata が native を
+  ロードするようになったため、先行テスト（phase0_a1）が実 native-bin を sys.path に
+  残すと loader 分離テストが実 .so を拾って失敗 → autouse fixture で setup 時に
+  native-bin エントリを scrub（本番では正しい挙動・テスト分離の脆弱性だった）。
+
+### 計測（K7–K11、BENCH §10・同一セッション legacy vs native）
+
+- **K9**: 5000 モデル合成ライブラリ QA = native **0.145 s**（5016 entries）vs legacy
+  1.082 s（**×7.5**）+ **native==legacy の完全 parity 機械確認**（完了条件「5000
+  モデル QA」）。3000 モデル cold 0.124 s（×5.1）。
+- **K10**: warm **99 ms ≤ 100 ms**（3000 モデル・永続インデックスで front-matter
+  再パース消滅）。5000 はこの機で ≈165 ms（参照機 ≤100 ms 見込み）。
+- **K8**: 5 表記 1 パス **1239 MB/s**（SHA-NI なし・BLAKE3 込み）→ 10 GB ≈8.3 s ≤15 s・
+  sha256 三者クロスチェック MATCH。
+- **K7**: インライン検証で完了時追加 I/O ゼロ（_sha256_of フル再読込を native 経路から
+  削除・legacy フォールバックのみ残置）。
+- **K11**: Rust ヘッダ解析 ≈10 ms ≤40 ms（jiter・GIL 解放）+ 端到端 get_model_tensors
+  **212 ms**（legacy 334 ms の ×1.58・GIL 占有時間約半減 = K12 改善）。
+
+### 実装中に発見・修正した重大バグ（O(n²)）
+
+**parse_header_json の重複テンソル名検査が O(n²)** だった（tensors.iter().any/position
+の線形走査 × テンソル数）→ 64,491 テンソルの MoE ヘッダで native get_model_tensors が
+**6,098 ms**（legacy 334 ms の **×18 遅い重大退行**）。HashMap<name,pos> の O(1)
+last-wins 置換へ修正（セマンティクス・順序・odd フラグ完全保持 — L1 181 + pytest 127
+緑で固定）→ **212 ms**。**この経路は compress パイプライン（StContainer::parse）も
+共有するため、64k テンソル級 MoE 圧縮のヘッダ解析も 6 s → 数十 ms へ高速化**
+（Phase 2 からの潜在バグを Phase 5 の表示経路が顕在化・fresh eyes で捕捉）。
+
+### Phase 4 最終バグチェック（fresh eyes・バグなし）
+
+select_truncation（ゼロ統計 + 整列ガード + 負値 0xFF 非トランケート + 2 平面特殊
+mode 8）・masked plane（validate/split/join/extract の n∈{2,4}/kind None/整列/落とし面
+検証）を精査 → 過去 4 回の監査と整合・バグなし。**Phase 4 codec 経路（codec/dtype/
+planes/znn_tensor/pipeline）は本セッションで変更ゼロ**（git diff 空で確認・scan/hash/
+index/header は新モジュール）→ Phase 4 は安定（全テスト緑）。
+
+### 任意項目（A3 / watch_roots）の見送り判断（Plan の「任意」表記に従う）
+
+BENCH §10.5 に根拠を記録。A3（requests→aiohttp）はネットワーク経路の async リファクタ
+でライブ API なしでは回帰テスト不能・executor 経由で現状動作・identify の主目標
+（ハッシュ native 化）は達成済み。watch_roots は notify ファイル監視サブシステムで
+任意・既定 OFF・`watch` feature 宣言済み（将来の土台）。必須の更新伝播（models_changed
+
+- 30 s TTL）が UI 起因の全変更をカバーし、外部変更は TTL フォールバックが担保。
+  いずれも完了条件 K7–K11 に不含。
+
+### 全ゲート再検証（release .so against・全緑）
+
+- cargo fmt ✓ / clippy --workspace --all-targets --all-features -D warnings ✓ /
+  cargo test: znn-codec **181**（+26）+ mm-core --no-default-features **5** ✓
+- release .so（host build）**2,869,968 B**（予算 4 MB の 68 %・Phase 4 比 +468 KB =
+  scan/hash/index/header + blake3/bincode/crc32fast/yaml-rust2）・verify_native_binary
+  ok（libpython 非依存）・api_version 4・10+ API 全存在
+- pytest **127 passed** / ruff check+format ✓ / mypy 14 files ✓ / pnpm typecheck ✓ /
+  eslint ✓ / prettier format:check ✓ / **pnpm build ✓（web バンドル再生成 =
+  models_changed リスナー反映・manager.js に models_changed 確認）**
+
+### 運営メモ（次セッション向け）
+
+- **api_version 3→4**: native.yml abi3 assert / py/native.py [4,4] / mm-core lib.rs
+  API_VERSION + test / pytest の四者同期済み。CI の abi3-import は 4 を assert。
+- CI: ci.yml は既存の pytest tests で新テストを自動収容・native.yml integration も同様。
+  **fuzz 表面は不変**（scan/hash/index/header は fuzz ターゲット外・codec 無変更）→
+  fuzz-long 再ディスパッチ不要（run 6 の 18 h 証跡が有効）。push で CI/native が
+  新 tip に対して自動実行（結果確認はユーザ次ターン指示）。
+- native-bin の .so は gitignore（CI が main/tag で生成）。ローカルの release .so は
+  テスト用（host glibc 2.36・CI は zigbuild glibc 2.28）。
+- 残件: Phase 2 K2/K3 参照機再計測、Phase 5 任意項目 A3/watch_roots（将来）、実 UI
+  手動 QA（Phase 7 統合）、K10 5000 モデル ≤100 ms の参照機確認、K11 端到端 ≤40 ms
+  （processed JSON をルートで直接スプライスする設計 = get_model_tensors の公開契約を
+  変えるため本フェーズ範囲外・記録）。Phase 6 以降。
+
+### 追加（同日・push 後 CI native #42 の macOS サイズゲート失敗を修正）
+
+**症状**: push 後の native #42（head 59968ab）で **native-build-macos のみ失敗**
+（`SIZE BUDGET EXCEEDED: 4801936 > 4194304 bytes`）。他は全緑 — native-test×3
+（**macOS 含む** = scan.rs の `MetadataExt::st_ctime` が macOS でコンパイル・テスト
+通過を実証）・native-build-linux/windows・**native-diff（L2 byte-identical =
+parse_header_json の O(n²) 修正が byte-exact 安全であることを CI が機械確認）**・
+fuzz-smoke・abi3-import 3.10/3.13（api_version 4）。integration/size-budget は
+macos 依存で skipped だった。
+
+**根因**: macos-universal2 は **x86_64 + arm64 の 2 アーキを含む fat binary**。
+Plan §3.3「1 バイナリ ≤ 4 MB」は単一アーキ前提のヒューリスティックで、Phase 5 の
+機能追加（scan/hash/index/header + blake3/bincode/crc32fast/yaml-rust2）で
+linux-x86_64 が 2.4→2.87 MB へ成長し、universal2 fat が **4.8 MB**（各スライス
+≈2.4 MB は予算内だが fat 合計が 4 MB 超）に到達。
+
+**修正（fat binary は「1 バイナリ = 1 アーキスライス」で予算判定）**:
+
+- `build-native.sh`: `finish()` に budget 引数を追加。`build_macos_universal2` は
+  `lipo -thin` で **各アーキスライスを ≤4 MB でゲート**（Plan の「1 バイナリ」に
+  忠実）+ fat ファイルは `finish` に 2× 予算（8 MB）を渡す。単一アーキ対象
+  （linux x86_64/aarch64・windows）は 4 MB のまま。
+- `native.yml` size-budget ジョブ（ubuntu = lipo 不可）: **content 判定**で
+  FAT_MAGIC（0xcafebabe/0xcafebabf・big-endian on disk）を検出し fat のみ 8 MB
+  予算（path 非依存 = download-artifact の LCA で `macos-universal2` 断片が
+  保たれない場合でも堅牢）。他は 4 MB・合計 20 MB は不変。ローカルで ELF
+  （7f454c46 → 4 MB・2.87 MB PASS）と fat magic（cafebabe → 8 MB）を検証。
+- Plan §3.3 に universal2 fat binary の per-slice 予算注記を追記。native.yml
+  冒頭コメントも同期。
+
+**native-bin 合計 ≈12 MB ≤ 20 MB（R6 リポジトリ肥大ガードは充足）**。単一アーキ
+成果物は全て ≤4 MB を維持。修正は build-native.sh + native.yml + Plan のみ
+（Rust/Python コードは無変更 = 再ビルド不要・既存の全ゲート証跡は有効）。
+
+## 2026-09-27（第 7 セッション）— CI 全緑確認 + ユーザ決定 5 件の Plan 反映（A3/watch_roots の Phase 6 移管・サイズ予算の目安化・リリース公開のユーザ専任化）
+
+### CI 全緑確認（ユーザ要求分・GitHub API + ジョブログ実測）
+
+**CI #132 / native #43（head `05cb8c7` = サイズゲート修正コミット）とも
+全ジョブ SUCCESS**（native #43 = 14/14）。修正の実証データ:
+
+- **native-build-macos 緑**: per-slice ゲートが設計通り動作 —
+  x86_64 スライス **2,520,856 B** ≤4 MB / arm64 スライス **2,262,416 B** ≤4 MB /
+  fat 4,801,936 B ≤8 MB。
+- **size-budget 緑**: 4 バイナリ合計 **13,039,208 B ≤20 MB**。macOS 成果物は
+  **magic `cafebabe` の content 判定**で 8 MB 予算を適用 — 実ダウンロード
+  artifact の path は `artifacts/mm_core.abi3.so` で **`macos-universal2` 断片を
+  含まなかった**（upload-artifact v4 の LCA 挙動）= path 判定案では失敗しており、
+  content 判定の設計判断が実証された。他: linux-x86_64 2,913,576 / linux-aarch64
+  2,478,512 / windows .pyd 2,845,184 B（全て ELF/PE magic → 4 MB 予算）。
+- **integration 緑**: ubuntu **pytest 127 passed + L5 GATE: PASS**（Phase 5
+  golden parity が CI 実ビルド成果物 against で緑）/ windows・macos 各
+  **20 passed, 107 skipped**（native 経路のみ = 設計通り）。
+- native #42（修正前）で **native-test×3・native-diff・fuzz-smoke・abi3-import
+  3.10/3.13 が既に緑**だったことが、O(n²) 修正の byte-exact 安全（L2）と
+  api_version 4 同期と macOS での scan.rs（MetadataExt::st_ctime）コンパイル・
+  テスト通過を先行実証していた。
+
+### ユーザ決定 5 件（2026-09-27・すべて Plan/MEMO に恒久記録）
+
+1. **Phase 5 の見送り項目（A3 / watch_roots）は Phase 5 リストから削除し
+   Phase 6 へ移管**（Plan §6.2 Phase 5/6・§6.1 表・§9・状態行を同期更新。
+   Phase 6 のタイトルも「フロントエンド表示最適化 + Phase 5 移管の任意項目」へ）。
+2. **バイナリサイズの 4 MB 予算は「目安」**（絶対条件から降格 — Plan §3.3 に
+   決定注記、§6.3 に恒久規程、R6 緩和策・§5.3 CI 表・Phase 7 タスクを同期。
+   CI サイズゲートはリポジトリ肥大の早期警戒装置として**維持**し、超過は
+   ユーザ判断で上限改定する運用。native-bin 合計 ≤20 MB はハード上限のまま）。
+3. **リリース v0.3.0 の公開はユーザが実施する — セッションは勝手に公開しない**
+   （GitHub Release 作成・タグ publish・registry 公開・main へのマージ PR 操作は
+   ユーザ専任。セッションは「公開準備」= バージョン同期コミット + 公開前検証
+   まで。Plan §6.2 Phase 7 のリリース行 + §6.3 進捗管理規程の両方に明記）。
+4. **requests→aiohttp 統一（A3）の Rust 化はしない**（reqwest/axum/utoipa
+   不採用 — Plan §3.8 に決定 + 実測根拠を注記）。
+5. **extended-notify は導入しない**（watch_roots は notify 8.2.0 +
+   notify-debouncer-full 0.7.0 の直接採用で確定 — Plan §3.1 選定表の不採用
+   候補欄に根拠付きで記録）。
+
+### 調査の実測証跡（将来セッションが再調査しないための記録・すべて一次ソース）
+
+**reqwest 系（2026-09-27、この環境で実測）**:
+
+- reqwest **0.13.5**（crates.io: 2026-09-08 更新・DL 7.47 億・MSRV 1.85 =
+  ワークスペース床と一致）は **feature 名が変わっている**: `rustls-tls` は
+  廃止で `rustls`（プローブが解決エラーで実証）。`rustls` 指定で
+  **aws-lc-rs 1.18.1 / aws-lc-sys 0.45.0（C/asm・cmake 必須 — この環境でも
+  cmake を apt 導入するまでビルド不能だった = 実証）** + ring 0.17.14（C/asm）
+  - rustls 0.23.45 を引き込む。native-tls は OpenSSL 動的リンクで
+    zigbuild glibc 2.28 床を破壊するため論外。rustls に純 Rust の成熟
+    crypto provider は不在 = **どの TLS 経路でも C/asm がビルドに入る**。
+- **サイズ実測**: /tmp のプローブ crate（reqwest rustls+json+gzip + tokio rt +
+  serde_json・公開関数 1 個）を mm-core と同一 release プロファイル
+  （lto=fat/codegen-units=1/opt-level=3/strip/panic=unwind）でビルド →
+  **librq_probe.so = 4,886,072 B（≈4.9 MB、strip 済み・ELF 検証済み）**。
+  HTTP スタックだけで現行 mm_core 本体（linux 2.91 MB）より大きく、統合時は
+  全プラットフォームで 4 MB 目安を ~1.9 倍超過する試算。依存グラフは
+  **167 crates**（現行ワークスペース lock 全体 139 = dev/bench/CLI 込み総数）。
+- **axum 0.8.9** = 「HTTP routing and request handling library」（サーバ
+  フレームワーク）、**utoipa 6.0.0** = 「Compile time generated OpenAPI
+  documentation for Rust」（Rust ハンドラ用）— いずれも crates.io 公式
+  description で確認。本拡張はルートを ComfyUI の aiohttp PromptServer へ
+  登録するモデル（py/config.py）なので**非該当**。
+- **huggingface_hub 2.0.0 は httpx2 基盤**（PyPI metadata の requires_dist で
+  確認: `httpx2<3,>=2.0.0`）→ 残り 11 箇所の薄い JSON 呼び出しを Rust 化しても
+  プロセス内は aiohttp（サーバ+DL）/ httpx2（hub 系）/ reqwest の
+  **第 3 スタック追加**になり「統一」にならない。重い HF 転送は hf_xet で
+  既に Rust。
+
+**extended-notify（2026-09-27、crates.io API + 公式 README で確認）**:
+
+- 実在: **0.1.3**（2025-12-10 初版・2026-06-26 更新・MIT・単一作者
+  estokes/extended-notify）。総 DL **1,286**（recent 457）。
+- 正体は **notify ^8.2 + notify-debouncer-full ^0.6 のラッパー**
+  （debouncer-full は現行 0.7.0 = **土台より 1 世代後ろピン**）+ tokio ^1.48 +
+  futures + anyhow + file-id + arcstr + derive_builder + enumflags2 + fxhash +
+  poolshark。README の追加機能: 未存在 path の監視（祖先+ポーリング）・
+  interest フィルタ・RAII ハンドル・ポーリングフォールバック・tokio の
+  async EventHandler バッチ配信。
+- 不採用の要点: (a) 成熟度（notify 本体 DL **1.599 億** / debouncer-full
+  **1,673 万** と 3 桁以上の差・単一作者 0.1.x）、(b) tokio 混入 = 既定 OFF の
+  任意機能のために出荷バイナリへランタイム追加（reqwest プローブが示すサイズ
+  コスト）・Neo 設計は Python 側 asyncio からの watch_poll で tokio 不要、
+  (c) 目玉機能は Neo 側で代替可能（root 再アーム数行・kind フィルタ数行・
+  ポーリングは **notify 本体の PollWatcher が標準搭載**〔docs.rs で確認〕）、
+  (d) debouncer-full 0.6 ピン。hotwatch 0.5.0 は 2023 年止まりで候補外。
+- Neo の watch_roots で本当に必要なのは crate ではなくグルー: inotify watch
+  予算管理（Linux per-directory・max_user_watches 枯渇時 TTL へ degrade）・
+  ネットワーク FS 検出→自動無効化（PollWatcher での代替は 5,000 ファイル樹の
+  定期 stat = 再スキャン同コストなので TTL がその役目を担う）・path→type
+  判定→models_changed（Phase 5 実装のリスナーを無改修再利用）・既定 OFF。
+
+### このセッションのドキュメント編集（コード変更ゼロ）
+
+- **Plan.md**: §6.2 Phase 5 から見送り 2 項目を削除 → Phase 6 へ移管
+  （決定・制約〔Rust 化しない/extended-notify 不導入〕+ 実施時の条件付き）。
+  Phase 6 タイトル/§6.1 表/§9/状態行を同期。§3.3 + §6.3 + R6 + §5.3 +
+  Phase 7 タスクで 4 MB を「目安」化（20 MB 合計はハード上限維持）。
+  Phase 7 リリース行を「公開準備」へ限定 + §6.3 に「リリース公開はユーザ
+  専任」規程。§3.8 に reqwest 不採用注記（実測根拠付き）・§3.1 watch 行の
+  不採用候補に extended-notify・§4.7.2-2 に Phase 6 移管ポインタ・§4.8-A A3 行
+  の実施フェーズを Phase 6 へ。Phase 0 の履歴行（「サイズ ≤4 MB/本」完了記録）は
+  歴史的事实のため不変。
+- **native/README.md**: Phase 5 段落の「本フェーズ見送り」→「Phase 6 へ移管 +
+  確定方針」へ更新。
+- **BENCH §10.5**: 見送り記録（歴史）はそのままに、後続のユーザ決定
+  （移管・Rust 化しない・extended-notify 不導入・4 MB 目安化）を引用ブロックで
+  追記。
+- **MEMO（本節）**: CI 全緑証跡 + 決定 5 件 + 実測証跡を記録。
+- CI ワークフロー/ビルドスクリプトは**無変更**（ゲートは現行上限を施行する早期警戒装置として維持 — 目安化は計画レベルの位置づけ変更。relax が必要に
+  なったらユーザ判断で上限改定）。
+
+### 運営メモ（次セッション向け）
+
+- 本 push は docs のみ（Plan/MEMO/BENCH/native README）→ CI/native が新 tip に
+  自動実行されるが、コード無変更のため結果は #132/#43 と同じ見込み
+  （確認はユーザ次ターン指示時）。
+- **Phase 6 着手時の約束事**: C1–C5（計測駆動）+ 移管の A3（aiohttp 統一・
+  挙動 parity + モックテスト）/ watch_roots（notify 直接採用・既定 OFF・
+  degrade + primitive テスト）。いずれも任意項目で K15 完了条件には不含。
+- **v0.3.0 の公開作業は行わないこと**（バージョン同期・公開前検証まで）。
+- 残件は不変: Phase 2 K2/K3 参照機再計測、K10 5000 モデル ≤100 ms の参照機
+  確認、K11 端到端 ≤40 ms（processed JSON のルート直スピルス設計 = 公開契約
+  変更を伴うため範囲外と記録済み）、実 UI 手動 QA（Phase 7 統合）。

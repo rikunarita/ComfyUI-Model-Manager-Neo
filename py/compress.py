@@ -159,13 +159,10 @@ def native_core():
     REQUIRES the native core (``native.load()`` raises when unavailable — an
     installation that demands the Rust core must never silently fall back to
     the C one), ``auto`` (default) uses the native core when the prebuilt
-    binary loads and passes the API handshake.
+    binary loads and passes the API handshake. Delegates to the shared
+    ``native.core_if_enabled()`` the Phase 5 switch-overs also use.
     """
-    if native.native_mode() == "0":
-        return None
-    if native.load():
-        return native.core()
-    return None
+    return native.core_if_enabled()
 
 
 def paranoid_enabled(request=None) -> bool:

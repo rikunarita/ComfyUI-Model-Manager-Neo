@@ -37,11 +37,15 @@ from . import config, utils
 # * 3 — Phase 3: the delta jobs (zipnn_delta_compress/decompress) and the
 #   batch primitives (walk_models/move_with_sidecars) that the delta and
 #   batch-folder routes call directly.
+# * 4 — Phase 5: the scan / hygiene / safetensors-header / hash surface
+#   (scan_models/scan_hygiene/safetensors_header/hash_file/hasher_*) that
+#   py/manager.py, py/utils.py, py/identify.py and py/download.py call
+#   directly, plus the persistent front-matter index.
 # The range is EXACT (min == max): an older binary would pass a `>=` handshake
 # and then fail with an AttributeError deep inside a compression task — an
 # incompatible binary must be rejected at load time with a clear reason().
-MIN_API_VERSION = 3
-MAX_API_VERSION = 3
+MIN_API_VERSION = 4
+MAX_API_VERSION = 4
 
 _NATIVE_DIR = "native"
 _NATIVE_BIN_DIR = "native-bin"
@@ -182,6 +186,23 @@ def available() -> bool:
 def core() -> ModuleType | None:
     """The loaded ``mm_core`` module, or None when unavailable."""
     return _module
+
+
+def core_if_enabled() -> ModuleType | None:
+    """The loaded ``mm_core`` when the native path should run, else None.
+
+    The shared entry point for the Phase 5 route/worker switch-overs
+    (``py/manager.py`` scan, ``py/utils.py`` header, ``py/identify.py`` hashing,
+    ``py/download.py`` inline verification). Honours ``MM_NATIVE`` (Plan §5.4):
+    ``0`` forces the legacy path (returns None without loading), ``1`` REQUIRES
+    the native core (``load()`` raises when unavailable), ``auto`` (default)
+    returns the core when the prebuilt binary loads and passes the handshake.
+    """
+    if native_mode() == "0":
+        return None
+    if load():
+        return _module
+    return None
 
 
 def reason() -> str | None:

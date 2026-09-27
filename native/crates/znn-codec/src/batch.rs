@@ -62,7 +62,7 @@ pub struct WalkOpts<'a> {
 
 /// Python's `os.path.splitext` (the LAST dot at index > 0 starts the
 /// extension; leading dots are part of the stem: `".md"` → `(".md", "")`).
-fn py_splitext(name: &str) -> (&str, &str) {
+pub(crate) fn py_splitext(name: &str) -> (&str, &str) {
     match name.rfind('.') {
         Some(i) if i > 0 => (&name[..i], &name[i..]),
         _ => (name, ""),
@@ -217,6 +217,23 @@ fn preview_slot_suffixes() -> Vec<String> {
     v.push(".preview".to_owned());
     v.extend((2..20).map(|n| format!(".preview{n}")));
     v
+}
+
+/// Every file name that could hold a preview of `basename`, in slot-major
+/// display order — the faithful port of `py/utils.py preview_candidates()`
+/// (20 slots × 8 extensions). Shared by `move_with_sidecars` (which moves the
+/// present ones) and the Phase-5 scan (`scan::previews_in_names`, which lists
+/// the present ones as URLs); keeping ONE definition is what guarantees the
+/// listing order and the mover agree.
+#[must_use]
+pub(crate) fn preview_candidate_names(basename: &str) -> Vec<String> {
+    let mut out = Vec::with_capacity(20 * PREVIEW_EXTENSIONS.len());
+    for suffix in preview_slot_suffixes() {
+        for ext in PREVIEW_EXTENSIONS {
+            out.push(format!("{basename}{suffix}{ext}"));
+        }
+    }
+    out
 }
 
 /// Move every sidecar of `src` (preview slots + Markdown/txt notes) to the

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -8,7 +9,7 @@ import folder_paths
 import yaml
 from aiohttp import web
 
-from . import utils
+from . import native, utils
 
 
 def _preview_field_keys(model_data: dict) -> list[str]:
@@ -258,6 +259,13 @@ class ModelManager:
                 # other blocking handlers: run in the executor.
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(utils.io_executor(), self.update_model, model_path, model_data)
+                await utils.notify_models_changed(model_type, "update")
+                # An edit can MOVE the model to another type; invalidate both
+                # listings so the destination grid picks it up and the source
+                # drops it (Plan §4.7.2-1).
+                new_type = model_data.get("type")
+                if isinstance(new_type, str) and new_type and new_type != model_type:
+                    await utils.notify_models_changed(new_type, "update")
                 return web.json_response({"success": True})
             except Exception as e:
                 error_msg = f"Update model failed: {e!s}"
@@ -288,11 +296,13 @@ class ModelManager:
                     ):
                         raise RuntimeError("The model-type root folder cannot be deleted")
                     self.remove_folder(full_path)
+                    await utils.notify_models_changed(model_type, "delete-folder")
                     return web.json_response({"success": True})
                 model_path = utils.get_valid_full_path(model_type, path_index, filename)
                 if model_path is None:
                     raise RuntimeError(f"File {filename} not found")
                 self.remove_model(model_path)
+                await utils.notify_models_changed(model_type, "delete")
                 return web.json_response({"success": True})
             except Exception as e:
                 error_msg = f"Delete model failed: {e!s}"
@@ -336,9 +346,31 @@ class ModelManager:
             return web.json_response({"success": True})
 
     def scan_models(self, folder: str, include_hidden_files: bool = False):
-        result = []
-
         folders, *_ = folder_paths.folder_names_and_paths[folder]
+
+        # Native path (Phase 5, Plan §4.7.1): the Rust parallel walk returns the
+        # EXACT same JSON shape as the Python walk below (golden-tested entry
+        # for entry in tests/test_phase5_scan.py). The naming constants arrive
+        # from py/utils + folder_paths so the Python side stays the single
+        # source of truth; `indexDir` enables the persistent front-matter cache
+        # (Plan §4.7.1-3). A native failure degrades to the Python walk rather
+        # than failing the listing (the scan must never break the grid).
+        mm = native.core_if_enabled()
+        if mm is not None:
+            try:
+                opts = {
+                    "includeHidden": include_hidden_files,
+                    "extensions": sorted(folder_paths.supported_pt_extensions),
+                    "noPreviewUrl": utils.NO_PREVIEW_URL,
+                    "previewUrlPrefix": "/model-manager/preview",
+                    "indexDir": utils.get_index_cache_dir(),
+                }
+                roots = [utils.normalize_path(f) for f in folders]
+                return json.loads(mm.scan_models(folder, roots, opts))
+            except Exception as e:  # any native failure falls back
+                utils.print_warning(f"native scan_models failed ({e}); using the Python walk")
+
+        result = []
 
         def get_file_info(
             entry: os.DirEntry[str],
@@ -455,6 +487,12 @@ class ModelManager:
                 continue
             dir_names: dict[str, set[str]] = {}
             file_entries = get_all_files_entry(base_path, dir_names)
+            # Deterministic listing order (Plan §4.7.1 安定順序): sort the walk
+            # by normalised path so the order never shifts between refreshes AND
+            # matches the native Rust scan entry-for-entry (golden parity — the
+            # native walk sorts by the same key). The grid re-sorts by the
+            # user's chosen criterion; this only fixes the tie-break order.
+            file_entries.sort(key=lambda e: utils.normalize_path(e.path))
 
             for i in range(0, len(file_entries), BATCH_SIZE):
                 batch = file_entries[i : i + BATCH_SIZE]
@@ -474,6 +512,17 @@ class ModelManager:
         return result
 
     def scan_hygiene(self):
+        # Native path (Phase 5, Plan §4.7.1): the Rust walk returns the same
+        # `{orphans, empty}` JSON (golden-tested against the Python walk below).
+        mm = native.core_if_enabled()
+        if mm is not None:
+            try:
+                base_paths = utils.resolve_model_base_paths()
+                extensions = sorted(folder_paths.supported_pt_extensions)
+                return json.loads(mm.scan_hygiene(base_paths, extensions))
+            except Exception as e:  # any native failure falls back
+                utils.print_warning(f"native scan_hygiene failed ({e}); using the Python walk")
+
         orphans: list[dict] = []
         empty: list[dict] = []
         for model_type, bases in utils.resolve_model_base_paths().items():
@@ -523,6 +572,11 @@ class ModelManager:
                                 "sizeBytes": 0,
                             }
                         )
+        # Deterministic order (Plan §4.7.1): the os.walk order is FS-dependent,
+        # so sort the report to match the native Rust scan entry-for-entry
+        # (golden parity) and to keep the listing stable between refreshes.
+        orphans.sort(key=lambda d: (d["type"], d["pathIndex"], d["fullname"]))
+        empty.sort(key=lambda d: (d["type"], d["pathIndex"], d["fullname"]))
         return {"orphans": orphans, "empty": empty}
 
     def get_model_info(self, model_path: str):

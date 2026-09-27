@@ -1,0 +1,157 @@
+{
+  "phase": 5,
+  "kind": "header",
+  "note": "Same-session legacy (MM_NATIVE=0) vs native (MM_NATIVE=1) on the 2 vCPU / 1 GiB / no-SHA-NI dev container. Absolute KPI targets are for the reference 8C/16T NVMe machine (Plan §2.2); the ratio is the portable signal (BENCH methodology).",
+  "legacy": {
+    "env": {
+      "date": "2026-09-27T07:18:27+0000",
+      "host": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.36",
+      "python": "3.11.2",
+      "cpus": 2,
+      "memTotal": "1090500 kB",
+      "machine": "x86_64"
+    },
+    "model": "/tmp/mm-bench/moe.safetensors",
+    "fileBytes": 8420459,
+    "headerBytes": 8420451,
+    "runs": [
+      {
+        "readSec": 0.0024232199994003167,
+        "jsonLoadsSec": 0.11567098100022122,
+        "listBuildSec": 0.07163523300005181,
+        "tensorCount": 64491,
+        "getModelTensorsSec": 0.32517521000045235,
+        "getModelTensorsCount": 64491,
+        "getModelMetadataSec": 0.1711415930003568,
+        "metadataEmptyDueToGuard": false,
+        "peakRssMib": 204.38671875
+      },
+      {
+        "readSec": 0.0012497569996412494,
+        "jsonLoadsSec": 0.17638233799971204,
+        "listBuildSec": 0.13120435800010455,
+        "tensorCount": 64491,
+        "getModelTensorsSec": 0.3343551010002557,
+        "getModelTensorsCount": 64491,
+        "getModelMetadataSec": 0.2192947940002341,
+        "metadataEmptyDueToGuard": false,
+        "peakRssMib": 219.66015625
+      },
+      {
+        "readSec": 0.0023710089999440243,
+        "jsonLoadsSec": 0.19790996800020366,
+        "listBuildSec": 0.1590977549994932,
+        "tensorCount": 64491,
+        "getModelTensorsSec": 0.2588105329996324,
+        "getModelTensorsCount": 64491,
+        "getModelMetadataSec": 0.35829606100014644,
+        "metadataEmptyDueToGuard": false,
+        "peakRssMib": 219.66015625
+      },
+      {
+        "readSec": 0.0017003729999487405,
+        "jsonLoadsSec": 0.2402171020003152,
+        "listBuildSec": 0.1987689399993542,
+        "tensorCount": 64491,
+        "getModelTensorsSec": 0.5142013490003592,
+        "getModelTensorsCount": 64491,
+        "getModelMetadataSec": 0.3403830659999585,
+        "metadataEmptyDueToGuard": false,
+        "peakRssMib": 219.66015625
+      },
+      {
+        "readSec": 0.0007338380000874167,
+        "jsonLoadsSec": 0.3121474660001695,
+        "listBuildSec": 0.05416839400004392,
+        "tensorCount": 64491,
+        "getModelTensorsSec": 0.5570293300006597,
+        "getModelTensorsCount": 64491,
+        "getModelMetadataSec": 0.5590147140001136,
+        "metadataEmptyDueToGuard": false,
+        "peakRssMib": 219.66015625
+      }
+    ],
+    "median": {
+      "readSec": 0.0017003729999487405,
+      "jsonLoadsSec": 0.19790996800020366,
+      "listBuildSec": 0.13120435800010455,
+      "getModelTensorsSec": 0.3343551010002557
+    }
+  },
+  "native": {
+    "env": {
+      "date": "2026-09-27T07:23:02+0000",
+      "host": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.36",
+      "python": "3.11.2",
+      "cpus": 2,
+      "memTotal": "1090500 kB",
+      "machine": "x86_64"
+    },
+    "model": "/tmp/mm-bench/moe.safetensors",
+    "fileBytes": 8420459,
+    "headerBytes": 8420451,
+    "runs": [
+      {
+        "readSec": 0.005631988999994064,
+        "jsonLoadsSec": 0.10635668400027498,
+        "listBuildSec": 0.06481773999985307,
+        "tensorCount": 64491,
+        "getModelTensorsSec": 0.16794551400016644,
+        "getModelTensorsCount": 64491,
+        "getModelMetadataSec": 0.2517814909997469,
+        "metadataEmptyDueToGuard": false,
+        "peakRssMib": 209.70703125
+      },
+      {
+        "readSec": 0.0011581139997360879,
+        "jsonLoadsSec": 0.15093696099938825,
+        "listBuildSec": 0.03125651200025459,
+        "tensorCount": 64491,
+        "getModelTensorsSec": 0.18648712400045042,
+        "getModelTensorsCount": 64491,
+        "getModelMetadataSec": 0.2841213539995806,
+        "metadataEmptyDueToGuard": false,
+        "peakRssMib": 211.59765625
+      },
+      {
+        "readSec": 0.0007944399994812557,
+        "jsonLoadsSec": 0.16611661599927174,
+        "listBuildSec": 0.029712855000070704,
+        "tensorCount": 64491,
+        "getModelTensorsSec": 0.21176085299975966,
+        "getModelTensorsCount": 64491,
+        "getModelMetadataSec": 0.328839956999218,
+        "metadataEmptyDueToGuard": false,
+        "peakRssMib": 221.11328125
+      },
+      {
+        "readSec": 0.0008017689997359412,
+        "jsonLoadsSec": 0.19465916799981642,
+        "listBuildSec": 0.033182533999934094,
+        "tensorCount": 64491,
+        "getModelTensorsSec": 0.22734178300015628,
+        "getModelTensorsCount": 64491,
+        "getModelMetadataSec": 0.22704657200029033,
+        "metadataEmptyDueToGuard": false,
+        "peakRssMib": 223.17578125
+      },
+      {
+        "readSec": 0.0008557020000807825,
+        "jsonLoadsSec": 0.3054891680003493,
+        "listBuildSec": 0.035112845999719866,
+        "tensorCount": 64491,
+        "getModelTensorsSec": 0.23351737200027856,
+        "getModelTensorsCount": 64491,
+        "getModelMetadataSec": 0.22247832199991535,
+        "metadataEmptyDueToGuard": false,
+        "peakRssMib": 223.17578125
+      }
+    ],
+    "median": {
+      "readSec": 0.0008557020000807825,
+      "jsonLoadsSec": 0.16611661599927174,
+      "listBuildSec": 0.033182533999934094,
+      "getModelTensorsSec": 0.21176085299975966
+    }
+  }
+}
