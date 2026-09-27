@@ -32,6 +32,29 @@ codec を純 Rust で提供し、vendored C コアと**バイト同一の圧縮�
 に固定化 — docs/BENCH.md §8）。L3 ファズは 6 ターゲット
 （`delta_decompress` 追加）。
 
+**Phase 4（dtype 大幅拡張 — Neo 拡張帯）実装済み**（api_version は **3 の
+まま** — 新規 Python API なし、dtype 対応はコーデック内部）:
+`safetensors 0.8 の全 22 dtype` を圧縮（K14 達成 — docs/BENCH.md §9）。
+8 平面分割/結合（f64 並べ替え融合、`MODE_8PLANES = 88`）、Neo 拡張帯
+コード表 128–146（`dtype.rs`）、トランケーション モード 1/9/41/8 の
+Neo クリーン正式実装（ゼロ統計自動選択 `select_truncation`・落とし平面は
+空 raw チャンク + 復元 0 埋め・構造的に可逆）、sub‑byte（F4/F6）の bits
+基準 shape 検証、帯別 byte5 厳格ゲート（互換帯ブロブは正準モードのみ）。
+公式 zipnn 0.5.4 は拡張帯ブロブを `ValueError: Unsupported Dtype N` で
+明示拒否（scripts/l5 セクション E が pip 実ビルド against で固定）。
+**complex128/bcomplex32（code 129/131）は codec 級のみ** — safetensors 0.8
+表現が存在しないため、パイプラインの復元は明示エラーで拒否します。
+
+## テスト配置と cargo ワークフロー（Plan §3.4.3）
+
+- **単体テスト**: 各 `src/*.rs` のインライン `#[cfg(test)]`（private API に
+  触るため — Rust 慣行。`delta` のみ `src/delta/tests.rs` へ分割）。
+- **統合テスト（公開 API の端到端）**: `crates/znn-codec/tests/`
+  （`extended_band.rs` = Phase 4 の K14 ゲートをクレート級で固定）。
+- **開発ループ**: `cargo check` 常用 → 必要なときだけ `cargo test` →
+  品質ポイントで `cargo fmt` + `cargo clippy -D warnings` →
+  `cargo build`（release / build-native.sh）は最終確認時のみ。
+
 ## レイアウト
 
 ```
@@ -43,7 +66,8 @@ native/
 ├─ rustfmt.toml               # 安定オプションのみ（stable ツールチェーンが正）
 ├─ clippy.toml                # msrv + doc-valid-idents
 ├─ crates/
-│  ├─ znn-codec/              # 純 Rust ZipNN コーデック（Python 非依存、Phase 1〜）
+│  ├─ znn-codec/              # 純 Rust ZipNN コーデック（Python 非依存、Phase 1〜。
+│  │                          #   src/ インライン単体 + tests/ 統合 + fuzz/ L3）
 │  ├─ mm-core/                # PyO3 拡張モジュール `mm_core`（abi3-py310）
 │  └─ znn-cli/                # 検証用 CLI（配布しない）
 ├─ benches/

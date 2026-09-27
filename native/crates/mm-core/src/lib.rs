@@ -9,7 +9,11 @@
 //!   `job_cancel` / `job_result` / `job_error`) with the end-to-end
 //!   integrity pipeline of Plan §4.4.3 (source sha recording, default-ON
 //!   verification, `.corrupt` retreat, paranoid mode),
-//! * Phase 3–5 — delta, dtype extension, scan / index / hash.
+//! * Phase 3 — the delta jobs + batch primitives (`api_version` 3),
+//! * Phase 4 — NO surface change: the dtype extension (all 22 safetensors
+//!   dtypes, Neo band 128–146) lives inside `znn-codec`; the `api_version`
+//!   stays 3 (the `/zipnn/inspect` route is pure Python),
+//! * Phase 5 — scan / index / hash.
 //!
 //! Binding facts (Plan §3.2, §3.3):
 //!
@@ -59,7 +63,8 @@ fn core_version_string() -> String {
 ///
 /// Built with the CPython Stable ABI (abi3-py310): this single binary serves
 /// CPython 3.10 and newer. Phase 2 exposed the ZipNN safetensors jobs,
-/// Phase 3 the delta jobs + batch primitives; the dtype extension and the
+/// Phase 3 the delta jobs + batch primitives; Phase 4 extended the dtype
+/// coverage INSIDE the codec (no new functions — `api_version` stays 3); the
 /// scan/hash APIs follow in the later phases of the refresh plan
 /// (Agent/Plan.md).
 #[pymodule]

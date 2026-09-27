@@ -4,7 +4,7 @@ Pure-Python safetensors container I/O is deliberately NOT built on the
 safetensors library so tests control the exact bytes (key order, padding):
 the Rust writer's byte-exact restoration guarantee (Plan §4.7.4) is only
 testable against known input bytes. Large synthetic models for the benches
-are generated with torch/numpy instead (scripts/bench/gen_fixtures.py) —
+are generated with torch/numpy instead (scripts/bench/gen_synthetic.py) —
 the byte-level helpers here are for small, exact fixtures.
 """
 
@@ -212,7 +212,7 @@ def sha256_file(path: str | Path) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Synthetic tensor payloads (small exact fixtures; large models: gen_fixtures)
+# Synthetic tensor payloads (small exact fixtures; large models: gen_synthetic)
 # ---------------------------------------------------------------------------
 def synth_bytes(n: int, seed: int = 1, low_entropy: bool = False) -> bytes:
     """n pseudo-random bytes (low_entropy: highly repetitive, compresses well)."""
@@ -312,7 +312,8 @@ def synth_i64(n: int, seed: int = 1) -> bytes:
 
 
 def synth_c64(n: int, seed: int = 1) -> bytes:
-    """n complex64 values (2 x f32) — audio-model style (pass-through class)."""
+    """n complex64 values (2 x f32) — audio-model style (compressed via the
+    Neo extension band since Phase 4; pass-through under the legacy engine)."""
     out = bytearray()
     rng_state = seed & 0xFFFFFFFF
     for _ in range(n):
@@ -459,7 +460,7 @@ def build_corpus(root: str | Path) -> dict[str, Path]:
         # the "not worth it" overhead rule, small enough to stay CI-friendly
         moe[f"experts.{i}.w"] = ("BF16", [16, 8], synth_bf16(128, 100 + i, low_entropy=True))
     w("moe-header", moe, {"format": "pt", "num_experts": "600"})
-    # complex64 audio-like (C64 passes through untouched — out of band)
+    # complex64 audio-like (Phase 4: compressed via the Neo band, code 130)
     w(
         "audio-c64",
         {
@@ -468,8 +469,8 @@ def build_corpus(root: str | Path) -> dict[str, Path]:
         },
         {"format": "pt"},
     )
-    # f64 synth (F64 passes through in Phase 2 — the legacy path RAISES on
-    # these files; Neo must not)
+    # f64 synth (Phase 2 passed it through; Phase 4 compresses it via the
+    # Neo band — the legacy path still RAISES on such files)
     w(
         "f64-synth",
         {

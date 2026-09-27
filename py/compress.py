@@ -8,6 +8,13 @@ https://github.com/zipnn/zipnn, version 0.5.4):
 * floating point tensors are compressed with ``ZipNN(input_format="torch",
   method=COMPRESSION_METHOD)`` and stored as ``uint8`` vectors;
 * non floating point tensors are copied through untouched;
+
+(That is the LEGACY vendored recipe this module was ported from. The native
+Rust engine - the default whenever ``mm_core`` is present - compresses EVERY
+safetensors 0.8 dtype through the two interoperability bands of Plan §4.6:
+compatibility-band blobs stay official-decodable, Neo-extension blobs (f64,
+complex64, integers, BOOL, MX floats) are marked ``znn_neo_extended="1"``
+and refused with an explicit error by official tools.)
 * per-tensor ``dtype``/``shape`` are recorded in the file metadata under
   ``znn_compressed_vectors`` (``zipnn.util_safetensors.METADATA_KEY``);
 * a tensor whose compressed form is not smaller is left uncompressed;
@@ -70,8 +77,9 @@ ZNN_ORIGINAL_SIZE_KEY = "znn_neo_original_bytes"
 #                             ENFORCED; "0" downgrades to the structural
 #                             guarantee (Plan §4.7.4)
 #   znn_neo_src_meta_absent   "1" when the source had no __metadata__ at all
-#   znn_neo_extended          "1" when Neo-extension dtypes are present
-#                             (Phase 4 — stripped here already so future
+#   znn_neo_extended          "1" when Neo-extension-band blobs are stored
+#                             (Phase 4, implemented: written by the native
+#                             engine; stripped here already so extended
 #                             files round-trip through both paths)
 ZNN_SRC_SHA_KEY = "znn_neo_src_sha256"
 ZNN_EXACT_KEY = "znn_neo_exact"

@@ -1562,3 +1562,113 @@ pnpm install --frozen-lockfile）。生存 .so（stamp `f124c908d` = docs のみ
   スケジュール（日曜 18:00 UTC）も担保）。
 - プロジェクト全体の残件は不変: Phase 2 K2/K3 の参照機再計測、実 UI 手動 QA
   （Phase 7 統合）、Phase 5 以降。
+
+## 2026‑09‑26（第 5 セッション）— CI 確認 + リポジトリ整理 + 開発ワークフロー規程 + ドキュメント記入漏れ解消
+
+ユーザ指示の 4 タスク（Phase 4 実装の翌セッション。tip `971f072` から開始）。
+
+### 1. GitHub Actions 成功確認（API + 全ジョブ conclusion 実測）
+
+**監査修正 tip `971f072ed` に対して CI #127 / native #38 とも全ジョブ
+SUCCESS**（native #38 = 14/14、CI #127 = verify 緑）。前ターン確認分の再掲:
+CI #126 / native #37（14 ジョブ）/ fuzz‑long #6（7 ジョブ、l2‑full 10,500
+GATE PASS + 6 ターゲット 3 h クラッシュ 0）も全て SUCCESS。
+**Phase 4 の全 CI 証跡が確定した**。
+
+### 2. ファイル・フォルダ整理（削除は参照ゼロを確認してから実施）
+
+**削除（3 件）** — いずれも全リポジトリ grep で参照ゼロを確認済み:
+
+- `native/crates/znn-codec/examples/fse_dbg.rs` — Phase 1 の FSE 往復
+  デバッグ用使い捨てツール（知見は fse.rs のテストと MEMO に恒久化済み）。
+- `native/crates/znn-codec/examples/stage_bench.rs` — Phase 1 のステージ別
+  マイクロベンチ（split2 の 16B ブロック決定の測定値は planes.rs コメントに
+  恒久記録済み。速度ゲートの正式器は `znn-cli bench` = L2 系譜）。
+- `tests/_smoke_native.py` — 手動スモーク（docstring 自身が
+  「test_phase0_native_loader.py で正式に exercised」と明記 = 完全冗長。
+  pytest は `_` 接頭辞を収集しないため CI 対象でもなかった）。
+
+**保持を再確認したものは削除しない**（誤削除防止の判断記録）:
+`native/benches/json-bench`（BENCH §3 の計測器・run_all.sh/README が参照 =
+JSON パーサ選定の再現経路）、`fuzz/corpus/*`（Phase 1 からの意図的コミット
+
+- Phase 4 シード 14 件・oom 回帰シード含む）、`scripts/bench/results/*.json`
+  （証跡）、`third_party/*`（L2 ゴールデン生成器 + レガシー経路 — Phase 7 まで）、
+  `docs/upstream/zipnn-core-defect-report.md`（参考保管 — Plan §6.2 Phase 1 の
+  記録通り）、`demo-assets/`（**ユーザ指示: 触らない**）、web/（配布バンドル）。
+  examples/ 削除は Cargo.toml メンバ変更不要（自動発見）で、CI の
+  `cargo test/clippy --all-targets` はビルド対象が減るだけ（ゲート不変）。
+
+### 3. cargo 使用方針の制定 + `tests/` フォルダ新設（Plan §3.4.3）
+
+- **Plan §3.4.3「cargo 使用方針（開発ワークフロー）」を追記**（ユーザ指示の
+  4 規則: check 常用 / test は必要なときだけ + tests/ フォルダで管理 /
+  clippy・rustfmt を品質向上に活用 / build は最終確認のみ）。§6.3 進捗管理
+  規程からもポインタ追加。
+- **`native/crates/znn-codec/tests/` を新設**し、最初の統合テスト
+  `extended_band.rs`（**公開 API のみ**の端到端 4 テスト）を配置:
+  全 22 dtype の blob 往復（truncation 自動選択込み・I32/U32 は mode 9 を
+  アサート）・codec 級 pseudo dtype（C128/BC32）往復 + dtype_bitsize 不在
+  確認・帯別モード ゲート（互換帯ブロブの trunc 偽装拒否 / Neo 整数の
+  1・8 正当）・**互換帯 = 公式 5 dtype ちょうど + Neo コード 128–146 が
+  重複/欠落なく全割り当て**の表固定。→ クレート級 K14 ゲートが Python/.so
+  経路から独立して `cargo test` 一発で回る（L1 155 + 統合 4 = **159**）。
+- 配置規程: 単体 = インライン `#[cfg(test)]`（private 到達 — Rust 慣行、
+  155 個を移動するリファクタはリスクのみ）、統合 = `crates/znn-codec/tests/`、
+  差分 = scripts/l2、敵対的 = fuzz/。native/README と lib.rs モジュール doc
+  にも同期記載。
+
+### 4. ドキュメント記入漏れの完全解消（このセッションで洗い切って修正）
+
+- **Plan §4.6.1 訂正注記**: torch **2.14.0 リリースに float6\_\*\_pe は存在
+  しない**（第 3 セッションの実機実証）+ F6 の infos 記録方針 + uint1–7 は
+  safetensors 表現なしで**対象外**（コード未割り当て — GGUF 同様の §2.3 扱い。
+  complex128/bcomplex32 との違い〔codec 級コードあり〕を明記）。
+- **README / README‑JP「仕組み」節の整合修正**: 「非 float テンソルはそのまま
+  コピー」は公式レシピ（=レガシー経路）の記述 → 「**Neo の Rust コアはこれらも
+  圧縮する**（2 帯域 — マトリクス節へのリンク）」に明確化。Phase 4 のマトリクス
+  節と矛盾していた最後の箇所。
+- **USAGE‑EN/JA/ZN**: 「浮動小数点テンサルの Huffman 圧縮」→「テンサルの
+  Huffman 圧縮 — Rust コアは全 dtype（下の dtype カバレッジ節参照）」+
+  公式ローダーの透過読みは**互換帯**に限る旨を明記。
+- **py/compress.py**: モジュール docstring に「これはレガシー vendored
+  レシピのポート。native エンジン（既定）は全 22 dtype を 2 帯域で圧縮」の
+  注記追加 + `ZNN_EXTENDED_KEY` コメントの「Phase 4（未来）」時制を
+  実装済みへ更新。
+- **tests/harness.py**: 陈旧参照 `gen_fixtures.py` → `gen_synthetic.py`（2 箇所、
+  実在ファイル名へ）+ 「pass‑through class」系コメント 3 箇所を Phase 4
+  実態（Neo 帯で圧縮・レガシーは pass‑through/raise）へ更新。
+- **Rust doc コメントの陳腐化一掃**: codec.rs `CoreParams`（num_buf に 8 平面・
+  byte_reorder に 88/トランケーション・chunk の 128 KiB クランプ対象を
+  「single‑plane 型」へ一般化）、`decompress_container` の Errors 節
+  （「Phase 4 codes」→ 未割り当てコード + 帯別モード ゲートの記述へ）、
+  planes.rs `extract_plane`（{1,2,4,8} + kind ゲート）、lib.rs モジュール表
+  （planes N=8 / znn_tensor 全表 / テスト配置規程）、mm-core lib.rs の
+  フェーズ別 API 表面（Phase 4 = **API 変更なし・api_version 3 維持**を明記 —
+  将来のバンプ判断の根拠が doc 上に残る）。
+- **native/README.md**: Phase 1–3 の実装済み段落に **Phase 4 段落を追加**
+  （22 dtype・8 平面・MODE_8PLANES=88・トランケーション・帯別ゲート・
+  L5 E の拒否実証・C128/BC32 の codec 級限定）+「テスト配置と cargo
+  ワークフロー」節（Plan §3.4.3 同期）+ レイアウト樹の znn-codec 行に
+  tests//fuzz/ の注記。
+
+### 検証（整理 + 規程 + 文書修正の全てに対して再実行・全緑）
+
+- cargo fmt ✓ / clippy `--workspace --all-targets --all-features -D warnings` ✓ /
+  **cargo test: znn‑codec 155（インライン）+ 4（tests/ 統合）+ mm‑core
+  `--no-default-features` 5 ✓**（examples 削除後のワークスペースも健全）
+- pytest **113 passed**（harness/py のコメント級変更後も実バイナリ against で再実行）
+- ruff check/format ✓・mypy 14 files ✓・pnpm typecheck/eslint/format:check ✓・
+  **pnpm build ✓（web バンドルは src 無変更のためハッシュ不変 = 再生成差分なし）**
+- prettier: 編集した md 全件整形済み（Plan/MEMO/README×2/USAGE×3/native README）
+
+### 運営メモ（次セッション向け）
+
+- 本セッションの push 構成: chore（整理 3 件削除）→ feat/test（tests/ 新設 +
+  Plan §3.4.3）→ docs（記入漏れ一掃 + MEMO 本節）。push で CI/native が
+  新 tip に対して自動実行（Rust は**doc コメントと tests/ 追加のみ** —
+  fuzz 表面はゼロ変更なので fuzz‑long の再ディスパッチは不要。run 6 の
+  18 h 証跡が有効なまま）。
+- 残件は不変: Phase 2 K2/K3 参照機再計測、実 UI 手動 QA（Phase 7 統合）、
+  Phase 5 以降。**次フェーズ（Phase 5）着手時は §3.4.3 の cargo 規程と
+  tests/ 管理規程に従うこと**。

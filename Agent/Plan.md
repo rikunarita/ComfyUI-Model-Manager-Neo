@@ -377,6 +377,34 @@ third_party/
   使用箇所は `// SAFETY:` コメントを必須とする（レビュー規則）。
 - husky pre-commit には組み込まない（Rust ビルド時間のため）。CI で担保する。
 
+### 3.4.3 cargo 使用方針（開発ワークフロー — 2026‑09‑26 制定、ユーザ指示）
+
+開発ループの効率規程。**この 4 規則を既定とする**（CI ゲート自体は不変 —
+`native.yml` の fmt/clippy/test/build が最終的な機械保証）:
+
+1. **開発中は `cargo check` を常用する** — 型・借用・ライフタイムの検証は
+   `cargo check -p <crate> --all-targets`（コード生成なし = 最速フィードバック。
+   1 GiB 級サンドボックスでは `CARGO_BUILD_JOBS` を絞って実行）。
+2. **`cargo test` は必要なときだけ行う** — テスト実行はロジック変更後・
+   コミット前・ゲート再検証時に限る（毎編集回のフルテストはしない）。
+   **テストは `tests/` フォルダを作成して管理する**:
+   - Rust 単体テストはインライン `#[cfg(test)]`（private API に触るため —
+     Rust 慣行。delta は `src/delta/tests.rs` の分割ファイル形式）、
+   - **公開 API の端到端（統合）テストは
+     `native/crates/znn-codec/tests/` に管理する**（§4.2.1 レイアウト。
+     Phase 4 の `extended_band.rs` = K14 ゲートのクレート級固定が最初の
+     住人）。`cargo test` は両方を一括実行する。
+   - Python 側は従来通りルートの `tests/`（pytest）で管理する。
+3. **clippy と rustfmt はコード品質を高める際に有効活用する** —
+   編集の区切りで `cargo fmt --all`、品質ポイント/コミット前に
+   `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+   （`pnpm rs:fmt` / `pnpm rs:lint` と同体）。指摘は suppression せず
+   構造修正で解消する（本計画の全フェーズで実施済みの作法）。
+4. **`cargo build` は最終確認時のみ使用する** — 実バイナリ生成
+   （`--release` / `scripts/build-native.sh`）はフェーズ完了・push 前の
+   最終検証に限定し、開発中は check/clippy/test に頼る（リンク時間は
+   この開発環境で最重量のコスト）。
+
 ## 3.5 並列化: rayon 1.12.0
 
 - テンソル間・チャンク間・走査・ハッシュのデータ並列に使用。
@@ -492,7 +520,10 @@ native/
 │  │  │  ├─ delta.rs             # ストリーミング XOR デルタ
 │  │  │  ├─ scan.rs              # 並列 walk + front‑matter + インデックス
 │  │  │  └─ hash.rs              # 多アルゴリズム 1 パスハッシュ
-│  │  ├─ tests/                  # 単体・差分・回帰（付録 C のケースを含む）
+│  │  ├─ tests/                  # 統合テスト（公開 API の端到端 — §3.4.3 の
+│  │  │                          #   管理規程。単体は各 src のインライン
+│  │  │                          #   #[cfg(test)]、差分は scripts/l2、
+│  │  │                          #   付録 C 回帰は双方に固定）
 │  │  └─ fuzz/                   # cargo-fuzz ターゲット
 │  ├─ mm-core/                   # PyO3 拡張（モジュール名 `mm_core`、abi3）
 │  └─ znn-cli/                   # 検証用 CLI（配布しない）
@@ -740,6 +771,18 @@ F8_E8M0, F8_E4M3FNUZ, F8_E5M2FNUZ, I16, U16, F16, BF16, I32, U32, F32,
 C64, F64, I64, U64`。
 PyTorch 2.14 追加: `bcomplex32`、complex32/128、float8_e8m0fnu、
 float4_e2m1fn_x2、uint16/32/64、シェル dtype（uint1–7、float6_*_pe）。
+**〔2026‑09‑26 訂正（Phase 4 実装が実証）〕** torch **2.14.0 リリースに
+`float6_*_pe` は存在しない**（実機 dir() 全数確認 + Web 検索で該当名
+ゼロ件 — 計画策定時の調査はプレリリース情報だったとみられる）。
+F6_E2M3/F6_E3M2 は safetensors 0.8 側のみの定義であり、torch 表記が
+存在しないため `znn_compressed_vectors` には **safetensors 名を記録する**
+（実在しない torch 名を捏造しない — `znn_tensor.rs` モジュール doc）。
+uint1–7 は torch に存在するが safetensors 0.8 の dtype 集合に含まれず
+（コンテナ表現がない）、§4.6.3 のコード表にも割り当てがないため
+**対象外**（GGUF 量子化型と同じ扱い — §2.3）。なお complex128/
+bcomplex32 も safetensors 表現は持たないが、計画通り codec 級コード
+（129/131）を割り当て済み（ブロブ往復は可能、safetensors パイプラインの
+復元は明示拒否 — Phase 4 実装注記）。
 
 ### 4.6.2 符号方式
 
@@ -1294,6 +1337,8 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
   §6.2 の詳細チェックリストを**同一コミットで**更新する。
 - 各フェーズは完了条件の充足を確認してから次へ進む（保守的進行）。
 - KPI 未達・テスト red の状態でフェーズを閉じない。
+- 開発ループの cargo 使用規程は §3.4.3（check 常用・test は必要なとき・
+  fmt/clippy 活用・build は最終確認のみ。テストは `tests/` で管理）。
 
 ---
 

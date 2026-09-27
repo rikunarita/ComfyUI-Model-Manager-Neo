@@ -495,8 +495,10 @@ pre-compression size is recorded in the file's metadata at compression time).
 ![compressed model detail](../demo-assets/compressed-model.png)
 
 Compressed files follow the official ZipNN layout (`znn_compressed_vectors`
-metadata, Huffman-compressed floating-point tensors), so loaders patched with
-`zipnn_safetensors()` read them transparently. Compression is **lossless and
+metadata, Huffman-compressed tensors — the Rust core covers **every**
+safetensors dtype, see _dtype coverage & interoperability_ below), so loaders
+patched with `zipnn_safetensors()` read the compatibility-band ones
+transparently. Compression is **lossless and
 reversible**: the plain `.safetensors` is only removed after the
 `.znn.safetensors` file has been fully written, and a failed run cleans up its
 partial output.

@@ -599,8 +599,8 @@ fn join8(planes: &[&[u8]], dst: &mut [u8], kind: ReorderKind, total: usize) -> b
 /// into the output (byte-identical results, one full copy less).
 ///
 /// # Errors
-/// Plane index/count outside the {1,2,4} layout, `dst` length mismatch,
-/// F64 kind (Phase 4).
+/// Plane index outside the layout, plane count outside {1,2,4,8}, `dst`
+/// length mismatch, or a kind/plane-count mismatch (F64 ↔ 8-plane).
 pub fn extract_plane(
     src: &[u8],
     n: usize,

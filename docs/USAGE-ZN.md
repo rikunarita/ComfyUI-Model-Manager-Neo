@@ -399,8 +399,9 @@ ZipNN 打包文件夹(`*_DeltaZNN` / 旧 `*_ZNN`)与普通文件夹不能同时�
 
 ![压缩后模型详情](../demo-assets/compressed-model.png)
 
-压缩文件遵循官方 ZipNN 布局(`znn_compressed_vectors` 元数据、浮点张量 Huffman
-压缩)，因此经 `zipnn_safetensors()` 补丁的加载器可透明读取。压缩是**无损且可逆**的：
+压缩文件遵循官方 ZipNN 布局(`znn_compressed_vectors` 元数据、张量 Huffman
+压缩——Rust 核心覆盖**全部** safetensors dtype，见下文「dtype 覆盖与互操作」)，
+因此经 `zipnn_safetensors()` 补丁的加载器可透明读取兼容频带的文件。压缩是**无损且可逆**的：
 只有在 `.znn.safetensors` 完整写入后才会删除原始的 `.safetensors`，失败时会清理
 未完成的产物。
 

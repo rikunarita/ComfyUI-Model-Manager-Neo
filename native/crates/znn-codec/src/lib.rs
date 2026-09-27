@@ -8,9 +8,9 @@
 //! | module             | contents                                                     |
 //! |--------------------|--------------------------------------------------------------|
 //! | [`header`]         | ZN header 32 B + packed shape (Plan Appendix B.1)            |
-//! | [`dtype`]          | dtype <-> header code <-> plane scheme tables (Plan §4.6.3)  |
+//! | [`dtype`]          | dtype code <-> plane scheme tables: compat + Neo band (§4.6.3)|
 //! | [`reorder`]        | sign/exponent bit reorder (f32, bf16, f64 schemes) + reverts |
-//! | [`planes`]         | N-plane split/join (N = 1, 2, 4), exact C in-bounds layout   |
+//! | [`planes`]         | N-plane split/join (N = 1, 2, 4, 8) + truncation masks       |
 //! | [`bitstream`]      | the FSE/huff0 backward bit reader / forward bit writer       |
 //! | [`fse`]            | FSE normalized-count tables: decode (weights) + encode       |
 //! | [`huf`]            | huff0 per RFC 8878 §4.2 (weights, 4X decode, encode)         |
@@ -18,7 +18,7 @@
 //! |                    | chunkTypes/cumSizes layout — byte-identical structure to C)  |
 //! | [`safetensors_io`] | mmap container parse, canonical order-preserving writer,     |
 //! |                    | atomic `.tmp` → fsync → rename (Phase 2)                     |
-//! | [`znn_tensor`]     | per-tensor ZN blobs + the compatibility-band dtype table     |
+//! | [`znn_tensor`]     | per-tensor ZN blobs + the full dtype table (all 22 + pseudo) |
 //! | [`pipeline`]       | the compress/decompress jobs: integrity pipeline, progress,  |
 //! |                    | cancellation, paranoid mode (Phase 2)                        |
 //! | [`delta`]          | file-level delta (de)compression: padded renderings, the     |
@@ -27,6 +27,11 @@
 //! |                    | mover (Phase 3; bundle semantics stay in Python)             |
 //!
 //! Later phases add `scan` and `hash` (Phase 5).
+//!
+//! Test organisation (Plan §3.4.3): unit tests are inline `#[cfg(test)]`
+//! (they reach private APIs — the Rust convention); the `tests/` folder
+//! manages the crate-level integration gates over the PUBLIC API
+//! (`extended_band.rs` = the Phase-4 K14 round-trip gate).
 //!
 //! Correctness strategy (Plan §5.1): L1 unit/proptest suites here, L2
 //! differential tests against the bundled prebuilt C core (golden generator,

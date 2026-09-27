@@ -477,8 +477,9 @@ ZipNN バンドルフォルダ(`*_DeltaZNN` / 旧 `*_ZNN`)と通常のフォル�
 ![圧縮済みモデルの詳細](../demo-assets/compressed-model.png)
 
 圧縮ファイルは公式 ZipNN のレイアウト(`znn_compressed_vectors` メタデータ、
-浮動小数点テンサルの Huffman 圧縮)に従うため、`zipnn_safetensors()` パッチ済みの
-ローダーは透過的に読めます。圧縮は**可逆・無損失**で、`.znn.safetensors` が完全に
+テンサルの Huffman 圧縮 — Rust コアは**全** safetensors dtype を扱います。
+下記「dtype カバレッジと相互運用」参照)に従うため、`zipnn_safetensors()`
+パッチ済みのローダーは互換帯のファイルを透過的に読めます。圧縮は**可逆・無損失**で、`.znn.safetensors` が完全に
 書き込まれた後にのみ元の `.safetensors` を削除し、失敗した場合は途中ファイルを
 片付けます。
 

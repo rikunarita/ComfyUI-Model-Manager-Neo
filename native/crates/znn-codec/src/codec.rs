@@ -58,13 +58,18 @@ fn cancelled(cancel: Option<&AtomicBool>) -> bool {
 /// threads)`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CoreParams {
-    /// Number of byte planes: 1 (fp8), 2 (f16/bf16) or 4 (f32).
+    /// Number of byte planes: 1 (fp8 / Neo 1-plane types), 2 (f16/bf16/
+    /// bcomplex32/i16), 4 (f32/complex64/i32) or 8 (f64/complex128/i64 —
+    /// the Neo Phase-4 layout).
     pub num_buf: usize,
     /// `bits_mode`: 1 = sign/exponent reorder active (ignored for 1 plane).
     pub bit_reorder: u8,
-    /// `bytes_mode`: 220 (4-plane), 10 (2-plane / 1-plane).
+    /// `bytes_mode`: 220 (4-plane), 10 (2-plane / 1-plane), 88 (Neo
+    /// 8-plane) and the Neo truncation modes 41/9/1 (4-plane words),
+    /// 8/1 (2-plane words) — see `dtype::plane_mask`.
     pub byte_reorder: u8,
-    /// Original chunk size in bytes (production: 256 KiB; fp8: ≤ 128 KiB).
+    /// Original chunk size in bytes (production: 256 KiB; single-plane
+    /// types: ≤ 128 KiB = `HUF_BLOCKSIZE_MAX`).
     pub chunk: usize,
     /// Compression threshold (production 0.95).
     pub threshold: f64,
@@ -904,8 +909,9 @@ fn uniform_total(chunk: usize, n: usize, full_chunks: usize) -> usize {
 /// header fields exactly like `zipnn.py decompress()`.
 ///
 /// # Errors
-/// Header/shape/payload problems (propagated), unsupported dtypes (Phase 4
-/// codes), delta/streaming containers (Phase 3).
+/// Header/shape/payload problems (propagated), unknown/unassigned dtype
+/// codes, band-strict mode violations (`dtype::PlaneScheme::allows_mode`),
+/// and delta/streaming containers (those decode through `delta.rs`).
 pub fn decompress_container(blob: &[u8], max_output: Option<usize>) -> CodecResult<Vec<u8>> {
     let (header, _shape, used) = ZnHeader::parse(blob)?;
     let chunk_hint = header.validate_for_decode()?;

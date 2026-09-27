@@ -417,8 +417,11 @@ over and over. ZipNN exploits exactly that. For every tensor it:
 - **Huffman-codes** each plane with the FiniteStateEntropy (FSE) codec.
 
 Tensors that are _not_ floating point (integer indices, masks, …) are copied
-through untouched, and a floating-point tensor whose compressed form would not
-actually be smaller is **left as-is** rather than padded. Each compressed tensor
+through untouched by the official recipe — **Neo's Rust core compresses them
+too** (every safetensors dtype, in two interoperability bands; see the
+[dtype coverage matrix](#dtype-coverage--the-interoperability-matrix) below) —
+and any tensor whose compressed form would not actually be smaller is
+**left as-is** rather than padded. Each compressed tensor
 is stored as a `uint8` vector, and the file records the original `dtype` and
 `shape` of every one of them in a single `znn_compressed_vectors` metadata entry.
 Nothing is approximated or dropped — decompression reproduces the original file
