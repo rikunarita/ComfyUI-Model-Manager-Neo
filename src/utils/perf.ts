@@ -31,7 +31,7 @@
  */
 
 /** One recorded duration sample (milliseconds, `performance.now()` base). */
-export interface PerfSample {
+interface PerfSample {
   name: string
   duration: number
   /** `performance.now()` at recording time (ordering / correlation). */
@@ -39,7 +39,7 @@ export interface PerfSample {
 }
 
 /** Percentile summary of one sample name. */
-export interface PerfStat {
+interface PerfStat {
   count: number
   min: number
   p50: number
@@ -113,7 +113,7 @@ export const perfRecord = (name: string, duration: number): void => {
  * `performance.mark(name)` (a no-op while disabled). Marks are the anchors of
  * [perfMeasure]; the DevTools Performance panel shows them as `mm.*`.
  */
-export const perfMark = (name: string): void => {
+const perfMark = (name: string): void => {
   if (!enabled) return
   try {
     performance.mark(name)
@@ -127,11 +127,7 @@ export const perfMark = (name: string): void => {
  * a sample. Returns the measured milliseconds (or `undefined` when the marks
  * are missing / measuring is unsupported).
  */
-export const perfMeasure = (
-  name: string,
-  startMark: string,
-  endMark?: string,
-): number | undefined => {
+const perfMeasure = (name: string, startMark: string, endMark?: string): number | undefined => {
   if (!enabled) return undefined
   try {
     const entry = endMark
@@ -177,7 +173,7 @@ export const perfTime = <T>(name: string, fn: () => T): T => {
 }
 
 /** The raw samples (a copy), for the console handle / tests. */
-export const perfSamples = (): PerfSample[] => samples.slice()
+const perfSamples = (): PerfSample[] => samples.slice()
 
 const percentile = (sorted: number[], p: number): number => {
   if (sorted.length === 0) return 0
@@ -186,7 +182,7 @@ const percentile = (sorted: number[], p: number): number => {
 }
 
 /** Per-name percentile summary in milliseconds (K15 reads P95). */
-export const perfSummary = (): Record<string, PerfStat> => {
+const perfSummary = (): Record<string, PerfStat> => {
   const byName = new Map<string, number[]>()
   for (const sample of samples) {
     const list = byName.get(sample.name)
@@ -211,7 +207,7 @@ export const perfSummary = (): Record<string, PerfStat> => {
 }
 
 /** Drop every sample (keeps the enabled flag). */
-export const perfReset = (): void => {
+const perfReset = (): void => {
   samples.length = 0
   try {
     performance.clearMarks()
@@ -222,7 +218,7 @@ export const perfReset = (): void => {
 }
 
 /** The console/debug handle installed on `window` (see the module docs). */
-export interface PerfHandle {
+interface PerfHandle {
   enable: () => void
   disable: () => void
   enabled: () => boolean
@@ -232,7 +228,7 @@ export interface PerfHandle {
   record: (name: string, duration: number) => void
 }
 
-export const perfHandle: PerfHandle = {
+const perfHandle: PerfHandle = {
   enable: () => setPerfEnabled(true),
   disable: () => setPerfEnabled(false),
   enabled: perfEnabled,
