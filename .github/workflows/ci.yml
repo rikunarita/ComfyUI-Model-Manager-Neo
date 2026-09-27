@@ -56,6 +56,18 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Phase 6 / Plan §4.8-C5: the K15 measurement base runs on every push.
+      # It compiles the REAL src/utils modules with the repository's tsc and
+      # measures them against verbatim copies of the pre-Phase-6 code, so the
+      # gates are same-run ratios (C1 hoisting, C2 comparator choice, the Rust
+      # tensor-tree decode) and hold on a shared runner. The absolute K15
+      # numbers are recorded with the env block and judged on the reference
+      # machine (Plan §2.2); the browser paint leg is instrumented in the app
+      # itself (src/utils/perf.ts). The Rust<->JS tree cross-check needs a
+      # built native binary and runs in native.yml's integration job instead.
+      - name: Frontend K15 bench (C5)
+        run: node scripts/bench/front/k15.mjs --json-out /tmp/phase6_front.json
+
       - name: Static types (mypy)
         run: python -m mypy --config-file mypy.ini
 
