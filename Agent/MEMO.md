@@ -1440,3 +1440,125 @@ bef8f08（bench_phase4_dtypes.py + K14 証跡 JSON + BENCH §9）→ f124c90（R
   最終 tip）。完了確認は次ターン / 週次スケジュール（日曜 18:00 UTC）。
 - プロジェクト全体の残件: Phase 2 K2/K3 の参照機再計測、実 UI 手動 QA
   （Phase 7 統合）、Phase 5 以降。
+
+## 2026‑09‑26（第 4 セッション）— Phase 4 push 後の CI 確認 + 独立精査（fresh eyes）
+
+### GitHub Actions 確認結果（ユーザ要求分、GitHub API + ジョブログ実測）
+
+**Phase 4 tip `94e553c32` に対して全 run SUCCESS**:
+
+| run                         | 結果                        | 実測詳細                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CI #126                     | **SUCCESS**                 | verify（typecheck/lint/lint:css/deps/format/build/mypy/ruff/pytest）                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| native #37                  | **SUCCESS — 14 ジョブ全緑** | native-test×3 OS / native-build×3 / abi3-import 3.10・3.13 / integration×3 OS / native-diff / fuzz-smoke / size-budget。integration(ubuntu) のジョブログで **pytest `113 passed`** と **L5 GATE: PASS**（core stamp `0.3.0‑alpha.0+94e553c32` = CI ビルド成果物 against）を確認                                                                                                                                                                                                                                                                    |
+| fuzz‑long #6（36261689593） | **SUCCESS — 全 7 ジョブ**   | l2‑full **10,500 ケース GATE PASS**（mismatch 0）+ 6 ターゲット × 3 h 完走・**クラッシュ 0**: blob_decompress **176,664,658 execs**（cov **1,647** = run 5 の 1,472 から増加 — 新 Phase 4 表面に到達の証左・rss 170MB）/ codec_decompress 40,994,671（cov **1,772** ← 1,605・rss 215MB）/ zn_header 250,355,306（rss 139MB）/ huf_decompress 131,204,538（rss 170MB）/ st_parse 214,869,564（rss 204MB）/ delta_decompress 143,778,455（rss 179MB）。**Phase 4 の新 fuzz 表面（8 平面・トランケーション・Neo コード帯）の 3 h バジェット消化完了** |
+
+### 環境ロールバックと復旧（セッション冒頭）
+
+前ターン終了後にサンドボックスがロールバック: `.git`・apt/rustup/pip パッケージ・
+`native/target` が消失（ソースツリーと `native-bin/*.so` は生存 — 前回精査セッションと
+同型の事象）。`git clone` → `.git` 復帰で dev == origin/dev == `94e553c`・
+**作業ツリー差分ゼロ**を確認してからツールチェーンを再構築（apt → rustup → pip →
+pnpm install --frozen-lockfile）。生存 .so（stamp `f124c908d` = docs のみ差の
+同一 Rust ツリー）でバッテリーを実行し、修正後にフルゲート再実行。
+
+### 独立精査で発見し修正した不備（3 件 — いずれも堅牢化級、データ破損なし）
+
+1. **【低・UI 競合】`confirmSingleZipnn` の事前チェック結果が「別の新しい確認
+   ダイアログ」を書き換え得た** — モデル A の圧縮確認 → 即閉じて モデル B の
+   確認 → A の `/zipnn/inspect`（遅い方）が到着すると、ガード
+   （settled/visible/options 非 null）を全て通過して **B のダイアログ文を A の
+   dtype 一覧で上書き**する窓が存在（`confirmState.options` は reactive proxy の
+   ため参照同一性で自分のダイアログを識別できない）。修正: モジュール級
+   **`confirmEpoch`**（require ごとに ++、コールバックは自分の epoch のみ更新可）。
+   UI はモーダルなので実害確率は低いが、二重クリック/連打で再現可能な
+   論理欠陥だった。
+2. **【低・py】`inspect_safetensors_dtypes` が「JSON としては妥当だが object で
+   ないヘッダー」（例 `[1,2,3]`）で AttributeError** — ルート側の try/except が
+   拾うため 500 にはならないが、ヘルパの契約（`{"error": …}` を返す）に反する。
+   `isinstance(header, dict)` ガード追加 + pytest ケース追加
+   （`test_inspect_helper_survives_broken_files` に non‑dict ヘッダーを実装）。
+3. **【低・UI】`znnInfo`（圧縮方式行）が `znn_compressed_vectors` の値が配列/
+   文字列等の壊れ JSON のとき意味不明な集計（`?×3` 等）を描画し得た** —
+   parse 後に「plain object か」を判定し、違えばセクションごと非表示に。
+
+### fresh eyes で集中確認しバグなしと判定した領域（negative findings）
+
+- **planes.rs**: split8/join8 の索引代数（64B ブロック転置・scalar 残り語・
+  tail bytes 0..rem の無変換配置 = 2/4 平面の C in‑bounds 一般化）と
+  fused revert の対称性、masked 3 関数の validate（n∈{2,4}・kind None 強制・
+  全落としマスク拒否・整列強制・プレーン長検証）、mask 版 extract の
+  split_masked parity（テスト + 実測）
+- **codec.rs**: 入口検証順（plane_mask → trunc 整列 → chunk==0 → threshold NaN →
+  cancel — 旧 validate_mode と同一の到達可能性）、trunc 時の chunk_sizes/exp
+  導出（last_total % n == 0 の証明付き）、落とし平面の type/長さ厳格検査
+  （タンパリング 2 種のテスト固定）、`exp 合計 != cur_len` 検査の truncated
+  免除が整列ゲートに依存する構造、n==1 の mask 寛容（C memcpy 準拠）と
+  compress 側の厳格（10 のみ）の非対称が C と一致、PLANE_SCRATCH/HUF_SCRATCH の
+  cross‑job 再利用（resize 意味論で安全）、decompress_container の
+  帯別 allows_mode（互換帯ブロブの trunc モード偽装を拒否）
+- **dtype.rs**: plane_mask 表 ⇔ TRUNC_16/32 定数 ⇔ C の 8/1 データフロー
+  （mode 8 = 上位バイト保持 + 下位 0 埋め = combine_buffers_dtype16 と同型）の
+  三者一致、alias code 2/5 の正規化経路、canonical_mode の n 導出、
+  masked_plane_sizes の full‑mask 委譲（互換帯は plane_sizes のまま =
+  L2 の 10,500 byte‑identical が機械証明）
+- **znn_tensor.rs**: DTYPE_TABLE ⇔ dtype.rs 幾何の一致性テスト、select_truncation
+  の決定表（負値 I32 = 0xFF 上位 → 非トランケート、全ゼロ → mode 1、
+  256 の倍数 U16 → mode 8）と early‑exit 走査、bits 基準 shape 検証の
+  F4 実測整合（torch save が shape をニブル数で書くことの確認込み）、
+  blob_chunk クランプの Neo 1 平面型への一貫適用
+- **pipeline.rs**: extended_stored ⊆ worst_extended の包含証明（H_max 超過が
+  原理的に起きない）、truncation が infos/H_max に与える影響ゼロ
+  （torch_name/shape 不変）、pseudo dtype 拒否の位置（plan 段階 = 書込み前・
+  部分出力なし）、BOOKKEEPING 6 鍵の strip 網羅（recompress テストで
+  マーカー単一意図も固定）
+- **実証バッテリー（/tmp/audit4/battery.py、生存 .so against、ALL CLEAN 20 項目）**:
+  B1 paranoid × truncation × マーカー（残骸ゼロ）・B2 cancel 部分出力なし・
+  B3 複数チャンク F64（1.2 MB = 5 チャンク 8 平面）byte‑exact・B4 複数チャンク
+  U16 mode‑8（600 KB = 3 チャンク）・B5 拡張ファイル破損 → failed + 原本保持 +
+  `.corrupt` 退避・B6 奇数ニブル F4 → 「byte boundary」明示失敗 + 残骸なし・
+  B7 非 {0,1} BOOL バイトの不透明往復・B8 **デルタ × F64 モデル**（dtype 非依存の
+  float32‑on‑bytes 意味論の確認、verified=sha256）・B9 inspect の graceful
+  （デルタ .znn / non‑dict ヘッダー / 分類器 extendedDtypes 正確性）
+- **フロントエンド**: request アンラップ（{success,data} → data）と
+  inspectZipnnModel の null フォールバック、GlobalConfirm の settle/closeToken
+  交互作用（epoch ガード後）、rawRows 正規表現のキー網羅
+  （znn_compressed_vectors + znn_neo_*）、Tooltip import・i18n 補間 {dtypes}
+- **CI 配線**: api_version 3 不変（native.yml assert / py/native.py [3,3] /
+  ローダーテストの三者同期がそのまま有効）、integration の win/mac スキップ
+  経路（torch importorskip / MMNEO_SKIP_LEGACY）が CI 3 OS 113 passed で実証、
+  fuzz 6 ターゲットが新表面を自動被覆（run 6 の cov 増加が到達を証明）
+
+**バグではないが確認して記録する items**:
+
+- `pnpm deps`（dependency‑cruiser）はこのサンドボックスの node 20.20.2 では
+  起動不能（要求 ^22||^24||>=26）— **CI の verify ジョブは同ステップ緑**
+  （#126）なのでコード起因ではない（環境差分。CI は ci.yml で **node 22** をピン留め =
+  ゲートは常にサポート済み node で走る）。
+- select_truncation のゼロ統計は最大 word‑1 回のストライド走査
+  （early‑exit 付き — 非トランケート可能データは先頭数要素で終了）。
+  巨大整数テンソルでトランケート可能な場合のみ数パスの追加コスト
+  （圧縮自体の平面分割より小さい）。実測（bench §9）で問題なしを確認済み。
+- mode 8/9/41/1 の「 compressor が嘘をつかない」前提（落とす平面の全ゼロ）は
+  パイプラインでは select_truncation が保証し、ファイル級では sha256 検証が
+  ネットになる。codec 単体 API（decompress_tensor）はモードを信頼する設計
+  （コメントで明記）— 敵対的ファイルは検証層で必ず捕まる。
+
+### 検証（修正後・全ゲート再実行）
+
+- pytest **113 passed**（新ケース込み・生存 .so against、Rust ツリーは
+  94e553c と同一のため CI 証跡と等価）・ruff check/format ✓・mypy 14 files ✓
+- pnpm typecheck ✓・eslint ✓・prettier format:check ✓・**pnpm build ✓
+  （web バンドル再生成 — zipnn.ts/ModelInformation.vue の修正を反映）**
+- Rust 側は今セッション**無変更**（修正は py/ts/vue/tests のみ）→
+  clippy/L1/L2/L5 の CI 証跡（native #37 / fuzz‑long #6）がそのまま有効
+
+### 運営メモ（次セッション向け）
+
+- 本セッションの push 構成: fix(ui+py) 3 件の堅牢化 + web バンドル +
+  MEMO（本節）。push で CI/native が新 tip に対して再実行される
+  （fuzz 表面・Rust は無変更のため fuzz‑long の再ディスパッチは不要 —
+  run 6 の 18 h 証跡が現行ツリーの fuzz 表面に対して有効。週次
+  スケジュール（日曜 18:00 UTC）も担保）。
+- プロジェクト全体の残件は不変: Phase 2 K2/K3 の参照機再計測、実 UI 手動 QA
+  （Phase 7 統合）、Phase 5 以降。
