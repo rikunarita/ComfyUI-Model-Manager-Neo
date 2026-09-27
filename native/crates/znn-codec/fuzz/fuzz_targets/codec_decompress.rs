@@ -14,11 +14,13 @@ fuzz_target!(|data: &[u8]| {
     if data.len() < 9 {
         return;
     }
-    // adversarial-but-structured parameters (also legal combos: 1/2/4 planes,
-    // modes 220/10, chunks 1..=512 KiB)
-    let num_buf = match data[0] % 4 {
+    // adversarial-but-structured parameters (also legal combos: 1/2/4/8
+    // planes — 8 is the Phase-4 f64/i64 layout — modes 220/10/88 plus the
+    // truncation modes 41/9/1/8, chunks 1..=512 KiB)
+    let num_buf = match data[0] % 8 {
         0 => 1usize,
         1 => 2,
+        2 | 3 => 8,
         _ => 4,
     };
     let chunk =

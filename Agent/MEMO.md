@@ -1266,3 +1266,409 @@ ftSha256` — 予測と逐語一致）→ **修正後 PASS**。テストは両�
 - head `6bfe6d7` と現行 tip `bd47254` の実コード差は delta.rs の verify 分岐
   （fuzz 表面外）+ docs のみ → **この証跡は現行ツリーの fuzz 表面に対してそのまま有効**
   （push 済みの native #33 fuzz‑smoke 6×60 s が新 tip の表面を機械再検証）。
+
+## 2026‑09‑26（第 3 セッション）— Phase 4 実装（dtype 大幅拡張・Neo 拡張帯）
+
+**完了**: Plan §6.2 Phase 4 の全タスクを実装・全ゲート緑・[x] 化。
+コミット構成（dev）: ce7cbc9（codec コア層: 8 平面/トランケーション/dtype 表）→
+8c50af7（テンソル/パイプライン層: 全 22 dtype・マーカー・select_truncation）→
+9b20bcf（py バックエンド + L4 53 テスト + inspect ルート）→ 9804571（L5 セクション E）→
+6972bb3（fuzz シード 14 件 + 8 平面表面）→ 6965fc6（UI: 確認文/圧縮方式行/バッジ/i18n×3 + web バンドル）→
+bef8f08（bench_phase4_dtypes.py + K14 証跡 JSON + BENCH §9）→ f124c90（README×2/USAGE×3 相互運用マトリクス）→ 本 docs コミット。
+
+### 着手前の一次実証（この環境で実行、推測ゼロ）
+
+- **公式 zipnn 0.5.4（pip 実ビルド）の失敗モード**: 互換帯 f32 ブロブの
+  byte15 を 9/128/130/137/3/24 へパッチして投入 → **全て
+  `ValueError: Unsupported Dtype N`**（`decompress_bin` の dtype 分岐に
+  それらの腕が無い）。公式 compress も complex64/float64/int32/bool で
+  ValueError（"Support only…"）。→ **C64 は Neo 帯 130 で確定**
+  （Plan §4.6.3 の未確定事項が実証で決着。L5 E2 が CI で恒久固定）。
+- **torch 2.14.0 実機**: dtype 全数 dir() 確認 — `bcomplex32`/`complex32/128`/
+  `uint16/32/64`/`float8_e8m0fnu`/`float4_e2m1fn_x2`/`uint1–7` は存在、
+  **`float6_*_pe` は存在しない**（Plan §4.6.1 の予想はリリースに
+  含まれず。Web 検索でも該当名ゼロ件）→ F6 系の infos には safetensors 名
+  （"F6_E2M3"）を記録（実在しない torch 名を捏造しない方針）。
+- **safetensors 0.8.0（pip + GitHub v0.8.0 tensor.rs 一次ソース）**:
+  Dtype enum 22 種（F4=4bit・F6_E2M3/E3M2=6bit・F8_E8M0=8bit）。
+  `safetensors.torch.save` 実測: F4 テンソルは **shape がニブル数に倍化**
+  （uint8 [4] → F4 shape [8]、data 4 B）→ sub‑byte の shape 検証は
+  **bits 基準**（nelem×bits/8 == original_len + バイト境界）で実装。
+  `complex128`/`complex32`/`bcomplex32` は save 不可（KeyError /
+  view_as_complex 非対応）→ code 129/131 は **codec 級のみ**
+  （pseudo st 名 "C128"/"BC32"、pipeline 復元は
+  「safetensors 0.8 表現なし」の明示エラーで拒否 = 標準ツールが読めない
+  ヘッダーを絶対に書かない）。
+- **C コアのトランケーション**: dtype32 の 41/9/1 は
+  **コメントアウトされた死にコード**、dtype16 の 8/1 は split が
+  plane1 を NULL のまま返し compression_worker が
+  compChunksSize/Type[1] を**未初期化のままコンテナに書く**（しかも
+  py_combine_dtype は `oneBufRatio[b] = numBuf` で ratio を上書きするため
+  復号側も整合しない）。zipnn.py からも到達不能（uint32‑numpy 経路は
+  先頭 raise のデッドコード）→ **トランケーションは Neo 独自のクリーン
+  意味論で正式実装**（Neo 帯専用なので公式互換性の制約を受けない —
+  公式はどのみち dtype code で拒否する）。
+
+### 実装（設計決定を含む）
+
+- **dtype.rs**: Neo 拡張帯コード表 128–146（Plan §4.6.3 の割り当てそのまま）、
+  **MODE_8PLANES = 88** 新設（上流が定義/書込みする全 byte5 値
+  {0,1,8,9,10,41,169,220,255} と非衝突 — 8 平面は上流に存在しないため
+  Neo が値を定義する。ニモニック = 8 平面）。PlaneScheme に
+  bits_per_elem/band/trunc_modes を追加、`plane_mask(byte5, n)` が
+  **検証表とマスク導出の単一の真実**（validate_mode はそのラッパ化）。
+- **トランケーションのコンテナ形式 = 「numBuf 維持」案を採用**: 落とし
+  平面は空 raw チャンク（type 0・cumSizes 差分 0）として構造に存在し続ける
+  → コンテナのサイズ代数（types_len/cums_len/plane_base/uniform）が
+  **無変更**（L2 のバイト同一性が構造的に保証される最小差分）。マスク
+  {2pl: 1=[T,F] 8=[F,T]; 4pl: 41=[T,T,T,F] 9=[T,T,F,F] 1=[T,F,F,F]}。
+  復元は 0 埋め（C combine_buffers_dtype16 の 8/1 と同じデータフロー）。
+  整列強制（orig_len/chunk % word == 0）、敵対的コンテナ（落とし平面の
+  type≠0 / 非ゼロ長 / cum タンパリング）は Corrupt エラー（L1 固定）。
+- **planes.rs**: split8/join8（u64 語変換融合・64B ブロック転置・tail
+  bytes 0..rem 無変換 = C in‑bounds の一般化）+ split_masked/join_masked/
+  extract_plane_masked（kind≠None は拒否 — トランケーションは整数専用
+  のため bit_reorder=0 のみ正当）+ validate_layout（F64↔8 平面の
+  相互排他）。**互換帯の既存経路は 1 バイトも変更なし**（マスク分岐は
+  truncated 時のみ = L2 1,121/1,121 で機械証明）。
+- **codec.rs**: num_buf∈{1,2,4,8}・kind_for(1,8,_)→F64（8 平面が f64
+  scheme を含意）・圧縮/解压の双方でマスク対応（chunk_sizes/exp の
+  マスク導出・落とし平面の type/長検証・join_masked）。decompress_container
+  に **帯別 byte5 厳格ゲート**（scheme.allows_mode: 互換帯ブロブは正準
+  モードのみ受理 — 公式エンコーダはトランケーションを絶対に書かないため、
+  互換帯 + trunc モードの組み合わせは敵対的ファイル限定 → 推測復号せず拒否）。
+  decode の exp 合計検査は truncated のみ免除（構造上 kept×elems で
+  cur_len を覆わない — 整列は入口で証明済み）。
+- **znn_tensor.rs**: DTYPE_TABLE 単一表（code ⇔ st 名 ⇔ torch 名 ⇔
+  bit_reorder。幾何は dtype.rs から導出 = 二重表のドリフトを構造化防止、
+  一致性テスト `table_is_consistent_with_the_dtype_module` で全行固定）。
+  全 22 st dtype + pseudo 2 種。`select_truncation`（ゼロ統計: 上位
+  平面から early‑exit 走査、I16/U16 は low‑zero→mode 1 / high‑zero→mode 8、
+  I32/U32 は 41/9/1。**負値は上位 0xFF のため自動的に非トランケート**）。
+  inspect_tensor の shape 検証を bits 基準へ（F4/F6 対応 + 境界強制）+
+  帯別モード ゲート。bit_reorder の decode は**寛容のまま**（公式が
+  reorder_signbit オプションを持つ歴史のため、互換帯で新規厳格化しない —
+  1 平面は C と同様に無視）。
+- **pipeline.rs**: 全 dtype 圧縮帯化（Band enum 廃止 — compressible_scheme =
+  Option<TensorScheme>、None は防御的 pass‑through のみ）。「out‑of‑band
+  floats」警告は消滅（対象ゼロ）。**extended マーカー = 「Neo 帯ブロブが
+  実格納された」時のみ**（H_max 計画は worst_extended で必ず鍵を予算化 →
+  実 meta は部分集合 = 領域超過が原理的に起きない。size 則で pass‑through
+  した Neo テンソルはファイルを公式互換のままにする — テストで固定）。
+  復元計画に pseudo dtype 拒否（dtype_bitsize None → 明示エラー）。
+- **py/compress.py**: `POST /model-manager/zipnn/inspect` 新設
+  （ヘッダのみ解析・io_executor 経由・エラーは `{"error":…}` +
+  success:true で返しダイアログを絶対にブロックしない）+
+  `COMPAT_ST_DTYPES` 分類表（**Rust 表との parity を pytest が機械固定**:
+  分類器の extended 判定 == エンジンが書くマーカー、を全 22 dtype で照合）。
+  レガシー経路は無変更（拡張帯ファイルの legacy 解凍は vendored の
+  `Unsupported Dtype` 明示エラー = テスト化、legacy 圧縮の f64 raise も
+  既存挙動のまま = テスト化）。
+- **UI（Plan §4.6.4）**: 圧縮確認は**即時表示 → inspect 到着で
+  インプレース更新**（表示を遅らせない・settled/visible ガードで
+  閉じたダイアログを触らない・失敗時汎用文フォールバック）。
+  Information タブ「圧縮方式」行（infos 集計 `name×count` 降順）+
+  Neo 拡張バッジ/ツールチップ + rawRows から znn_* 記帳キー除外
+  （数 KB の infos JSON 生表示の解消）。i18n en/ja/zh・web バンドル再構築。
+- **fuzz**: シード 14 件（生産経路で生成した実ブロブ: f64/i64 8 平面・
+  bool/e8m0/f4 1 平面・c64・i32 trunc 1/9/41・u16 trunc 8・落とし面
+  type タンパリング（エラー経路誘導）・拡張 .znn の st_parse 種子。
+  生成時に byte5 モードを機械検証）。codec_decompress の num_buf 表面を
+  {1,2,4} → {1,2,4,8} へ拡張（byte_reorder は元々任意 u8 = 88/41/9/1/8 を
+  カバー）。**fuzz ワークフロー変更不要**（6 ターゲットが新表面を自動被覆、
+  push 時の fuzz-smoke + ディスパッチ run 6 が担保）。
+- **CI 変更不要を確認**: api_version 3 のまま（新 Python API なし —
+  inspect は Python 側。native.yml の abi3 assert==3・py/native.py [3,3]・
+  ローダーテストの三者同期は不変）。integration の pytest/L5 が新テストを
+  自動収容（win/mac は torch なし → importorskip / MMNEO_SKIP_LEGACY で
+  skip 済み）。native-diff（L2 quick）は互換帯不変のためそのまま緑。
+
+### 検証バッテリー（全てこの環境で実測・最終ツリー against）
+
+- cargo fmt ✓ / clippy `--workspace --all-targets --all-features -D warnings` ✓
+- L1 **155**（debug + release 両方 ✓、+22: planes 8/masked・dtype 表・
+  znn_tensor 全 dtype/truncation/ゲート・pipeline Phase4 5 種・codec 8 平面/trunc/タンパリング）
+- mm-core `--no-default-features` **5** ✓
+- **pytest 113**（+53: tests/test_phase4_dtypes.py — 全 22 dtype 往復 ×
+  マーカー × 分類 parity・torch 実物 save_file 全 dtype 往復（uint16/32/64・
+  e8m0fnu・float4_x2・fnuz 込み、公式 load_file での読み戻し照合）・
+  truncation byte5 端到端（9/1/41/8/220）・BOOL 0.125/E8M0 実測・
+  マーカー不在 semantics・legacy 明示拒否・inspect ルート契約・
+  破損ファイルの error フィールド化）— 実バイナリ against、skip ゼロ
+- **L2 quick GATE PASS**: byte‑identical **1,121/1,121**・mismatch 0・
+  付録 C クラス 63 安全処理・forbidden_rust_err 0（**互換帯の出力バイトが
+  Phase 3 と完全同一** = Phase 4 の変更が互換帯に一切触れていない証明）
+- **L5 GATE PASS**（pip zipnn 0.5.4 against）: A/B/C/D 退行なし +
+  **E0–E4 新設全 PASS**（E1: Neo 帯 4 コードの明示拒否・E2: C64 帯域
+  実証・E3: 公式 SafeOpen テンソル単位契約・E4: 拡張フィクスチャ往復）
+- ruff check + format（41 files）✓ / mypy 14 files ✓ / pnpm typecheck ✓ /
+  eslint ✓ / prettier format:check ✓ / pnpm build ✓（web バンドル同梱コミット）
+- **K14 証跡**: bench_phase4_dtypes.py → 22/22 往復 PASS
+  （results/phase4_dtypes.json コミット。BOOL **0.125** = Plan §4.6.2 の
+  「約 1/8」実測一致・F64 0.515・I64 0.313・I32 trunc41 0.532・C64 0.802・
+  trunc 自動選択 9/1/8 の実証 0.500/0.250/0.500・全件 verified=sha256 +
+  byte‑exact・code/byte5 の実測値が表と一致）
+- .so 再ビルド（zigbuild glibc 2.28・最終コミット スタンプ）: サイズは
+  2,399,960 B（+24.7 KB、予算 4 MB の 57 %）・size gate OK・
+  verify_native_binary ok（GLIBC_2.28 上限・libpython 非依存）
+
+### バグではないが確認して記録する items（Phase 4 の設計境界）
+
+- **L5 フィクスチャの vocab（I32）は Phase 4 で Neo ブロブ化**（公式は
+  pass‑through のまま）= 意図的 diverge。L5 A/C を帯域認識へ更新し、
+  「公式 pass‑through 側が原本バイトを保持」することも検査化。
+- test_blob_parity の U8 テンソル（100 B の bytes(range)）は**両エンジン
+  とも size 則で pass‑through**（決定論的データなので parity は安定维持）。
+- `get_model_metadata` の 1 MiB ガード（MoE の巨大 infos で metadata 空 →
+  バッジ/内訳行が非表示になり得る）は Phase 5 B4（32 MiB 統一）の既知残件
+  — Phase 4 のスコープ外（既存制限、実測 600 テンソル級では ~48 KB で無影響）。
+- F6 系 infos の dtype 文字列は safetensors 名（"F6_E2M3"）— torch 名が
+  実在しないため（実機確認）。legacy 解凍側はどのみち code 145/146 で
+  明示拒否なので infos 文字列の消費자는 Neo/UI のみ。
+- I64/U64 にトランケーションなし（Plan §4.6.2 表の通り — 8 平面の
+  ゼロ上位面は huff0 が数バイトへ潰すため実測上の損失は小さい:
+  I64 0.313）。
+
+### 運営メモ（次セッション / ユーザ向け）
+
+- push で CI（verify）+ native（native-test×3/build×3/abi3-import/
+  integration×3/native-diff/fuzz-smoke×6）が新 tip に対して自動実行。
+  **結果確認はユーザ次ターン**（ユーザ指示）。
+- **fuzz-long run 6 はディスパッチ済み**（Phase 4 が fuzz 表面を変更した
+  ため run 5 の証跡では新表面を覆わない: codec の 8 平面/trunc 分岐・
+  dtype 表 128–146・新シード 14 件。6 ターゲット × 3 h = 18 h、head は
+  最終 tip）。完了確認は次ターン / 週次スケジュール（日曜 18:00 UTC）。
+- プロジェクト全体の残件: Phase 2 K2/K3 の参照機再計測、実 UI 手動 QA
+  （Phase 7 統合）、Phase 5 以降。
+
+## 2026‑09‑26（第 4 セッション）— Phase 4 push 後の CI 確認 + 独立精査（fresh eyes）
+
+### GitHub Actions 確認結果（ユーザ要求分、GitHub API + ジョブログ実測）
+
+**Phase 4 tip `94e553c32` に対して全 run SUCCESS**:
+
+| run                         | 結果                        | 実測詳細                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CI #126                     | **SUCCESS**                 | verify（typecheck/lint/lint:css/deps/format/build/mypy/ruff/pytest）                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| native #37                  | **SUCCESS — 14 ジョブ全緑** | native-test×3 OS / native-build×3 / abi3-import 3.10・3.13 / integration×3 OS / native-diff / fuzz-smoke / size-budget。integration(ubuntu) のジョブログで **pytest `113 passed`** と **L5 GATE: PASS**（core stamp `0.3.0‑alpha.0+94e553c32` = CI ビルド成果物 against）を確認                                                                                                                                                                                                                                                                    |
+| fuzz‑long #6（36261689593） | **SUCCESS — 全 7 ジョブ**   | l2‑full **10,500 ケース GATE PASS**（mismatch 0）+ 6 ターゲット × 3 h 完走・**クラッシュ 0**: blob_decompress **176,664,658 execs**（cov **1,647** = run 5 の 1,472 から増加 — 新 Phase 4 表面に到達の証左・rss 170MB）/ codec_decompress 40,994,671（cov **1,772** ← 1,605・rss 215MB）/ zn_header 250,355,306（rss 139MB）/ huf_decompress 131,204,538（rss 170MB）/ st_parse 214,869,564（rss 204MB）/ delta_decompress 143,778,455（rss 179MB）。**Phase 4 の新 fuzz 表面（8 平面・トランケーション・Neo コード帯）の 3 h バジェット消化完了** |
+
+### 環境ロールバックと復旧（セッション冒頭）
+
+前ターン終了後にサンドボックスがロールバック: `.git`・apt/rustup/pip パッケージ・
+`native/target` が消失（ソースツリーと `native-bin/*.so` は生存 — 前回精査セッションと
+同型の事象）。`git clone` → `.git` 復帰で dev == origin/dev == `94e553c`・
+**作業ツリー差分ゼロ**を確認してからツールチェーンを再構築（apt → rustup → pip →
+pnpm install --frozen-lockfile）。生存 .so（stamp `f124c908d` = docs のみ差の
+同一 Rust ツリー）でバッテリーを実行し、修正後にフルゲート再実行。
+
+### 独立精査で発見し修正した不備（3 件 — いずれも堅牢化級、データ破損なし）
+
+1. **【低・UI 競合】`confirmSingleZipnn` の事前チェック結果が「別の新しい確認
+   ダイアログ」を書き換え得た** — モデル A の圧縮確認 → 即閉じて モデル B の
+   確認 → A の `/zipnn/inspect`（遅い方）が到着すると、ガード
+   （settled/visible/options 非 null）を全て通過して **B のダイアログ文を A の
+   dtype 一覧で上書き**する窓が存在（`confirmState.options` は reactive proxy の
+   ため参照同一性で自分のダイアログを識別できない）。修正: モジュール級
+   **`confirmEpoch`**（require ごとに ++、コールバックは自分の epoch のみ更新可）。
+   UI はモーダルなので実害確率は低いが、二重クリック/連打で再現可能な
+   論理欠陥だった。
+2. **【低・py】`inspect_safetensors_dtypes` が「JSON としては妥当だが object で
+   ないヘッダー」（例 `[1,2,3]`）で AttributeError** — ルート側の try/except が
+   拾うため 500 にはならないが、ヘルパの契約（`{"error": …}` を返す）に反する。
+   `isinstance(header, dict)` ガード追加 + pytest ケース追加
+   （`test_inspect_helper_survives_broken_files` に non‑dict ヘッダーを実装）。
+3. **【低・UI】`znnInfo`（圧縮方式行）が `znn_compressed_vectors` の値が配列/
+   文字列等の壊れ JSON のとき意味不明な集計（`?×3` 等）を描画し得た** —
+   parse 後に「plain object か」を判定し、違えばセクションごと非表示に。
+
+### fresh eyes で集中確認しバグなしと判定した領域（negative findings）
+
+- **planes.rs**: split8/join8 の索引代数（64B ブロック転置・scalar 残り語・
+  tail bytes 0..rem の無変換配置 = 2/4 平面の C in‑bounds 一般化）と
+  fused revert の対称性、masked 3 関数の validate（n∈{2,4}・kind None 強制・
+  全落としマスク拒否・整列強制・プレーン長検証）、mask 版 extract の
+  split_masked parity（テスト + 実測）
+- **codec.rs**: 入口検証順（plane_mask → trunc 整列 → chunk==0 → threshold NaN →
+  cancel — 旧 validate_mode と同一の到達可能性）、trunc 時の chunk_sizes/exp
+  導出（last_total % n == 0 の証明付き）、落とし平面の type/長さ厳格検査
+  （タンパリング 2 種のテスト固定）、`exp 合計 != cur_len` 検査の truncated
+  免除が整列ゲートに依存する構造、n==1 の mask 寛容（C memcpy 準拠）と
+  compress 側の厳格（10 のみ）の非対称が C と一致、PLANE_SCRATCH/HUF_SCRATCH の
+  cross‑job 再利用（resize 意味論で安全）、decompress_container の
+  帯別 allows_mode（互換帯ブロブの trunc モード偽装を拒否）
+- **dtype.rs**: plane_mask 表 ⇔ TRUNC_16/32 定数 ⇔ C の 8/1 データフロー
+  （mode 8 = 上位バイト保持 + 下位 0 埋め = combine_buffers_dtype16 と同型）の
+  三者一致、alias code 2/5 の正規化経路、canonical_mode の n 導出、
+  masked_plane_sizes の full‑mask 委譲（互換帯は plane_sizes のまま =
+  L2 の 10,500 byte‑identical が機械証明）
+- **znn_tensor.rs**: DTYPE_TABLE ⇔ dtype.rs 幾何の一致性テスト、select_truncation
+  の決定表（負値 I32 = 0xFF 上位 → 非トランケート、全ゼロ → mode 1、
+  256 の倍数 U16 → mode 8）と early‑exit 走査、bits 基準 shape 検証の
+  F4 実測整合（torch save が shape をニブル数で書くことの確認込み）、
+  blob_chunk クランプの Neo 1 平面型への一貫適用
+- **pipeline.rs**: extended_stored ⊆ worst_extended の包含証明（H_max 超過が
+  原理的に起きない）、truncation が infos/H_max に与える影響ゼロ
+  （torch_name/shape 不変）、pseudo dtype 拒否の位置（plan 段階 = 書込み前・
+  部分出力なし）、BOOKKEEPING 6 鍵の strip 網羅（recompress テストで
+  マーカー単一意図も固定）
+- **実証バッテリー（/tmp/audit4/battery.py、生存 .so against、ALL CLEAN 20 項目）**:
+  B1 paranoid × truncation × マーカー（残骸ゼロ）・B2 cancel 部分出力なし・
+  B3 複数チャンク F64（1.2 MB = 5 チャンク 8 平面）byte‑exact・B4 複数チャンク
+  U16 mode‑8（600 KB = 3 チャンク）・B5 拡張ファイル破損 → failed + 原本保持 +
+  `.corrupt` 退避・B6 奇数ニブル F4 → 「byte boundary」明示失敗 + 残骸なし・
+  B7 非 {0,1} BOOL バイトの不透明往復・B8 **デルタ × F64 モデル**（dtype 非依存の
+  float32‑on‑bytes 意味論の確認、verified=sha256）・B9 inspect の graceful
+  （デルタ .znn / non‑dict ヘッダー / 分類器 extendedDtypes 正確性）
+- **フロントエンド**: request アンラップ（{success,data} → data）と
+  inspectZipnnModel の null フォールバック、GlobalConfirm の settle/closeToken
+  交互作用（epoch ガード後）、rawRows 正規表現のキー網羅
+  （znn_compressed_vectors + znn_neo_*）、Tooltip import・i18n 補間 {dtypes}
+- **CI 配線**: api_version 3 不変（native.yml assert / py/native.py [3,3] /
+  ローダーテストの三者同期がそのまま有効）、integration の win/mac スキップ
+  経路（torch importorskip / MMNEO_SKIP_LEGACY）が CI 3 OS 113 passed で実証、
+  fuzz 6 ターゲットが新表面を自動被覆（run 6 の cov 増加が到達を証明）
+
+**バグではないが確認して記録する items**:
+
+- `pnpm deps`（dependency‑cruiser）はこのサンドボックスの node 20.20.2 では
+  起動不能（要求 ^22||^24||>=26）— **CI の verify ジョブは同ステップ緑**
+  （#126）なのでコード起因ではない（環境差分。CI は ci.yml で **node 22** をピン留め =
+  ゲートは常にサポート済み node で走る）。
+- select_truncation のゼロ統計は最大 word‑1 回のストライド走査
+  （early‑exit 付き — 非トランケート可能データは先頭数要素で終了）。
+  巨大整数テンソルでトランケート可能な場合のみ数パスの追加コスト
+  （圧縮自体の平面分割より小さい）。実測（bench §9）で問題なしを確認済み。
+- mode 8/9/41/1 の「 compressor が嘘をつかない」前提（落とす平面の全ゼロ）は
+  パイプラインでは select_truncation が保証し、ファイル級では sha256 検証が
+  ネットになる。codec 単体 API（decompress_tensor）はモードを信頼する設計
+  （コメントで明記）— 敵対的ファイルは検証層で必ず捕まる。
+
+### 検証（修正後・全ゲート再実行）
+
+- pytest **113 passed**（新ケース込み・生存 .so against、Rust ツリーは
+  94e553c と同一のため CI 証跡と等価）・ruff check/format ✓・mypy 14 files ✓
+- pnpm typecheck ✓・eslint ✓・prettier format:check ✓・**pnpm build ✓
+  （web バンドル再生成 — zipnn.ts/ModelInformation.vue の修正を反映）**
+- Rust 側は今セッション**無変更**（修正は py/ts/vue/tests のみ）→
+  clippy/L1/L2/L5 の CI 証跡（native #37 / fuzz‑long #6）がそのまま有効
+
+### 運営メモ（次セッション向け）
+
+- 本セッションの push 構成: fix(ui+py) 3 件の堅牢化 + web バンドル +
+  MEMO（本節）。push で CI/native が新 tip に対して再実行される
+  （fuzz 表面・Rust は無変更のため fuzz‑long の再ディスパッチは不要 —
+  run 6 の 18 h 証跡が現行ツリーの fuzz 表面に対して有効。週次
+  スケジュール（日曜 18:00 UTC）も担保）。
+- プロジェクト全体の残件は不変: Phase 2 K2/K3 の参照機再計測、実 UI 手動 QA
+  （Phase 7 統合）、Phase 5 以降。
+
+## 2026‑09‑26（第 5 セッション）— CI 確認 + リポジトリ整理 + 開発ワークフロー規程 + ドキュメント記入漏れ解消
+
+ユーザ指示の 4 タスク（Phase 4 実装の翌セッション。tip `971f072` から開始）。
+
+### 1. GitHub Actions 成功確認（API + 全ジョブ conclusion 実測）
+
+**監査修正 tip `971f072ed` に対して CI #127 / native #38 とも全ジョブ
+SUCCESS**（native #38 = 14/14、CI #127 = verify 緑）。前ターン確認分の再掲:
+CI #126 / native #37（14 ジョブ）/ fuzz‑long #6（7 ジョブ、l2‑full 10,500
+GATE PASS + 6 ターゲット 3 h クラッシュ 0）も全て SUCCESS。
+**Phase 4 の全 CI 証跡が確定した**。
+
+### 2. ファイル・フォルダ整理（削除は参照ゼロを確認してから実施）
+
+**削除（3 件）** — いずれも全リポジトリ grep で参照ゼロを確認済み:
+
+- `native/crates/znn-codec/examples/fse_dbg.rs` — Phase 1 の FSE 往復
+  デバッグ用使い捨てツール（知見は fse.rs のテストと MEMO に恒久化済み）。
+- `native/crates/znn-codec/examples/stage_bench.rs` — Phase 1 のステージ別
+  マイクロベンチ（split2 の 16B ブロック決定の測定値は planes.rs コメントに
+  恒久記録済み。速度ゲートの正式器は `znn-cli bench` = L2 系譜）。
+- `tests/_smoke_native.py` — 手動スモーク（docstring 自身が
+  「test_phase0_native_loader.py で正式に exercised」と明記 = 完全冗長。
+  pytest は `_` 接頭辞を収集しないため CI 対象でもなかった）。
+
+**保持を再確認したものは削除しない**（誤削除防止の判断記録）:
+`native/benches/json-bench`（BENCH §3 の計測器・run_all.sh/README が参照 =
+JSON パーサ選定の再現経路）、`fuzz/corpus/*`（Phase 1 からの意図的コミット
+
+- Phase 4 シード 14 件・oom 回帰シード含む）、`scripts/bench/results/*.json`
+  （証跡）、`third_party/*`（L2 ゴールデン生成器 + レガシー経路 — Phase 7 まで）、
+  `docs/upstream/zipnn-core-defect-report.md`（参考保管 — Plan §6.2 Phase 1 の
+  記録通り）、`demo-assets/`（**ユーザ指示: 触らない**）、web/（配布バンドル）。
+  examples/ 削除は Cargo.toml メンバ変更不要（自動発見）で、CI の
+  `cargo test/clippy --all-targets` はビルド対象が減るだけ（ゲート不変）。
+
+### 3. cargo 使用方針の制定 + `tests/` フォルダ新設（Plan §3.4.3）
+
+- **Plan §3.4.3「cargo 使用方針（開発ワークフロー）」を追記**（ユーザ指示の
+  4 規則: check 常用 / test は必要なときだけ + tests/ フォルダで管理 /
+  clippy・rustfmt を品質向上に活用 / build は最終確認のみ）。§6.3 進捗管理
+  規程からもポインタ追加。
+- **`native/crates/znn-codec/tests/` を新設**し、最初の統合テスト
+  `extended_band.rs`（**公開 API のみ**の端到端 4 テスト）を配置:
+  全 22 dtype の blob 往復（truncation 自動選択込み・I32/U32 は mode 9 を
+  アサート）・codec 級 pseudo dtype（C128/BC32）往復 + dtype_bitsize 不在
+  確認・帯別モード ゲート（互換帯ブロブの trunc 偽装拒否 / Neo 整数の
+  1・8 正当）・**互換帯 = 公式 5 dtype ちょうど + Neo コード 128–146 が
+  重複/欠落なく全割り当て**の表固定。→ クレート級 K14 ゲートが Python/.so
+  経路から独立して `cargo test` 一発で回る（L1 155 + 統合 4 = **159**）。
+- 配置規程: 単体 = インライン `#[cfg(test)]`（private 到達 — Rust 慣行、
+  155 個を移動するリファクタはリスクのみ）、統合 = `crates/znn-codec/tests/`、
+  差分 = scripts/l2、敵対的 = fuzz/。native/README と lib.rs モジュール doc
+  にも同期記載。
+
+### 4. ドキュメント記入漏れの完全解消（このセッションで洗い切って修正）
+
+- **Plan §4.6.1 訂正注記**: torch **2.14.0 リリースに float6\_\*\_pe は存在
+  しない**（第 3 セッションの実機実証）+ F6 の infos 記録方針 + uint1–7 は
+  safetensors 表現なしで**対象外**（コード未割り当て — GGUF 同様の §2.3 扱い。
+  complex128/bcomplex32 との違い〔codec 級コードあり〕を明記）。
+- **README / README‑JP「仕組み」節の整合修正**: 「非 float テンソルはそのまま
+  コピー」は公式レシピ（=レガシー経路）の記述 → 「**Neo の Rust コアはこれらも
+  圧縮する**（2 帯域 — マトリクス節へのリンク）」に明確化。Phase 4 のマトリクス
+  節と矛盾していた最後の箇所。
+- **USAGE‑EN/JA/ZN**: 「浮動小数点テンサルの Huffman 圧縮」→「テンサルの
+  Huffman 圧縮 — Rust コアは全 dtype（下の dtype カバレッジ節参照）」+
+  公式ローダーの透過読みは**互換帯**に限る旨を明記。
+- **py/compress.py**: モジュール docstring に「これはレガシー vendored
+  レシピのポート。native エンジン（既定）は全 22 dtype を 2 帯域で圧縮」の
+  注記追加 + `ZNN_EXTENDED_KEY` コメントの「Phase 4（未来）」時制を
+  実装済みへ更新。
+- **tests/harness.py**: 陈旧参照 `gen_fixtures.py` → `gen_synthetic.py`（2 箇所、
+  実在ファイル名へ）+ 「pass‑through class」系コメント 3 箇所を Phase 4
+  実態（Neo 帯で圧縮・レガシーは pass‑through/raise）へ更新。
+- **Rust doc コメントの陳腐化一掃**: codec.rs `CoreParams`（num_buf に 8 平面・
+  byte_reorder に 88/トランケーション・chunk の 128 KiB クランプ対象を
+  「single‑plane 型」へ一般化）、`decompress_container` の Errors 節
+  （「Phase 4 codes」→ 未割り当てコード + 帯別モード ゲートの記述へ）、
+  planes.rs `extract_plane`（{1,2,4,8} + kind ゲート）、lib.rs モジュール表
+  （planes N=8 / znn_tensor 全表 / テスト配置規程）、mm-core lib.rs の
+  フェーズ別 API 表面（Phase 4 = **API 変更なし・api_version 3 維持**を明記 —
+  将来のバンプ判断の根拠が doc 上に残る）。
+- **native/README.md**: Phase 1–3 の実装済み段落に **Phase 4 段落を追加**
+  （22 dtype・8 平面・MODE_8PLANES=88・トランケーション・帯別ゲート・
+  L5 E の拒否実証・C128/BC32 の codec 級限定）+「テスト配置と cargo
+  ワークフロー」節（Plan §3.4.3 同期）+ レイアウト樹の znn-codec 行に
+  tests//fuzz/ の注記。
+
+### 検証（整理 + 規程 + 文書修正の全てに対して再実行・全緑）
+
+- cargo fmt ✓ / clippy `--workspace --all-targets --all-features -D warnings` ✓ /
+  **cargo test: znn‑codec 155（インライン）+ 4（tests/ 統合）+ mm‑core
+  `--no-default-features` 5 ✓**（examples 削除後のワークスペースも健全）
+- pytest **113 passed**（harness/py のコメント級変更後も実バイナリ against で再実行）
+- ruff check/format ✓・mypy 14 files ✓・pnpm typecheck/eslint/format:check ✓・
+  **pnpm build ✓（web バンドルは src 無変更のためハッシュ不変 = 再生成差分なし）**
+- prettier: 編集した md 全件整形済み（Plan/MEMO/README×2/USAGE×3/native README）
+
+### 運営メモ（次セッション向け）
+
+- 本セッションの push 構成: chore（整理 3 件削除）→ feat/test（tests/ 新設 +
+  Plan §3.4.3）→ docs（記入漏れ一掃 + MEMO 本節）。push で CI/native が
+  新 tip に対して自動実行（Rust は**doc コメントと tests/ 追加のみ** —
+  fuzz 表面はゼロ変更なので fuzz‑long の再ディスパッチは不要。run 6 の
+  18 h 証跡が有効なまま）。
+- 残件は不変: Phase 2 K2/K3 参照機再計測、実 UI 手動 QA（Phase 7 統合）、
+  Phase 5 以降。**次フェーズ（Phase 5）着手時は §3.4.3 の cargo 規程と
+  tests/ 管理規程に従うこと**。

@@ -160,12 +160,16 @@ fn transform_in_place(kind: ReorderKind, buf: &mut [u8], forward: bool) {
 /// the C core, where `bits_mode` is only consumed by the 2/4-plane paths:
 /// 1-plane data is NEVER reordered regardless of the header bit (fp8 headers
 /// carry bit_reorder=1; the C core ignores it — verified byte-identical
-/// payloads for bits 0/1, see dtype.rs module docs).
+/// payloads for bits 0/1, see dtype.rs module docs). The 8-plane layout is
+/// Neo's Phase-4 extension: bit_reorder=1 selects the f64 transform
+/// (F64/complex128), 0 keeps the words untouched (I64/U64). `is_f64_scheme`
+/// is retained for callers that know the dtype independently of the plane
+/// count (an 8-plane layout implies it anyway).
 #[must_use]
 pub const fn kind_for(bit_reorder: u8, num_planes: usize, is_f64_scheme: bool) -> ReorderKind {
     if bit_reorder != 1 || num_planes == 1 {
         ReorderKind::None
-    } else if is_f64_scheme {
+    } else if num_planes == 8 || is_f64_scheme {
         ReorderKind::F64
     } else if num_planes == 4 {
         ReorderKind::F32
@@ -290,6 +294,10 @@ mod tests {
         assert_eq!(kind_for(1, 1, false), ReorderKind::None); // fp8: bits ignored
         assert_eq!(kind_for(1, 8, true), ReorderKind::F64);
         assert_eq!(kind_for(0, 8, true), ReorderKind::None);
+        // Phase 4: the 8-plane layout IMPLIES the f64 scheme when the
+        // reorder bit is set (I64/U64 carry bit_reorder=0 → None)
+        assert_eq!(kind_for(1, 8, false), ReorderKind::F64);
+        assert_eq!(kind_for(0, 8, false), ReorderKind::None);
     }
 }
 

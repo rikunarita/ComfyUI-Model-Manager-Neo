@@ -149,20 +149,28 @@ def test_moe_header_heavy_file_keeps_all_tensors(mm, corpus, tmp_path):
     assert sha256_file(back) == sha256_file(src)
 
 
-def test_passthrough_classes_are_stored_verbatim(mm, corpus, tmp_path):
-    # C64 (audio) and F64 are OUT of the Phase-2 compression band: stored
-    # as-is (the legacy path RAISES on f64 — Neo is strictly more capable)
-    for name, passthrough in [("audio-c64", ["spec.weight"]), ("f64-synth", ["grid"])]:
+def test_former_passthrough_classes_are_compressed_since_phase4(mm, corpus, tmp_path):
+    # Phase 2 stored C64 (audio) and F64 as-is (out of band). Phase 4
+    # compresses them through the Neo extension band (the legacy path still
+    # RAISES on f64 — Neo is strictly more capable) and marks the files.
+    for name, compressed, torch_name in [
+        ("audio-c64", "spec.weight", "complex64"),
+        ("f64-synth", "grid", "float64"),
+    ]:
         src = corpus[name]
         znn = tmp_path / f"{name}.znn.safetensors"
         _compress(mm, src, znn)
         header, tensors = read_safetensors(znn)
-        infos = json.loads(header["__metadata__"]["znn_compressed_vectors"])
-        for tname in passthrough:
-            assert tname not in infos, f"{name}: {tname} must pass through"
-            assert tensors[tname][0] in ("C64", "F64")
-        # the compressible companion tensor IS compressed
-        assert len(infos) >= 1
+        meta = header["__metadata__"]
+        infos = json.loads(meta["znn_compressed_vectors"])
+        assert compressed in infos, f"{name}: {compressed} must compress in Phase 4"
+        assert infos[compressed]["dtype"] == torch_name
+        assert tensors[compressed][0] == "U8", "stored as a ZN blob vector"
+        assert meta["znn_neo_extended"] == "1", "Neo-band blobs flag the file"
+        # and the round trip stays byte-exact
+        back = tmp_path / f"{name}.back.safetensors"
+        _decompress(mm, znn, back)
+        assert sha256_file(back) == sha256_file(src)
 
 
 # ---------------------------------------------------------------------------
@@ -183,13 +191,20 @@ def test_compressed_metadata_matches_the_legacy_contract(mm, corpus, tmp_path):
     assert meta["znn_neo_original_bytes"] == str(src.stat().st_size)
     assert meta["znn_neo_src_sha256"] == sha256_file(src)
     assert meta["znn_neo_exact"] == "1"
+    # Phase 4: the corpus's I64 tensor (pos.ids) now compresses through the
+    # Neo extension band too, so the file carries the extended marker
+    assert meta["znn_neo_extended"] == "1"
     # infos: EXACTLY the python json.dumps rendering (sorted names, dtype +
-    # shape strings) — byte-identical to what the legacy pipeline writes
+    # shape strings) — byte-identical FORM to what the legacy pipeline writes
     infos = json.loads(meta["znn_compressed_vectors"])
-    expected_names = sorted(n for n in ("unet.mid.attn.q.weight", "cond_stage.embed.weight"))
+    expected_names = sorted(n for n in ("unet.mid.attn.q.weight", "cond_stage.embed.weight", "pos.ids"))
     assert sorted(infos) == expected_names
     for tname, info in infos.items():
         assert set(info) == {"dtype", "shape"}
+        if tname == "pos.ids":
+            assert info["dtype"] == "int64"
+            assert info["shape"] == "[24]"
+            continue
         assert info["dtype"] == "float16"
         assert info["shape"] == "[32, 16]" if tname == "unet.mid.attn.q.weight" else "[64, 32]"
     # the value string itself must equal Python's json.dumps output

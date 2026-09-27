@@ -39,9 +39,11 @@ use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 
 use rayon::prelude::*;
 
-use crate::dtype::validate_mode;
+use crate::dtype::{PlaneMask, is_truncated, masked_plane_sizes, plane_mask};
 use crate::header::ZnHeader;
-use crate::planes::{extract_plane, join, plane_sizes, split};
+use crate::planes::{
+    extract_plane, extract_plane_masked, join, join_masked, plane_sizes, split, split_masked,
+};
 use crate::reorder::{ReorderKind, kind_for};
 use crate::{CodecError, CodecResult, HUF_BLOCKSIZE_MAX, huf};
 
@@ -56,13 +58,18 @@ fn cancelled(cancel: Option<&AtomicBool>) -> bool {
 /// threads)`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CoreParams {
-    /// Number of byte planes: 1 (fp8), 2 (f16/bf16) or 4 (f32).
+    /// Number of byte planes: 1 (fp8 / Neo 1-plane types), 2 (f16/bf16/
+    /// bcomplex32/i16), 4 (f32/complex64/i32) or 8 (f64/complex128/i64 —
+    /// the Neo Phase-4 layout).
     pub num_buf: usize,
     /// `bits_mode`: 1 = sign/exponent reorder active (ignored for 1 plane).
     pub bit_reorder: u8,
-    /// `bytes_mode`: 220 (4-plane), 10 (2-plane / 1-plane).
+    /// `bytes_mode`: 220 (4-plane), 10 (2-plane / 1-plane), 88 (Neo
+    /// 8-plane) and the Neo truncation modes 41/9/1 (4-plane words),
+    /// 8/1 (2-plane words) — see `dtype::plane_mask`.
     pub byte_reorder: u8,
-    /// Original chunk size in bytes (production: 256 KiB; fp8: ≤ 128 KiB).
+    /// Original chunk size in bytes (production: 256 KiB; single-plane
+    /// types: ≤ 128 KiB = `HUF_BLOCKSIZE_MAX`).
     pub chunk: usize,
     /// Compression threshold (production 0.95).
     pub threshold: f64,
@@ -257,12 +264,24 @@ pub fn zipnn_core_into(
     cancel: Option<&std::sync::atomic::AtomicBool>,
 ) -> CodecResult<()> {
     let n = params.num_buf;
-    if !matches!(n, 1 | 2 | 4) {
+    if !matches!(n, 1 | 2 | 4 | 8) {
         return Err(CodecError::Unsupported(format!(
-            "num_buf {n} outside {{1,2,4}} (8-plane f64 is Phase 4)"
+            "num_buf {n} outside {{1,2,4,8}}"
         )));
     }
-    validate_mode(params.byte_reorder, n)?;
+    // the mask derivation IS the mode validation (single source of truth,
+    // dtype.rs): compatibility modes {220,10}, the Neo 8-plane mode 88 and
+    // the Neo truncation modes {41,9,1,8}
+    let mask = plane_mask(params.byte_reorder, n)?;
+    let truncated = is_truncated(&mask, n);
+    if truncated && (data.len() % n != 0 || params.chunk % n != 0) {
+        return Err(CodecError::Size(format!(
+            "truncation mode {} needs element-aligned data and chunks: len {} chunk {} vs word {n}",
+            params.byte_reorder,
+            data.len(),
+            params.chunk
+        )));
+    }
     if params.chunk == 0 {
         return Err(CodecError::Unsupported("chunk size 0".to_owned()));
     }
@@ -296,18 +315,30 @@ pub fn zipnn_core_into(
                 }
                 let start = c * params.chunk;
                 let end = (start + params.chunk).min(data.len());
-                compress_chunk(&data[start..end], n, kind, params.threshold)
+                compress_chunk(&data[start..end], n, kind, params.threshold, &mask)
             })
             .collect()
     });
-    // per-chunk plane sizes (Virtual planes resolve through these)
-    let chunk_sizes: Vec<Vec<usize>> = (0..num_chunks)
-        .map(|c| {
+    // per-chunk plane sizes (Virtual planes resolve through these). The
+    // non-truncated branch keeps the C-exact `plane_sizes` (remainder
+    // semantics included) so compatibility-band bytes are untouched.
+    let chunk_sizes: Vec<Vec<usize>> = if truncated {
+        let mut v = Vec::with_capacity(num_chunks);
+        for c in 0..num_chunks {
             let start = c * params.chunk;
             let end = (start + params.chunk).min(data.len());
-            plane_sizes(end - start, n)
-        })
-        .collect();
+            v.push(masked_plane_sizes(end - start, n, &mask)?);
+        }
+        v
+    } else {
+        (0..num_chunks)
+            .map(|c| {
+                let start = c * params.chunk;
+                let end = (start + params.chunk).min(data.len());
+                plane_sizes(end - start, n)
+            })
+            .collect()
+    };
     let mut plane_totals = vec![0usize; n];
     let chunk_results = {
         let mut out = Vec::with_capacity(num_chunks);
@@ -392,7 +423,11 @@ pub fn zipnn_core_into(
                         PlaneOut::Virtual => {
                             let start = c * params.chunk;
                             let end = (start + params.chunk).min(data.len());
-                            extract_plane(&data[start..end], n, b, kind, dst)
+                            if truncated {
+                                extract_plane_masked(&data[start..end], n, b, kind, &mask, dst)
+                            } else {
+                                extract_plane(&data[start..end], n, b, kind, dst)
+                            }
                         }
                     }
                 })
@@ -425,13 +460,18 @@ thread_local! {
 }
 
 /// Compress one chunk: split into planes (fused reorder) then huff0-or-raw
-/// per plane. Returns per-plane (chunkType, bytes).
+/// per plane. Returns per-plane (chunkType, bytes). Truncated layouts (Neo
+/// integer modes) size the dropped planes to zero — they ride through the
+/// existing empty-plane branch as `(0, Virtual)` chunks, exactly the C
+/// NULL-plane semantics but with DEFINED container bytes.
 fn compress_chunk(
     src: &[u8],
     n: usize,
     kind: ReorderKind,
     threshold: f64,
+    mask: &PlaneMask,
 ) -> CodecResult<ChunkPlanes> {
+    let truncated = is_truncated(mask, n);
     // Single-plane fast path (fp8): the C's split_bytearray_dtype8 is a pure
     // byte copy — we feed `src` to huff0 directly (output-identical, one
     // full-size copy and its memory traffic saved). The raw fallback is
@@ -467,7 +507,11 @@ fn compress_chunk(
         }]);
     }
 
-    let sizes = plane_sizes(src.len(), n);
+    let sizes = if truncated {
+        masked_plane_sizes(src.len(), n, mask)?
+    } else {
+        plane_sizes(src.len(), n)
+    };
     PLANE_SCRATCH.with(|cell| {
         let mut scratch = cell.borrow_mut();
         if scratch.len() < n {
@@ -482,7 +526,11 @@ fn compress_chunk(
                 .take(n)
                 .map(|v| v.as_mut_slice())
                 .collect();
-            split(src, &mut planes, kind)?;
+            if truncated {
+                split_masked(src, &mut planes, kind, mask)?;
+            } else {
+                split(src, &mut planes, kind)?;
+            }
         }
         let mut out = Vec::with_capacity(n);
         for b in 0..n {
@@ -601,16 +649,28 @@ pub fn combine_dtype_into(
 ) -> CodecResult<()> {
     let orig_len = dst.len();
     let n = params.num_buf;
-    if !matches!(n, 1 | 2 | 4) {
+    if !matches!(n, 1 | 2 | 4 | 8) {
         return Err(CodecError::Unsupported(format!(
-            "num_buf {n} outside {{1,2,4}}"
+            "num_buf {n} outside {{1,2,4,8}}"
         )));
     }
-    // The C ratio gates: dtype32 → only 220; dtype16 → 10/8/1 (8/1 are the
-    // uint16 truncation modes, Phase 4); numBuf==1 → no gate (combine is a
-    // memcpy there — mirror that tolerance for compatibility).
-    if n != 1 {
-        validate_mode(params.byte_reorder, n)?;
+    // The C ratio gates: dtype32 → only 220; dtype16 → 10/8/1; numBuf==1 →
+    // no gate (combine is a memcpy there — mirror that tolerance for
+    // compatibility). The Neo Phase-4 modes (8-plane 88, truncation 41/9/1
+    // for 4-plane words) ride the same mask derivation as the compress side.
+    let mask = if n == 1 {
+        let mut m: PlaneMask = [false; 8];
+        m[0] = true;
+        m
+    } else {
+        plane_mask(params.byte_reorder, n)?
+    };
+    let truncated = is_truncated(&mask, n);
+    if truncated && (orig_len % n != 0 || params.chunk % n != 0) {
+        return Err(CodecError::Size(format!(
+            "truncation mode {} needs element-aligned lengths: orig_len {orig_len} chunk {} vs word {n}",
+            params.byte_reorder, params.chunk
+        )));
     }
     if params.chunk == 0 {
         return Err(CodecError::Unsupported("chunk size 0".to_owned()));
@@ -693,15 +753,35 @@ pub fn combine_dtype_into(
                     return Err(CodecError::Cancelled);
                 }
                 let cur_len = dst_slice.len();
-                let exp: Vec<usize> = if c + 1 == num_chunks {
+                // Truncated layouts: dropped planes store NOTHING (expected
+                // length 0); kept planes stay uniform — `orig_len % n == 0`
+                // was enforced above, so `last_rem` is 0 and the last-chunk
+                // formula reduces to `last_base` for every kept plane.
+                let exp: Vec<usize> = if truncated {
+                    (0..n)
+                        .map(|b| {
+                            if !mask[b] {
+                                0
+                            } else if c + 1 == num_chunks {
+                                last_base
+                            } else {
+                                uniform
+                            }
+                        })
+                        .collect()
+                } else if c + 1 == num_chunks {
                     (0..n).map(|b| last_base + usize::from(b < last_rem)).collect()
                 } else {
                     vec![uniform; n]
                 };
-                if exp.iter().sum::<usize>() != cur_len && num_chunks > 0 {
+                if !truncated && exp.iter().sum::<usize>() != cur_len && num_chunks > 0 {
                     // only possible with chunk sizes that do not divide
                     // evenly (C is self-inconsistent there — see module
-                    // docs); reject instead of mis-decoding.
+                    // docs); reject instead of mis-decoding. (Truncated
+                    // layouts are exempt BY CONSTRUCTION: the kept planes
+                    // cover `cur_len / n × kept` bytes and the dropped
+                    // byte positions restore as zeros — the alignment
+                    // gates above already proved `cur_len % n == 0`.)
                     return Err(CodecError::Corrupt(format!(
                         "chunk {c}: plane lengths {exp:?} do not sum to {cur_len} (chunk size must be a multiple of num_buf for non-final chunks)"
                     )));
@@ -763,6 +843,19 @@ pub fn combine_dtype_into(
                             )));
                         }
                         let slice = &data[start..end];
+                        if truncated && !mask[b] {
+                            // a dropped plane must be an EMPTY raw chunk —
+                            // anything else is a corrupt/hostile container
+                            if t != 0 || !slice.is_empty() {
+                                return Err(CodecError::Corrupt(format!(
+                                    "dropped plane {b} (truncation mode {}) chunk {c} carries {} bytes of type {t} — expected an empty raw chunk",
+                                    params.byte_reorder,
+                                    slice.len()
+                                )));
+                            }
+                            raw_slices[b] = Some(slice);
+                            continue;
+                        }
                         match t {
                             0 => {
                                 if slice.len() != exp[b] {
@@ -788,7 +881,11 @@ pub fn combine_dtype_into(
                         planes_scratch.iter().take(n).map(|v| v.as_slice()).collect();
                     let planes: Vec<&[u8]> =
                         (0..n).map(|b| raw_slices[b].unwrap_or(slots[b])).collect();
-                    join(&planes, dst_slice, kind)?;
+                    if truncated {
+                        join_masked(&planes, dst_slice, kind, &mask)?;
+                    } else {
+                        join(&planes, dst_slice, kind)?;
+                    }
                     Ok(())
                 })
             })
@@ -812,12 +909,27 @@ fn uniform_total(chunk: usize, n: usize, full_chunks: usize) -> usize {
 /// header fields exactly like `zipnn.py decompress()`.
 ///
 /// # Errors
-/// Header/shape/payload problems (propagated), unsupported dtypes (Phase 4
-/// codes), delta/streaming containers (Phase 3).
+/// Header/shape/payload problems (propagated), unknown/unassigned dtype
+/// codes, band-strict mode violations (`dtype::PlaneScheme::allows_mode`),
+/// and delta/streaming containers (those decode through `delta.rs`).
 pub fn decompress_container(blob: &[u8], max_output: Option<usize>) -> CodecResult<Vec<u8>> {
     let (header, _shape, used) = ZnHeader::parse(blob)?;
     let chunk_hint = header.validate_for_decode()?;
     let scheme = crate::dtype::scheme_for_dtype(header.dtype_code)?;
+    // Band-strict mode gate: compatibility-band blobs must carry their
+    // canonical byte_reorder (an official encoder never writes truncation
+    // modes — the C paths are dead code), Neo-band blobs their canonical
+    // mode or one of THEIR truncation modes. Anything else could not have
+    // been produced by a known encoder; refuse instead of guessing.
+    if !scheme.allows_mode(header.byte_reorder) {
+        return Err(CodecError::Unsupported(format!(
+            "byte_reorder {} is not valid for dtype code {} (canonical {}, truncation modes {:?} — Plan §4.6.3)",
+            header.byte_reorder,
+            header.dtype_code,
+            scheme.canonical_mode(),
+            scheme.trunc_modes
+        )));
+    }
     // zipnn.py decompress: byte_reorder/bit_reorder straight from the
     // header; the plane count from the dtype code (4 default, 2 for
     // f16/bf16, 1 for fp8). For numBuf==1 the C ignores byte_reorder
@@ -952,6 +1064,168 @@ mod tests {
                 roundtrip(&data[..data.len() - cut], &params);
             }
         }
+    }
+
+    /// Phase 4: the 8-plane layout (F64 with the fused reorder, I64/U64
+    /// without) round-trips every remainder class — tail bytes (< 8) ride
+    /// planes 0..rem untransformed, exactly like the 2/4-plane C layout.
+    #[test]
+    fn roundtrip_8plane_f64_and_i64() {
+        // f64-ish data: sign/exponent-heavy words compress, mantissa noise
+        let mut data: Vec<u8> = Vec::with_capacity(600_000);
+        let mut x = 987654321u64;
+        for _ in 0..75_000 {
+            x = x
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            // double in [-1,1): exponent bits concentrated → low-entropy top bytes
+            let f = ((x >> 11) as f64 / (1u64 << 53) as f64) - 0.5;
+            data.extend_from_slice(&f.to_le_bytes());
+        }
+        for params in [
+            CoreParams {
+                num_buf: 8,
+                bit_reorder: 1,
+                byte_reorder: 88,
+                ..CoreParams::default()
+            },
+            CoreParams {
+                num_buf: 8,
+                bit_reorder: 0,
+                byte_reorder: 88,
+                ..CoreParams::default()
+            },
+        ] {
+            roundtrip(&data, &params);
+            // every remainder class 0..8 (tail bytes on the 8-plane layout)
+            for cut in 1usize..8 {
+                roundtrip(&data[..data.len() - cut], &params);
+            }
+            // multi-chunk with a non-final-chunk boundary remainder
+            roundtrip(&data[..300_001], &params);
+            // compression sanity on a LOW-ENTROPY f64 pattern (a small value
+            // set — every plane collapses): random-mantissa f64 legitimately
+            // stores ~7/8 raw (R11 measures the honest ratio, BENCH §9)
+            let mut small: Vec<u8> = Vec::new();
+            for i in 0..30_000u32 {
+                let v =
+                    [1.0f64, -1.0, 0.5, 2.0, -0.25][(i % 5) as usize] * (1.0 + f64::from(i % 3));
+                small.extend_from_slice(&v.to_le_bytes());
+            }
+            let comp = zipnn_core(&hdr32(), &small, &params).expect("compress");
+            assert!(
+                comp.len() < small.len() / 4,
+                "low-entropy 8-plane payload should collapse: {} vs {}",
+                comp.len(),
+                small.len()
+            );
+        }
+    }
+
+    /// Phase 4: truncation modes (Neo integer types) — dropped planes are
+    /// empty raw chunks, the restore zero-fills their byte positions.
+    #[test]
+    fn roundtrip_truncation_modes() {
+        // I32-style data whose top bytes are zero (values < 2^16): modes
+        // 41 (drop byte3), 9 (drop bytes 2+3) and 1 (keep only byte 0,
+        // values < 2^8) all apply to the right fixtures.
+        let mk = |max: u32, n: usize| -> Vec<u8> {
+            let mut v = Vec::with_capacity(n * 4);
+            let mut x = 12345u32;
+            for _ in 0..n {
+                x = x.wrapping_mul(1664525).wrapping_add(1013904223);
+                v.extend_from_slice(&(x % max).to_le_bytes());
+            }
+            v
+        };
+        let cases: &[(u8, u32)] = &[(41, 1 << 24), (9, 1 << 16), (1, 256)];
+        for &(mode, max) in cases {
+            let data = mk(max, 70_000); // 280 KB → two chunks at 256 KiB
+            let params = CoreParams {
+                num_buf: 4,
+                bit_reorder: 0,
+                byte_reorder: mode,
+                ..CoreParams::default()
+            };
+            roundtrip(&data, &params);
+            roundtrip(&data[..data.len() - 4], &params); // still word-aligned
+            // non-aligned data is refused (lossless truncation is impossible)
+            assert!(zipnn_core(&hdr32(), &data[..data.len() - 1], &params).is_err());
+            // smaller chunk sizes (still word-aligned) also work
+            let small = CoreParams {
+                chunk: 4096,
+                ..params
+            };
+            roundtrip(&data[..100_000], &small);
+            // the truncated payload must be SMALLER than the full 4-plane one
+            let full = CoreParams {
+                byte_reorder: 220,
+                ..params
+            };
+            let ct = zipnn_core(&hdr32(), &data, &params).expect("trunc");
+            let cf = zipnn_core(&hdr32(), &data, &full).expect("full");
+            assert!(
+                ct.len() < cf.len(),
+                "mode {mode}: {} vs {}",
+                ct.len(),
+                cf.len()
+            );
+        }
+        // I16-style: mode 1 (keep the low byte) and mode 8 (keep the high
+        // byte — multiples of 256)
+        let mut low: Vec<u8> = Vec::new();
+        let mut high: Vec<u8> = Vec::new();
+        let mut x = 777u32;
+        for _ in 0..50_000 {
+            x = x.wrapping_mul(1664525).wrapping_add(1013904223);
+            low.extend_from_slice(&((x % 200) as u16).to_le_bytes());
+            high.extend_from_slice(&(((x % 200) * 256) as u16).to_le_bytes());
+        }
+        for (mode, data) in [(1u8, &low), (8, &high)] {
+            let params = CoreParams {
+                num_buf: 2,
+                bit_reorder: 0,
+                byte_reorder: mode,
+                ..CoreParams::default()
+            };
+            roundtrip(data, &params);
+            roundtrip(&data[..data.len() - 2], &params);
+            assert!(zipnn_core(&hdr32(), &data[..data.len() - 1], &params).is_err());
+        }
+    }
+
+    /// Hostile truncated containers: a dropped plane carrying a huff0 flag
+    /// or actual bytes must ERROR, never mis-decode.
+    #[test]
+    fn truncated_container_tampering_is_detected() {
+        // mode-1 truncation is lossless ONLY for words whose bytes 1..3 are
+        // zero (u32 values < 256) — the codec trusts the mode by contract
+        // (the compressor's zero statistics pick it, znn_tensor)
+        let data: Vec<u8> = (0..10_000u32)
+            .map(|i| (i % 251) as u8)
+            .flat_map(|b| [b, 0, 0, 0])
+            .collect();
+        let params = CoreParams {
+            num_buf: 4,
+            bit_reorder: 0,
+            byte_reorder: 1, // keep plane 0 only
+            ..CoreParams::default()
+        };
+        let comp = zipnn_core(&hdr32(), &data, &params).expect("compress");
+        // baseline sanity
+        let out = combine_dtype(&comp[32..], data.len(), &params, None).expect("decode");
+        assert_eq!(out, data);
+        let num_chunks = data.len().div_ceil(params.chunk);
+        // flip a dropped plane's chunkType to 1 (huff0)
+        let mut bad = comp.clone();
+        bad[32 + num_chunks] = 1; // plane 1, chunk 0
+        assert!(combine_dtype(&bad[32..], data.len(), &params, None).is_err());
+        // inflate a dropped plane's cumSizes (claims bytes it must not have)
+        let mut bad2 = comp.clone();
+        let cums_at = 32 + 4 * num_chunks; // chunkTypes len = 4*num_chunks
+        let slot = cums_at + num_chunks * 8; // plane 1 chunk 0
+        bad2[slot..slot + 8].copy_from_slice(&7u64.to_le_bytes());
+        assert!(combine_dtype(&bad2[32..], data.len(), &params, None).is_err());
     }
 
     #[test]
@@ -1101,12 +1375,13 @@ mod tests {
     #[test]
     fn unsupported_modes_are_explicit_errors() {
         let data = [0u8; 1024];
+        // plane counts outside {1,2,4,8}
         assert!(
             zipnn_core(
                 &hdr32(),
                 &data,
                 &CoreParams {
-                    num_buf: 8,
+                    num_buf: 3,
                     ..CoreParams::default()
                 }
             )
@@ -1117,31 +1392,57 @@ mod tests {
                 &hdr32(),
                 &data,
                 &CoreParams {
-                    num_buf: 4,
-                    byte_reorder: 41,
+                    num_buf: 16,
                     ..CoreParams::default()
                 }
             )
             .is_err()
         );
-        assert!(
-            zipnn_core(
-                &hdr32(),
-                &data,
-                &CoreParams {
-                    num_buf: 2,
-                    byte_reorder: 8,
-                    ..CoreParams::default()
-                }
-            )
-            .is_err()
-        );
+        // mode/plane-count mismatches (the mask table is the gate)
+        for (mode, n) in [
+            (220u8, 8usize), // 4-plane mode on 8 planes
+            (88, 4),         // 8-plane mode on 4 planes
+            (88, 2),
+            (41, 2), // 4-plane truncation on 2 planes
+            (8, 4),  // 2-plane truncation on 4 planes
+            (10, 8), // 2/1-plane mode on 8 planes
+            (200, 4),
+            (0, 2),
+            (255, 4),
+        ] {
+            assert!(
+                zipnn_core(
+                    &hdr32(),
+                    &data,
+                    &CoreParams {
+                        num_buf: n,
+                        byte_reorder: mode,
+                        ..CoreParams::default()
+                    }
+                )
+                .is_err(),
+                "mode {mode} on {n} planes must be refused"
+            );
+        }
         assert!(
             zipnn_core(
                 &hdr32(),
                 &data,
                 &CoreParams {
                     chunk: 0,
+                    ..CoreParams::default()
+                }
+            )
+            .is_err()
+        );
+        // truncation modes require element-aligned data (word-aligned lens)
+        assert!(
+            zipnn_core(
+                &hdr32(),
+                &data[..1023],
+                &CoreParams {
+                    num_buf: 4,
+                    byte_reorder: 41,
                     ..CoreParams::default()
                 }
             )

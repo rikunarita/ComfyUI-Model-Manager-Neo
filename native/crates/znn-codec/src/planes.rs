@@ -1,5 +1,6 @@
 //! N-plane split/join — the ZipNN "byte grouping" pre-transform
-//! (Plan §4.5-2, Appendix C.4).
+//! (Plan §4.5-2, Appendix C.4; N = 1, 2, 4 compatibility + N = 8 and the
+//! truncation masks of the Neo extension band, Plan §4.6.2, Phase 4).
 //!
 //! The vendored C core (`data_manipulation_dtype16/32.c`) splits a chunk into
 //! N byte planes so that like-significant bytes land together before huff0.
@@ -33,8 +34,29 @@
 //!
 //! Every Appendix-C crash length is a permanent regression test here
 //! (`appendix_c_*`): split/join must succeed, round-trip, and never trap.
+//!
+//! Phase 4 additions (Neo extension band — the C core has NO 8-plane or
+//! truncation code paths, so these layouts are Neo-defined; see `dtype.rs`
+//! module docs for the mode table and the interoperability rationale):
+//!
+//! * **8-plane split/join** (`split8`/`join8`): the pure 8-way interleave
+//!   (byte k of every u64 word → plane k) with the f64 sign/exponent reorder
+//!   fused exactly like the 4-plane f32 path; tail bytes (`total % 8`) go to
+//!   planes `0..rem` UNTRANSFORMED, the natural generalisation of the C
+//!   in-bounds layout the 2/4-plane paths reproduce byte-exactly.
+//! * **Truncated (masked) layouts** (`split_masked`/`join_masked`/
+//!   `extract_plane_masked`): whole byte planes dropped by the integer
+//!   truncation modes are never materialised; dropped byte positions
+//!   reconstruct as ZERO. Masked layouts require word-aligned lengths
+//!   (checked) and never carry a bit reorder (truncation exists only for
+//!   the Neo integer types, whose `bit_reorder` is 0 — a masked call with
+//!   an active kind is refused instead of silently mis-transforming).
 
-use crate::reorder::{ReorderKind, revert_bf16_pair, revert_f32_word, revert_in_place};
+use crate::dtype::PlaneMask;
+use crate::reorder::{
+    ReorderKind, reorder_f64_word, revert_bf16_pair, revert_f32_word, revert_f64_word,
+    revert_in_place,
+};
 use crate::{CodecError, CodecResult};
 
 /// The in-bounds plane sizes of the C layout: `q + (b < total % n)`.
@@ -55,22 +77,13 @@ pub fn plane_sizes(total_len: usize, num_planes: usize) -> Vec<usize> {
 /// `plane_sizes(src.len(), num_planes)[b]` bytes.
 ///
 /// # Errors
-/// Plane count outside {1,2,4}, mismatched plane lengths, F64 kind (the
-/// 8-plane path is Phase 4).
+/// Plane count outside {1,2,4,8}, mismatched plane lengths, or a
+/// kind/plane-count mismatch (F64 belongs to the 8-plane path and vice
+/// versa).
 pub fn split(src: &[u8], planes: &mut [&mut [u8]], kind: ReorderKind) -> CodecResult<()> {
     let total = src.len();
     let n = planes.len();
-    if !matches!(n, 1 | 2 | 4) {
-        return Err(CodecError::Unsupported(format!(
-            "plane count {n} outside {{1,2,4}} (8-plane f64 is Phase 4)"
-        )));
-    }
-    if kind == ReorderKind::F64 {
-        return Err(CodecError::Unsupported(
-            "F64 reorder belongs to the 8-plane path (Phase 4); planes supports None/F32/Bf16"
-                .to_owned(),
-        ));
-    }
+    validate_layout(n, kind)?;
     let expect = plane_sizes(total, n);
     for (b, p) in planes.iter().enumerate() {
         if p.len() != expect[b] {
@@ -84,9 +97,30 @@ pub fn split(src: &[u8], planes: &mut [&mut [u8]], kind: ReorderKind) -> CodecRe
     match n {
         1 => planes[0].copy_from_slice(src), // kind ignored (C dtype8 path)
         2 => split2(src, planes, kind),
-        _ => split4(src, planes, kind),
+        4 => split4(src, planes, kind),
+        _ => split8(src, planes, kind),
     }
     Ok(())
+}
+
+/// The (plane count, kind) combinations the layouts define: the F64 reorder
+/// is the 8-plane transform; the 8-plane layout accepts None (I64/U64) or
+/// F64 (f64/complex128) and nothing else.
+fn validate_layout(n: usize, kind: ReorderKind) -> CodecResult<()> {
+    if !matches!(n, 1 | 2 | 4 | 8) {
+        return Err(CodecError::Unsupported(format!(
+            "plane count {n} outside {{1,2,4,8}}"
+        )));
+    }
+    match (n, kind) {
+        (8, ReorderKind::F32 | ReorderKind::Bf16) => Err(CodecError::Unsupported(format!(
+            "{kind:?} reorder is undefined for 8 planes (F64 or None only)"
+        ))),
+        (1 | 2 | 4, ReorderKind::F64) => Err(CodecError::Unsupported(
+            "F64 reorder belongs to the 8-plane path".to_owned(),
+        )),
+        _ => Ok(()),
+    }
 }
 
 /// The word transform for a kind (single place so every path — block,
@@ -224,6 +258,96 @@ fn split4(src: &[u8], planes: &mut [&mut [u8]], kind: ReorderKind) {
     }
 }
 
+/// The u64 word transform (8-plane path): F64 sign/exponent reorder or
+/// identity (I64/U64 — `ReorderKind::None`).
+#[inline]
+fn transform_word64(kind: ReorderKind, u: u64) -> u64 {
+    match kind {
+        ReorderKind::F64 => reorder_f64_word(u),
+        _ => u,
+    }
+}
+
+/// 8-plane interleave (byte k of every u64 word -> plane k) with the fused
+/// f64 sign/exponent reorder; tail bytes (total % 8) go to planes 0..rem
+/// UNTRANSFORMED — the natural generalisation of the C in-bounds layout the
+/// 2/4-plane paths reproduce byte-exactly (Neo extension band: the C core
+/// has no 8-plane code, Plan §4.6.2).
+#[allow(clippy::type_complexity)]
+fn split8(src: &[u8], planes: &mut [&mut [u8]], kind: ReorderKind) {
+    let total = src.len();
+    // the nested split_at_mut chain of split4, extended to 8 planes
+    let (r7, h7) = planes.split_at_mut(7);
+    let (r6, h6) = r7.split_at_mut(6);
+    let (r5, h5) = r6.split_at_mut(5);
+    let (r4, h4) = r5.split_at_mut(4);
+    let (r3, h3) = r4.split_at_mut(3);
+    let (r2, h2) = r3.split_at_mut(2);
+    let (h0, h1) = r2.split_at_mut(1);
+    let (p0, p1, p2, p3, p4, p5, p6, p7) = (
+        &mut h0[0][..],
+        &mut h1[0][..],
+        &mut h2[0][..],
+        &mut h3[0][..],
+        &mut h4[0][..],
+        &mut h5[0][..],
+        &mut h6[0][..],
+        &mut h7[0][..],
+    );
+
+    let words = total / 8;
+    let n8 = words / 8; // 64-byte blocks = 8 words -> 8 plane bytes each
+    for blk in 0..n8 {
+        let s = &src[blk * 64..blk * 64 + 64];
+        let mut t = [0u8; 64];
+        if kind == ReorderKind::F64 {
+            for k in 0..8 {
+                let u = u64::from_le_bytes(s[k * 8..k * 8 + 8].try_into().expect("8 bytes"));
+                t[k * 8..k * 8 + 8].copy_from_slice(&reorder_f64_word(u).to_le_bytes());
+            }
+        } else {
+            t.copy_from_slice(s);
+        }
+        let o = blk * 8;
+        p0[o..o + 8].copy_from_slice(&[t[0], t[8], t[16], t[24], t[32], t[40], t[48], t[56]]);
+        p1[o..o + 8].copy_from_slice(&[t[1], t[9], t[17], t[25], t[33], t[41], t[49], t[57]]);
+        p2[o..o + 8].copy_from_slice(&[t[2], t[10], t[18], t[26], t[34], t[42], t[50], t[58]]);
+        p3[o..o + 8].copy_from_slice(&[t[3], t[11], t[19], t[27], t[35], t[43], t[51], t[59]]);
+        p4[o..o + 8].copy_from_slice(&[t[4], t[12], t[20], t[28], t[36], t[44], t[52], t[60]]);
+        p5[o..o + 8].copy_from_slice(&[t[5], t[13], t[21], t[29], t[37], t[45], t[53], t[61]]);
+        p6[o..o + 8].copy_from_slice(&[t[6], t[14], t[22], t[30], t[38], t[46], t[54], t[62]]);
+        p7[o..o + 8].copy_from_slice(&[t[7], t[15], t[23], t[31], t[39], t[47], t[55], t[63]]);
+    }
+    // scalar remainder words
+    for w in n8 * 8..words {
+        let u = u64::from_le_bytes(src[w * 8..w * 8 + 8].try_into().expect("8 bytes"));
+        let t = transform_word64(kind, u).to_le_bytes();
+        p0[w] = t[0];
+        p1[w] = t[1];
+        p2[w] = t[2];
+        p3[w] = t[3];
+        p4[w] = t[4];
+        p5[w] = t[5];
+        p6[w] = t[6];
+        p7[w] = t[7];
+    }
+    // tail bytes (total % 8): NOT reordered (C tail semantics), plane k gets
+    // the k-th tail byte at index `words`
+    for k in 0..total % 8 {
+        let j = words * 8 + k;
+        match k {
+            0 => p0[words] = src[j],
+            1 => p1[words] = src[j],
+            2 => p2[words] = src[j],
+            3 => p3[words] = src[j],
+            4 => p4[words] = src[j],
+            5 => p5[words] = src[j],
+            6 => p6[words] = src[j],
+            _ => p7[words] = src[j],
+        }
+    }
+}
+
 /// Join `num_planes` planes back into `dst` (exact inverse of [`split`]):
 /// interleave, then revert the word reorder over the whole output (C
 /// `combine_buffers_*`: interleave, then `revert_all_floats_*(dst, total)` —
@@ -232,20 +356,12 @@ fn split4(src: &[u8], planes: &mut [&mut [u8]], kind: ReorderKind) {
 /// into the interleave loop (one pass instead of two).
 ///
 /// # Errors
-/// Plane count outside {1,2,4}, plane/dst length mismatch, F64 kind.
+/// Plane count outside {1,2,4,8}, plane/dst length mismatch, or a
+/// kind/plane-count mismatch (F64 belongs to the 8-plane path and vice
+/// versa).
 pub fn join(planes: &[&[u8]], dst: &mut [u8], kind: ReorderKind) -> CodecResult<()> {
     let n = planes.len();
-    if !matches!(n, 1 | 2 | 4) {
-        return Err(CodecError::Unsupported(format!(
-            "plane count {n} outside {{1,2,4}} (8-plane f64 is Phase 4)"
-        )));
-    }
-    if kind == ReorderKind::F64 {
-        return Err(CodecError::Unsupported(
-            "F64 reorder belongs to the 8-plane path (Phase 4); planes supports None/F32/Bf16"
-                .to_owned(),
-        ));
-    }
+    validate_layout(n, kind)?;
     let total: usize = planes.iter().map(|p| p.len()).sum();
     if dst.len() != total {
         return Err(CodecError::Size(format!(
@@ -329,74 +445,8 @@ pub fn join(planes: &[&[u8]], dst: &mut [u8], kind: ReorderKind) -> CodecResult<
             }
         }
         _ => {
-            let (p0, p1, p2, p3) = (planes[0], planes[1], planes[2], planes[3]);
-            let q = p3.len(); // the shortest plane = total/4
-            let n4 = q / 4;
-            if kind == ReorderKind::F32 {
-                // FUSED interleave + revert per u32 word (single pass; tail
-                // bytes stay un-reverted exactly like the C two-pass form)
-                for (d, ((x0, x1), (x2, x3))) in dst[..n4 * 16].chunks_exact_mut(16).zip(
-                    p0[..n4 * 4]
-                        .chunks_exact(4)
-                        .zip(p1[..n4 * 4].chunks_exact(4))
-                        .zip(
-                            p2[..n4 * 4]
-                                .chunks_exact(4)
-                                .zip(p3[..n4 * 4].chunks_exact(4)),
-                        ),
-                ) {
-                    let x0: &[u8; 4] = x0.try_into().expect("4");
-                    let x1: &[u8; 4] = x1.try_into().expect("4");
-                    let x2: &[u8; 4] = x2.try_into().expect("4");
-                    let x3: &[u8; 4] = x3.try_into().expect("4");
-                    let d: &mut [u8; 16] = d.try_into().expect("16");
-                    let mut t = [0u8; 16];
-                    for k in 0..4 {
-                        let u = u32::from_le_bytes([x0[k], x1[k], x2[k], x3[k]]);
-                        t[k * 4..k * 4 + 4].copy_from_slice(&revert_f32_word(u).to_le_bytes());
-                    }
-                    *d = t;
-                }
-                for i in n4 * 4..q {
-                    let u = u32::from_le_bytes([p0[i], p1[i], p2[i], p3[i]]);
-                    dst[i * 4..i * 4 + 4].copy_from_slice(&revert_f32_word(u).to_le_bytes());
-                }
-                let rem = total % 4;
-                for b in 0..rem {
-                    dst[q * 4 + b] = planes[b][expect[b] - 1];
-                }
-                return Ok(());
-            }
-            for (d, ((x0, x1), (x2, x3))) in dst[..n4 * 16].chunks_exact_mut(16).zip(
-                p0[..n4 * 4]
-                    .chunks_exact(4)
-                    .zip(p1[..n4 * 4].chunks_exact(4))
-                    .zip(
-                        p2[..n4 * 4]
-                            .chunks_exact(4)
-                            .zip(p3[..n4 * 4].chunks_exact(4)),
-                    ),
-            ) {
-                let x0: &[u8; 4] = x0.try_into().expect("4");
-                let x1: &[u8; 4] = x1.try_into().expect("4");
-                let x2: &[u8; 4] = x2.try_into().expect("4");
-                let x3: &[u8; 4] = x3.try_into().expect("4");
-                let d: &mut [u8; 16] = d.try_into().expect("16");
-                *d = [
-                    x0[0], x1[0], x2[0], x3[0], x0[1], x1[1], x2[1], x3[1], x0[2], x1[2], x2[2],
-                    x3[2], x0[3], x1[3], x2[3], x3[3],
-                ];
-            }
-            for i in n4 * 4..q {
-                dst[i * 4] = p0[i];
-                dst[i * 4 + 1] = p1[i];
-                dst[i * 4 + 2] = p2[i];
-                dst[i * 4 + 3] = p3[i];
-            }
-            // remainder: planes b < total%4 contribute their last byte
-            let rem = total % 4;
-            for b in 0..rem {
-                dst[q * 4 + b] = planes[b][expect[b] - 1];
+            if join4or8(planes, dst, kind, n, &expect, total) {
+                return Ok(()); // word revert already fused into the interleave
             }
         }
     }
@@ -404,6 +454,141 @@ pub fn join(planes: &[&[u8]], dst: &mut [u8], kind: ReorderKind) -> CodecResult<
     // C `revert_all_floats_*` semantics (chunks_exact ignores the tail).
     revert_in_place(kind, dst);
     Ok(())
+}
+
+/// The 4-plane and 8-plane join bodies. Returns `true` when the word revert
+/// was FUSED into the interleave (the caller must then skip the generic
+/// `revert_in_place` pass — identical bytes, one pass instead of two).
+fn join4or8(
+    planes: &[&[u8]],
+    dst: &mut [u8],
+    kind: ReorderKind,
+    n: usize,
+    expect: &[usize],
+    total: usize,
+) -> bool {
+    if n == 8 {
+        return join8(planes, dst, kind, total);
+    }
+    let (p0, p1, p2, p3) = (planes[0], planes[1], planes[2], planes[3]);
+    let q = p3.len(); // the shortest plane = total/4
+    let n4 = q / 4;
+    if kind == ReorderKind::F32 {
+        // FUSED interleave + revert per u32 word (single pass; tail
+        // bytes stay un-reverted exactly like the C two-pass form)
+        for (d, ((x0, x1), (x2, x3))) in dst[..n4 * 16].chunks_exact_mut(16).zip(
+            p0[..n4 * 4]
+                .chunks_exact(4)
+                .zip(p1[..n4 * 4].chunks_exact(4))
+                .zip(
+                    p2[..n4 * 4]
+                        .chunks_exact(4)
+                        .zip(p3[..n4 * 4].chunks_exact(4)),
+                ),
+        ) {
+            let x0: &[u8; 4] = x0.try_into().expect("4");
+            let x1: &[u8; 4] = x1.try_into().expect("4");
+            let x2: &[u8; 4] = x2.try_into().expect("4");
+            let x3: &[u8; 4] = x3.try_into().expect("4");
+            let d: &mut [u8; 16] = d.try_into().expect("16");
+            let mut t = [0u8; 16];
+            for k in 0..4 {
+                let u = u32::from_le_bytes([x0[k], x1[k], x2[k], x3[k]]);
+                t[k * 4..k * 4 + 4].copy_from_slice(&revert_f32_word(u).to_le_bytes());
+            }
+            *d = t;
+        }
+        for i in n4 * 4..q {
+            let u = u32::from_le_bytes([p0[i], p1[i], p2[i], p3[i]]);
+            dst[i * 4..i * 4 + 4].copy_from_slice(&revert_f32_word(u).to_le_bytes());
+        }
+        let rem = total % 4;
+        for b in 0..rem {
+            dst[q * 4 + b] = planes[b][expect[b] - 1];
+        }
+        return true;
+    }
+    for (d, ((x0, x1), (x2, x3))) in dst[..n4 * 16].chunks_exact_mut(16).zip(
+        p0[..n4 * 4]
+            .chunks_exact(4)
+            .zip(p1[..n4 * 4].chunks_exact(4))
+            .zip(
+                p2[..n4 * 4]
+                    .chunks_exact(4)
+                    .zip(p3[..n4 * 4].chunks_exact(4)),
+            ),
+    ) {
+        let x0: &[u8; 4] = x0.try_into().expect("4");
+        let x1: &[u8; 4] = x1.try_into().expect("4");
+        let x2: &[u8; 4] = x2.try_into().expect("4");
+        let x3: &[u8; 4] = x3.try_into().expect("4");
+        let d: &mut [u8; 16] = d.try_into().expect("16");
+        *d = [
+            x0[0], x1[0], x2[0], x3[0], x0[1], x1[1], x2[1], x3[1], x0[2], x1[2], x2[2], x3[2],
+            x0[3], x1[3], x2[3], x3[3],
+        ];
+    }
+    for i in n4 * 4..q {
+        dst[i * 4] = p0[i];
+        dst[i * 4 + 1] = p1[i];
+        dst[i * 4 + 2] = p2[i];
+        dst[i * 4 + 3] = p3[i];
+    }
+    // remainder: planes b < total%4 contribute their last byte
+    let rem = total % 4;
+    for b in 0..rem {
+        dst[q * 4 + b] = planes[b][expect[b] - 1];
+    }
+    false
+}
+
+/// 8-plane interleave back to words with the FUSED f64 revert (exact inverse
+/// of `split8`; tail bytes stay un-reverted like the C two-pass semantics).
+/// Returns `true` when the revert was fused (kind F64), `false` for the
+/// plain interleave (kind None — I64/U64).
+fn join8(planes: &[&[u8]], dst: &mut [u8], kind: ReorderKind, total: usize) -> bool {
+    let fused = kind == ReorderKind::F64;
+    let words = total / 8;
+    let n8 = words / 8; // 64-byte blocks = 8 words
+    for blk in 0..n8 {
+        let o = blk * 64;
+        let po = blk * 8;
+        let mut t = [0u8; 64];
+        for i in 0..8 {
+            t[i * 8] = planes[0][po + i];
+            t[i * 8 + 1] = planes[1][po + i];
+            t[i * 8 + 2] = planes[2][po + i];
+            t[i * 8 + 3] = planes[3][po + i];
+            t[i * 8 + 4] = planes[4][po + i];
+            t[i * 8 + 5] = planes[5][po + i];
+            t[i * 8 + 6] = planes[6][po + i];
+            t[i * 8 + 7] = planes[7][po + i];
+        }
+        if fused {
+            for k in 0..8 {
+                let u = u64::from_le_bytes(t[k * 8..k * 8 + 8].try_into().expect("8 bytes"));
+                dst[o + k * 8..o + k * 8 + 8].copy_from_slice(&revert_f64_word(u).to_le_bytes());
+            }
+        } else {
+            dst[o..o + 64].copy_from_slice(&t);
+        }
+    }
+    // scalar remainder words
+    for w in n8 * 8..words {
+        let mut word = [0u8; 8];
+        for (b, p) in planes.iter().enumerate().take(8) {
+            word[b] = p[w];
+        }
+        let u = u64::from_le_bytes(word);
+        let t = if fused { revert_f64_word(u) } else { u };
+        dst[w * 8..w * 8 + 8].copy_from_slice(&t.to_le_bytes());
+    }
+    // tail bytes (total % 8): planes b < rem contribute their last byte at
+    // index `words` — un-reverted (partial word, C tail semantics)
+    for b in 0..total % 8 {
+        dst[words * 8 + b] = planes[b][words];
+    }
+    fused
 }
 
 /// Extract a SINGLE plane `b` of the `n`-plane layout of `src` into `dst`
@@ -414,8 +599,8 @@ pub fn join(planes: &[&[u8]], dst: &mut [u8], kind: ReorderKind) -> CodecResult<
 /// into the output (byte-identical results, one full copy less).
 ///
 /// # Errors
-/// Plane index/count outside the {1,2,4} layout, `dst` length mismatch,
-/// F64 kind (Phase 4).
+/// Plane index outside the layout, plane count outside {1,2,4,8}, `dst`
+/// length mismatch, or a kind/plane-count mismatch (F64 ↔ 8-plane).
 pub fn extract_plane(
     src: &[u8],
     n: usize,
@@ -423,16 +608,12 @@ pub fn extract_plane(
     kind: ReorderKind,
     dst: &mut [u8],
 ) -> CodecResult<()> {
-    if !matches!(n, 1 | 2 | 4) || b >= n {
+    if b >= n {
         return Err(CodecError::Unsupported(format!(
-            "extract_plane: n={n} b={b} outside the {{1,2,4}} layout"
+            "extract_plane: plane {b} outside the {n}-plane layout"
         )));
     }
-    if kind == ReorderKind::F64 {
-        return Err(CodecError::Unsupported(
-            "F64 reorder belongs to the 8-plane path (Phase 4)".to_owned(),
-        ));
-    }
+    validate_layout(n, kind)?;
     let total = src.len();
     let expect = plane_sizes(total, n);
     if dst.len() != expect[b] {
@@ -471,6 +652,24 @@ pub fn extract_plane(
                 }
             }
         }
+        8 => {
+            // byte k of every (f64-reordered) u64 word → plane k; tail byte
+            // k → plane k (untransformed) — the split8 inverse
+            let words = total / 8;
+            if kind == ReorderKind::None {
+                for (i, w) in src[..words * 8].chunks_exact(8).enumerate() {
+                    dst[i] = w[b];
+                }
+            } else {
+                for (i, w) in src[..words * 8].chunks_exact(8).enumerate() {
+                    let u = u64::from_le_bytes(w.try_into().expect("8 bytes"));
+                    dst[i] = transform_word64(kind, u).to_le_bytes()[b];
+                }
+            }
+            if b < total % 8 {
+                dst[words] = src[words * 8 + b];
+            }
+        }
         _ => {
             // byte k of every (reordered) word → plane k; tail byte k → plane k
             let words = total / 4;
@@ -488,6 +687,153 @@ pub fn extract_plane(
                 dst[words] = src[words * 4 + b];
             }
         }
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Truncated (masked) layouts — Neo extension band integer types
+// (dtype.rs module docs: whole zero planes are dropped from the payload and
+// reconstructed as zeros). Masked layouts are word-aligned by construction
+// and never carry a bit reorder (truncation exists only for the Neo integer
+// codes, whose `bit_reorder` is 0).
+// ---------------------------------------------------------------------------
+
+/// Validate a masked-layout call: n ∈ {2,4} (the truncatable word sizes),
+/// kind None, at least one kept plane, and a word-aligned length.
+fn validate_masked(
+    n: usize,
+    kind: ReorderKind,
+    mask: &PlaneMask,
+    total: usize,
+) -> CodecResult<usize> {
+    if !matches!(n, 2 | 4) {
+        return Err(CodecError::Unsupported(format!(
+            "masked (truncated) layouts exist for 2/4 planes only, got {n}"
+        )));
+    }
+    if kind != ReorderKind::None {
+        return Err(CodecError::Unsupported(
+            "masked (truncated) layouts never carry a bit reorder (Neo integer types only)"
+                .to_owned(),
+        ));
+    }
+    if !mask.iter().take(n).any(|k| *k) {
+        return Err(CodecError::Unsupported(
+            "masked layout keeps no planes at all".to_owned(),
+        ));
+    }
+    if total % n != 0 {
+        return Err(CodecError::Size(format!(
+            "masked layout requires element-aligned lengths: {total} % {n} != 0"
+        )));
+    }
+    Ok(total / n)
+}
+
+/// Masked [`split`]: kept planes receive byte `b` of every word (one byte
+/// per element); dropped planes must be zero-length and stay untouched.
+///
+/// # Errors
+/// Invalid masked layout (see [`validate_masked`]) or plane length mismatch.
+pub fn split_masked(
+    src: &[u8],
+    planes: &mut [&mut [u8]],
+    kind: ReorderKind,
+    mask: &PlaneMask,
+) -> CodecResult<()> {
+    let n = planes.len();
+    let elems = validate_masked(n, kind, mask, src.len())?;
+    for (b, p) in planes.iter().enumerate().take(n) {
+        let want = if mask[b] { elems } else { 0 };
+        if p.len() != want {
+            return Err(CodecError::Size(format!(
+                "masked plane {b} is {} bytes, layout requires {want}",
+                p.len()
+            )));
+        }
+    }
+    for b in 0..n {
+        if !mask[b] {
+            continue;
+        }
+        let dst = &mut planes[b];
+        for (i, w) in src.chunks_exact(n).enumerate() {
+            dst[i] = w[b];
+        }
+    }
+    Ok(())
+}
+
+/// Masked [`join`]: byte `b` of every output word comes from kept plane `b`
+/// (its i-th byte) or is ZERO for dropped planes.
+///
+/// # Errors
+/// Invalid masked layout or plane/dst length mismatch.
+pub fn join_masked(
+    planes: &[&[u8]],
+    dst: &mut [u8],
+    kind: ReorderKind,
+    mask: &PlaneMask,
+) -> CodecResult<()> {
+    let n = planes.len();
+    let elems = validate_masked(n, kind, mask, dst.len())?;
+    for (b, p) in planes.iter().enumerate().take(n) {
+        let want = if mask[b] { elems } else { 0 };
+        if p.len() != want {
+            return Err(CodecError::Size(format!(
+                "masked plane {b} is {} bytes, layout for dst {} requires {want}",
+                p.len(),
+                dst.len()
+            )));
+        }
+    }
+    for b in 0..n {
+        let src_plane = planes[b];
+        if mask[b] {
+            for (i, slot) in dst.chunks_exact_mut(n).enumerate() {
+                slot[b] = src_plane[i];
+            }
+        } else {
+            for slot in dst.chunks_exact_mut(n) {
+                slot[b] = 0;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Masked [`extract_plane`]: a dropped plane extracts to an empty `dst`;
+/// a kept plane extracts byte `b` of every word.
+///
+/// # Errors
+/// Invalid masked layout or `dst` length mismatch.
+pub fn extract_plane_masked(
+    src: &[u8],
+    n: usize,
+    b: usize,
+    kind: ReorderKind,
+    mask: &PlaneMask,
+    dst: &mut [u8],
+) -> CodecResult<()> {
+    if b >= n {
+        return Err(CodecError::Unsupported(format!(
+            "extract_plane_masked: plane {b} outside the {n}-plane layout"
+        )));
+    }
+    let elems = validate_masked(n, kind, mask, src.len())?;
+    let want = if mask[b] { elems } else { 0 };
+    if dst.len() != want {
+        return Err(CodecError::Size(format!(
+            "extract_plane_masked: dst {} bytes, layout requires {want}",
+            dst.len()
+        )));
+    }
+    if !mask[b] {
+        return Ok(()); // dropped plane: nothing stored, dst stays empty
+    }
+    for (i, w) in src.chunks_exact(n).enumerate() {
+        dst[i] = w[b];
     }
     Ok(())
 }
@@ -523,6 +869,38 @@ mod tests {
                     roundtrip(total, n, kind, 31);
                 }
             }
+            // Phase 4: the 8-plane path with both of its legal kinds
+            for kind in [ReorderKind::None, ReorderKind::F64] {
+                roundtrip(total, 8, kind, 31);
+            }
+        }
+    }
+
+    /// The kind/plane-count gate: F64 is 8-plane-only and the u32-based
+    /// kinds are undefined for 8 planes (dtype.rs `kind_for` can never
+    /// produce those pairs, but the layout functions defend anyway).
+    #[test]
+    fn invalid_kind_plane_combinations_are_errors() {
+        let src = [0u8; 32];
+        let mut p8: Vec<Vec<u8>> = vec![vec![0u8; 4]; 8];
+        {
+            let mut planes: Vec<&mut [u8]> = p8.iter_mut().map(|v| v.as_mut_slice()).collect();
+            assert!(split(&src, &mut planes, ReorderKind::F32).is_err());
+            assert!(split(&src, &mut planes, ReorderKind::Bf16).is_err());
+        }
+        let mut p4: Vec<Vec<u8>> = vec![vec![0u8; 8]; 4];
+        {
+            let mut planes: Vec<&mut [u8]> = p4.iter_mut().map(|v| v.as_mut_slice()).collect();
+            assert!(split(&src, &mut planes, ReorderKind::F64).is_err());
+        }
+        let planes8: Vec<&[u8]> = p8.iter().map(|v| v.as_slice()).collect();
+        let mut dst = [0u8; 32];
+        assert!(join(&planes8, &mut dst, ReorderKind::F32).is_err());
+        // plane count 3 stays rejected
+        let mut p3: Vec<Vec<u8>> = vec![vec![0u8; 10]; 3];
+        {
+            let mut planes: Vec<&mut [u8]> = p3.iter_mut().map(|v| v.as_mut_slice()).collect();
+            assert!(split(&src, &mut planes, ReorderKind::None).is_err());
         }
     }
 
@@ -534,6 +912,8 @@ mod tests {
                 roundtrip(total, 4, ReorderKind::F32, 3);
                 roundtrip(total, 2, ReorderKind::Bf16, 5);
                 roundtrip(total, 1, ReorderKind::None, 9);
+                roundtrip(total, 8, ReorderKind::F64, 11);
+                roundtrip(total, 8, ReorderKind::None, 13);
             }
         }
     }
@@ -618,10 +998,18 @@ mod tests {
             0usize, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 33, 64, 65, 255, 256, 257, 1000,
         ] {
             let src: Vec<u8> = (0..total).map(|i| ((i * 37 + 11) % 251) as u8).collect();
-            for n in [1usize, 2, 4] {
-                for kind in [ReorderKind::None, ReorderKind::F32, ReorderKind::Bf16] {
+            for n in [1usize, 2, 4, 8] {
+                for kind in [
+                    ReorderKind::None,
+                    ReorderKind::F32,
+                    ReorderKind::Bf16,
+                    ReorderKind::F64,
+                ] {
                     if n == 1 && kind != ReorderKind::None {
                         continue; // kind is ignored for n=1 (both paths agree anyway)
+                    }
+                    if (n == 8) != (kind == ReorderKind::F64) && kind != ReorderKind::None {
+                        continue; // F64 ↔ 8-plane; F32/Bf16 ↔ 4/2-plane
                     }
                     let sizes = plane_sizes(total, n);
                     let mut storage: Vec<Vec<u8>> = sizes.iter().map(|&s| vec![0u8; s]).collect();
@@ -637,6 +1025,155 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// The 8-plane layout is the PURE interleave (byte k of every u64 word
+    /// → plane k), with the f64 reorder fused for kind F64 — checked against
+    /// a straightforward reference implementation.
+    #[test]
+    fn layout_8plane_is_the_pure_interleave() {
+        let total = 1000; // 125 words, no tail
+        let src: Vec<u8> = (0..total).map(|i| ((i * 91 + 17) % 256) as u8).collect();
+        for kind in [ReorderKind::None, ReorderKind::F64] {
+            let sizes = plane_sizes(total, 8);
+            let mut storage: Vec<Vec<u8>> = sizes.iter().map(|&s| vec![0u8; s]).collect();
+            {
+                let mut planes: Vec<&mut [u8]> =
+                    storage.iter_mut().map(|v| v.as_mut_slice()).collect();
+                split(&src, &mut planes, kind).expect("split");
+            }
+            for (b, plane) in storage.iter().enumerate() {
+                for w in 0..125 {
+                    let word = u64::from_le_bytes(src[w * 8..w * 8 + 8].try_into().unwrap());
+                    let t = match kind {
+                        ReorderKind::F64 => crate::reorder::reorder_f64_word(word),
+                        _ => word,
+                    };
+                    assert_eq!(
+                        plane[w],
+                        t.to_le_bytes()[b],
+                        "word {w} plane {b} kind {kind:?}"
+                    );
+                }
+            }
+        }
+        // tail bytes land in planes 0..rem untransformed at index `words`
+        let total = 1003; // 125 words + 3 tail bytes
+        let src: Vec<u8> = (0..total).map(|i| ((i * 45 + 7) % 256) as u8).collect();
+        let sizes = plane_sizes(total, 8);
+        assert_eq!(sizes, vec![126, 126, 126, 125, 125, 125, 125, 125]);
+        let mut storage: Vec<Vec<u8>> = sizes.iter().map(|&s| vec![0u8; s]).collect();
+        {
+            let mut planes: Vec<&mut [u8]> = storage.iter_mut().map(|v| v.as_mut_slice()).collect();
+            split(&src, &mut planes, ReorderKind::F64).expect("split");
+        }
+        for k in 0..3 {
+            assert_eq!(storage[k][125], src[1000 + k], "tail byte {k}");
+        }
+    }
+
+    fn masked_roundtrip(total: usize, n: usize, mask: &PlaneMask, seed: u8) {
+        // truncation is lossless ONLY when the dropped byte positions are
+        // zero (the compressor verifies exactly that) — mirror the contract
+        let src: Vec<u8> = (0..total)
+            .map(|i| {
+                if mask[i % n] {
+                    (i as u8).wrapping_mul(seed).wrapping_add(7)
+                } else {
+                    0
+                }
+            })
+            .collect();
+        let elems = total / n;
+        let mut storage: Vec<Vec<u8>> = (0..n)
+            .map(|b| vec![0u8; if mask[b] { elems } else { 0 }])
+            .collect();
+        {
+            let mut planes: Vec<&mut [u8]> = storage.iter_mut().map(|v| v.as_mut_slice()).collect();
+            split_masked(&src, &mut planes, ReorderKind::None, mask).expect("split_masked");
+        }
+        // extract_plane_masked parity with split_masked (the codec's virtual
+        // raw path depends on byte equality)
+        for (b, plane) in storage.iter().enumerate().take(n) {
+            let mut dst = vec![0u8; plane.len()];
+            extract_plane_masked(&src, n, b, ReorderKind::None, mask, &mut dst).expect("extract");
+            assert_eq!(&dst, plane, "masked extract parity n={n} b={b}");
+        }
+        let mut dst = vec![0u8; total];
+        {
+            let planes: Vec<&[u8]> = storage.iter().map(|v| v.as_slice()).collect();
+            join_masked(&planes, &mut dst, ReorderKind::None, mask).expect("join_masked");
+        }
+        assert_eq!(
+            dst, src,
+            "masked roundtrip total={total} n={n} mask={mask:?}"
+        );
+    }
+
+    #[test]
+    fn masked_roundtrips_every_truncation_mode() {
+        use crate::dtype::plane_mask;
+        // 2-plane modes 1 / 8 (I16/U16 truncation)
+        for mode in [1u8, 8] {
+            let mask = plane_mask(mode, 2).unwrap();
+            for total in [0usize, 2, 4, 64, 262_144, 262_146, 1_000_000] {
+                masked_roundtrip(total, 2, &mask, 13);
+            }
+        }
+        // 4-plane modes 41 / 9 / 1 (I32/U32 truncation)
+        for mode in [41u8, 9, 1] {
+            let mask = plane_mask(mode, 4).unwrap();
+            for total in [0usize, 4, 8, 64, 262_144, 262_148, 1_000_000] {
+                masked_roundtrip(total, 4, &mask, 17);
+            }
+        }
+        // full masks through the masked API behave like split/join
+        let full4 = plane_mask(220, 4).unwrap();
+        masked_roundtrip(1024, 4, &full4, 19);
+        let full2 = plane_mask(10, 2).unwrap();
+        masked_roundtrip(1024, 2, &full2, 23);
+    }
+
+    #[test]
+    fn masked_layouts_reject_misuse() {
+        use crate::dtype::plane_mask;
+        let mask = plane_mask(41, 4).unwrap();
+        // non word-aligned length
+        let src = [0u8; 101];
+        let mut storage: Vec<Vec<u8>> = vec![vec![0u8; 25]; 3];
+        storage.push(Vec::new());
+        {
+            let mut planes: Vec<&mut [u8]> = storage.iter_mut().map(|v| v.as_mut_slice()).collect();
+            let err = split_masked(&src, &mut planes, ReorderKind::None, &mask).unwrap_err();
+            assert!(matches!(err, CodecError::Size(_)), "{err:?}");
+        }
+        // active reorder kind is refused (truncation is integer-only)
+        let src = [0u8; 100];
+        {
+            let mut planes: Vec<&mut [u8]> = storage.iter_mut().map(|v| v.as_mut_slice()).collect();
+            assert!(split_masked(&src, &mut planes, ReorderKind::F32, &mask).is_err());
+        }
+        // wrong plane length
+        let mut bad: Vec<Vec<u8>> = vec![vec![0u8; 24]; 3];
+        bad.push(Vec::new());
+        {
+            let mut planes: Vec<&mut [u8]> = bad.iter_mut().map(|v| v.as_mut_slice()).collect();
+            assert!(split_masked(&src, &mut planes, ReorderKind::None, &mask).is_err());
+        }
+        // 8-plane and 1-plane masks do not exist for the masked API
+        let mask8 = plane_mask(88, 8).unwrap();
+        let src8 = [0u8; 64];
+        let mut st8: Vec<Vec<u8>> = vec![vec![0u8; 8]; 8];
+        {
+            let mut planes: Vec<&mut [u8]> = st8.iter_mut().map(|v| v.as_mut_slice()).collect();
+            assert!(split_masked(&src8, &mut planes, ReorderKind::None, &mask8).is_err());
+        }
+        // an all-dropped mask is refused
+        let empty = [false; 8];
+        {
+            let mut planes: Vec<&mut [u8]> = storage.iter_mut().map(|v| v.as_mut_slice()).collect();
+            assert!(split_masked(&src, &mut planes, ReorderKind::None, &empty).is_err());
         }
     }
 
@@ -686,6 +1223,63 @@ mod proptests {
             {
                 let planes: Vec<&[u8]> = storage.iter().map(|v| v.as_slice()).collect();
                 join(&planes, &mut dst, kind).unwrap();
+            }
+            prop_assert_eq!(&dst, &src);
+        }
+
+        /// The 8-plane path (Phase 4): split → join is the identity for
+        /// arbitrary lengths with both legal kinds.
+        #[test]
+        fn split_join_identity_8plane(
+            src in proptest::collection::vec(any::<u8>(), 0..2100),
+            f64 in prop_oneof![Just(true), Just(false)],
+        ) {
+            let kind = if f64 { ReorderKind::F64 } else { ReorderKind::None };
+            let sizes = plane_sizes(src.len(), 8);
+            let mut storage: Vec<Vec<u8>> = sizes.iter().map(|&s| vec![0u8; s]).collect();
+            {
+                let mut planes: Vec<&mut [u8]> = storage.iter_mut().map(|v| v.as_mut_slice()).collect();
+                split(&src, &mut planes, kind).unwrap();
+            }
+            let mut dst = vec![0u8; src.len()];
+            {
+                let planes: Vec<&[u8]> = storage.iter().map(|v| v.as_slice()).collect();
+                join(&planes, &mut dst, kind).unwrap();
+            }
+            prop_assert_eq!(&dst, &src);
+        }
+
+        /// Masked (truncated) layouts: word-aligned data with all-zero
+        /// dropped planes round-trips — dropped positions must come back
+        /// as the zeros they were.
+        #[test]
+        fn masked_split_join_identity(
+            base in proptest::collection::vec(any::<u8>(), 0..600),
+            n in prop_oneof![Just(2usize), Just(4)],
+            mode_idx in 0..3usize,
+        ) {
+            let modes2 = [1u8, 8, 10];
+            let modes4 = [41u8, 9, 1];
+            let mode = if n == 2 { modes2[mode_idx] } else { modes4[mode_idx] };
+            let mask = crate::dtype::plane_mask(mode, n).unwrap();
+            // build a word-aligned source whose dropped-plane bytes are zero
+            let elems = base.len() / n;
+            let mut src = vec![0u8; elems * n];
+            for i in 0..elems {
+                for b in 0..n {
+                    src[i * n + b] = if mask[b] { base[i * n + b] } else { 0 };
+                }
+            }
+            let mut storage: Vec<Vec<u8>> =
+                (0..n).map(|b| vec![0u8; if mask[b] { elems } else { 0 }]).collect();
+            {
+                let mut planes: Vec<&mut [u8]> = storage.iter_mut().map(|v| v.as_mut_slice()).collect();
+                split_masked(&src, &mut planes, ReorderKind::None, &mask).unwrap();
+            }
+            let mut dst = vec![0u8; src.len()];
+            {
+                let planes: Vec<&[u8]> = storage.iter().map(|v| v.as_slice()).collect();
+                join_masked(&planes, &mut dst, ReorderKind::None, &mask).unwrap();
             }
             prop_assert_eq!(&dst, &src);
         }

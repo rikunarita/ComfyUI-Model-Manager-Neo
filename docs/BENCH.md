@@ -559,7 +559,68 @@ NULL プレーン書込み（付録 C.4）だが、Rust は bounds‑checked 端
 | 相互運用の一次ソース発見 | **公式デルタ文件的 method バイトは 0–4 のいずれでもあり得る**: `zipnn.py` API 既定は `AUTO`（→ byte 7 = 0、実機ダンプで確認）、公式 CLI `zipnn_compress_file_delta.py` は既定 `HUFFMAN` だが `--method AUTO/ZSTD/...` を受理、しかも float32 byte コンテナでは method 値に**よらず常に Huffman ペイロード**（`compress_bin` の分岐）、公式解凍側は byte 7 を**一切読まない**（`decompress_bin` の zstd 分岐は `dtype_size = 0` ハードコードのデッドコード）— 2026‑09‑25 に upstream main のスクリプト取得 + pip 0.5.4 実機で確認。→ デルタ復号は `ZnHeader::decode_delta`（method ゲートなし、ペイロードは構造検証が担保）で公式出力を 100 % 受理（Plan §7 R12）。**テンソル経路は Phase 2 の厳格ゲート（method=1 のみ）を維持**（Plan 付録 B.1 — Neo/公式スクリプトの safetensors 成果物は常に HUFFMAN） |
 | バッチ                   | `walk_models`（ignore crate 並列 walk — os.walk 意味論の忠実移植: 隠しファイル包含・symlink dir 非追跡・不能読ディレクトリ静黙スキップ・sorted 安定順）と `move_with_sidecars`（20 スロット プレビュー + .md/.txt 規則）は Python 現行関数との**ゴールデン parity テスト**付き。バンドル意味論は Python 維持（Plan Phase 3 タスク規定）。バイナリサイズ 1,026,536 → **2,376,240 B**（ignore/serde_json/delta 追加分 — 予算 4 MB の 57 %、CI サイズゲート緑）                                                                                                                                                                                                                                                                                                                                              |
 
-## 9. 再現手順
+## 9. Phase 4 — dtype カバレッジと圧縮率実測（2026‑09‑26、K14 の証跡）
+
+`scripts/bench/bench_phase4_dtypes.py`（native バイナリ against、生産経路
+`zipnn_compress`/`zipnn_decompress`）による実測。フィクスチャは重量風の
+決定論的パターン（符号/指数が集中した float・小さな整数・疎なマスク —
+L4 コーパスと同系）。全 22 dtype が **sha256 検証 + byte‑exact 復元**で
+往復し、ゲート PASS（証跡 JSON: `scripts/bench/results/phase4_dtypes.json`、
+mm_core `0.3.0‑alpha.0+8c50af788`、2 vCPU / SHA‑NI なし機）。
+
+### 9.1 K14 — 対応 dtype 数: 5 種 → **safetensors 0.8 全 22 種**
+
+| dtype                     | 帯   | code    | byte5（実測） | 圧縮率（blob/raw） | 備考                                                                                                              |
+| ------------------------- | ---- | ------- | ------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| BF16                      | 互換 | 6       | 10            | 0.500              | Phase 2 と同一経路（L2 系譜のバイト同一性維持）                                                                   |
+| F16                       | 互換 | 4       | 10            | 0.563              | 同上                                                                                                              |
+| F32                       | 互換 | 1       | 220           | 0.756              | 同上                                                                                                              |
+| F8_E4M3 / F8_E5M2         | 互換 | 29/30   | 10            | 0.375              | 1 平面（128 KiB クランプ）                                                                                        |
+| **F64**                   | Neo  | 128     | **88**        | **0.515**          | 8 平面 + f64 並べ替え（Plan §4.6.2 の新方式）                                                                     |
+| **C64**                   | Neo  | **130** | 220           | 0.802              | 4 平面 f32 方式を u32 単位で共用（cos/sin のマントッサ雑音で率はやや低い）                                        |
+| I8                        | Neo  | 132     | 10            | 0.500              | 16 値 → ~4 bit/符号                                                                                               |
+| U8                        | Neo  | 133     | 10            | 0.375              | 8 値 → ~3 bit/符号                                                                                                |
+| **BOOL**                  | Neo  | 134     | 10            | **0.125**          | Plan §4.6.2 の「約 1/8」を実測で確認                                                                              |
+| I16 / U16                 | Neo  | 135/136 | 10            | 0.563              | 符号付き小振幅（高バイト 0x00/0xFF が潰れる）                                                                     |
+| I32 / U32                 | Neo  | 137/138 | **41**        | 0.532              | 値 < 2^17 → **トランケート自動選択**（3 バイト保持）                                                              |
+| I64 / U64                 | Neo  | 139/140 | **88**        | **0.313**          | 8 平面・上位 4 面がゼロ → huff0 で消失                                                                            |
+| F8_E4M3FNUZ / F8_E5M2FNUZ | Neo  | 141/142 | 10            | 0.375              | 不透明 1 平面                                                                                                     |
+| F8_E8M0                   | Neo  | 143     | 10            | 0.375              | 同上（実データは 2 のべき乗指数のみ → さらに低い期待値）                                                          |
+| F4                        | Neo  | 144     | 10            | 0.375              | パックニブル（shape は要素数、byte5=10 の 1 平面）                                                                |
+| F6_E2M3 / F6_E3M2         | Neo  | 145/146 | 10            | 0.375              | パック 6 bit（同上。torch 2.14 に float6 dtype は**存在しない**ことを実機確認 — infos には safetensors 名を記録） |
+
+### 9.2 トランケーション自動選択（ゼロ統計）の実証
+
+| ケース | 値域       | 選択モード（実測）         | 圧縮率    | byte‑exact |
+| ------ | ---------- | -------------------------- | --------- | ---------- |
+| I32    | < 2^16     | **9**（下位 2 バイト保持） | 0.500     | ✓          |
+| I32    | < 2^8      | **1**（最下位のみ）        | **0.250** | ✓          |
+| U16    | 256 の倍数 | **8**（上位バイトのみ）    | 0.500     | ✓          |
+
+可逆性の根拠: 圧縮側が「落とす平面が**テンソル全体でゼロ**」であることを
+確認したときのみモードを書く（`select_truncation`）。負値を含む I32 は上位
+バイトが 0xFF になるため自動的に非トランケート（220）に留まる — テストで固定。
+
+### 9.3 相互運用（L5 セクション E、pip zipnn 0.5.4 実ビルド against）
+
+- **E1**: Neo 帯ブロブ（F64=128 / I32=137 / BOOL=134 / C64=130）は公式
+  デコーダが全て `ValueError: Unsupported Dtype N` で**明示拒否**
+  （静かな破損ゼロ — Plan §4.6.3 失敗モード安全性の実証）。
+- **E2**: **C64 帯域の確定** — 公式デコーダの dtype 分岐に code 9
+  （COMPLEX64、上流 enum では予約済み）の腕は存在せず、9 にパッチした
+  構造正常ブロブも 130 と同じ `Unsupported Dtype` で拒否された（pip 0.5.4
+  実機）。→ 互換帯(9)に書く利点は無く、**Neo 帯(130) で確定**。Neo 自身も
+  未割当 code 9 を拒否する（両方向に曖昧さなし）。
+- **E3**: 公式 `SafeOpen`（`zipnn_safetensors()` パッチ）は混在ファイルの
+  互換帯テンソルを正しく解码し、Neo 帯テンソルで明示エラー — 失敗は
+  テンソル単位で診断可能。
+- **E4**: 拡張フィクスチャ（F64+C64+I32 trunc+BOOL+BF16 混在）の Neo 往復が
+  sha256 検証 + byte‑exact。
+- 退行なし: L5 A/B/C/D（Phase 2/3 のゲート）は全て PASS を維持。L2 quick も
+  byte‑identical **1,121/1,121**（互換帯の出力バイトは Phase 3 と完全同一 —
+  Phase 4 の変更が互換帯に一切触れていないことの機械的証明）。
+
+## 10. 再現手順
 
 ```bash
 pip install numpy safetensors torch blake3
@@ -582,6 +643,9 @@ FIXTURES=/tmp/mm-bench python3 scripts/bench/bench_native_e2e.py \
 FIXTURES=/tmp/mm-bench python3 scripts/bench/bench_native_delta.py \
   --pair-mb 32 --rounds 3 \
   --json-out scripts/bench/results/native_delta.json
+# Phase 4 の dtype カバレッジ（K14）:
+python3 scripts/bench/bench_phase4_dtypes.py \
+  --json-out scripts/bench/results/phase4_dtypes.json
 # L5 相互運用ゲート（公式 zipnn とのクロス検証 — テンソル A/B/C + デルタ D）:
 pip install zipnn==0.5.4 torch safetensors
 python3 scripts/l5/official_cross.py
