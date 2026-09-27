@@ -73,8 +73,7 @@
 <script setup lang="ts" name="manager-dialog">
 import { Box } from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
-import { chunk } from 'es-toolkit'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardHoverActions from 'components/CardHoverActions.vue'
 import ModelCard from 'components/ModelCard.vue'
@@ -92,6 +91,8 @@ import { isModelStarred } from 'hooks/stars'
 import { useSelection } from 'hooks/zipnn'
 import { type Model } from 'types/typings'
 import { genModelKey } from 'utils/model'
+import { buildModelRows, buildSearchTokens, compareText } from 'utils/modelFilter'
+import { PERF_PREFIX, perfRecord, perfTime } from 'utils/perf'
 
 const { isMobile, gutter, cardSize } = useConfig()
 
@@ -152,74 +153,101 @@ const cols = computed(() => {
   return Math.floor((containerWidth - gutter) / (itemWidth + gutter))
 })
 
-const list = computed(() => {
-  const mergedList = Object.values(data.value).flat()
-  const pureModels = mergedList.filter(item => {
-    return !item.isFolder
-  })
+/**
+ * C1 (Plan §4.8): the search query is compiled into its token regexes ONCE per
+ * change instead of once per model per keystroke - a 5,000-model library used
+ * to rebuild the same 1-3 `RegExp` objects 5,000 times on every recompute.
+ */
+const searchTokens = computed(() => buildSearchTokens(debouncedSearch.value))
 
-  function buildRegex(raw: string): RegExp {
-    try {
-      // Escape regex specials, then restore * wildcards as .*
-      const escaped = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*')
-      return new RegExp(escaped, 'i') // case-insensitive
-    } catch {
-      return new RegExp(raw, 'i')
-    }
-  }
+/** The non-token gates of the filter: model type + the active collection. */
+const matchesTypeAndCollection = (model: Model) => {
+  const showAllModel = currentType.value === allType
+  const matchType = showAllModel || model.type === currentType.value
+  return matchType && (!activeCol.value || matchesCollection(model, activeCol.value.query))
+}
 
-  const filterList = pureModels.filter(model => {
-    const showAllModel = currentType.value === allType
-    const matchType = showAllModel || model.type === currentType.value
-    const matchCollection = !activeCol.value || matchesCollection(model, activeCol.value.query)
-
-    const rawFilter = debouncedSearch.value ?? ''
-    const tokens = rawFilter.split(/\s+/).filter(Boolean)
-    const regexes = tokens.map(buildRegex)
-
-    // Require every token to match either the folder or the name
-    const matchesAll = regexes.every(re => re.test(model.subFolder) || re.test(model.basename))
-
-    return matchType && matchesAll && matchCollection
-  })
-
-  let sortStrategy: (a: Model, b: Model) => number = () => 0
+/** The chosen sort order, as a comparator (C2: the text order goes through the
+ *  shared, MEASURED comparator in utils/modelFilter - see the note there for why
+ *  the default variant stays on V8's `localeCompare` builtin). */
+const sortStrategy = computed<(a: Model, b: Model) => number>(() => {
   switch (sortOrder.value) {
     case 'name':
-      sortStrategy = (a, b) => a.basename.localeCompare(b.basename)
-      break
+      return (a, b) => compareText(a.basename, b.basename)
     case 'size':
-      sortStrategy = (a, b) => b.sizeBytes - a.sizeBytes
-      break
+      return (a, b) => b.sizeBytes - a.sizeBytes
     case 'created':
-      sortStrategy = (a, b) => b.createdAt - a.createdAt
-      break
+      return (a, b) => b.createdAt - a.createdAt
     case 'modified':
-      sortStrategy = (a, b) => b.updatedAt - a.updatedAt
-      break
+      return (a, b) => b.updatedAt - a.updatedAt
     case 'recent':
-      sortStrategy = (a, b) => compareRecent(genModelKey(a), genModelKey(b))
-      break
+      return (a, b) => compareRecent(genModelKey(a), genModelKey(b))
     default:
-      break
+      return () => 0
   }
+})
 
-  const sortedList = filterList.sort((a, b) => {
-    // Starred models always lead the grid; the chosen sort order decides
-    // within equal star state.
-    const byStar = Number(isModelStarred(genModelKey(b))) - Number(isModelStarred(genModelKey(a)))
-    return byStar || sortStrategy(a, b)
-  })
+const list = computed(() =>
+  perfTime(`${PERF_PREFIX}grid.list`, () => {
+    recomputeAt = performance.now()
+    const mergedList = Object.values(data.value).flat()
+    const byStrategy = sortStrategy.value
+    // One pure pipeline (filter -> sort -> chunk) shared with the headless K15
+    // harness, so the measurement and the browser run the same code. The
+    // non-positive `cols` guard (before the container is measured) lives in
+    // `chunkRows`: es-toolkit's chunk() used to THROW there.
+    return buildModelRows(mergedList, {
+      tokens: searchTokens.value,
+      matches: matchesTypeAndCollection,
+      compare: (a, b) => {
+        // Starred models always lead the grid; the chosen sort order decides
+        // within equal star state.
+        const byStar =
+          Number(isModelStarred(genModelKey(b))) - Number(isModelStarred(genModelKey(a)))
+        return byStar || byStrategy(a, b)
+      },
+      columns: cols.value,
+      keyOf: genModelKey,
+    })
+  }),
+)
 
-  // Guard: es-toolkit's chunk() throws on a non-positive size (unlike lodash,
-  // which returned []). Before the container is measured `cols` can be <= 0;
-  // mirror the previous behaviour by rendering no rows in that case.
-  if (cols.value < 1) {
-    return []
-  }
+/* ---- C5: keystroke -> painted-grid instrumentation (K15) -----------------
+ * Recorded only while `__mmNeoPerf.enable()` is on (utils/perf.ts); the
+ * shipping path pays one boolean test per call site. `queryToPaint` is the
+ * K15 number (the debounced query change -> the frame that shows it);
+ * `keystrokeToPaint` additionally includes the 150 ms input debounce of
+ * Optimization B-3, and `initialRender` covers the manager open -> first
+ * non-empty grid paint.
+ */
+const openedAt = performance.now()
+let keystrokeAt = 0
+let recomputeAt = 0
+let paintScheduled = false
+let initialPaintRecorded = false
 
-  return chunk(sortedList, cols.value).map(row => {
-    return { key: row.map(genModelKey).join(','), row }
+watch(searchContent, () => {
+  keystrokeAt = performance.now()
+})
+
+watch(list, () => {
+  if (paintScheduled) return
+  paintScheduled = true
+  void nextTick(() => {
+    if (typeof requestAnimationFrame !== 'function') {
+      paintScheduled = false
+      return
+    }
+    requestAnimationFrame(() => {
+      paintScheduled = false
+      const painted = performance.now()
+      if (recomputeAt > 0) perfRecord(`${PERF_PREFIX}grid.queryToPaint`, painted - recomputeAt)
+      if (keystrokeAt > 0) perfRecord(`${PERF_PREFIX}grid.keystrokeToPaint`, painted - keystrokeAt)
+      if (!initialPaintRecorded && list.value.length > 0) {
+        initialPaintRecorded = true
+        perfRecord(`${PERF_PREFIX}grid.initialRender`, painted - openedAt)
+      }
+    })
   })
 })
 

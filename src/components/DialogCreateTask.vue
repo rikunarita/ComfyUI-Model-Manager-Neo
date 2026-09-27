@@ -85,6 +85,7 @@
               v-if="item.avatar"
               :src="item.avatar"
               alt=""
+              decoding="async"
               class="size-8 shrink-0 rounded-mm-ctl border border-mm-border object-cover"
               @error="onAvatarError(item)"
             />

@@ -132,7 +132,11 @@
                 @click="handleSelectModel(model)"
               >
                 <div class="preview-aspect w-full">
-                  <img :src="getPreviewUrl(model.preview)" class="size-full object-cover" />
+                  <img
+                    :src="getPreviewUrl(model.preview)"
+                    class="size-full object-cover"
+                    decoding="async"
+                  />
                 </div>
                 <div class="truncate p-2 text-sm">
                   {{ model.basename }}

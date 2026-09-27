@@ -147,6 +147,7 @@ import { isFolderStarred } from 'hooks/stars'
 import { useSelection } from 'hooks/zipnn'
 import { resolveIcon } from 'utils/iconMap'
 import { genModelKey, isBundleFolderName } from 'utils/model'
+import { compareText } from 'utils/modelFilter'
 
 const { t } = useI18n()
 const selection = useSelection()
@@ -269,7 +270,7 @@ const sortFolderContents = (list: ModelTreeNode[]): ModelTreeNode[] => {
   const starFirst = (a: ModelTreeNode, b: ModelTreeNode) =>
     Number(isFolderStarred(genModelKey(b))) - Number(isFolderStarred(genModelKey(a)))
 
-  folderItems.sort((a, b) => starFirst(a, b) || a.basename.localeCompare(b.basename))
+  folderItems.sort((a, b) => starFirst(a, b) || compareText(a.basename, b.basename))
   modelItems.sort((a, b) => {
     const byStar = starFirst(a, b)
     if (byStar) return byStar
@@ -288,7 +289,9 @@ const sortFolderContents = (list: ModelTreeNode[]): ModelTreeNode[] => {
     const bValue = b[sortField]
 
     if (typeof aValue === 'string' && typeof bValue === 'string') {
-      return aValue.localeCompare(bValue)
+      // C2 (Plan §4.8): one shared Intl.Collator instead of a per-comparison
+      // locale resolution (identical order to a bare String#localeCompare).
+      return compareText(aValue, bValue)
     }
     if (typeof aValue === 'number' && typeof bValue === 'number') {
       return aValue - bValue

@@ -96,6 +96,7 @@
           <img
             :src="withPreviewBust(url, previewBust)"
             class="aspect-square w-full cursor-pointer rounded-mm-ctl object-cover"
+            decoding="async"
             alt=""
             :title="$t('previewPickPrimary')"
             @click="pickPage(index)"
