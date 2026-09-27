@@ -839,7 +839,14 @@ totalParams],…],"leaves":[tensorIndex,…]}` = **2.73 MB / 87,195 ノード**�
   本実行: 2,086 テンソル / 2,892 ノード / **66,993 B が両者バイト一致**。
 - **表示は不変**: 表示順は従来の `naturalCompare` を**可視ノードにのみ**適用
   （Rust は header 順で符号化し、順序は UI が最終決定する）ため、折りたたみキー・
-  ページング（500 件）とも Phase 6 以前と同一。
+  ページング（500 件）とも Phase 6 以前と同一。**この「表示は不変」は bench の
+  `tensorTreeRowsIdentical` ゲートで機械固定した**（最終バグチェックで追加）:
+  遅延インデックスの行描画（`renderRows` = 出荷経路）が legacy の入れ子ツリー walk
+  と**同一の行キー列**（`f:<path>` / `t:<name>`、folders→leaves、DFS、ノード内
+  naturalCompare 順、500 件ページング）を出すことを、折りたたみ状態（root 直下
+  1 行）と**全展開状態（MoE 84×256 で 152,462 行）**の両方で毎回照合する —
+  `tensorTreeParity`（root 集計 + 直下 children のみ）が届かない描画順・再帰・
+  ページングの回帰を捕捉する。
 - **payload 検証は 15 ケースで機械固定**（bench の
   `tensorTreeValidatorRejectsBadPayloads` ゲート）: 版数違い / nodes・leaves 欠落 /
   タプル形の違い / 非文字列 segment / 負値・非有限値 / 範囲外・非整数 leaf index /

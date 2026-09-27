@@ -165,6 +165,11 @@
       "count": 65268,
       "params": 1035825315840
     },
+    "rowsParity": {
+      "ok": true,
+      "collapsed": 1,
+      "expanded": 152462
+    },
     "crossCheck": {
       "ran": true,
       "identical": true,
@@ -207,6 +212,7 @@
     "tensorTreeSpeedupP50": 104.02496450268903,
     "rowsAreIdentical": true,
     "tensorTreeParity": true,
+    "tensorTreeRowsIdentical": true,
     "tensorTreeValidatorRejectsBadPayloads": true,
     "rustJsTreeIdentical": true,
     "passed": true

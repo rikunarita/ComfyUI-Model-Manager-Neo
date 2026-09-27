@@ -627,6 +627,76 @@ if (!parity.ok) {
 }
 
 // ---------------------------------------------------------------------------
+// rendered-row parity: the lazy-index renderer (`renderRows`, the SHIPPING
+// Phase-6 path in ModelInformation.vue) must emit the SAME row sequence as a
+// walk of the legacy nested tree - both collapsed (the default view) and fully
+// expanded (every folder open). `tensorTreeParity` above pins the ROOT
+// aggregates and the direct children; THIS pins the whole end-user-visible row
+// order (folder paths + leaf names, folders-before-leaves, depth-first, the
+// naturalCompare order within a node, and the 500-leaf paging) that the
+// structural gate does not reach. A regression in childrenOf/tensorsOf
+// ordering, in the walk, or in the paging flips this gate. The row identity is
+// the `f:<path>` / `t:<name>` key the component itself renders under.
+// ---------------------------------------------------------------------------
+const rowKeysOf = rows => rows.map(r => r.key ?? `t:${r.tensor.name}`)
+const legacyRowKeys = (root, expandAll) => {
+  const keys = []
+  const walk = node => {
+    for (const child of node.children) {
+      keys.push(`f:${child.path}`)
+      if (expandAll) walk(child)
+    }
+    for (const t of node.tensors.slice(0, 500)) keys.push(`t:${t.name}`)
+  }
+  walk(root)
+  return keys
+}
+const allFolderPaths = root => {
+  const paths = new Set()
+  const walk = node => {
+    for (const child of node.children) {
+      paths.add(child.path)
+      walk(child)
+    }
+  }
+  walk(root)
+  return paths
+}
+const firstRowDiff = (a, b) => {
+  const n = Math.max(a.length, b.length)
+  for (let i = 0; i < n; i++) if (a[i] !== b[i]) return { at: i, legacy: a[i], index: b[i] }
+  return { at: -1 }
+}
+const treeRowsParity = (() => {
+  if (index === null) return { ok: false, reason: 'index rejected its own payload' }
+  // collapsed (the default view: root children + root's own leaves)
+  const legacyCollapsed = legacyRowKeys(legacyRoot, false)
+  const indexCollapsed = rowKeysOf(renderRows(index))
+  if (
+    legacyCollapsed.length !== indexCollapsed.length ||
+    legacyCollapsed.some((k, i) => k !== indexCollapsed[i])
+  )
+    return { ok: false, reason: 'collapsed', ...firstRowDiff(legacyCollapsed, indexCollapsed) }
+  // fully expanded (every folder open: exercises the recursion + deep order)
+  const expanded = allFolderPaths(legacyRoot)
+  const legacyExpanded = legacyRowKeys(legacyRoot, true)
+  const indexExpanded = rowKeysOf(renderRows(index, expanded))
+  if (
+    legacyExpanded.length !== indexExpanded.length ||
+    legacyExpanded.some((k, i) => k !== indexExpanded[i])
+  )
+    return { ok: false, reason: 'expanded', ...firstRowDiff(legacyExpanded, indexExpanded) }
+  return { ok: true, collapsed: indexCollapsed.length, expanded: indexExpanded.length }
+})()
+if (!treeRowsParity.ok) {
+  console.error(
+    `GATE FAIL: tensor-tree rendered rows differ (${treeRowsParity.reason}) at ${treeRowsParity.at}: ` +
+      `legacy=${treeRowsParity.legacy} index=${treeRowsParity.index}`,
+  )
+  process.exit(1)
+}
+
+// ---------------------------------------------------------------------------
 // optional: the Rust encoder must produce the SAME document as the JS fallback
 // ---------------------------------------------------------------------------
 let crossCheck = { ran: false, reason: 'not requested (pass --cross-check)' }
@@ -758,6 +828,7 @@ const gates = {
   tensorTreeSpeedupP50: ratio(tree.legacyFold.p50, tree.indexCreate.p50 + tree.renderCollapsed.p50),
   rowsAreIdentical: sameRows,
   tensorTreeParity: parity.ok,
+  tensorTreeRowsIdentical: treeRowsParity.ok,
   tensorTreeValidatorRejectsBadPayloads: validatorFailed.length === 0,
   rustJsTreeIdentical: crossCheck.ran ? crossCheck.identical : null,
 }
@@ -768,6 +839,7 @@ gates.passed =
   gates.tensorTreeDecodeIsFasterThanTheBrowserFold &&
   gates.rowsAreIdentical &&
   gates.tensorTreeParity &&
+  gates.tensorTreeRowsIdentical &&
   gates.tensorTreeValidatorRejectsBadPayloads &&
   gates.rustJsTreeIdentical !== false
 
@@ -799,7 +871,13 @@ const report = {
     moeExperts: MOE_EXPERTS,
   },
   grid,
-  tensorTree: { ...tree, parity, crossCheck, validator: validatorCases },
+  tensorTree: {
+    ...tree,
+    parity,
+    rowsParity: treeRowsParity,
+    crossCheck,
+    validator: validatorCases,
+  },
   gates,
 }
 
@@ -833,6 +911,9 @@ console.log(
   `tree validator      ${Object.keys(validatorCases).length} cases (accept/reject) as expected: ${
     validatorFailed.length === 0
   }`,
+)
+console.log(
+  `tree rows parity    collapsed ${treeRowsParity.collapsed} + expanded ${treeRowsParity.expanded} rows identical to the legacy fold: ${treeRowsParity.ok}`,
 )
 console.log(
   `cross-check (rust==js) ${crossCheck.ran ? crossCheck.identical : `skipped: ${crossCheck.reason}`}`,
