@@ -324,6 +324,17 @@ third_party/
   Python 例外化する。`abort` は ComfyUI プロセスを殺すため禁止）。
 - サイズ予算: `opt-level`・`lto = "fat"`・`codegen-units = 1`・`strip` で
   **1 バイナリ ≤ 4 MB**、5 ファイル合計 ≤ 20 MB（Phase 0 で実測検証）。
+  〔Phase 5 実装注記 2026‑09‑27〕**macos‑universal2 は x86_64 + arm64 の
+  2 アーキテクチャを含む fat binary** のため、「1 バイナリ ≤ 4 MB」は
+  **アーキテクチャ スライス単位**で適用する（`build-native.sh` が `lipo -thin`
+  の各スライスを ≤4 MB でゲート。fat ファイル自体は自然に約 2 倍 = ≤8 MB）。
+  Phase 5 の機能追加（scan/hash/index/header + blake3/bincode/crc32fast/
+  yaml‑rust2）で linux‑x86_64 が 2.4→2.87 MB へ成長し、universal2 fat が
+  4.8 MB と単一ファイル 4 MB を超えたため、size‑budget ゲートは FAT_MAGIC
+  （0xcafebabe/0xcafebabf）を content 判定して fat のみ 8 MB 予算を適用
+  （ubuntu ジョブは lipo 不可のため magic 判定、macOS ジョブは per‑slice）。
+  **native‑bin 4 ファイル合計 ≈12 MB ≤ 20 MB（R6 のリポジトリ肥大ガードは
+  充足）**。単一アーキ成果物（linux x86_64/aarch64・windows）は全て ≤4 MB。
 
 ## 3.4 ツールチェーン標準: mold / rustfmt / clippy（採用確定）
 

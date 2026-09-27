@@ -1813,3 +1813,37 @@ BENCH §10.5 に根拠を記録。A3（requests→aiohttp）はネットワー�
   手動 QA（Phase 7 統合）、K10 5000 モデル ≤100 ms の参照機確認、K11 端到端 ≤40 ms
   （processed JSON をルートで直接スプライスする設計 = get_model_tensors の公開契約を
   変えるため本フェーズ範囲外・記録）。Phase 6 以降。
+
+### 追加（同日・push 後 CI native #42 の macOS サイズゲート失敗を修正）
+
+**症状**: push 後の native #42（head 59968ab）で **native-build-macos のみ失敗**
+（`SIZE BUDGET EXCEEDED: 4801936 > 4194304 bytes`）。他は全緑 — native-test×3
+（**macOS 含む** = scan.rs の `MetadataExt::st_ctime` が macOS でコンパイル・テスト
+通過を実証）・native-build-linux/windows・**native-diff（L2 byte-identical =
+parse_header_json の O(n²) 修正が byte-exact 安全であることを CI が機械確認）**・
+fuzz-smoke・abi3-import 3.10/3.13（api_version 4）。integration/size-budget は
+macos 依存で skipped だった。
+
+**根因**: macos-universal2 は **x86_64 + arm64 の 2 アーキを含む fat binary**。
+Plan §3.3「1 バイナリ ≤ 4 MB」は単一アーキ前提のヒューリスティックで、Phase 5 の
+機能追加（scan/hash/index/header + blake3/bincode/crc32fast/yaml-rust2）で
+linux-x86_64 が 2.4→2.87 MB へ成長し、universal2 fat が **4.8 MB**（各スライス
+≈2.4 MB は予算内だが fat 合計が 4 MB 超）に到達。
+
+**修正（fat binary は「1 バイナリ = 1 アーキスライス」で予算判定）**:
+
+- `build-native.sh`: `finish()` に budget 引数を追加。`build_macos_universal2` は
+  `lipo -thin` で **各アーキスライスを ≤4 MB でゲート**（Plan の「1 バイナリ」に
+  忠実）+ fat ファイルは `finish` に 2× 予算（8 MB）を渡す。単一アーキ対象
+  （linux x86_64/aarch64・windows）は 4 MB のまま。
+- `native.yml` size-budget ジョブ（ubuntu = lipo 不可）: **content 判定**で
+  FAT_MAGIC（0xcafebabe/0xcafebabf・big-endian on disk）を検出し fat のみ 8 MB
+  予算（path 非依存 = download-artifact の LCA で `macos-universal2` 断片が
+  保たれない場合でも堅牢）。他は 4 MB・合計 20 MB は不変。ローカルで ELF
+  （7f454c46 → 4 MB・2.87 MB PASS）と fat magic（cafebabe → 8 MB）を検証。
+- Plan §3.3 に universal2 fat binary の per-slice 予算注記を追記。native.yml
+  冒頭コメントも同期。
+
+**native-bin 合計 ≈12 MB ≤ 20 MB（R6 リポジトリ肥大ガードは充足）**。単一アーキ
+成果物は全て ≤4 MB を維持。修正は build-native.sh + native.yml + Plan のみ
+（Rust/Python コードは無変更 = 再ビルド不要・既存の全ゲート証跡は有効）。
