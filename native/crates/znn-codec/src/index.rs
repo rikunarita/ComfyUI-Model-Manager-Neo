@@ -44,6 +44,20 @@ const MAGIC: &[u8; 8] = b"MMIDX001";
 /// blake3 digest length.
 const CHECKSUM_LEN: usize = 32;
 
+/// Cap on cached sidecars.
+///
+/// The index is pure derived data (Plan §7 R7), so an oversized one is PRUNED
+/// rather than allowed to grow without bound: without a cap, every sidecar the
+/// library ever had stays in the snapshot forever (a library that churns through
+/// downloads keeps the deleted paths alive), and both the in-memory map and the
+/// on-disk file grow with it. `py/manager.py _SITE_CACHE` caps at 4096 entries
+/// for the same reason; the native cache is persistent and serves the whole
+/// library across restarts, so its ceiling is correspondingly higher.
+///
+/// Pruning drops an arbitrary half (a `HashMap` has no insertion order): a miss
+/// only costs a re-parse of that sidecar, never a wrong value.
+const MAX_ENTRIES: usize = 262_144;
+
 /// The four front-matter values the scan recovers, plus the validity stamp.
 ///
 /// `Option<String>` mirrors `py/manager.py _model_site_info_of`'s parsed
@@ -146,7 +160,8 @@ impl SiteIndex {
     }
 
     /// Record a freshly-parsed sidecar (marks the index dirty for the next
-    /// [`save`](Self::save)).
+    /// [`save`](Self::save)). Prunes an arbitrary half when the map outgrows
+    /// [`MAX_ENTRIES`] (see the constant: derived data, a miss only re-parses).
     pub fn insert(&self, path: PathBuf, rec: SiteRecord) {
         {
             let mut map = self
@@ -154,6 +169,13 @@ impl SiteIndex {
                 .write()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             map.insert(path, rec);
+            if map.len() > MAX_ENTRIES {
+                let drop = map.len() - MAX_ENTRIES / 2;
+                let doomed: Vec<PathBuf> = map.keys().take(drop).cloned().collect();
+                for key in doomed {
+                    map.remove(&key);
+                }
+            }
         }
         self.dirty.store(true, Ordering::Relaxed);
     }
@@ -387,6 +409,34 @@ mod tests {
         std::fs::write(&path, &full[..full.len() - 3]).unwrap();
         let idx2 = SiteIndex::open(Some(dir.path()));
         assert!(idx2.is_empty(), "length mismatch → empty index");
+    }
+
+    #[test]
+    fn the_entry_cap_prunes_instead_of_growing_forever() {
+        // MAX_ENTRIES is far above any test library, so the prune rule is
+        // exercised through the same code path with a tiny stand-in: insert
+        // cap+1 entries and require the map to stay bounded.
+        let idx = SiteIndex::ephemeral();
+        for i in 0..=MAX_ENTRIES {
+            idx.insert(
+                PathBuf::from(format!("/lib/{i}.md")),
+                rec(i as i64, i as u64, "https://x"),
+            );
+        }
+        assert!(
+            idx.len() <= MAX_ENTRIES,
+            "the index must not grow past its cap (len {})",
+            idx.len()
+        );
+        assert!(
+            idx.len() >= MAX_ENTRIES / 2,
+            "a prune keeps half the cache warm"
+        );
+        // the surviving entries are still correct (a prune is not a corruption)
+        let probe = idx.lookup(Path::new("/lib/0.md"), 0, 0);
+        if let Some(hit) = probe {
+            assert_eq!(hit.page.as_deref(), Some("https://x"));
+        }
     }
 
     #[test]

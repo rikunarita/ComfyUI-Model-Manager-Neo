@@ -19,10 +19,24 @@ against `hash_file` in test_phase5_scan.py.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 
 import pytest
-from harness import import_ext
+from harness import REPO_ROOT, import_ext
+
+
+def _require_native():
+    """The built mm_core, or a skip (same convention as test_phase5_scan.py)."""
+    config = import_ext("config")
+    config.extension_uri = str(REPO_ROOT)
+    native = import_ext("native")
+    native._module = None
+    native._reason = None
+    native._attempted = False
+    if not native.load():
+        pytest.skip(f"native core unavailable: {native.reason()}")
+    return native.core()
 
 
 def _make_task(download_mod, md, task_id: str, data: bytes, sha_upper: str, tmp_file: str):
@@ -105,3 +119,45 @@ async def test_download_complete_falls_back_to_reread_without_inline_sha(downloa
     model_path = utils.get_full_path("checkpoints", 0, "m.safetensors")
     assert os.path.isfile(model_path), "the re-read fallback still verifies and completes"
     assert not os.path.exists(tmp_file)
+
+
+# ---------------------------------------------------------------------------
+# resume seeding (Phase 5 audit fix: the read moved off the event loop)
+# ---------------------------------------------------------------------------
+def test_seed_hasher_from_file_matches_a_whole_file_hash(tmp_path):
+    """Seeding a resumed hasher with the partial file must give the same digest
+    as hashing that file in one pass (the invariant `_download_complete` relies
+    on: seed + the remaining chunks == the whole file)."""
+    mm = _require_native()
+    download = import_ext("download")
+    data = bytes((i * 37) & 0xFF for i in range(3 * 1024 * 1024))  # > 2 chunks
+    path = tmp_path / "partial.download"
+    path.write_bytes(data)
+
+    handle = mm.hasher_new(["SHA256"])
+    assert download._seed_hasher_from_file(mm, handle, str(path)) is True
+    staged = json.loads(mm.hasher_finalize(handle))["SHA256"]
+    assert staged == hashlib.sha256(data).hexdigest().upper()
+    assert staged == json.loads(mm.hash_file(str(path), ["SHA256"]))["SHA256"]
+
+
+def test_seed_hasher_from_file_reports_an_unreadable_file(tmp_path):
+    """A vanished partial must degrade to the re-read path, never raise."""
+    mm = _require_native()
+    download = import_ext("download")
+    handle = mm.hasher_new(["SHA256"])
+    assert download._seed_hasher_from_file(mm, handle, str(tmp_path / "missing.download")) is False
+    # the handle is still usable (the caller decides whether to drop it)
+    download._drop_hasher(mm, handle)
+    # dropping an unknown handle is a no-op, not an exception
+    download._drop_hasher(mm, handle)
+    download._drop_hasher(mm, 123456789)
+
+
+def test_hasher_update_on_a_lost_handle_raises_and_is_caught_by_the_loop(tmp_path):
+    """The write loop guards `hasher_update`: a handle the native registry
+    evicted must not fail a download whose bytes are fine."""
+    mm = _require_native()
+    # PyO3 maps the unknown-handle guard to KeyError (mm-core's PyKeyError).
+    with pytest.raises(KeyError):
+        mm.hasher_update(987654321, b"bytes")

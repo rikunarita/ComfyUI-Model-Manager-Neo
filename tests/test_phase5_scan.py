@@ -377,3 +377,93 @@ def test_hash_file_all_notations_cross_check(tmp_path):
     assert got["AutoV2"] == sha[:10]
     assert got["AutoV1"] == av1
     assert got["CRC32"] == f"{crc_swapped:08X}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 audit regressions (found by the Phase-6 bug check)
+# ---------------------------------------------------------------------------
+def test_scan_repeated_base_path_prefix_keeps_the_subfolder(tmp_path, monkeypatch, index_cache):
+    """A sub-folder that repeats the base path must not be stripped twice.
+
+    The legacy walk derived the relative path with ``str.replace(prefix, "")``,
+    which removes EVERY occurrence: with a base of ``<root>/models/checkpoints``
+    and a model in ``<root>/models/checkpoints/models/checkpoints/``, the middle
+    segments vanished, so `subFolder` (and with it the preview URL and the
+    `fullname` used by rename/delete) described a different file. The native
+    Rust scan always used `strip_prefix`; the Python walk now uses
+    `removeprefix`, and this pins the two together.
+    """
+    import folder_paths
+
+    ck = tmp_path / "models" / "checkpoints"
+    nested = ck / "models" / "checkpoints"
+    nested.mkdir(parents=True)
+    write_safetensors(nested / "deep.safetensors", {"w": ("F32", [1], b"\x00" * 4)})
+    (nested / "deep.webp").write_bytes(b"preview")
+
+    folder_paths.folder_names_and_paths.clear()
+    folder_paths.folder_names_and_paths["checkpoints"] = ([str(ck)], set(folder_paths.supported_pt_extensions))
+    utils = import_ext("utils")
+    utils._base_paths_signature = None
+    utils._base_paths_cache = {}
+    manager = import_ext("manager")
+    mm = manager.ModelManager()
+
+    _set_engine(monkeypatch, "0")
+    legacy = mm.scan_models("checkpoints", False)
+    _set_engine(monkeypatch, "1")
+    native = mm.scan_models("checkpoints", False)
+
+    assert native == legacy, "the two engines must agree on the repeated prefix"
+    entry = next(e for e in legacy if e["basename"] == "deep")
+    assert entry["subFolder"] == "models/checkpoints", entry["subFolder"]
+    assert entry["preview"] == "/model-manager/preview/checkpoints/0/models/checkpoints/deep.webp"
+
+
+@pytest.mark.parametrize("where", ["body", "value"])
+def test_scan_survives_a_non_utf8_sidecar(tmp_path, monkeypatch, index_cache, where):
+    """A corrupt `.md` sidecar degrades that ONE model, never the listing.
+
+    The legacy reader decoded the head strictly and only caught OSError, so an
+    invalid byte raised UnicodeDecodeError out of `get_file_info` and the whole
+    `GET /models/{folder}` answered "Read models failed". The native Rust scan
+    reads lossily. Both engines now decode with replacement characters, which
+    this pins entry-for-entry.
+    """
+    import folder_paths
+
+    ck = tmp_path / "checkpoints"
+    ck.mkdir(parents=True)
+    write_safetensors(ck / "m.safetensors", {"w": ("F32", [1], b"\x00" * 4)})
+    if where == "body":
+        # the invalid bytes sit AFTER the front-matter block: the 4096-char head
+        # read still decodes them, which is what used to kill the whole listing
+        value = b"https://civitai.com/models/1\n"
+        sidecar = b"---\nmodelPage: " + value + b"website: civitai\n---\n# Notes\n\xff\xfe invalid\n"
+    else:
+        # the invalid bytes sit INSIDE a front-matter value
+        value = b"https://civitai.com/\xff\xfe/9\n"
+        sidecar = b"---\nmodelPage: " + value + b"website: civitai\n---\n# Notes\n"
+    (ck / "m.md").write_bytes(sidecar)
+
+    folder_paths.folder_names_and_paths.clear()
+    folder_paths.folder_names_and_paths["checkpoints"] = ([str(ck)], set(folder_paths.supported_pt_extensions))
+    utils = import_ext("utils")
+    utils._base_paths_signature = None
+    utils._base_paths_cache = {}
+    manager = import_ext("manager")
+    mm = manager.ModelManager()
+
+    _set_engine(monkeypatch, "0")
+    legacy = mm.scan_models("checkpoints", False)
+    _set_engine(monkeypatch, "1")
+    native = mm.scan_models("checkpoints", False)
+
+    assert native == legacy, "a corrupt sidecar must not diverge between engines"
+    entry = next(e for e in legacy if e["basename"] == "m")
+    assert entry["modelPlatform"] == "civitai"
+    if where == "body":
+        assert entry["modelPage"] == "https://civitai.com/models/1"
+    else:
+        # the invalid bytes decode to replacement characters in BOTH engines
+        assert entry["modelPage"] == "https://civitai.com/\ufffd\ufffd/9", entry["modelPage"]

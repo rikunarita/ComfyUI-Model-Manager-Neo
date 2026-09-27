@@ -57,7 +57,14 @@ def _model_site_info_of(
     if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
         return hit[2], hit[3], hit[4], hit[5]
     try:
-        with open(path, encoding="utf-8") as f:
+        # BUG FIX: `errors="replace"` (was a strict decode caught only for
+        # OSError). A single `.md` sidecar with invalid UTF-8 raised
+        # UnicodeDecodeError, which escaped `get_file_info` and failed the WHOLE
+        # folder listing ("Read models failed: ...") instead of degrading that
+        # one model's front-matter. The native Rust scan reads the head with
+        # `from_utf8_lossy`, so both engines now behave the same on a corrupt
+        # sidecar: best-effort text, never a crash.
+        with open(path, encoding="utf-8", errors="replace") as f:
             head = f.read(4096)
     except OSError:
         return None, None, None, None
@@ -343,6 +350,12 @@ class ModelManager:
                 os.makedirs(target)
             except Exception as e:
                 return web.json_response({"success": False, "error": str(e)})
+            # Plan §4.7.2-1: a new folder changes the listing of that type, so
+            # the other clients invalidate it too (the creating client's own
+            # refresh and this broadcast are deduped by the frontend's
+            # generation guard). Without it, a folder created in one browser
+            # only appeared in the others after the 30 s TTL revalidate.
+            await utils.notify_models_changed(model_type, "create-folder")
             return web.json_response({"success": True})
 
     def scan_models(self, folder: str, include_hidden_files: bool = False):
@@ -383,7 +396,14 @@ class ModelManager:
                 prefix_path = f"{prefix_path}/"
 
             is_file = entry.is_file()
-            relative_path = utils.normalize_path(entry.path).replace(prefix_path, "")
+            # BUG FIX: `str.replace` removed EVERY occurrence of the base path,
+            # not just the leading one - a model below a sub-folder that
+            # happened to repeat the base path (`<base>/models/ck/...` under a
+            # base of `/models/ck/`) lost that middle segment, so `subFolder`
+            # (and with it the preview URL and the fullname used by rename /
+            # delete) pointed somewhere else. `removeprefix` strips the leading
+            # occurrence only, matching the native Rust scan's `strip_prefix`.
+            relative_path = utils.normalize_path(entry.path).removeprefix(prefix_path)
             sub_folder = os.path.dirname(relative_path)
             filename = os.path.basename(relative_path)
             basename = os.path.splitext(filename)[0] if is_file else filename
