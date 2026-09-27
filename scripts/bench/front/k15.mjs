@@ -535,7 +535,7 @@ if (!parity.ok) {
 // ---------------------------------------------------------------------------
 // optional: the Rust encoder must produce the SAME document as the JS fallback
 // ---------------------------------------------------------------------------
-let crossCheck = { ran: false }
+let crossCheck = { ran: false, reason: 'not requested (pass --cross-check)' }
 if (CROSS_CHECK) {
   crossCheck = runCrossCheck()
   if (crossCheck.ran && !crossCheck.identical) {
