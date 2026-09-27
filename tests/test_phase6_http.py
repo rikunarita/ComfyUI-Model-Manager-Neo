@@ -29,6 +29,14 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 from harness import REPO_ROOT, FakeRequest, import_ext, json_body
 
+# `py/search.py` imports `py/information.py`, whose MODULE-level imports are
+# markdownify + PIL. Every CI cell that runs this suite installs them (ci.yml:
+# `-r requirements.txt`; native.yml: the two pytest dependency steps); the guard
+# keeps a minimal environment reporting a clear skip instead of a collection
+# error that hides the real result.
+pytest.importorskip("markdownify", reason="py/information.py needs markdownify (pip install -r requirements.txt)")
+pytest.importorskip("PIL", reason="py/information.py needs pillow")
+
 
 def _reset_native_loader():
     config = import_ext("config")
@@ -168,6 +176,38 @@ async def test_fetch_status_json_never_raises_on_a_bad_status(hub_factory):
     assert (status, payload) == (404, None)
     status, payload = await http_client.fetch_status_json(f"{hub.base}/ok")
     assert (status, payload) == (200, {"a": 1})
+
+
+@pytest.mark.asyncio
+async def test_declared_charset_is_honoured_and_a_bogus_one_degrades(hub_factory):
+    """`requests` decodes through `Response.text`, i.e. with the charset the
+    response declares; an unusable codec name must degrade to UTF-8 instead of
+    escaping as a LookupError (a 500 where requests answered a JSON error)."""
+    http_client = import_ext("http_client")
+    latin1_body = json.dumps({"café": "naïve"}, ensure_ascii=False).encode("iso-8859-1")
+    hub = await hub_factory(
+        {
+            "GET /latin1": (
+                200,
+                latin1_body,
+                {"Content-Type": "application/json; charset=iso-8859-1"},
+            ),
+            "GET /bogus": (200, b'{"ok": true}', {"Content-Type": "application/json; charset=not-a-codec"}),
+            "GET /utf8": (
+                200,
+                json.dumps({"ok": "値"}, ensure_ascii=False).encode(),
+                {"Content-Type": "application/json"},
+            ),
+        }
+    )
+    assert await http_client.fetch_json(f"{hub.base}/latin1") == {"café": "naïve"}
+    assert await http_client.fetch_json(f"{hub.base}/bogus") == {"ok": True}
+    assert await http_client.fetch_json(f"{hub.base}/utf8") == {"ok": "値"}
+    # the unit-level contract (no server needed)
+    assert http_client.decode_json('{"a": "値"}'.encode(), None) == {"a": "値"}
+    assert http_client.decode_json(b'{"a": 1}', "not-a-codec") == {"a": 1}
+    with pytest.raises(http_client.HttpJsonError):
+        http_client.decode_json(b"<html>nope</html>")
 
 
 @pytest.mark.asyncio
@@ -379,6 +419,43 @@ async def test_search_route_degrades_per_provider(hub_factory, monkeypatch, prom
     assert data["hf"]["items"] == [{"platform": "hf", "title": "a/b"}]
     assert data["civitai"]["items"] == [] and data["civitai"]["error"] == "provider down"
     assert data["modelscope"]["error"] == "search timed out", "a hung provider degrades"
+
+
+@pytest.mark.asyncio
+async def test_search_sweep_cancels_providers_when_the_client_goes_away(prompt_server, monkeypatch):
+    """A client that navigates away mid-search must not leave the provider
+    coroutines running with nobody to read their result (the old executor
+    version got this from `pool.shutdown(cancel_futures=True)`)."""
+    search = import_ext("search")
+    monkeypatch.setattr(search, "SEARCH_TIMEOUT", (5.0, 5.0))
+    monkeypatch.setattr(search, "SWEEP_MARGIN", 5.0)
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def hangs(query, limit, cursor, sort):
+        started.set()
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+        return [], None
+
+    monkeypatch.setattr(search, "_PROVIDERS", {"civitai": hangs})
+    search.SearchRoutes().add_routes(prompt_server.routes)
+    handler = prompt_server.routes.handlers[("GET", "/model-manager/search")]
+
+    request = FakeRequest()
+    request.query = {"query": "sd"}
+    task = asyncio.create_task(handler(request))
+    await asyncio.wait_for(started.wait(), 5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    # let the inner cancellation be delivered before asserting on it
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert cancelled.is_set(), "the in-flight provider coroutine was orphaned"
 
 
 @pytest.mark.asyncio

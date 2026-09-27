@@ -261,7 +261,7 @@
 
 <script setup lang="ts">
 import { Folder, FolderOpen, Info, Pencil } from '@lucide/vue'
-import { computed, ref } from 'vue'
+import { computed, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import InformationValue from 'components/InformationValue.vue'
 import { Button } from 'components/ui/button'
@@ -379,8 +379,21 @@ const rawRows = computed(() => {
 /** Leaves rendered per node before the explicit "show all" expansion. */
 const TENSOR_PAGE = 500
 
+/**
+ * The form model WITHOUT Vue's reactive wrapper.
+ *
+ * `tensors` and `tensorTree` are large read-only payloads that
+ * `ModelContent.vue` shares by reference into the form data, which is a deep
+ * `ref` - so reading them through `model.value` hands out Proxy-wrapped arrays
+ * whose every element access goes through a trap. Walking 65k tensors (and
+ * validating an 87k-node tree) that way costs more than the fold it replaced.
+ * `toRaw` keeps the ref-level dependency (a replaced form still re-runs this)
+ * while giving the decoder plain arrays. Nothing here writes to the model.
+ */
+const rawModel = () => toRaw(model.value) as BaseModel
+
 const tensors = computed<SafetensorsTensor[]>(() => {
-  const list = (model.value as BaseModel).tensors
+  const list = rawModel().tensors
   return Array.isArray(list) ? list : []
 })
 
@@ -404,14 +417,14 @@ interface TensorRow {
  * ships the compact pre-order table; `createTensorTreeIndex` validates it and
  * answers children/leaves queries WITHOUT materialising the ~87k node objects a
  * big MoE header used to cost (measured 1,190 ms of main-thread JS per dialog
- * open on the 2 vCPU dev container -> 16 ms; BENCH §11.3). A backend that
+ * open on the 2 vCPU dev container -> 13 ms; BENCH §11.3). A backend that
  * cannot provide the tree (legacy engine,
  * `MM_NATIVE=0`) falls back to the same fold in JS, so there is exactly ONE
  * rendering path.
  */
 const tensorIndex = computed(() => {
   const list = tensors.value
-  const payload = (model.value as BaseModel).tensorTree
+  const payload = rawModel().tensorTree
   // C5: the two sources get their own sample names, so `__mmNeoPerf.summary()`
   // shows whether the Rust payload path or the JS fallback ran (and what each
   // cost) instead of one blended number.

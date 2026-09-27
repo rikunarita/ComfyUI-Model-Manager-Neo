@@ -509,6 +509,100 @@ tree.fallbackPath = timeIt(3, () => {
   return renderRows(index)
 })
 
+// ---------------------------------------------------------------------------
+// the payload validator: a hostile/stale/inconsistent tree must be REJECTED
+// (the component then folds the tree itself) instead of rendering a wrong
+// table. TypeScript has no unit-test runner in this repository, so the decoder's
+// defensive branch is gated here - in the same harness CI already runs.
+// ---------------------------------------------------------------------------
+const validatorCases = (() => {
+  const small = [
+    { name: 'a.b.w', dtype: 'BF16', shape: [2, 2] },
+    { name: 'a.c', dtype: 'BF16', shape: [3] },
+    { name: 'top', dtype: 'F32', shape: [] },
+  ]
+  const good = buildTensorTreePayload(small)
+  const clone = () => JSON.parse(JSON.stringify(good))
+  const cases = {
+    acceptsTheRealPayload: () => createTensorTreeIndex(clone(), small) !== null,
+    rejectsNull: () => createTensorTreeIndex(null, small) === null,
+    rejectsANonObject: () => createTensorTreeIndex('nope', small) === null,
+    rejectsAWrongVersion: () => {
+      const bad = clone()
+      bad.v = 2
+      return createTensorTreeIndex(bad, small) === null
+    },
+    rejectsMissingArrays: () => {
+      const bad = clone()
+      delete bad.leaves
+      return createTensorTreeIndex(bad, small) === null
+    },
+    rejectsANodeTupleOfTheWrongShape: () => {
+      const bad = clone()
+      bad.nodes[1] = ['a', 1, 0, 9]
+      return createTensorTreeIndex(bad, small) === null
+    },
+    rejectsANonStringSegment: () => {
+      const bad = clone()
+      bad.nodes[1][0] = 7
+      return createTensorTreeIndex(bad, small) === null
+    },
+    rejectsANegativeOrNonFiniteCount: () => {
+      const neg = clone()
+      neg.nodes[1][2] = -1
+      const nan = clone()
+      nan.nodes[1][3] = Number.NaN
+      return (
+        createTensorTreeIndex(neg, small) === null && createTensorTreeIndex(nan, small) === null
+      )
+    },
+    rejectsALeafIndexOutsideTheTensorList: () => {
+      const bad = clone()
+      bad.leaves[0] = small.length + 5
+      return createTensorTreeIndex(bad, small) === null
+    },
+    rejectsANonIntegerLeaf: () => {
+      const bad = clone()
+      bad.leaves[0] = 1.5
+      return createTensorTreeIndex(bad, small) === null
+    },
+    rejectsInconsistentOwnCounts: () => {
+      const bad = clone()
+      bad.nodes[0][2] = bad.nodes[0][2] + 1 // sum(own) != leaves.length
+      return createTensorTreeIndex(bad, small) === null
+    },
+    rejectsABrokenPreOrderStructure: () => {
+      const bad = clone()
+      bad.nodes[0][1] = bad.nodes[0][1] + 1 // a child that does not exist
+      return createTensorTreeIndex(bad, small) === null
+    },
+    rejectsAnEmptyNodeTable: () =>
+      createTensorTreeIndex({ v: 1, nodes: [], leaves: [] }, []) === null,
+    // the stale-payload guard: `tensors` and the tree come from two separate
+    // header parses server-side, so a file replaced in between must be caught
+    rejectsATreeForADifferentTensorList: () => {
+      const other = buildTensorTreePayload(
+        small.concat([{ name: 'x.y', dtype: 'F32', shape: [1] }]),
+      )
+      return createTensorTreeIndex(other, small) === null
+    },
+    acceptsAnEmptyHeader: () => {
+      const index = createTensorTreeIndex(buildTensorTreePayload([]), [])
+      return index !== null && index.size === 1 && index.rootCount === 0 && index.rootParams === 0
+    },
+  }
+  const out = {}
+  for (const [name, run] of Object.entries(cases)) out[name] = run()
+  return out
+})()
+const validatorFailed = Object.entries(validatorCases).filter(([, ok]) => !ok)
+if (validatorFailed.length > 0) {
+  console.error(
+    `GATE FAIL: tensor-tree validator: ${validatorFailed.map(([name]) => name).join(', ')}`,
+  )
+  process.exit(1)
+}
+
 // structural parity of the JS encoder against the legacy fold
 const legacyRoot = legacyTensorTree(moeTensors)
 const index = createTensorTreeIndex(payload, moeTensors)
@@ -664,6 +758,7 @@ const gates = {
   tensorTreeSpeedupP50: ratio(tree.legacyFold.p50, tree.indexCreate.p50 + tree.renderCollapsed.p50),
   rowsAreIdentical: sameRows,
   tensorTreeParity: parity.ok,
+  tensorTreeValidatorRejectsBadPayloads: validatorFailed.length === 0,
   rustJsTreeIdentical: crossCheck.ran ? crossCheck.identical : null,
 }
 gates.passed =
@@ -673,6 +768,7 @@ gates.passed =
   gates.tensorTreeDecodeIsFasterThanTheBrowserFold &&
   gates.rowsAreIdentical &&
   gates.tensorTreeParity &&
+  gates.tensorTreeValidatorRejectsBadPayloads &&
   gates.rustJsTreeIdentical !== false
 
 const report = {
@@ -703,7 +799,7 @@ const report = {
     moeExperts: MOE_EXPERTS,
   },
   grid,
-  tensorTree: { ...tree, parity, crossCheck },
+  tensorTree: { ...tree, parity, crossCheck, validator: validatorCases },
   gates,
 }
 
@@ -732,6 +828,11 @@ console.log(
 )
 console.log(
   `tensor tree payload   ${tree.payloadNodes} nodes, ${(tree.payloadBytes / 1e6).toFixed(2)} MB JSON`,
+)
+console.log(
+  `tree validator      ${Object.keys(validatorCases).length} cases (accept/reject) as expected: ${
+    validatorFailed.length === 0
+  }`,
 )
 console.log(
   `cross-check (rust==js) ${crossCheck.ran ? crossCheck.identical : `skipped: ${crossCheck.reason}`}`,

@@ -22,6 +22,7 @@ verify job); the native workflow's integration job runs them for real.
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 from harness import DTYPE_BITS, REPO_ROOT, import_ext, write_safetensors
@@ -323,3 +324,36 @@ async def test_model_info_route_carries_the_tree(prompt_server, model_lib, tmp_p
     assert body["success"] is True
     assert body["data"]["tensorTree"]["v"] == TREE_VERSION
     assert body["data"]["tensorTree"] == info["tensorTree"]
+
+
+def test_tensor_tree_is_dropped_when_the_file_changes_mid_read(tmp_path, monkeypatch):
+    """`tensors` and `tensorTree` come from two separate header parses.
+
+    A file replaced in between (a ZipNN compress renaming into place, an
+    external download landing) would pair a tree with the wrong tensor list, so
+    the pair is stamped around the read and the tree is dropped on a mismatch -
+    the frontend then folds it from `tensors`, which is always consistent.
+    """
+    mm = _require_native()
+    _set_engine(monkeypatch, "1")
+    utils = import_ext("utils")
+    path = _write(tmp_path, "racy.safetensors", NESTED, metadata={"format": "pt"})
+
+    # sanity: without the race the tree is served
+    assert utils.get_model_header(path)["tensorTree"] is not None
+
+    real_tree = mm.safetensors_tensor_tree
+
+    def racing(p: str):
+        out = real_tree(p)
+        # the file is "replaced" behind our back: a new mtime is enough for the
+        # guard (and `os.utime` keeps the fixture itself readable)
+        st = os.stat(p)
+        os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000))
+        return out
+
+    monkeypatch.setattr(mm, "safetensors_tensor_tree", racing)
+    header = utils.get_model_header(path)
+    assert header["tensorTree"] is None, "a mid-read change must drop the tree"
+    assert len(header["tensors"]) == len(NESTED), "the tensor list is still served"
+    assert header["metadata"] == {"format": "pt"}

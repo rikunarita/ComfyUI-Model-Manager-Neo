@@ -138,6 +138,10 @@ export const perfMeasure = (
       ? performance.measure(name, startMark, endMark)
       : performance.measure(name, startMark)
     perfRecord(name, entry.duration)
+    // Marks are anchors, not history: without this a long session would
+    // accumulate two per recompute in the User-Timing buffer.
+    performance.clearMarks(startMark)
+    if (endMark) performance.clearMarks(endMark)
     return entry.duration
   } catch {
     return undefined
@@ -145,17 +149,30 @@ export const perfMeasure = (
 }
 
 /**
- * Time a synchronous block and record it (returns the block's value). Used for
- * the pure-JS phases (filter / sort / chunk / tensor tree) whose cost must be
- * attributable even when no user-timing marks are wanted.
+ * Time a synchronous block and record it (returns the block's value).
+ *
+ * Used for the pure-JS phases (grid filter / sort / chunk, tensor-tree decode,
+ * row build). While enabled it emits a `name:start` / `name:end` mark pair and a
+ * `performance.measure` between them, so the same run is visible BOTH in
+ * `__mmNeoPerf.summary()` (percentiles over many samples) and in the DevTools
+ * Performance panel (one measure per recompute). Disabled - the shipping path -
+ * it is a single boolean test and a direct call.
  */
 export const perfTime = <T>(name: string, fn: () => T): T => {
   if (!enabled) return fn()
+  const startMark = `${name}:start`
+  const endMark = `${name}:end`
+  perfMark(startMark)
   const start = now()
   try {
     return fn()
   } finally {
-    perfRecord(name, now() - start)
+    perfMark(endMark)
+    // Prefer the User-Timing measure (it records the sample too); fall back to a
+    // plain sample where the API is unavailable.
+    if (perfMeasure(name, startMark, endMark) === undefined) {
+      perfRecord(name, now() - start)
+    }
   }
 }
 

@@ -57,9 +57,21 @@ TYPE_COOLDOWN = 2.0
 #: may release watches in the meantime.
 DEGRADE_RETRY = 600.0
 
+#: How long the on/off setting is cached. Reading it means opening and parsing
+#: ComfyUI's `comfy.settings.json`, and the poll loop runs once a second *while
+#: the feature is OFF by default* - so without a cache the extension would do a
+#: synchronous file read on the event loop every second for every user who never
+#: enables the watcher. Five seconds of switch latency is nothing for a setting
+#: that only decides whether inotify watches are armed.
+SETTING_TTL = 5.0
+
 #: Transient artefacts of Neo's own atomic writes: their final rename produces
 #: the event that matters, so the `.tmp` churn is filtered out.
 _IGNORED_SUFFIXES = (".tmp",)
+
+#: Cooldown-map key of the "everything changed" broadcast (`type: null`), which
+#: has no model type to key on.
+RESCAN_KEY = "*"
 
 # Linux filesystem types that are network-backed (the mountinfo `fstype` field).
 # notify's own docs: "Network mounted filesystems like NFS may not emit any
@@ -142,11 +154,34 @@ def network_mount_of(path: str) -> str | None:
         return None
 
 
-def _linux_network_mount(path: str) -> str | None:
+#: How long a read `/proc/self/mountinfo` body is reused. The watcher polls once
+#: a second and asks about every root, so without this it re-read the file once
+#: per root per second; mounts change rarely, and a stale answer only means a
+#: root is armed (or skipped) up to a minute late - the 30 s TTL revalidation
+#: covers freshness either way.
+MOUNTINFO_TTL = 60.0
+
+_mountinfo_cache: tuple[float, str | None] = (0.0, None)
+
+
+def _read_mountinfo() -> str | None:
+    global _mountinfo_cache
+    now = time.monotonic()
+    cached_at, cached = _mountinfo_cache
+    if cached is not None and now - cached_at < MOUNTINFO_TTL:
+        return cached
     try:
         with open("/proc/self/mountinfo", encoding="utf-8", errors="replace") as f:
-            mountinfo = f.read()
+            body: str | None = f.read()
     except OSError:
+        body = None
+    _mountinfo_cache = (now, body)
+    return body
+
+
+def _linux_network_mount(path: str) -> str | None:
+    mountinfo = _read_mountinfo()
+    if mountinfo is None:
         return None
     return network_mount_in_mountinfo(os.path.realpath(path), mountinfo)
 
@@ -234,23 +269,40 @@ def local_roots(base_paths: dict[str, list[str]]) -> tuple[list[str], list[str]]
     return roots, skipped
 
 
-def types_for_path(path: str, base_paths: dict[str, list[str]]) -> list[str]:
-    """The model types whose root contains `path` (longest match first)."""
-    target = os.path.realpath(path)
-    matches: list[tuple[int, str]] = []
+def type_matcher(base_paths: dict[str, list[str]]):
+    """A `path -> [model types]` mapper with the roots resolved ONCE.
+
+    `types_for_path` re-`realpath`ed every root for every changed path, which a
+    burst of events (a bulk copy into the library) turned into
+    ``len(paths) x len(roots)`` syscalls on the event loop. The mapper keeps the
+    resolved roots, longest first, so one burst costs one `realpath` per path.
+    """
+    roots: list[tuple[int, str, str]] = []
     for model_type, paths in base_paths.items():
         for base in paths:
             if not base:
                 continue
             root = os.path.realpath(base)
-            if target == root or target.startswith(root.rstrip(os.sep) + os.sep):
-                matches.append((len(root), model_type))
-    matches.sort(key=lambda item: -item[0])
-    ordered: list[str] = []
-    for _, model_type in matches:
-        if model_type not in ordered:
-            ordered.append(model_type)
-    return ordered
+            roots.append((len(root), root, model_type))
+    roots.sort(key=lambda item: -item[0])
+    prefixed = [(root, root.rstrip(os.sep) + os.sep, model_type) for _len, root, model_type in roots]
+
+    def match(path: str) -> list[str]:
+        target = os.path.realpath(path)
+        ordered: list[str] = []
+        for root, prefix, model_type in prefixed:
+            if model_type in ordered:
+                continue
+            if target == root or target.startswith(prefix):
+                ordered.append(model_type)
+        return ordered
+
+    return match
+
+
+def types_for_path(path: str, base_paths: dict[str, list[str]]) -> list[str]:
+    """The model types whose root contains `path` (longest match first)."""
+    return type_matcher(base_paths)(path)
 
 
 def _interesting(path: str) -> bool:
@@ -264,11 +316,29 @@ class ModelWatcher:
         self._task: asyncio.Task | None = None
         self._handle: int | None = None
         self._armed: list[str] = []
+        self._setting_cache: tuple[float, bool] | None = None
+        #: Roots already reported as skipped (network mounts), so a permanent
+        #: network root is logged ONCE instead of once per second.
+        self._logged_skipped: set[str] = set()
+        # The native module that armed the current session: the session is
+        # stopped by the SAME module even if MM_NATIVE flips in between
+        # (a leaked notify thread would keep holding inotify watches).
+        self._mm: Any = None
         self._last_type_broadcast: dict[str, float] = {}
         self._degraded_until = 0.0
         self._reported_unavailable = False
         self._stopped = False
         self.stats: dict[str, int] = {"polls": 0, "events": 0, "broadcasts": 0, "degrades": 0}
+
+    def enabled(self) -> bool:
+        """The on/off switch, cached for [SETTING_TTL] seconds."""
+        now = time.monotonic()
+        cached = self._setting_cache
+        if cached is not None and now - cached[0] < SETTING_TTL:
+            return cached[1]
+        value = is_enabled_setting()
+        self._setting_cache = (now, value)
+        return value
 
     # -- lifecycle ----------------------------------------------------------
     def ensure_task(self) -> None:
@@ -297,7 +367,9 @@ class ModelWatcher:
                 pass
             except Exception as e:
                 utils.print_debug(f"watcher: task ended with {e}")
-        self._release_session()
+        # The task's own `finally` already released the session; this covers a
+        # stop() before the task ever ran (and is a no-op afterwards).
+        await self._release_session()
 
     def _core(self):
         """The native core when it exposes the watch surface, else None.
@@ -318,15 +390,22 @@ class ModelWatcher:
             return None
         return mm
 
-    def _release_session(self) -> None:
+    async def _release_session(self) -> None:
+        """Stop the native session and forget its handle (idempotent).
+
+        Runs the native call in the io executor: `watch_stop` joins the notify
+        thread's shutdown path, which must not happen on the event loop.
+        """
         if self._handle is None:
             return
         handle, self._handle = self._handle, None
         self._armed = []
+        mm, self._mm = self._mm, None
+        if mm is None or not hasattr(mm, "watch_stop"):
+            return
         try:
-            mm = native.core()
-            if mm is not None and hasattr(mm, "watch_stop"):
-                mm.watch_stop(handle)
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(utils.io_executor(), mm.watch_stop, handle)
         except Exception as e:
             utils.print_debug(f"watcher: stop failed: {e}")
 
@@ -345,14 +424,21 @@ class ModelWatcher:
         except asyncio.CancelledError:
             pass
         finally:
-            self._release_session()
+            # `shield`: this task is being cancelled, but the release MUST still
+            # complete - a leaked notify thread would keep watching (and holding
+            # inotify watches) forever. `_release_session` clears the handle
+            # synchronously before its executor hop, so even a cancellation
+            # racing the await cannot leave a stale handle behind.
+            try:
+                await asyncio.shield(self._release_session())
+            except asyncio.CancelledError:
+                pass
 
     async def _tick(self) -> None:
-        enabled = is_enabled_setting()
-        if not enabled:
+        if not self.enabled():
             if self._handle is not None:
                 utils.print_info("model watcher disabled by setting - releasing the watches")
-                self._release_session()
+                await self._release_session()
             return
         if time.monotonic() < self._degraded_until:
             return  # degraded: wait out the retry window (TTL covers freshness)
@@ -370,17 +456,34 @@ class ModelWatcher:
         base_paths = utils.resolve_model_base_paths()
         roots, skipped = local_roots(base_paths)
         for note in skipped:
-            utils.print_info(f"model watcher: skipping network root {note}")
+            if note in self._logged_skipped:
+                continue
+            self._logged_skipped.add(note)
+            utils.print_info(
+                f"model watcher: skipping network root {note} "
+                "(notify receives no events from network filesystems; the 30 s TTL refresh covers it)"
+            )
+        # a mount that went away stops being reported (and can be logged again)
+        self._logged_skipped &= set(skipped)
         if not roots:
             if self._handle is not None:
-                self._release_session()
+                await self._release_session()
             return
         if self._handle is None or set(roots) != set(self._armed):
             # Roots changed (a volume appeared, a folder was added): re-arm.
-            self._release_session()
+            await self._release_session()
             try:
-                self._handle = int(mm.watch_start(roots))
+                # Arming is the expensive part: notify adds one watch per
+                # directory and the file-id cache walks the tree, so a large
+                # library takes seconds. It runs in the io executor - doing it
+                # on the loop would freeze every websocket for the whole walk
+                # (the same defect class the Phase-5 audit fixed in the download
+                # resume path). The GIL is released inside, so the other
+                # executor workers and the loop keep running.
+                loop = asyncio.get_running_loop()
+                self._handle = int(await loop.run_in_executor(utils.io_executor(), mm.watch_start, roots))
                 self._armed = roots
+                self._mm = mm
                 utils.print_info(f"model watcher armed on {len(roots)} root(s)")
             except Exception as e:
                 self._handle = None
@@ -395,7 +498,7 @@ class ModelWatcher:
             payload: Any = mm.watch_poll(self._handle)
         except Exception as e:
             utils.print_warning(f"model watcher poll failed ({e}); releasing the session")
-            self._release_session()
+            await self._release_session()
             return
         self.stats["polls"] += 1
         try:
@@ -412,7 +515,7 @@ class ModelWatcher:
             utils.print_warning(
                 f"model watcher degraded ({degraded}); falling back to the TTL refresh for {int(DEGRADE_RETRY)} s"
             )
-            self._release_session()
+            await self._release_session()
             return
         for error in report.get("errors") or []:
             utils.print_debug(f"model watcher: {error}")
@@ -425,11 +528,18 @@ class ModelWatcher:
 
         types: list[str] = []
         if rescan:
-            # The backend may have missed events: invalidate everything.
-            await self._broadcast(None, "fs-watch-rescan")
+            # The backend may have missed events: invalidate everything. The
+            # cooldown applies here too - a backend that keeps reporting a
+            # rescan (a persistently overflowing queue) must not trigger a full
+            # library sweep once a second.
+            now = time.monotonic()
+            if now - self._last_type_broadcast.get(RESCAN_KEY, 0.0) >= TYPE_COOLDOWN:
+                self._last_type_broadcast[RESCAN_KEY] = now
+                await self._broadcast(None, "fs-watch-rescan")
             return
+        match = type_matcher(base_paths)
         for path in paths:
-            for model_type in types_for_path(path, base_paths):
+            for model_type in match(path):
                 if model_type not in types:
                     types.append(model_type)
         if not types:
@@ -452,7 +562,7 @@ class ModelWatcher:
     # -- diagnostics --------------------------------------------------------
     def diagnostics(self) -> dict[str, Any]:
         out: dict[str, Any] = {
-            "enabled": is_enabled_setting(),
+            "enabled": self.enabled(),
             "running": self._task is not None and not self._task.done(),
             "armedRoots": len(self._armed),
             "degraded": time.monotonic() < self._degraded_until,

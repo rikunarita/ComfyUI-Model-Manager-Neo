@@ -424,6 +424,20 @@ def get_model_tensors(filename: str):
     return tensors
 
 
+def _file_stamp(path: str) -> tuple[int, int] | None:
+    """`(st_mtime_ns, st_size)` of `path`, or None when it cannot be stat'd.
+
+    The cheap identity check behind [get_model_header]'s "did the file change
+    while we were reading its header" guard (the same validity stamp the scan's
+    front-matter cache uses).
+    """
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return st.st_mtime_ns, st.st_size
+
+
 def get_model_header(filename: str) -> dict:
     """Everything the model-detail Information tab needs, in ONE place.
 
@@ -445,21 +459,34 @@ def get_model_header(filename: str) -> dict:
     mm = _native_core()
     if mm is not None:
         try:
+            # The tree's leaf indices address the `tensors` list, and the two
+            # come from SEPARATE header parses: a file replaced in between (a
+            # ZipNN compress renaming into place, an external download landing)
+            # would pair a tree with the wrong tensor list. Stamping the file
+            # around the pair detects that and drops the tree - the frontend
+            # then folds it from `tensors`, which is always self-consistent.
+            # (The frontend additionally rejects a payload whose leaf count does
+            # not match the tensor count.)
+            before = _file_stamp(filename)
             header = json.loads(mm.safetensors_header(filename))
+            meta = header.get("metadata")
+            tensors = header.get("tensors")
+            tree = None
+            try:
+                parsed_tree = json.loads(mm.safetensors_tensor_tree(filename))
+                if isinstance(parsed_tree, dict) and before is not None and before == _file_stamp(filename):
+                    tree = parsed_tree
+                elif isinstance(parsed_tree, dict):
+                    print_warning("tensor tree dropped: the file changed while its header was read")
+            except Exception as e:
+                # The tree is an optimisation: the frontend folds it itself.
+                print_warning(f"native tensor tree failed ({e}); the frontend will group")
         except Exception:
-            header = {}
-        meta = header.get("metadata")
-        tensors = header.get("tensors")
-        tree = None
-        try:
-            tree = json.loads(mm.safetensors_tensor_tree(filename))
-        except Exception as e:
-            # The tree is an optimisation: the frontend folds it itself.
-            print_warning(f"native tensor tree failed ({e}); the frontend will group")
+            return {"metadata": {}, "tensors": [], "tensorTree": None}
         return {
             "metadata": meta if isinstance(meta, dict) else {},
             "tensors": tensors if isinstance(tensors, list) else [],
-            "tensorTree": tree if isinstance(tree, dict) else None,
+            "tensorTree": tree,
         }
     # Legacy engine: no tree (the frontend's own grouping is the fallback).
     return {

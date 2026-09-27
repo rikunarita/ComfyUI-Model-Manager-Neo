@@ -549,7 +549,17 @@ class SearchRoutes:
             # failing the whole search (partial results survive).
             sort_map = {name: _resolve_sort(request, name) for name in _PROVIDERS}
             tasks = {name: asyncio.create_task(run(name, None, sort_map[name])) for name in _PROVIDERS}
-            done, pending = await asyncio.wait(tasks.values(), timeout=SEARCH_TIMEOUT[1] + SWEEP_MARGIN)
+            try:
+                done, pending = await asyncio.wait(tasks.values(), timeout=SEARCH_TIMEOUT[1] + SWEEP_MARGIN)
+            except BaseException:
+                # The client went away (or the server is shutting down) while the
+                # sweep was in flight: cancel the three provider coroutines
+                # instead of leaving them running with nobody to read their
+                # result. The old executor version got this for free from
+                # `pool.shutdown(cancel_futures=True)` in its `finally`.
+                for task in tasks.values():
+                    task.cancel()
+                raise
             if pending:
                 utils.print_warning("search: provider timed out, returning partial results")
                 for task in pending:

@@ -183,11 +183,25 @@ def raise_for_status(status: int, reason: str | None, url: str) -> None:
     raise HttpStatusError(status, reason or "", str(url))
 
 
-def decode_json(body: bytes) -> Any:
-    """Decode a response body the way `requests`' `.json()` does (no
-    content-type gate)."""
+def decode_json(body: bytes, charset: str | None = None) -> Any:
+    """Decode a response body the way `requests`' `.json()` does.
+
+    No content-type gate (aiohttp's ``response.json()`` refuses anything but
+    ``application/json``; `requests` does not). A declared charset is honoured -
+    `requests` decodes through ``Response.text``, which uses it - and UTF-8
+    otherwise, which is what RFC 8259 mandates for JSON and what every hub API
+    here serves. An unknown codec name degrades to UTF-8 instead of escaping as
+    a `LookupError` (a 500 where `requests` produced a decode/JSON error).
+    """
+    encoding = (charset or "").strip() or "utf-8"
     try:
-        return json.loads(body.decode("utf-8", "replace"))
+        return json.loads(body.decode(encoding, "replace"))
+    except LookupError:
+        encoding = "utf-8"
+    except ValueError as e:
+        raise HttpJsonError(f"response body is not valid JSON: {e}") from e
+    try:
+        return json.loads(body.decode(encoding, "replace"))
     except ValueError as e:
         raise HttpJsonError(f"response body is not valid JSON: {e}") from e
 
@@ -208,7 +222,7 @@ async def fetch_json(
     async with session.get(url, params=params, headers=headers, timeout=client_timeout(timeout)) as response:
         body = await response.read()
         raise_for_status(response.status, response.reason, str(response.url))
-        return decode_json(body)
+        return decode_json(body, response.charset)
 
 
 async def fetch_status_json(
@@ -226,7 +240,7 @@ async def fetch_status_json(
         body = await response.read()
         if response.status != 200:
             return response.status, None
-        return response.status, decode_json(body)
+        return response.status, decode_json(body, response.charset)
 
 
 async def fetch_bytes_capped(

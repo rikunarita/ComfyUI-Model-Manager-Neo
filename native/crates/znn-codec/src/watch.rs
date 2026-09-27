@@ -45,6 +45,17 @@ pub const DEBOUNCE: Duration = Duration::from_millis(500);
 /// session struct can name it).
 type FullDebouncer = Debouncer<notify::RecommendedWatcher, RecommendedCache>;
 
+/// Pending-path cap.
+///
+/// A bulk operation (copying a whole library in, a `git checkout` of a model
+/// repo) can produce tens of thousands of distinct paths between two polls, and
+/// both the pending set and the next poll's JSON would grow with them. Past the
+/// cap the session collapses everything into ONE full invalidation (`rescan`),
+/// which is exactly how the Python side treats that flag - a full sweep is
+/// cheaper than a megabyte payload naming every file, and correctness is
+/// unaffected because the client re-fetches the whole type anyway.
+pub const MAX_PENDING_PATHS: usize = 4096;
+
 /// Everything the notify thread and the polling side share.
 #[derive(Default)]
 struct Shared {
@@ -62,6 +73,53 @@ struct Shared {
     /// is reported to Python, which then stops the session and relies on the
     /// TTL fallback.
     degraded: Mutex<Option<String>>,
+}
+
+impl Shared {
+    /// Fold one debounced event into the pending state (runs on the notify
+    /// thread; every lock here is held for a few instructions only).
+    fn record(&self, event: &notify::Event) {
+        if event.need_rescan() {
+            self.rescan.store(true, Ordering::Relaxed);
+        }
+        // Read-only access events are noise (ComfyUI reads models constantly);
+        // everything else can mean a listing change.
+        if matches!(event.kind, notify::EventKind::Access(_)) {
+            return;
+        }
+        let mut paths = self
+            .paths
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for path in &event.paths {
+            paths.insert(path.clone());
+        }
+        if paths.len() > MAX_PENDING_PATHS {
+            self.rescan.store(true, Ordering::Relaxed);
+            paths.clear();
+        }
+    }
+
+    /// Record a backend error; a watch-budget exhaustion also marks the session
+    /// degraded so Python falls back to the TTL refresh.
+    fn record_error(&self, err: &notify::Error) {
+        if matches!(err.kind, notify::ErrorKind::MaxFilesWatch) {
+            *self
+                .degraded
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                Some(format!("inotify watch budget exhausted: {err}"));
+        }
+        let mut list = self
+            .errors
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Bounded: a long-lived session must not grow the list without bound
+        // (poll drains it, but a stalled poller must not turn it into a leak).
+        if list.len() < 64 {
+            list.push(err.to_string());
+        }
+    }
 }
 
 /// One live watch session (one per `watch_start`).
@@ -218,87 +276,71 @@ pub fn watch_start(roots: &[PathBuf], debounce: Option<Duration>) -> Result<u64,
     let mut debouncer = new_debouncer(
         debounce.unwrap_or(DEBOUNCE),
         None, // tick rate: notify picks timeout/4 (documented default)
-        move |result: DebounceEventResult| {
-            match result {
-                Ok(events) => {
-                    let mut paths = sink
-                        .paths
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    for event in &events {
-                        if event.need_rescan() {
-                            sink.rescan.store(true, Ordering::Relaxed);
-                        }
-                        // Read-only access events are noise (ComfyUI reads
-                        // models constantly); everything else can mean a
-                        // listing change.
-                        if matches!(event.kind, notify::EventKind::Access(_)) {
-                            continue;
-                        }
-                        for path in &event.paths {
-                            paths.insert(path.clone());
-                        }
-                    }
+        move |result: DebounceEventResult| match result {
+            Ok(events) => {
+                for event in &events {
+                    sink.record(event);
                 }
-                Err(errors) => {
-                    let mut list = sink
-                        .errors
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    for err in errors {
-                        // A lost watch is reported, not fatal: the TTL
-                        // revalidation keeps the grid eventually correct.
-                        if matches!(err.kind, notify::ErrorKind::MaxFilesWatch) {
-                            *sink
-                                .degraded
-                                .lock()
-                                .unwrap_or_else(std::sync::PoisonError::into_inner) =
-                                Some(format!("inotify watch budget exhausted: {err}"));
-                        }
-                        if list.len() < 64 {
-                            list.push(err.to_string());
-                        }
-                    }
+            }
+            // A lost watch is reported, not fatal: the TTL revalidation keeps
+            // the grid eventually correct.
+            Err(errors) => {
+                for err in errors {
+                    sink.record_error(&err);
                 }
             }
         },
     )
     .map_err(|e| format!("cannot start the file watcher: {e}"))?;
 
+    // Arming collects its reports LOCALLY and merges them into the shared state
+    // afterwards: `Debouncer::watch` can block on the watcher thread (kqueue /
+    // FSEvents hand the call over to it), and that same thread runs the event
+    // handler which locks `shared.errors`. Holding that lock across `watch()`
+    // would be a lock-order inversion waiting to happen.
     let mut watched = 0u64;
-    {
+    let mut local_errors: Vec<String> = Vec::new();
+    let mut degraded: Option<String> = None;
+    for root in roots {
+        if !root.exists() {
+            local_errors.push(format!(
+                "watch root does not exist (skipped): {}",
+                root.display()
+            ));
+            continue;
+        }
+        match debouncer.watch(root, RecursiveMode::Recursive) {
+            Ok(()) => watched += 1,
+            Err(err) => {
+                if matches!(err.kind, notify::ErrorKind::MaxFilesWatch) {
+                    degraded = Some(format!(
+                        "inotify watch budget exhausted while arming {}: {err}",
+                        root.display()
+                    ));
+                    local_errors.push(format!(
+                        "watch budget exhausted (degrading to the TTL refresh): {err}"
+                    ));
+                    break;
+                }
+                local_errors.push(format!("cannot watch {}: {err}", root.display()));
+            }
+        }
+    }
+    if !local_errors.is_empty() {
         let mut errors = shared
             .errors
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        for root in roots {
-            if !root.exists() {
-                errors.push(format!(
-                    "watch root does not exist (skipped): {}",
-                    root.display()
-                ));
-                continue;
-            }
-            match debouncer.watch(root, RecursiveMode::Recursive) {
-                Ok(()) => watched += 1,
-                Err(err) => {
-                    if matches!(err.kind, notify::ErrorKind::MaxFilesWatch) {
-                        *shared
-                            .degraded
-                            .lock()
-                            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(format!(
-                            "inotify watch budget exhausted while arming {}: {err}",
-                            root.display()
-                        ));
-                        errors.push(format!(
-                            "watch budget exhausted (degrading to the TTL refresh): {err}"
-                        ));
-                        break;
-                    }
-                    errors.push(format!("cannot watch {}: {err}", root.display()));
-                }
-            }
-        }
+        // Same 64-entry bound the runtime handler applies (a long-lived session
+        // must not grow the list without bound; poll drains it).
+        let room = 64usize.saturating_sub(errors.len());
+        errors.extend(local_errors.into_iter().take(room));
+    }
+    if let Some(reason) = degraded {
+        *shared
+            .degraded
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(reason);
     }
 
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
@@ -392,6 +434,96 @@ mod tests {
             std::thread::sleep(Duration::from_millis(50));
         }
         false
+    }
+
+    fn create_event(path: &str) -> notify::Event {
+        // notify's builders consume and return self, so they must be chained
+        notify::Event::new(notify::EventKind::Create(notify::event::CreateKind::File))
+            .add_path(PathBuf::from(path))
+    }
+
+    #[test]
+    fn record_dedupes_and_ignores_access_events() {
+        let shared = Shared::default();
+        shared.record(&create_event("/x/a.safetensors"));
+        shared.record(&create_event("/x/a.safetensors")); // a burst for one file
+        shared.record(&create_event("/x/b.safetensors"));
+        let access = notify::Event::new(notify::EventKind::Access(notify::event::AccessKind::Read))
+            .add_path(PathBuf::from("/x/read-only.safetensors"));
+        shared.record(&access);
+
+        let paths = shared
+            .paths
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert_eq!(paths.len(), 2, "deduped, and the read event is noise");
+        assert!(!paths.iter().any(|p| p.ends_with("read-only.safetensors")));
+        assert!(!shared.rescan.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn a_burst_collapses_into_one_full_rescan() {
+        let shared = Shared::default();
+        for i in 0..=MAX_PENDING_PATHS {
+            shared.record(&create_event(&format!("/x/{i}.safetensors")));
+        }
+        assert!(
+            shared.rescan.load(Ordering::Relaxed),
+            "a bulk copy must ask for a full invalidation"
+        );
+        assert!(
+            shared
+                .paths
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty(),
+            "and the pending set is collapsed, not grown without bound"
+        );
+    }
+
+    #[test]
+    fn a_need_rescan_event_sets_the_flag_without_paths() {
+        let shared = Shared::default();
+        let e = notify::Event::new(notify::EventKind::Modify(notify::event::ModifyKind::Any))
+            .set_flag(notify::event::Flag::Rescan);
+        shared.record(&e);
+        assert!(shared.rescan.load(Ordering::Relaxed));
+        assert!(
+            shared
+                .paths
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_watch_budget_error_degrades_and_the_error_list_is_bounded() {
+        let shared = Shared::default();
+        shared.record_error(&notify::Error::new(notify::ErrorKind::MaxFilesWatch));
+        let degraded = shared
+            .degraded
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        assert!(
+            degraded.unwrap_or_default().contains("budget"),
+            "MaxFilesWatch must surface as the degrade reason"
+        );
+        for _ in 0..200 {
+            shared.record_error(&notify::Error::new(notify::ErrorKind::Generic(
+                "some backend complaint".to_owned(),
+            )));
+        }
+        let errors = shared
+            .errors
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert!(
+            errors.len() <= 64,
+            "the error list is bounded ({} entries)",
+            errors.len()
+        );
     }
 
     #[test]

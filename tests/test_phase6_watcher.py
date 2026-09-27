@@ -176,9 +176,9 @@ async def test_external_change_broadcasts_models_changed(prompt_server, tmp_path
     """The whole point of the feature: an EXTERNAL write becomes the Phase-5
     `models_changed` event, so the frontend listener is reused unchanged."""
     _watcher_mod, service, root = _make_watcher(monkeypatch, tmp_path)
-    mm = pytest.importorskip("mm_core") if _native_available() else None
-    if mm is None:
+    if not _native_available():
         pytest.skip("native binary not built (scripts/build-native.sh)")
+    mm = import_ext("native").core()
     monkeypatch.setattr(service, "_core", lambda: mm)
 
     await service._tick()  # arms the session
@@ -188,7 +188,11 @@ async def test_external_change_broadcasts_models_changed(prompt_server, tmp_path
 
     # An external process drops a model into the library.
     (root / "external.safetensors").write_bytes(b"x" * 8)
-    deadline = time.monotonic() + 15.0
+    # 25 s bound: Linux inotify answers in ~0.6 s (500 ms debounce + 1 s poll),
+    # macOS FSEvents and Windows ReadDirectoryChangesW can take a few seconds on
+    # a loaded CI runner. The Rust L1 watch test (same event, 10 s bound) already
+    # passed on all three OSes in native-test.
+    deadline = time.monotonic() + 25.0
     while time.monotonic() < deadline and not prompt_server.sent:
         await service._tick()
         await asyncio.sleep(0.2)
@@ -210,6 +214,8 @@ async def test_degraded_session_falls_back_to_the_ttl(prompt_server, tmp_path, m
     started: list[int] = []
     polls = {"n": 0}
 
+    stopped: list[int] = []
+
     class DegradingCore:
         def watch_start(self, roots, opts=None):
             started.append(1)
@@ -226,7 +232,7 @@ async def test_degraded_session_falls_back_to_the_ttl(prompt_server, tmp_path, m
             )
 
         def watch_stop(self, handle):
-            return None
+            stopped.append(handle)
 
     core = DegradingCore()
     monkeypatch.setattr(service, "_core", lambda: core)
@@ -236,6 +242,7 @@ async def test_degraded_session_falls_back_to_the_ttl(prompt_server, tmp_path, m
     await service._tick()  # poll → degraded
     assert started == [1]
     assert service._handle is None, "the session is released"
+    assert stopped == [42], "the module that armed the session is the one that stops it"
     diagnostics = service.diagnostics()
     assert diagnostics["degraded"] is True
     assert service.stats["degrades"] == 1
@@ -324,6 +331,40 @@ async def test_type_cooldown_collapses_a_bulk_copy(prompt_server, tmp_path, monk
     assert events[0]["type"] == "checkpoints"
 
 
+@pytest.mark.asyncio
+async def test_arm_and_release_run_off_the_event_loop(tmp_path, monkeypatch):
+    """`watch_start` walks the tree and adds one inotify watch per directory, so
+    it MUST NOT run on the loop (the Phase-5 audit fixed the same defect class in
+    the download resume path). Pinned by recording the executing thread."""
+    import threading
+
+    _watcher_mod, service, _root = _make_watcher(monkeypatch, tmp_path)
+    threads: list[tuple[str, bool]] = []
+    loop_thread = threading.get_ident()
+
+    class ThreadRecordingCore:
+        def watch_start(self, roots, opts=None):
+            threads.append(("start", threading.get_ident() == loop_thread))
+            return 1
+
+        def watch_poll(self, handle):
+            # polling stays ON the loop by design (a mutex swap + a small JSON)
+            threads.append(("poll", threading.get_ident() == loop_thread))
+            return json.dumps({"paths": [], "rescan": False, "degraded": None})
+
+        def watch_stop(self, handle):
+            threads.append(("stop", threading.get_ident() == loop_thread))
+
+    monkeypatch.setattr(service, "_core", lambda: ThreadRecordingCore())
+    await service._tick()
+    await service.stop()
+
+    kinds = dict(threads)
+    assert kinds.get("start") is False, "watch_start must run in an executor"
+    assert kinds.get("stop") is False, "watch_stop must run in an executor"
+    assert kinds.get("poll") is True, "watch_poll is cheap and stays on the loop"
+
+
 def _native_available() -> bool:
     native = import_ext("native")
     native._module = None
@@ -336,3 +377,118 @@ def _native_available() -> bool:
         return False
     core = native.core()
     return all(hasattr(core, name) for name in ("watch_start", "watch_poll", "watch_stop"))
+
+
+def test_mountinfo_body_is_cached_within_the_ttl(monkeypatch):
+    """The watcher polls once a second and asks about every root; re-reading
+    `/proc/self/mountinfo` per root per tick would be pointless syscall churn."""
+    import time as time_mod
+
+    watcher = _watcher_module()
+    # a cached body is reused (the sentinel never matches a real mount)
+    monkeypatch.setattr(watcher, "_mountinfo_cache", (time_mod.monotonic(), "SENTINEL"))
+    assert watcher._linux_network_mount("/tmp") is None
+    assert watcher._mountinfo_cache[1] == "SENTINEL", "an expired-free cache must not re-read"
+    # an expired cache re-reads the real file
+    monkeypatch.setattr(watcher, "_mountinfo_cache", (0.0, "SENTINEL"))
+    assert watcher._linux_network_mount("/") is None
+    assert watcher._mountinfo_cache[1] != "SENTINEL", "an expired cache must re-read"
+
+
+def test_type_matcher_resolves_roots_once_and_matches_types_for_path(tmp_path):
+    """`type_matcher` is the burst-friendly form of `types_for_path`."""
+    watcher = _watcher_module()
+    root = tmp_path / "models"
+    (root / "loras").mkdir(parents=True)
+    base_paths = {"loras": [str(root / "loras")], "checkpoints": [str(root / "loras"), ""]}
+    match = watcher.type_matcher(base_paths)
+    assert match(str(root / "loras" / "a.safetensors")) == ["loras", "checkpoints"]
+    assert match(str(tmp_path / "elsewhere.safetensors")) == []
+    assert watcher.types_for_path(str(root / "loras" / "a.safetensors"), base_paths) == [
+        "loras",
+        "checkpoints",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_setting_is_cached_for_the_ttl(tmp_path, monkeypatch):
+    """The poll loop runs once a second while the feature is OFF by default, so
+    the setting (a `comfy.settings.json` read) must not be re-read every tick."""
+    watcher_mod, service, _root = _make_watcher(monkeypatch, tmp_path, enabled=False)
+    reads = {"n": 0}
+
+    def counting_read():
+        reads["n"] += 1
+        return False
+
+    monkeypatch.setattr(watcher_mod, "is_enabled_setting", counting_read)
+    monkeypatch.setattr(watcher_mod, "SETTING_TTL", 60.0)
+    for _ in range(5):
+        await service._tick()
+    assert reads["n"] == 1, "five ticks inside the TTL read the setting once"
+    assert service.diagnostics()["enabled"] is False
+
+    # expiring the cache makes the next tick re-read (the switch is honoured
+    # without a restart)
+    service._setting_cache = None
+    monkeypatch.setattr(watcher_mod, "is_enabled_setting", lambda: True)
+    await service._tick()  # enabled now: it will try to arm (no native -> quiet)
+    assert service.diagnostics()["enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_rescan_broadcast_honours_the_cooldown(prompt_server, tmp_path, monkeypatch):
+    """A backend that keeps reporting `need_rescan` must not trigger a full
+    library sweep once per second."""
+    watcher_mod, service, _root = _make_watcher(monkeypatch, tmp_path)
+
+    class AlwaysRescan:
+        def watch_start(self, roots, opts=None):
+            return 3
+
+        def watch_poll(self, handle):
+            return json.dumps({"paths": [], "rescan": True, "degraded": None})
+
+        def watch_stop(self, handle):
+            pass
+
+    monkeypatch.setattr(service, "_core", lambda: AlwaysRescan())
+    monkeypatch.setattr(watcher_mod, "TYPE_COOLDOWN", 60.0)
+    for _ in range(5):
+        await service._tick()
+    events = [data for event, data, _sid in prompt_server.sent if event == "models_changed"]
+    assert len(events) == 1, events
+    assert events[0] == {"type": None, "reason": "fs-watch-rescan"}
+
+
+@pytest.mark.asyncio
+async def test_network_root_skip_is_logged_once(tmp_path, monkeypatch):
+    """A permanently network-mounted root is reported once, not once a second."""
+    watcher_mod, service, _root = _make_watcher(monkeypatch, tmp_path)
+    utils = import_ext("utils")
+    nas = tmp_path / "nas"
+    nas.mkdir()
+    monkeypatch.setattr(utils, "resolve_model_base_paths", lambda: {"loras": [str(nas)]})
+    monkeypatch.setattr(watcher_mod, "network_mount_of", lambda path: "nfs on /nas")
+
+    # The root selection is pure Python and must be testable without a built
+    # native core, so the tick gets a stand-in that would arm if asked.
+    class UnusedCore:
+        def watch_start(self, roots, opts=None):
+            raise AssertionError("a network-only library must not arm a session")
+
+        def watch_poll(self, handle):
+            return "{}"
+
+        def watch_stop(self, handle):
+            pass
+
+    monkeypatch.setattr(service, "_core", lambda: UnusedCore())
+
+    logged: list[str] = []
+    monkeypatch.setattr(utils, "print_info", lambda msg, *a, **k: logged.append(str(msg)))
+    for _ in range(4):
+        await service._tick()
+    skips = [line for line in logged if "skipping network root" in line]
+    assert len(skips) == 1, skips
+    assert service._handle is None, "no session is armed for a network-only library"

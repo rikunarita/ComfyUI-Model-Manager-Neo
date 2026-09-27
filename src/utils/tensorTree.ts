@@ -218,6 +218,13 @@ export const createTensorTreeIndex = (
     ownTotal += count
   }
   if (cursor !== leaves.length || ownTotal !== leaves.length) return null
+  // Every tensor must be placed exactly once. This also catches a STALE payload:
+  // the backend produces `tensors` and the tree in two separate header parses,
+  // so a file replaced in between (a ZipNN compress renaming into place, an
+  // external download) could hand us a tree for a different tensor list. The
+  // caller then folds the tree itself from `tensors`, which is always
+  // self-consistent.
+  if (leaves.length !== tensors.length) return null
 
   // Subtree size (in node entries) of each node, for O(1) sibling skips:
   // a parent always precedes its children, so a reverse pass over the parent
