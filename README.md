@@ -311,6 +311,16 @@ Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or t
   environment fallbacks). Keys migrate out of ComfyUI user settings on first
   run.
 - Exclude model types from the model list; include/exclude hidden files.
+- **Watch model folders for external changes** (off by default) — the native core
+  watches every model folder (`notify` + a 500 ms debounce) so a model added or
+  removed by another program refreshes only the affected list within ~1.5 s.
+  Network-mounted roots are skipped automatically and an exhausted Linux inotify
+  watch budget degrades to the 30 s TTL refresh; the watcher's state is served at
+  `GET /model-manager/watch-status`.
+- **Record UI performance marks (K15)** (off by default) — instruments the grid
+  recompute/paint and the tensor-tree build with `performance.mark`; read
+  P50/P95/P99 from the console with `__mmNeoPerf.summary()` (the headless
+  equivalent is `scripts/bench/front/k15.mjs`, evidence in `docs/BENCH.md` §11).
 - ZipNN automation: auto‑compress models unused for N days, auto‑compress
   after a download completes, and pause downloads while a prompt executes.
 - UI language follows ComfyUI's locale — **English**, **中文** and **日本語**

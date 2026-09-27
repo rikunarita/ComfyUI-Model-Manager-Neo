@@ -306,6 +306,15 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
   `MODELSCOPE_API_TOKEN` 環境変数フォールバック付き）。
   旧バージョンの ComfyUI ユーザー設定に入っていたキーは初回実行時に移行されます。
 - モデル種別を一覧から除外。隠しファイルの含む/除く。
+- **モデルフォルダの外部変更を監視する**（既定 OFF）— 他プロセスが追加/削除した
+  モデルを native のファイル監視（`notify` + 500 ms デバウンス）で検出し、約 1.5 秒で
+  該当一覧だけを更新します。ネットワークマウントの root は自動除外、Linux の inotify
+  watch 予算が枯渇した場合は定期再取得（30 秒 TTL）へ degrade。状態は
+  `GET /model-manager/watch-status` で確認できます。
+- **UI のパフォーマンスマークを記録する（K15）**（既定 OFF）— グリッド再計算/描画と
+  テンソルツリー構築を `performance.mark` で計測し、コンソールの
+  `__mmNeoPerf.summary()` から P50/P95/P99 を読めます（ヘッドレス計測は
+  `scripts/bench/front/k15.mjs`、証跡は `docs/BENCH.md` §11）。
 - ZipNN 自動化: N 日未使用のモデルを自動圧縮、ダウンロード完了後に自動圧縮、
   prompt 実行中はダウンロードを一時停止。
 - UI 言語は ComfyUI のロケールに追従 — **English**・**中文**・**日本語** を

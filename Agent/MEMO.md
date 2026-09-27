@@ -1976,3 +1976,214 @@ linux-x86_64 が 2.4→2.87 MB へ成長し、universal2 fat が **4.8 MB**（�
 - 残件は不変: Phase 2 K2/K3 参照機再計測、K10 5000 モデル ≤100 ms の参照機
   確認、K11 端到端 ≤40 ms（processed JSON のルート直スピルス設計 = 公開契約
   変更を伴うため範囲外と記録済み）、実 UI 手動 QA（Phase 7 統合）。
+
+## 2026-09-27（第 8 セッション）— Phase 5 最終バグチェック（6 件修正）+ Phase 6 完全実装（C1–C5・テンソルツリー Rust 化・A3・watch_roots）
+
+**完了**: Plan §6.2 Phase 6 の**全項目**（任意項目 A3 / watch_roots を含む）を実装し、
+全ゲート緑で [x] 化。api_version 4→5。着手前の Phase 5 精査で **6 件**のバグを
+発見・修正（すべて回帰テスト化）、Phase 6 の実装中に既存バグ **1 件**を追加発見・修正。
+
+### 環境再構築（セッション冒頭ロールバック対策 — 第 6 セッションと同型）
+
+apt（build-essential/clang/mold/libpython3.11-dev/curl）→ rustup stable **1.98.1**
+（+rustfmt/clippy）→ pip（ruff/mypy/pytest/pytest-asyncio/maturin/numpy/safetensors/
+torch 2.14.0+cpu/**markdownify・huggingface_hub・hf_xet・modelscope_hub・pillow** =
+`-r requirements.txt`。A3 のテストは `py/information.py` を import するため
+markdownify/PIL が必須）→ pnpm 12.3.4 + `pnpm install --frozen-lockfile`。
+**dependency-cruiser 18 は Node ≥22 必須**（この環境は 20.20.2）→ 公式 tarball の
+Node v22.20.0 を作業領域外へ展開して `depcruise src` を実行
+（**136 modules / 409 dependencies、違反 0**）。cargo は 1 GiB 制約で
+`CARGO_BUILD_JOBS=1..2`。debug ビルド 1 m 36 s、release（lto=fat）2 m 02 s。
+
+**この環境の重要な癖（次セッション向け）**: bash ツールへ渡した**ファイル内容の中の
+`"$ARENA_WORKSPACE"` 文字列はワークスペース実体の env 変数へ置換される**。heredoc 内の
+Python 文字列リテラルに絶対パスを書くと `""$ARENA_WORKSPACE""` のような壊れた構文に
+なり、`write_file` で書いた絶対パスは実体と一致せず `FileNotFoundError` になる。
+**スクリプト内は相対パス（`cd` して実行）か `os.path.dirname(__file__)` を使うこと。**
+もう一つ: **バックグラウンド実行（`nohup … &`）はツール呼び出しをまたぐと殺される**
+（cargo build を裏で回して途中で消えた）。長時間ビルドは `timeout` 付きの同期実行で。
+
+### Phase 5 最終バグチェック（ユーザ指示「念のため精査」）— 発見 6 件、全て修正
+
+対象を Phase 5 の差分（`scan.rs` / `index.rs` / `hash.rs` /
+`safetensors_io::header_display_json` / `mm-core phase5.rs` / `py/native.py` /
+`manager.py` / `utils.py` / `identify.py` / `download.py` / フロント
+`models_changed` リスナー）に絞って精読 + 実走査。**codec 経路は Phase 4 の
+4 回監査と整合（変更ゼロ）**、scan/index/hash の golden parity も再確認した上で、
+以下を修正した（詳細表は BENCH §11.5）。
+
+1. **resume 時のイベントループ停止（重大・応答性）**: インライン検証のシード読み
+   （部分ファイル全文）が `download_model_file_http` の中で**同期実行**されていた。
+   「page-cache だから安い」は同一プロセス内の再開でのみ成立し、ComfyUI 再起動後の
+   resume は cold read = 10 GB で数秒、websocket も全リクエストも止まる
+   （Plan §1.2.2 課題 6 と同じクラス）。`io_executor` へ移動し、失敗時はハッシャを
+   破棄して従来の `_sha256_of` 再読込検証へ degrade（正しさ不変）。
+2. **失われたハッシャ handle でダウンロード全体が失敗し得た**: native 側 registry は
+   4096 で oldest eviction するため、理論上は稼働中の handle が消えて
+   `hasher_update` が `KeyError` → 書き込みループから例外が伝播し**バイト列が正常な
+   ダウンロードが失敗**する。try/except で inline 検証だけ放棄するようにした。
+3. **永続インデックスの無限成長**: `SiteIndex` に上限が無く、削除済みサイドカーの
+   entry が永遠に残る（Python 側 `_SITE_CACHE` は 4096 上限）。
+   `MAX_ENTRIES = 262_144` を新設し超過時に任意の半分を prune（派生データなので
+   miss は再パースのみ — R7 の設計思想のまま）。
+4. **不正 UTF‑8 の `.md` 1 個でフォルダ一覧が全滅（legacy 経路）**:
+   `open(..., encoding="utf-8").read(4096)` の `UnicodeDecodeError` が
+   `except OSError` を抜けて `get_file_info` → ルートまで伝播し
+   `Read models failed` になっていた。`errors="replace"` にして native の
+   `from_utf8_lossy` と挙動を統一（**両エンジン同一値**であることをテストで固定）。
+5. **base path を繰り返す副フォルダで `subFolder` が壊れる（legacy 経路）**:
+   `str.replace(prefix, "")` が**全**出現を削除していた（native は `strip_prefix`
+   で正しい）。`removeprefix` へ。preview URL と rename/delete の fullname が
+   別ファイルを指し得たため、放置すると実害のある経路だった。
+6. **フォルダ新規作成が他クライアントへ伝わらない**: `create-folder` ルートだけが
+   `models_changed` を送っていなかった（delete/update は送る）。
+   `reason="create-folder"` でブロードキャスト（生成ガードが二重取得を吸収）。
+
+**Phase 6 実装中に mock テストが検出した既存バグ（7 件目）**:
+`_ms_plain_description` の leaf 判定が `node[-2] == "leaf"` のみで、実 API /
+同関数 docstring 記載の属性 dict 形 `["span",{"data-type":"leaf"},"…"]` を
+一度も拾わず **ModelScope owner のプロフィール説明ツールチップが常に空**だった
+（c404bcc 由来の潜在バグ）。両形を受理する `is_leaf_marker` にして固定。
+
+### Phase 6 実装（Plan §6.2 の全項目）
+
+- **C1**: `src/utils/modelFilter.ts` 新設（`buildSearchTokens` /
+  `buildModelRows` / `filterModels` / `chunkRows`）。`DialogManager.vue` の
+  per-model `tokens.map(buildRegex)` を撤去し、filter→sort→chunk を**純関数 1 本**に
+  （コンポーネントとヘッドレス計測器が同一コードを測る）。
+- **C2**: **計測で設計を修正した**（下記「計測」参照）。`compareText` =
+  `localeCompare` 維持 / `compareTextNumeric` = hoisted numeric Collator。
+  旧直呼び 7 箇所（DialogManager・DialogExplorer×2・model.ts・ModelInformation×3）を
+  全て共有モジュール経由に集約。
+- **C3**: `hooks/model.ts` の `models` を `shallowRef` へ。**影響棚卸しを先行実施**し、
+  全 12 消費者（App.vue / DialogManager×2 / explorer〔cloneDeep 済み〕/
+  DialogHygiene / DialogModelDetail〔getter watch〕/ DialogCreateTask /
+  DialogHfUpload / ModelBaseInfo / useTypeSizes / useModelFolder〔cloneDeep 済み〕/
+  stars・selection は別ストア）が読み取り専用または複製後に操作することを
+  doc コメントに列挙（R8 のロールバック単位 = この 1 行）。
+- **C4**: `decoding="async"` を raster プレビュー 7 箇所へ（`ResponseImage`×2・
+  `ModelCard`〔実際のスクロール源〕・`ModelPreview`・`PreviewLightbox`・
+  `DialogCreateTask`・`DialogIdentifyHash`・`DialogHfUpload`）。SMIL アニメの
+  フォルダアイコン等はタイムライン再開挙動を変えるため**意図的に非適用**。
+- **C5**: `src/utils/perf.ts`（ring buffer + P50/P95/P99 + `__mmNeoPerf` ハンドル +
+  既定 OFF + 設定 `ModelManager.UI.PerfMarks`）+ 計測点 6 種 +
+  **ヘッドレス計測器 `scripts/bench/front/k15.mjs`**（CI 常設）。
+- **テンソルツリー Rust 事前グループ化**: `encode_tensor_tree` /
+  `tensor_tree_json`（pre-order 線形符号）+ `mm_core.safetensors_tensor_tree` +
+  `utils.get_model_header`（metadata/tensors/tree を 1 ルートで = 詳細ルートの
+  ヘッダ解析回数を増やさない）+ `src/utils/tensorTree.ts`（**遅延インデックス**:
+  87k ノードを materialize しない。JS フォールバック エンコーダも同モジュールに
+  置き、レンダリング経路は 1 本）。`ModelInformation.vue` は行生成のみ差し替え
+  （キー・折りたたみ・500 件ページングは不変）。
+- **A3（requests → aiohttp）**: `py/http_client.py` 新設 + `search.py` /
+  `information.py` / `identify.py` の **10 箇所**を移行（`utils.py` の preview 取得
+  2 箇所は PIL パイプライン内で executor 実行のまま = Plan の対象外。内訳は
+  search 6 / information 3 / identify 1）。parity の要点: タイムアウトは
+  `(connect, sock_read, total=None)` へ忠実写像（**total ではない**ことを実測テストで
+  固定）、`HttpStatusError` が requests の `raise_for_status` 文言を**逐語再現**し
+  `.response.status_code` も維持（Civitai 401 誘導文が依存）、JSON は content-type
+  を検査しない（`requests.json()` 準拠 — ModelScope CDN が octet-stream で返す
+  実例あり）、`trust_env=True` でプロキシ環境変数を踏襲。3 者並列検索は nested
+  ThreadPoolExecutor を廃し `asyncio.wait` の**部分結果契約を維持**
+  （`SWEEP_MARGIN` 定数化でテスト可能に）。identify の**二重スレッドホップ**
+  （io worker 内から `cpu_executor().submit(...).result()`）も解消。
+- **watch_roots**: `znn_codec::watch`（notify 8.2.0 + notify-debouncer-full 0.7.0
+  直接採用・500 ms デバウンス・ポーリング方式 = notify スレッドが GIL を取らない・
+  `MaxFilesWatch` → `degraded`・`need_rescan` → full invalidation・Access 除外）+
+  `mm_core.watch_start/poll/stop/diagnostics` + `py/watcher.py`（asyncio タスク 1 本・
+  1 s ポーリング・path→type 最長一致・type 単位 2 s クールダウン・`.tmp` 除外・
+  network root 自動スキップ・degrade 600 s クールオフ・native 不在でも静かに TTL）+
+  設定 `ModelManager.Scan.WatchModelFolders`（**既定 OFF**・i18n×3・
+  `MM_WATCH_ROOTS` 上書き）+ `app.on_startup/on_cleanup` フック +
+  `GET /model-manager/watch-status`（読み取り専用）。フロントは**無改修**。
+  **request 無しでの設定読み取り**は ComfyUI `app/user_manager.py` /
+  `app/app_settings.py` を一次ソースで確認して採用（single-user では
+  `get_request_user_id` が request に触れない。`--multi-user` では例外 →
+  既定値 OFF に degrade = 安全側）。`watch` cargo feature は **default-on**
+  （同梱バイナリが `watch_*` を持たなければ設定が永久に動かないため）。
+
+### 計測（K15・C1/C2・テンソルツリー — BENCH §11、同一実行内 before/after）
+
+2 vCPU / 1 GiB / Node v20.20.2（system ICU）、5,050 モデル・200 keystroke・
+65,268 テンソル MoE。**ゲートは同一実行内比率**なのでランナー非依存。
+
+- **K15 keystroke（JS 作業）**: naive p95 **11.74 ms** → 出荷経路 **3.23 ms**
+  （**×3.6**、C1 のみでは 2.43 ms = ×4.8。3 回実行の幅: naive 11.74–14.23 /
+  出荷経路 3.20–3.52 ms = ×3.6–4.0）。**≤ 16 ms 予算の 20 %**。
+- **K15 初回グリッド**: 行構築 p95 6.53 → **6.09 ms**（scan 自体は Phase 5 K9 =
+  0.145 s）。paint 脚は実 UI 側で `mm.grid.queryToPaint` として計測可能。
+- **描画行は naive と完全一致**（`rowsAreIdentical` ゲート）。
+- **C2 の設計判断（重要 — Plan の前提が一部逆だった）**: 5,050 名ソートで
+  `a.localeCompare(b)` **1.49 ms** vs hoisted `Intl.Collator().compare`
+  **3.94 ms（×2.6 遅い）**。V8 は**既定 options の localeCompare に内部キャッシュ
+  済み既定 collator の高速経路**を持つ。一方 options 付きは高速経路が無く
+  `{numeric:true}` は **271.96 ms** vs hoisted numeric Collator **8.59 ms
+  （×31.7 速い）**。→ 既定 variant は `localeCompare` を維持し、numeric variant
+  のみ Collator 化。**両選択を bench ゲートで機械固定**（V8 の挙動が変われば CI が
+  知らせる）。Plan §4.8‑C2 に実装注記を追記済み。
+- **テンソルツリー**: ブラウザ内 fold **1,189.86 ms** → Rust payload デコード
+  **8.40 ms** + 折りたたみ行描画 **7.83 ms** = **16.23 ms（×73）**。payload は
+  **2.73 MB / 87,195 ノード**（leaf は `tensors` の index = 二重転送なし）。
+  JS フォールバック経路でも 601 ms（sort が消える分だけ旧より軽い）。
+- **Rust == Python 参照 == JS エンコーダの三者同一性**: pytest 5 件（Rust vs
+  Python 参照、scalar / `(unnamed)` / 点無し名 / MoE 形 / leaf index 整合 /
+  root 集計）+ bench `--cross-check`（**2,086 テンソル / 2,892 ノード /
+  66,993 B がバイト一致**）。
+
+### 全ゲート再検証（release .so against・全緑）
+
+- cargo fmt ✓ / **clippy `--workspace --all-targets --all-features -D warnings` ✓** /
+  cargo test: znn-codec **191**（Phase 5 の 181 から +10 = tensor tree 5・watch 4・
+  index cap 1）+ 統合 4（extended_band）+ mm-core `--no-default-features` **5** ✓
+- **pytest 167 passed**（Phase 5 の 127 から **+40**: tensor tree 5・A3 http 17・
+  watcher 12・download seeding 3・scan 監査回帰 3）
+- ruff check + format ✓ / **mypy 16 files ✓**（`py/http_client.py`・`py/watcher.py`
+  を mypy.ini へ追加）/ pnpm typecheck ✓ / eslint ✓ / prettier ✓ /
+  **dependency-cruiser ✓（136 modules / 409 deps、違反 0・Node 22 で実行）** /
+  **`pnpm build` ✓**（web バンドル再生成、`__mmNeoPerf` / `WatchModelFolders` /
+  `(unnamed)` を manager.js 内で確認）
+- release `.so`（host build）**3,137,312 B = 予算 4 MB の 75 %**（Phase 5 の
+  2,869,968 B から **+267 KB** = notify/debouncer-full + tensor tree）。
+  `verify_native_binary.py`: **libpython 非依存 ✓**（NEEDED = libgcc_s/libm/libc/
+  ld-linux のみ）。`max_glibc 2.34 > floor 2.28` は **host ビルドのため期待通り**
+  （CI は zigbuild で 2.28 に固定 — 第 6 セッションの記録と同じ）。
+- api_version **4→5** を 4 者同期（`py/native.py` [5,5]・`mm-core lib.rs` +
+  その test・`native.yml` abi3-import・pytest の 3 アサート）。
+- **fuzz 表面は不変**（codec 無変更。`safetensors_io` は関数追加と
+  `read_header_region` 抽出のみで、パイプラインは `StContainer::parse` 側 =
+  触っていない。scan/hash/index/watch は fuzz ターゲット外）→
+  **fuzz-long 再ディスパッチ不要**（run 6 の 18 h 証跡が有効）。
+
+### CI（GitHub Actions）の変更
+
+- `ci.yml`: **`Frontend K15 bench (C5)`** ステップを追加（Build の後）。
+  `src/utils` 実物を tsc でコンパイルして before/after を同一実行内で計測し、
+  ゲート（比率 + parity）で失敗する。絶対値は記録のみ（判定は参照機）。
+- `native.yml`: integration（ubuntu）に **`Tensor-tree wire cross-check
+(Rust == TypeScript)`** を追加。pnpm ストアが無いジョブなので typescript を
+  `/tmp/mmneo-tsc` へ npm install し `MMNEO_TSC` で渡す（実ビルド成果物 against）。
+  abi3-import の assert を **5** へ更新。
+- ワークフロー/ビルドスクリプトの他の部分は無変更（`watch` が default-on のため
+  `build-native.sh` に `--features` 追加は不要 = 4 プラットフォーム全てが
+  `watch_*` を持つ）。
+
+### 運営メモ（次セッション向け）
+
+- **残件（Phase 7 向け）**: third_party 撤去・`MM_NATIVE` スイッチ撤去・
+  README/USAGE 全面改訂・バイナリサイズ最終最適化・v0.3.0 の**公開準備まで**
+  （公開作業そのものはユーザ専任 — §6.3 規程）。L5 クロス検証 CI が
+  2 リリースサイクル連続 green かのゲート確認を最初に。
+- Phase 2 K2/K3 の参照機再計測、K10 5000 モデル ≤100 ms の参照機確認、
+  K11 端到端 ≤40 ms（公開契約変更を伴うため範囲外と記録済み）は**不変**。
+  実 UI 手動 QA は Phase 7 で統合（今回追加した `__mmNeoPerf` の paint 脚計測が
+  その際の K15 実測手段になる）。
+- `py/http_client.py` の共有セッションは**ループ変化を検出して作り直す**。
+  pytest-asyncio は テスト毎に新ループなので、`tests/test_phase6_http.py` は
+  autouse fixture で `close_session()` する（しないと "Unclosed client session"
+  警告と次テストでの再作成ノイズ）。
+- watcher は**シングルトン `watcher.watcher`** とクラス `ModelWatcher` を分離済み。
+  テストは必ず**新しいインスタンス**で作ること（シングルトンを汚すと
+  クールダウン状態が持ち越される）。
+- `scripts/bench/front/k15.mjs` は `--cross-check` 無しなら native 不要・約 30 s。
+  CI セルは縮小パラメータ（`--models 1500 --keystrokes 40 --moe-layers 12
+--moe-experts 8`）で約 6 s。

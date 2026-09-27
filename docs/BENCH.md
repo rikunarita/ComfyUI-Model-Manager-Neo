@@ -734,7 +734,170 @@ Plan §2.2 の参照機「8C/16T デスクトップ NVMe」基準なので、こ
 > **目安へ降格**（絶対条件から外れる — Plan §3.3/§6.3。CI ゲートは早期警戒
 > 装置として維持）。
 
-## 11. 再現手順
+## 11. Phase 6 — フロントエンド表示最適化 + テンソルツリー Rust 化（2026‑09‑27、同一実行内 before/after）
+
+計測器は **`scripts/bench/front/k15.mjs`**（Plan §4.8‑C5 の「計測基盤を常設」）。
+`src/utils` の**実物**（`modelFilter.ts` / `tensorTree.ts` / `perf.ts`）を
+リポジトリ同梱の tsc でコンパイルして Node 上で駆動するため、計測対象は
+ブラウザが実行するコードそのもの。before 側は **Phase 6 以前のコンポーネント
+実装を逐語コピー**して計測器内にインライン化したもの（`naiveBuildRows` =
+旧 `DialogManager.vue` の `list` computed、`legacyTensorTree` = 旧
+`ModelInformation.vue` の `tensorTree` computed）。
+
+**ゲートは「同一実行内の比率」**なので共有ランナーでも意味を持ち、絶対値は
+下記の env ブロックとセットで読む（Plan の KPI 判定機は 8C/16T NVMe）。
+`ci.yml` の `Frontend K15 bench (C5)` ステップが push ごとに実行し、
+`native.yml` integration（ubuntu）は `--cross-check` で
+**Rust 符号 == TypeScript フォールバック エンコーダ** を実ビルド成果物 against
+で検証する。証跡 JSON: `scripts/bench/results/phase6_front.json`。
+
+### 11.0 実行環境とフィクスチャ
+
+| 項目       | 値                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------- |
+| 実行日     | 2026‑09‑27                                                                                  |
+| ホスト     | 2 vCPU / Intel Xeon @ 2.50 GHz / 1 GiB / Linux 4.19                                         |
+| Node       | v20.20.2（system ICU）                                                                      |
+| モデル数   | **5,050**（5,000 モデル + 50 フォルダ、シード固定の合成ライブラリ）                         |
+| keystroke  | 200 クエリ（1–2 トークン、成長プレフィックス + 15 % ワイルドカード）                        |
+| 列数       | 6（`chunk` の行幅）                                                                         |
+| MoE ヘッダ | **65,268 テンソル**（84 layers × 256 experts × 3 proj + 9 attention、DeepSeek‑V3 形の命名） |
+
+### 11.1 K15 — 検索 keystroke → 描画（5,050 モデル）
+
+グリッド行パイプライン（filter → sort → chunk）の **JS 作業時間**。
+K15 の「keystroke → 描画 ≤ 16 ms」は 1 フレーム予算なので、比較対象は
+この JS 作業 + DOM 反映であり、意図的な 150 ms デバウンス（既存の
+Optimization B‑3）は含まない。ブラウザ側の paint 脚は
+`src/utils/perf.ts` の `mm.grid.queryToPaint`（`__mmNeoPerf.summary()`）として
+実 UI で計測できる（ヘッドレスでは再現不能なため分離して記録する）。
+
+| 経路                                                            | p50            | p95                | min            | naive 比（p95） |
+| --------------------------------------------------------------- | -------------- | ------------------ | -------------- | --------------- |
+| **naive**（Phase 6 以前: トークン正規表現をモデル毎に再構築）   | 6.67 ms        | **11.74 ms**       | 3.71 ms        | ×1.0            |
+| C1 のみ（トークン 1 回コンパイル + インライン `localeCompare`） | 0.91 ms        | **2.43 ms**        | 0.63 ms        | **×4.8**        |
+| **出荷経路**（C1 + 共有 comparator `compareText`）              | 0.99 ms        | **3.23 ms**        | 0.63 ms        | **×3.6**        |
+| 初回グリッド（クエリ無し）naive → 出荷経路                      | 5.25 → 4.51 ms | 6.53 → **6.09 ms** | 4.71 → 4.23 ms | ×1.1            |
+
+- **K15 判定**: keystroke の JS 作業 **p95 3.23 ms ≤ 16 ms**（予算の 20 %）。
+  初回グリッドの行構築 **p95 6.09 ms ≤ 1 s**（残りはネットワーク + DOM で、
+  5,000 モデルの scan 自体は Phase 5 の K9 = 0.145 s）。
+- **描画される行は naive と完全一致**（`rowsAreIdentical` ゲート: 200 クエリの
+  うち代表クエリで行キー列を全一致比較）。C1/C2 は**表示を変えない**加速。
+- 出荷経路が「C1 のみ」より p95 +0.80 ms なのは comparator の呼び出し 1 層
+  （約 6 万比較 × 13 ns）。共有モジュール 1 箇所に計測根拠と実装を固定する
+  利益（C2 の設計判断が再びブレない）を優先し、この差は許容した。
+- **実行間変動（3 回実行）**: naive p95 11.87 / 14.23 / **11.74** ms、出荷経路
+  3.20 / 3.52 / **3.23** ms（比率 ×3.6–4.0）。ゲートを比率で定義しているのは
+  このためで、本節の数値は**コミットされた証跡 JSON（3 回目実行）と一致**
+  させてある。
+
+### 11.2 C2 — 照合キー化は**計測により設計を修正した**
+
+5,050 名ソート（`SEGMENTS` コーパスはテンソルツリーの segment 形）と
+3,600 名の numeric 形コーパスで、4 通りの comparator を同一実行内で比較した:
+
+| comparator                                                            | p50           | 備考                                                                     |
+| --------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------ |
+| `a.localeCompare(b)`                                                  | **1.49 ms**   | V8 は既定 options に**内部キャッシュ済み既定 collator の高速経路**を持つ |
+| hoisted `new Intl.Collator().compare`（bind 済み関数を 1 回だけ取得） | 3.94 ms       | 公開 API 経由は **×2.6 遅い**                                            |
+| `a.localeCompare(b, undefined, { numeric: true })`                    | **271.96 ms** | options を渡すと高速経路が無効 = **呼び出し毎に collator 構築**          |
+| hoisted numeric `Intl.Collator().compare`                             | **8.59 ms**   | **×31.7 速い**                                                           |
+
+→ **Plan §4.8‑C2 の前提（「`localeCompare` ×4 → 共有 Collator で高速化」）は
+既定 variant では逆**だった。したがって実装は:
+
+- 既定 variant（グリッドの名前ソート・フォルダソート・ZipNN dtype 集計）=
+  `compareText` = **`a.localeCompare(b)` を維持**（最速・意味論不変）、
+- numeric variant（テンソルツリーの `naturalCompare` フォールバック脚）=
+  `compareTextNumeric` = **hoisted numeric Collator**（×22–32）、
+- **両方の**選択は bench ゲート `c2DefaultComparatorIsTheFastestMeasured` /
+  `c2NumericHoistingIsFaster` で**機械固定**（将来 V8 の挙動が変われば CI が
+  知らせる）。旧直呼び 7 箇所は全て `utils/modelFilter` 経由に集約した。
+
+### 11.3 テンソルツリー — Rust 事前グループ化 + 遅延インデックス（65,268 テンソル）
+
+| 経路                                                                                            | p50             | 備考                                                      |
+| ----------------------------------------------------------------------------------------------- | --------------- | --------------------------------------------------------- |
+| **旧: ブラウザ内 fold**（名前 split + Map + 集計 + 全ノード sort、87,195 ノードを materialize） | **1,189.86 ms** | 旧 `tensorTree` computed 逐語                             |
+| 旧 fold + 折りたたみ行描画（この実行では fold 単独と同値 = 行描画は fold に埋没）               | 1,204.45 ms     | 行描画自体は fold に埋没                                  |
+| **新: Rust payload → 遅延インデックス構築**                                                     | **8.40 ms**     | typed array 2 本の O(n) 前計算のみ                        |
+| 新: 折りたたみ状態の行描画                                                                      | **7.83 ms**     | 可視ノードのみ（MoE で root 直下 1 ノード）               |
+| **新 合計**                                                                                     | **16.23 ms**    | **×73**（1,190 → 16.2 ms）                                |
+| 参考: JS フォールバック エンコーダ（legacy backend / `MM_NATIVE=0`）                            | 601.06 ms       | 単独 fold 662.80 ms とほぼ同価（sort が消える分だけ軽い） |
+
+- **wire 符号**: `{"v":1,"nodes":[[segment,childCount,tensorCount,totalCount,
+totalParams],…],"leaves":[tensorIndex,…]}` = **2.73 MB / 87,195 ノード**。
+  leaf は同一レスポンスの `tensors` を index で指すためテンソルを二重転送しない
+  （`path` 文字列も送らない — 展開時のみ親 path から合成）。
+- **同一性の機械固定（3 者）**: pytest `tests/test_phase6_tensor_tree.py` が
+  **Rust == Python 参照実装**を 5 フィクスチャで固定（scalar / 空 segment =
+  `(unnamed)` / 点無し名 / 12×16 experts の MoE 形 / leaf index が
+  `tensors` と整合すること / root 集計 == 全テンソル）。bench `--cross-check` が
+  **JS フォールバック エンコーダ == Rust**（実ビルド成果物 against）を固定 —
+  本実行: 2,086 テンソル / 2,892 ノード / **66,993 B が両者バイト一致**。
+- **表示は不変**: 表示順は従来の `naturalCompare` を**可視ノードにのみ**適用
+  （Rust は header 順で符号化し、順序は UI が最終決定する）ため、折りたたみキー・
+  ページング（500 件）とも Phase 6 以前と同一。
+- 集計値 `totalCount` / `totalParams` は subtree 合計（root = 65,268 テンソル /
+  1,035,825,315,840 パラメータ）で、`tensorsSummary` は O(1) になった。
+
+### 11.4 A3（requests → aiohttp）と watch_roots の検証
+
+A3 と watch_roots は**性能ではなく挙動 parity / degrade** が完了条件のため、
+数値ゲートは持たない。代わりに:
+
+- **A3**: `tests/test_phase6_http.py` **17 件**が**ローカル aiohttp モックサーバ**
+  against で旧 `requests` 経路の可観測契約を固定 —
+  `raise_for_status` の逐語文言（`403 Client Error: … for url: …` /
+  `503 Server Error: …`）と `.response.status_code`（Civitai 401 誘導文が依存）、
+  content-type を検査しない JSON デコード、`(connect, sock_read)` タイムアウト
+  写像（`total` 無しの実証 = 120 ms 間隔の 2 チャンクを 1 s read timeout で完走）、
+  プロバイダ 3 者の部分結果契約（成功 / 例外 / ハング → `search timed out`）、
+  アバターの users→organizations フォールバック + キャッシュ（往復回数まで固定）、
+  by-hash の逐次プローブ順と非 200 / 非 JSON スキップ、capped ストリーミング、
+  HF recursive tree のサイズ解決と tree 障害時の degrade。
+  **スレッドホップは 0**（identify の io worker 内からの
+  `cpu_executor().submit(...).result()` 二重ホップも解消）。
+- **watch_roots**: `tests/test_phase6_watcher.py` **12 件** —
+  `/proc/self/mountinfo` 解析（最長一致・8 進エスケープ・network fstype 集合・
+  network 木の中の local bind は local 判定）、path→type 最長一致、
+  root 選別（欠損 / network / 重複）、**既定 OFF**（`MM_WATCH_ROOTS=0` で
+  inotify を 1 本も arm しない）、**実 inotify 端到端**（外部プロセスが
+  ファイルを 1 個作ると `models_changed {type:"checkpoints", reason:"fs-watch"}`
+  が ws へ流れる = Phase 5 リスナーを無改修で再利用できることの証明）、
+  **degrade**（`MaxFilesWatch` → セッション解放 + 600 s クールオフ + TTL へ、
+  クールオフ中は新規 arm しない）、`need_rescan` → `{type: null}` の全面無効化、
+  type 単位クールダウン（バルクコピーで 1 回のブロードキャストに畳む）。
+  Rust L1 4 件（実 inotify イベントでの start/poll/stop 往復・欠損 root の
+  スキップ報告・drain/dedupe・diagnostics）。
+- **バイナリサイズ**（`watch` feature は default-on = 同梱バイナリが `watch_*`
+  を持つ。OFF なのは実行時設定の方）: linux‑x86_64 host release
+  **3,137,312 B = 予算 4 MB の 75 %**（Phase 5 の 2,869,968 B から **+267 KB** =
+  notify 8.2.0 + notify-debouncer-full 0.7.0 + tensor tree）。
+  4 プラットフォーム合計の目安は ≈14 MB ≤ 20 MB（R6）。
+
+### 11.5 Phase 5 監査で発見・修正したバグ（Phase 6 着手前の精査分）
+
+Plan の「念のため Phase 5 のバグを精査せよ」に対する結果。**5 件を修正**し、
+すべて回帰テストで固定した（L1 191 / pytest 167 緑）。
+
+| #   | 症状                                                                       | 根因                                                                                                                                                                                | 修正                                                                                         | 固定                                                       |
+| --- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 1   | resume 時に**イベントループが数秒停止**（10 GB の部分ファイルを同期 read） | インライン検証のシード読みが `download_model_file_http` 内で直接実行されていた（「page-cache だから安い」は同一プロセス内の再開でのみ成立。ComfyUI 再起動後の resume は cold read） | `io_executor` へ移動 + 失敗時はハッシャを破棄して従来の再読込検証へ degrade                  | `test_seed_hasher_from_file_*` 2 件                        |
+| 2   | 失われたハッシャ handle で**ダウンロード全体が失敗**し得た                 | 書き込みループの `hasher_update` が無防備（native 側 registry は 4096 で oldest eviction）                                                                                          | try/except で inline 検証のみ放棄（バイト列は正常なので検証は再読込に切替）                  | `test_hasher_update_on_a_lost_handle_*`                    |
+| 3   | 永久インデックスが**無限成長**（削除済みサイドカーの entry が永遠に残る）  | `SiteIndex` に上限が無い（Python 側 `_SITE_CACHE` は 4096 で上限あり）                                                                                                              | `MAX_ENTRIES = 262_144` で超過時に任意の半分を prune（派生データなので miss は再パースのみ） | `index::tests::the_entry_cap_prunes_*`                     |
+| 4   | **不正 UTF‑8 の `.md` 1 個でフォルダ一覧全体が失敗**（legacy 経路）        | `open(..., encoding="utf-8").read(4096)` の `UnicodeDecodeError` が `except OSError` を抜けて `get_file_info` → ルートまで伝播                                                      | `errors="replace"`（native の `from_utf8_lossy` と同じ挙動に統一）                           | `test_scan_survives_a_non_utf8_sidecar` ×2（body / value） |
+| 5   | base path を**繰り返す副フォルダ**で `subFolder` が壊れる（legacy 経路）   | `str.replace(prefix, "")` が**全**出現を削除（native は `strip_prefix` で正しい）                                                                                                   | `removeprefix` へ（native と一致）                                                           | `test_scan_repeated_base_path_prefix_keeps_the_subfolder`  |
+| 6   | 外部変更検出の穴: **フォルダ新規作成**が他クライアントに伝わらない         | `create-folder` ルートが `models_changed` を送っていなかった（delete/update のみ）                                                                                                  | `reason="create-folder"` でブロードキャスト（生成ガードが二重取得を吸収）                    | 既存の ws 契約テスト + 手動確認                            |
+
+加えて **Phase 6 の実装中に発見した既存バグ 1 件**（A3 のモックテストが検出）:
+
+| #   | 症状                                                             | 根因                                                                                                                                                                      | 修正                           |
+| --- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| 7   | ModelScope の owner ツールチップ（プロフィール説明）が**常に空** | `_ms_plain_description` の leaf 判定が `node[-2] == "leaf"` のみで、実 API / 同関数 docstring 記載の属性 dict 形 `["span",{"data-type":"leaf"},"…"]` を一度も拾わなかった | 両形を受理（`is_leaf_marker`） | `test_modelscope_owner_info_is_parsed_and_cached` |
+
+## 12. 再現手順
 
 ```bash
 pip install numpy safetensors torch blake3
@@ -783,4 +946,31 @@ for mode in 0 1; do   # 0 = legacy, 1 = native
     --json-out /tmp/header_$([ $mode = 0 ] && echo legacy || echo native).json
 done
 # → legacy + native を scripts/bench/results/phase5_{scan,hash,header}.json へ統合
+```
+
+Phase 6 のフロントエンド計測（K15 / C1–C5 / テンソルツリー）は Node だけで動く
+（native バイナリ不要。`--cross-check` を付けると Rust 符号との同一性検証のため
+python3 + ビルド済み `mm_core` を使う）:
+
+```bash
+pnpm install --frozen-lockfile          # tsc を使う（node_modules/typescript）
+node scripts/bench/front/k15.mjs \
+  --json-out scripts/bench/results/phase6_front.json
+# Rust == TypeScript の wire 同一性まで検証する場合（native ビルド済みが必要）:
+./scripts/build-native.sh --target linux-x86_64
+node scripts/bench/front/k15.mjs --cross-check \
+  --json-out scripts/bench/results/phase6_front.json
+# CI セル相当の縮小パラメータ（native.yml integration と同一）:
+MMNEO_TSC=/tmp/mmneo-tsc/node_modules/typescript/bin/tsc \
+  node scripts/bench/front/k15.mjs --cross-check \
+  --models 1500 --keystrokes 40 --moe-layers 12 --moe-experts 8 \
+  --json-out /tmp/phase6_front_crosscheck.json
+```
+
+ブラウザ実機での paint 脚（K15 の残り半分）は DevTools コンソールで:
+
+```js
+__mmNeoPerf.enable() // 設定 → Model Manager Neo → UI → パフォーマンスマーク でも可
+// …マネージャを開いて検索を数回…
+__mmNeoPerf.summary() // mm.grid.queryToPaint / mm.grid.initialRender の P50/P95/P99
 ```
