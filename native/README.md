@@ -75,8 +75,11 @@ mm-core（`phase5.rs`）が `scan_models` / `scan_hygiene` / `safetensors_header
 / `hash_file` / `hasher_*` / `phase5_diagnostics` を公開（同期・`py.detach()`
 で GIL 解放 = 不変条件 2）。SiteIndex のグローバル レジストリ（indexDir 単位）
 とハッシャ レジストリ（cap 4096）を保持。**任意項目 A3（requests→aiohttp）と
-watch_roots は本フェーズ見送り**（Plan の「任意」表記・`watch` feature は
-宣言済みで将来の土台 — BENCH §10.5）。
+watch_roots は Phase 6 へ移管**（2026‑09‑27 ユーザ決定。A3 は aiohttp 統一の
+まま **Rust 化しない**〔reqwest 不採用 — Plan §3.8 注記〕、watch_roots は
+notify + notify-debouncer-full **直接採用**〔extended-notify 不導入 — Plan
+§3.1 注記〕。`watch` feature は宣言済みで土台 — 見送り根拠の記録は BENCH
+§10.5）。
 
 ## テスト配置と cargo ワークフロー（Plan §3.4.3）
 

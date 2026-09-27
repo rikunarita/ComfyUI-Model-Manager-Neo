@@ -722,6 +722,18 @@ Plan §2.2 の参照機「8C/16T デスクトップ NVMe」基準なので、こ
   駆動 + 30 s TTL revalidate）は実装済みで、UI 起因の全変更をカバー。watch_roots が
   加えるのは「外部ツール起因の変更検出」のみで、それは TTL フォールバックが既に担保する。
 
+> **〔後続 2026‑09‑27 ユーザ決定〕** 上記 2 項目は Phase 5 リストから削除し
+> **Phase 6 へ移管**（Plan §6.2 Phase 6）。あわせて方針を確定: **A3 は
+> aiohttp 統一のまま Rust 化しない**（reqwest/axum/utoipa 不採用 — 実測根拠は
+> Plan §3.8 注記 + MEMO 2026‑09‑27: reqwest 0.13 の rustls 経路は aws-lc-sys
+> 〔C/asm・cmake 必須〕、最小プローブ cdylib 4.9 MB、依存 167 crates、
+> huggingface_hub 2.0 = httpx2 基盤）、**watch_roots は notify 8.2.0 +
+> notify-debouncer-full 0.7.0 の直接採用で extended-notify 不導入**（0.1.x・
+> DL 1,286 のラッパー、tokio 混入、debouncer-full ^0.6 の 1 世代後ろピン —
+> Plan §3.1 注記）。なお「1 バイナリ ≤ 4 MB」サイズ予算は同日付で
+> **目安へ降格**（絶対条件から外れる — Plan §3.3/§6.3。CI ゲートは早期警戒
+> 装置として維持）。
+
 ## 11. 再現手順
 
 ```bash

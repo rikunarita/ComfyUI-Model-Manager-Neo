@@ -1424,7 +1424,7 @@ bef8f08（bench_phase4_dtypes.py + K14 証跡 JSON + BENCH §9）→ f124c90（R
   — Phase 4 のスコープ外（既存制限、実測 600 テンソル級では ~48 KB で無影響）。
 - F6 系 infos の dtype 文字列は safetensors 名（"F6_E2M3"）— torch 名が
   実在しないため（実機確認）。legacy 解凍側はどのみち code 145/146 で
-  明示拒否なので infos 文字列の消費자는 Neo/UI のみ。
+  明示拒否なので infos 文字列の消費者は Neo/UI のみ。
 - I64/U64 にトランケーションなし（Plan §4.6.2 表の通り — 8 平面の
   ゼロ上位面は huff0 が数バイトへ潰すため実測上の損失は小さい:
   I64 0.313）。
@@ -1847,3 +1847,132 @@ linux-x86_64 が 2.4→2.87 MB へ成長し、universal2 fat が **4.8 MB**（�
 **native-bin 合計 ≈12 MB ≤ 20 MB（R6 リポジトリ肥大ガードは充足）**。単一アーキ
 成果物は全て ≤4 MB を維持。修正は build-native.sh + native.yml + Plan のみ
 （Rust/Python コードは無変更 = 再ビルド不要・既存の全ゲート証跡は有効）。
+
+## 2026-09-27（第 7 セッション）— CI 全緑確認 + ユーザ決定 5 件の Plan 反映（A3/watch_roots の Phase 6 移管・サイズ予算の目安化・リリース公開のユーザ専任化）
+
+### CI 全緑確認（ユーザ要求分・GitHub API + ジョブログ実測）
+
+**CI #132 / native #43（head `05cb8c7` = サイズゲート修正コミット）とも
+全ジョブ SUCCESS**（native #43 = 14/14）。修正の実証データ:
+
+- **native-build-macos 緑**: per-slice ゲートが設計通り動作 —
+  x86_64 スライス **2,520,856 B** ≤4 MB / arm64 スライス **2,262,416 B** ≤4 MB /
+  fat 4,801,936 B ≤8 MB。
+- **size-budget 緑**: 4 バイナリ合計 **13,039,208 B ≤20 MB**。macOS 成果物は
+  **magic `cafebabe` の content 判定**で 8 MB 予算を適用 — 実ダウンロード
+  artifact の path は `artifacts/mm_core.abi3.so` で **`macos-universal2` 断片を
+  含まなかった**（upload-artifact v4 の LCA 挙動）= path 判定案では失敗しており、
+  content 判定の設計判断が実証された。他: linux-x86_64 2,913,576 / linux-aarch64
+  2,478,512 / windows .pyd 2,845,184 B（全て ELF/PE magic → 4 MB 予算）。
+- **integration 緑**: ubuntu **pytest 127 passed + L5 GATE: PASS**（Phase 5
+  golden parity が CI 実ビルド成果物 against で緑）/ windows・macos 各
+  **20 passed, 107 skipped**（native 経路のみ = 設計通り）。
+- native #42（修正前）で **native-test×3・native-diff・fuzz-smoke・abi3-import
+  3.10/3.13 が既に緑**だったことが、O(n²) 修正の byte-exact 安全（L2）と
+  api_version 4 同期と macOS での scan.rs（MetadataExt::st_ctime）コンパイル・
+  テスト通過を先行実証していた。
+
+### ユーザ決定 5 件（2026-09-27・すべて Plan/MEMO に恒久記録）
+
+1. **Phase 5 の見送り項目（A3 / watch_roots）は Phase 5 リストから削除し
+   Phase 6 へ移管**（Plan §6.2 Phase 5/6・§6.1 表・§9・状態行を同期更新。
+   Phase 6 のタイトルも「フロントエンド表示最適化 + Phase 5 移管の任意項目」へ）。
+2. **バイナリサイズの 4 MB 予算は「目安」**（絶対条件から降格 — Plan §3.3 に
+   決定注記、§6.3 に恒久規程、R6 緩和策・§5.3 CI 表・Phase 7 タスクを同期。
+   CI サイズゲートはリポジトリ肥大の早期警戒装置として**維持**し、超過は
+   ユーザ判断で上限改定する運用。native-bin 合計 ≤20 MB はハード上限のまま）。
+3. **リリース v0.3.0 の公開はユーザが実施する — セッションは勝手に公開しない**
+   （GitHub Release 作成・タグ publish・registry 公開・main へのマージ PR 操作は
+   ユーザ専任。セッションは「公開準備」= バージョン同期コミット + 公開前検証
+   まで。Plan §6.2 Phase 7 のリリース行 + §6.3 進捗管理規程の両方に明記）。
+4. **requests→aiohttp 統一（A3）の Rust 化はしない**（reqwest/axum/utoipa
+   不採用 — Plan §3.8 に決定 + 実測根拠を注記）。
+5. **extended-notify は導入しない**（watch_roots は notify 8.2.0 +
+   notify-debouncer-full 0.7.0 の直接採用で確定 — Plan §3.1 選定表の不採用
+   候補欄に根拠付きで記録）。
+
+### 調査の実測証跡（将来セッションが再調査しないための記録・すべて一次ソース）
+
+**reqwest 系（2026-09-27、この環境で実測）**:
+
+- reqwest **0.13.5**（crates.io: 2026-09-08 更新・DL 7.47 億・MSRV 1.85 =
+  ワークスペース床と一致）は **feature 名が変わっている**: `rustls-tls` は
+  廃止で `rustls`（プローブが解決エラーで実証）。`rustls` 指定で
+  **aws-lc-rs 1.18.1 / aws-lc-sys 0.45.0（C/asm・cmake 必須 — この環境でも
+  cmake を apt 導入するまでビルド不能だった = 実証）** + ring 0.17.14（C/asm）
+  - rustls 0.23.45 を引き込む。native-tls は OpenSSL 動的リンクで
+    zigbuild glibc 2.28 床を破壊するため論外。rustls に純 Rust の成熟
+    crypto provider は不在 = **どの TLS 経路でも C/asm がビルドに入る**。
+- **サイズ実測**: /tmp のプローブ crate（reqwest rustls+json+gzip + tokio rt +
+  serde_json・公開関数 1 個）を mm-core と同一 release プロファイル
+  （lto=fat/codegen-units=1/opt-level=3/strip/panic=unwind）でビルド →
+  **librq_probe.so = 4,886,072 B（≈4.9 MB、strip 済み・ELF 検証済み）**。
+  HTTP スタックだけで現行 mm_core 本体（linux 2.91 MB）より大きく、統合時は
+  全プラットフォームで 4 MB 目安を ~1.9 倍超過する試算。依存グラフは
+  **167 crates**（現行ワークスペース lock 全体 139 = dev/bench/CLI 込み総数）。
+- **axum 0.8.9** = 「HTTP routing and request handling library」（サーバ
+  フレームワーク）、**utoipa 6.0.0** = 「Compile time generated OpenAPI
+  documentation for Rust」（Rust ハンドラ用）— いずれも crates.io 公式
+  description で確認。本拡張はルートを ComfyUI の aiohttp PromptServer へ
+  登録するモデル（py/config.py）なので**非該当**。
+- **huggingface_hub 2.0.0 は httpx2 基盤**（PyPI metadata の requires_dist で
+  確認: `httpx2<3,>=2.0.0`）→ 残り 11 箇所の薄い JSON 呼び出しを Rust 化しても
+  プロセス内は aiohttp（サーバ+DL）/ httpx2（hub 系）/ reqwest の
+  **第 3 スタック追加**になり「統一」にならない。重い HF 転送は hf_xet で
+  既に Rust。
+
+**extended-notify（2026-09-27、crates.io API + 公式 README で確認）**:
+
+- 実在: **0.1.3**（2025-12-10 初版・2026-06-26 更新・MIT・単一作者
+  estokes/extended-notify）。総 DL **1,286**（recent 457）。
+- 正体は **notify ^8.2 + notify-debouncer-full ^0.6 のラッパー**
+  （debouncer-full は現行 0.7.0 = **土台より 1 世代後ろピン**）+ tokio ^1.48 +
+  futures + anyhow + file-id + arcstr + derive_builder + enumflags2 + fxhash +
+  poolshark。README の追加機能: 未存在 path の監視（祖先+ポーリング）・
+  interest フィルタ・RAII ハンドル・ポーリングフォールバック・tokio の
+  async EventHandler バッチ配信。
+- 不採用の要点: (a) 成熟度（notify 本体 DL **1.599 億** / debouncer-full
+  **1,673 万** と 3 桁以上の差・単一作者 0.1.x）、(b) tokio 混入 = 既定 OFF の
+  任意機能のために出荷バイナリへランタイム追加（reqwest プローブが示すサイズ
+  コスト）・Neo 設計は Python 側 asyncio からの watch_poll で tokio 不要、
+  (c) 目玉機能は Neo 側で代替可能（root 再アーム数行・kind フィルタ数行・
+  ポーリングは **notify 本体の PollWatcher が標準搭載**〔docs.rs で確認〕）、
+  (d) debouncer-full 0.6 ピン。hotwatch 0.5.0 は 2023 年止まりで候補外。
+- Neo の watch_roots で本当に必要なのは crate ではなくグルー: inotify watch
+  予算管理（Linux per-directory・max_user_watches 枯渇時 TTL へ degrade）・
+  ネットワーク FS 検出→自動無効化（PollWatcher での代替は 5,000 ファイル樹の
+  定期 stat = 再スキャン同コストなので TTL がその役目を担う）・path→type
+  判定→models_changed（Phase 5 実装のリスナーを無改修再利用）・既定 OFF。
+
+### このセッションのドキュメント編集（コード変更ゼロ）
+
+- **Plan.md**: §6.2 Phase 5 から見送り 2 項目を削除 → Phase 6 へ移管
+  （決定・制約〔Rust 化しない/extended-notify 不導入〕+ 実施時の条件付き）。
+  Phase 6 タイトル/§6.1 表/§9/状態行を同期。§3.3 + §6.3 + R6 + §5.3 +
+  Phase 7 タスクで 4 MB を「目安」化（20 MB 合計はハード上限維持）。
+  Phase 7 リリース行を「公開準備」へ限定 + §6.3 に「リリース公開はユーザ
+  専任」規程。§3.8 に reqwest 不採用注記（実測根拠付き）・§3.1 watch 行の
+  不採用候補に extended-notify・§4.7.2-2 に Phase 6 移管ポインタ・§4.8-A A3 行
+  の実施フェーズを Phase 6 へ。Phase 0 の履歴行（「サイズ ≤4 MB/本」完了記録）は
+  歴史的事实のため不変。
+- **native/README.md**: Phase 5 段落の「本フェーズ見送り」→「Phase 6 へ移管 +
+  確定方針」へ更新。
+- **BENCH §10.5**: 見送り記録（歴史）はそのままに、後続のユーザ決定
+  （移管・Rust 化しない・extended-notify 不導入・4 MB 目安化）を引用ブロックで
+  追記。
+- **MEMO（本節）**: CI 全緑証跡 + 決定 5 件 + 実測証跡を記録。
+- CI ワークフロー/ビルドスクリプトは**無変更**（ゲートは現行上限を施行する早期警戒装置として維持 — 目安化は計画レベルの位置づけ変更。relax が必要に
+  なったらユーザ判断で上限改定）。
+
+### 運営メモ（次セッション向け）
+
+- 本 push は docs のみ（Plan/MEMO/BENCH/native README）→ CI/native が新 tip に
+  自動実行されるが、コード無変更のため結果は #132/#43 と同じ見込み
+  （確認はユーザ次ターン指示時）。
+- **Phase 6 着手時の約束事**: C1–C5（計測駆動）+ 移管の A3（aiohttp 統一・
+  挙動 parity + モックテスト）/ watch_roots（notify 直接採用・既定 OFF・
+  degrade + primitive テスト）。いずれも任意項目で K15 完了条件には不含。
+- **v0.3.0 の公開作業は行わないこと**（バージョン同期・公開前検証まで）。
+- 残件は不変: Phase 2 K2/K3 参照機再計測、K10 5000 モデル ≤100 ms の参照機
+  確認、K11 端到端 ≤40 ms（processed JSON のルート直スピルス設計 = 公開契約
+  変更を伴うため範囲外と記録済み）、実 UI 手動 QA（Phase 7 統合）。
