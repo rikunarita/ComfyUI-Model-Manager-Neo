@@ -25,8 +25,19 @@
 //! |                    | streaming XOR chunk loop, sidecar + ftSha256 (Phase 3)       |
 //! | [`batch`]          | batch primitives: the parallel folder walk + the sidecar     |
 //! |                    | mover (Phase 3; bundle semantics stay in Python)             |
+//! | [`scan`]           | library scan + hygiene scan: the parallel `os.scandir`/       |
+//! |                    | `os.walk` port, preview resolution, front-matter, the exact   |
+//! |                    | listing JSON shape (Phase 5, Plan §4.7.1)                     |
+//! | [`index`]          | persistent front-matter cache (bincode + blake3, atomic,      |
+//! |                    | auto-rebuild — survives restarts, Phase 5, Plan §4.7.1-3)     |
+//! | [`hash`]           | multi-algorithm one-pass hashing (SHA256/AutoV1/AutoV2/CRC32/ |
+//! |                    | BLAKE3) + the incremental hasher for download inline verify   |
+//! |                    | (Phase 5, Plan §4.8-B1/B2)                                    |
 //!
-//! Later phases add `scan` and `hash` (Phase 5).
+//! `safetensors_io` also carries the Phase-5 `header_display_json` (the
+//! header-only jiter parse behind `get_model_metadata`/`get_model_tensors`,
+//! B4). Optional file-watching (`watch_roots`) is scaffolded behind the
+//! `watch` feature but not wired (Plan §4.7.2-2 marks it optional).
 //!
 //! Test organisation (Plan §3.4.3): unit tests are inline `#[cfg(test)]`
 //! (they reach private APIs — the Rust convention); the `tests/` folder
@@ -67,12 +78,15 @@ pub mod codec;
 pub mod delta;
 pub mod dtype;
 pub mod fse;
+pub mod hash;
 pub mod header;
 pub mod huf;
+pub mod index;
 pub mod pipeline;
 pub mod planes;
 pub mod reorder;
 pub mod safetensors_io;
+pub mod scan;
 pub mod znn_tensor;
 
 /// Magic bytes of the ZipNN container: the ZN header starts with `b"ZN"`

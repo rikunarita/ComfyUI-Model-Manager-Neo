@@ -44,6 +44,7 @@
 //! fsync at all). ENOSPC surfaces as [`StError::Io`] with the partial file
 //! removed; nothing is ever renamed into place unverified.
 
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -325,6 +326,14 @@ type ParsedHeader = (Vec<TensorEntry>, Option<Vec<(String, String)>>, bool);
 fn parse_header_json(json: &[u8]) -> StResult<ParsedHeader> {
     let mut j = Jiter::new(json);
     let mut tensors: Vec<TensorEntry> = Vec::new();
+    // name → position in `tensors`, so the serde "last value wins" duplicate
+    // rule is O(1) per tensor. A linear `tensors.iter().position(..)` scan per
+    // key would be O(n²): a 64k-tensor MoE header then takes SECONDS to parse
+    // (measured 6 s vs 0.33 s for the legacy json.loads path) — and both the
+    // display route (`get_model_tensors`, K11) and the compress pipeline go
+    // through here, so the map matters for correctness of the KPI, not just
+    // cosmetics.
+    let mut name_index: HashMap<String, usize> = HashMap::new();
     let mut metadata: Option<Vec<(String, String)>> = None;
     let mut odd = false; // duplicate keys / unknown fields (→ non-canonical)
     let mut seen_meta = false;
@@ -346,15 +355,18 @@ fn parse_header_json(json: &[u8]) -> StResult<ParsedHeader> {
             seen_meta = true;
             metadata = Some(parse_metadata_map(&mut j, &mut odd)?);
         } else {
-            if tensors.iter().any(|t| *t.name == k) {
-                odd = true; // duplicate tensor name (serde: last wins)
-            }
             let entry = parse_tensor_entry(&mut j, &k, &mut odd)?;
-            // duplicate-name semantics of serde: the LAST value wins
-            if let Some(pos) = tensors.iter().position(|t| *t.name == k) {
-                tensors[pos] = entry;
-            } else {
-                tensors.push(entry);
+            // duplicate-name semantics of serde: the LAST value wins (replace
+            // in place, so the JSON order of first appearance is preserved).
+            match name_index.get(&k) {
+                Some(&pos) => {
+                    odd = true; // duplicate tensor name
+                    tensors[pos] = entry;
+                }
+                None => {
+                    name_index.insert(k.clone(), tensors.len());
+                    tensors.push(entry);
+                }
             }
         }
         key = j.next_key().map_err(json_err)?.map(str::to_owned);
@@ -676,6 +688,87 @@ pub fn py_dumps_compressed_vectors(infos: &[(String, String, String)]) -> String
     }
     out.push('}');
     out
+}
+
+/// Header-only parse for the model-detail display functions
+/// (`py/utils.py get_model_metadata` / `get_model_tensors`, Plan §4.7.3 / B4).
+///
+/// Reads just the leading JSON region (no data-region validation, no full-file
+/// mmap — a display read must succeed on a file whose tensor data is truncated
+/// as long as its header is intact, exactly like the incumbent
+/// `comfy.utils.safetensors_header` + `json.loads`), parses it with jiter (the
+/// K11 fast path), and returns the DIGESTED shape the two Python functions
+/// need as one JSON document:
+///
+/// ```json
+/// {"metadata": {…string→string, header order…},
+///  "tensors": [{"name": …, "dtype": …, "shape": […]}, …]}
+/// ```
+///
+/// `metadata` is `{}` when `__metadata__` is absent (Python's
+/// `"__metadata__" not in dt → {}`); `tensors` preserves the header order and
+/// omits `__metadata__` (Python's loop skips it). Strings are escaped with
+/// [`py_escape_json_string`] so a `json.loads` on the Python side reproduces
+/// the exact values the raw-header parse would. `max_header` is the B4 unified
+/// cap (32 MiB) — an oversized header is an error the Python caller turns into
+/// `{}`/`[]` (matching `safetensors_header(...) is None`).
+///
+/// # Errors
+/// Open/read failures, an oversized or truncated header, or invalid header
+/// JSON (all → the Python caller degrades to `{}`/`[]`).
+pub fn header_display_json(path: &Path, max_header: u64) -> StResult<String> {
+    use std::io::Read;
+    let mut f = File::open(path).map_err(|e| crate::pipeline::io_ctx(e, "reading", path))?;
+    let mut prefix = [0u8; PREFIX_LEN];
+    f.read_exact(&mut prefix).map_err(|_| {
+        StError::Format("file is too short to hold a safetensors header".to_owned())
+    })?;
+    let header_len = u64::from_le_bytes(prefix);
+    if header_len > max_header {
+        return Err(StError::Format(format!(
+            "header size {header_len} exceeds the {max_header}-byte cap"
+        )));
+    }
+    let len = usize::try_from(header_len)
+        .map_err(|_| StError::Format("header size does not fit this platform".to_owned()))?;
+    let mut region = vec![0u8; len];
+    f.read_exact(&mut region).map_err(|_| {
+        StError::Format("file is truncated before the end of its header".to_owned())
+    })?;
+    let json = trim_json_tail(&region);
+    let (tensors, metadata, _odd) = parse_header_json(json)?;
+
+    let mut out = String::from("{\"metadata\":{");
+    if let Some(meta) = &metadata {
+        for (i, (k, v)) in meta.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            out.push_str(&py_escape_json_string(k));
+            out.push(':');
+            out.push_str(&py_escape_json_string(v));
+        }
+    }
+    out.push_str("},\"tensors\":[");
+    for (i, t) in tensors.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str("{\"name\":");
+        out.push_str(&py_escape_json_string(&t.name));
+        out.push_str(",\"dtype\":");
+        out.push_str(&py_escape_json_string(&t.dtype));
+        out.push_str(",\"shape\":[");
+        for (j, d) in t.shape.iter().enumerate() {
+            if j > 0 {
+                out.push(',');
+            }
+            out.push_str(&d.to_string());
+        }
+        out.push_str("]}");
+    }
+    out.push_str("]}");
+    Ok(out)
 }
 
 // ---------------------------------------------------------------------------

@@ -277,7 +277,7 @@ jobs:
           import sys
           import mm_core
 
-          assert mm_core.api_version() == 3, mm_core.api_version()
+          assert mm_core.api_version() == 4, mm_core.api_version()
           print(f"abi3 import OK on CPython {sys.version.split()[0]}: {mm_core.core_version()}")
           PY
 

@@ -58,8 +58,31 @@ sha2 = "0.11.0"
 # parallel walk (Phase 5 benches it against dua-core for scan_models).
 ignore = "0.4.33"
 
+# Phase 5 (scan / index / hash / header — Plan §3.7 catalog, versions
+# re-verified against the crates.io API on 2026-09-27):
+#   bincode  2.0.1 — persistent-index snapshot. NOTE: crates.io reports
+#          `max_stable_version = 3.0.0`, but that release is a compile_error!
+#          placeholder (xkcd 2347 dependency-confusion squat guard; verified by
+#          extracting the .crate — its whole lib.rs is `compile_error!(...)`).
+#          2.0.1 (70 KB, 2025-03-10) is the real latest stable (Plan §3.1 note).
+#   blake3   1.8.7 — index checksum + the BLAKE3 notation of `hash_file`
+#          (rayon feature = parallel tree hashing of large files).
+#   crc32fast 1.5.2 — the CRC32 notation (Civitai's byte-swapped hex).
+#   yaml-rust2 0.13.0 — the notes front-matter subset the scan parses
+#          (serde_yaml is deprecated — Plan §3.1/§3.7).
+bincode = { version = "2.0.1", features = ["derive"] }
+blake3 = { version = "1.8.7", features = ["rayon"] }
+crc32fast = "1.5.2"
+yaml-rust2 = "0.13.0"
+# NOTE: notify + notify-debouncer-full (Plan §3.7 file-watching) are NOT
+# declared yet — the optional `watch_roots` (Plan §4.7.2-2) is deferred
+# (BENCH §10.5), so the `watch` feature stays empty and CI's `--all-features`
+# never compiles an unused watcher dependency tree. Add them here (optional)
+# when watch_roots is implemented.
+
 # Test / bench support
 proptest = "1.11.0"
+tempfile = "3.27.0"
 
 # Shared lint policy (Plan §3.4.2): pedantic = warn (CI runs clippy with
 # `-D warnings`, so it is effectively deny there), unsafe lints = deny, and
