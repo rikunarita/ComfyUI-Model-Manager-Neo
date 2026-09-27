@@ -57,7 +57,7 @@ def mm(tmp_path, monkeypatch):
         pytest.skip(f"native core unavailable: {native.reason()} (build it: scripts/build-native.sh)")
     core = native.core()
     assert core is not None
-    assert core.api_version() == native.MIN_API_VERSION == 4
+    assert core.api_version() == native.MIN_API_VERSION == 5
     return core
 
 

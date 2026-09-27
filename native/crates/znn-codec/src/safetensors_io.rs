@@ -690,6 +690,241 @@ pub fn py_dumps_compressed_vectors(infos: &[(String, String, String)]) -> String
     out
 }
 
+/// Read the leading header JSON region of a safetensors file (no data-region
+/// validation, no full-file mmap — a display read must succeed on a file whose
+/// tensor data is truncated as long as its header is intact, exactly like the
+/// incumbent `comfy.utils.safetensors_header`).
+///
+/// Shared by [`header_display_json`] and [`tensor_tree_json`] so both display
+/// paths enforce the same B4 cap and see the same bytes (and therefore the same
+/// tensor order — the tree's leaf indices address that order).
+///
+/// # Errors
+/// Open/read failures, an oversized header (`max_header`, the B4 unified
+/// 32 MiB cap) or a file truncated before the end of its header.
+fn read_header_region(path: &Path, max_header: u64) -> StResult<Vec<u8>> {
+    use std::io::Read;
+    let mut f = File::open(path).map_err(|e| crate::pipeline::io_ctx(e, "reading", path))?;
+    let mut prefix = [0u8; PREFIX_LEN];
+    f.read_exact(&mut prefix).map_err(|_| {
+        StError::Format("file is too short to hold a safetensors header".to_owned())
+    })?;
+    let header_len = u64::from_le_bytes(prefix);
+    if header_len > max_header {
+        return Err(StError::Format(format!(
+            "header size {header_len} exceeds the {max_header}-byte cap"
+        )));
+    }
+    let len = usize::try_from(header_len)
+        .map_err(|_| StError::Format("header size does not fit this platform".to_owned()))?;
+    let mut region = vec![0u8; len];
+    f.read_exact(&mut region).map_err(|_| {
+        StError::Format("file is truncated before the end of its header".to_owned())
+    })?;
+    Ok(region)
+}
+
+/// Version of the tensor-tree wire format emitted by [`tensor_tree_json`].
+pub const TENSOR_TREE_VERSION: u32 = 1;
+
+/// The name of a folder level that is empty (`a..b` → the middle level), as the
+/// frontend's grouping has always rendered it.
+const UNNAMED_SEGMENT: &str = "(unnamed)";
+
+/// One node of the tree while it is being built (index-addressed: a node's
+/// parent always has a SMALLER index than the node itself, because a parent is
+/// created while walking the path of the tensor that first mentions it — which
+/// makes the bottom-up aggregate pass a single reverse iteration).
+struct TreeBuildNode {
+    segment: String,
+    children: Vec<u32>,
+    /// Indices into the header's `tensors` list, in header order.
+    leaves: Vec<u32>,
+    /// `u32::MAX` for the root.
+    parent: u32,
+    /// Subtree tensor count (aggregate).
+    count: u64,
+    /// Subtree parameter count (aggregate; saturating — see `tensor_params`).
+    params: u64,
+}
+
+/// `shape.reduce((acc, dim) => acc * dim, 1)` — the frontend's parameter count
+/// of one tensor (a scalar shape counts as 1). Saturating: a hostile header
+/// could describe a tensor whose element count exceeds `u64`, and a debug
+/// overflow panic (or a silent release wrap) is not an acceptable answer for a
+/// display aggregate.
+fn tensor_params(shape: &[u64]) -> u64 {
+    shape.iter().fold(1u64, |acc, dim| acc.saturating_mul(*dim))
+}
+
+/// Fold a parsed header's tensor list into the display tree and encode it
+/// (Plan §4.7.3 "テンソルツリー事前グループ化", Phase 6).
+///
+/// Grouping rule — identical to the frontend's historical `tensorTree`
+/// computed, which this replaces for the expensive part: a tensor name is split
+/// on `.`; every segment but the last is a folder level (an empty segment reads
+/// `(unnamed)`), the last segment is the leaf, and a name without a dot is a
+/// leaf of the root. Folders are created on first appearance, so children and
+/// leaves come out in HEADER order; the *display* order stays the frontend's
+/// `naturalCompare`, which it now applies only to the nodes it actually renders
+/// (a collapsed MoE tree renders ~2 of its 87k nodes).
+pub fn encode_tensor_tree(tensors: &[TensorEntry]) -> String {
+    // ---- build (index-addressed, parent index < child index) ---------------
+    let mut nodes: Vec<TreeBuildNode> = Vec::with_capacity(tensors.len() / 4 + 1);
+    nodes.push(TreeBuildNode {
+        segment: String::new(),
+        children: Vec::new(),
+        leaves: Vec::new(),
+        parent: u32::MAX,
+        count: 0,
+        params: 0,
+    });
+    // dotted folder path → node index
+    let mut by_path: HashMap<String, u32> = HashMap::new();
+
+    for (ti, tensor) in tensors.iter().enumerate() {
+        let Some(ti32) = u32::try_from(ti).ok() else {
+            break; // >4 G entries: unreachable under the 32 MiB header cap
+        };
+        let segments: Vec<&str> = tensor.name.split('.').collect();
+        let folders = segments.len().saturating_sub(1);
+        let mut parent: u32 = 0;
+        let mut path = String::new();
+        for segment in &segments[..folders] {
+            let name = if segment.is_empty() {
+                UNNAMED_SEGMENT
+            } else {
+                segment
+            };
+            if !path.is_empty() {
+                path.push('.');
+            }
+            path.push_str(name);
+            parent = match by_path.get(&path) {
+                Some(&idx) => idx,
+                None => {
+                    let idx = u32::try_from(nodes.len()).unwrap_or(u32::MAX);
+                    if idx == u32::MAX {
+                        break; // index space exhausted (unreachable, see above)
+                    }
+                    nodes.push(TreeBuildNode {
+                        segment: name.to_owned(),
+                        children: Vec::new(),
+                        leaves: Vec::new(),
+                        parent,
+                        count: 0,
+                        params: 0,
+                    });
+                    let parent_idx = parent as usize;
+                    nodes[parent_idx].children.push(idx);
+                    by_path.insert(path.clone(), idx);
+                    idx
+                }
+            };
+        }
+        let parent_idx = parent as usize;
+        nodes[parent_idx].leaves.push(ti32);
+        nodes[parent_idx].count = nodes[parent_idx].count.saturating_add(1);
+        nodes[parent_idx].params = nodes[parent_idx]
+            .params
+            .saturating_add(tensor_params(&tensor.shape));
+    }
+
+    // ---- aggregates (children always have a greater index) ----------------
+    for idx in (1..nodes.len()).rev() {
+        let parent = nodes[idx].parent as usize;
+        let count = nodes[idx].count;
+        let params = nodes[idx].params;
+        nodes[parent].count = nodes[parent].count.saturating_add(count);
+        nodes[parent].params = nodes[parent].params.saturating_add(params);
+    }
+
+    // ---- emit: pre-order, own leaves before children ----------------------
+    // (the layout the frontend decodes with one running cursor — no offsets on
+    // the wire, no recursion here either: an iterative frame stack keeps a
+    // pathologically deep name from overflowing the native stack.)
+    let mut out = String::with_capacity(nodes.len() * 24 + tensors.len() * 6 + 32);
+    out.push_str("{\"v\":");
+    out.push_str(&TENSOR_TREE_VERSION.to_string());
+    out.push_str(",\"nodes\":[");
+    let mut leaves_out = String::with_capacity(tensors.len() * 6 + 2);
+    leaves_out.push('[');
+    let mut leaf_count = 0usize;
+
+    #[derive(Clone, Copy)]
+    struct Frame {
+        node: usize,
+        next: usize,
+    }
+    let mut stack: Vec<Frame> = vec![Frame { node: 0, next: 0 }];
+    let mut emitted = 0usize;
+    while let Some(&Frame { node, next }) = stack.last() {
+        if next == 0 {
+            let build = &nodes[node];
+            if emitted > 0 {
+                out.push(',');
+            }
+            emitted += 1;
+            out.push('[');
+            out.push_str(&py_escape_json_string(&build.segment));
+            out.push(',');
+            out.push_str(&build.children.len().to_string());
+            out.push(',');
+            out.push_str(&build.leaves.len().to_string());
+            out.push(',');
+            out.push_str(&build.count.to_string());
+            out.push(',');
+            out.push_str(&build.params.to_string());
+            out.push(']');
+            for leaf in &build.leaves {
+                if leaf_count > 0 {
+                    leaves_out.push(',');
+                }
+                leaf_count += 1;
+                leaves_out.push_str(&leaf.to_string());
+            }
+        }
+        if next < nodes[node].children.len() {
+            let child = nodes[node].children[next] as usize;
+            if let Some(top) = stack.last_mut() {
+                top.next = next + 1;
+            }
+            stack.push(Frame {
+                node: child,
+                next: 0,
+            });
+        } else {
+            stack.pop();
+        }
+    }
+    leaves_out.push(']');
+
+    out.push_str("],\"leaves\":");
+    out.push_str(&leaves_out);
+    out.push('}');
+    out
+}
+
+/// The display tensor tree of a safetensors file as JSON
+/// (`{"v":1,"nodes":[[segment,childCount,tensorCount,totalCount,totalParams],…],
+/// "leaves":[tensorIndex,…]}` — pre-order, root first; see
+/// [`encode_tensor_tree`] for the grouping rule and `src/utils/tensorTree.ts`
+/// for the decoder).
+///
+/// The leaf indices address the `tensors` array of [`header_display_json`] for
+/// the SAME file (both come from one [`parse_header_json`] order), so the
+/// frontend never re-transfers the tensor entries.
+///
+/// # Errors
+/// The same failures as [`header_display_json`] (open/read, the B4 cap,
+/// a truncated or invalid header).
+pub fn tensor_tree_json(path: &Path, max_header: u64) -> StResult<String> {
+    let region = read_header_region(path, max_header)?;
+    let json = trim_json_tail(&region);
+    let (tensors, _metadata, _odd) = parse_header_json(json)?;
+    Ok(encode_tensor_tree(&tensors))
+}
+
 /// Header-only parse for the model-detail display functions
 /// (`py/utils.py get_model_metadata` / `get_model_tensors`, Plan §4.7.3 / B4).
 ///
@@ -717,24 +952,7 @@ pub fn py_dumps_compressed_vectors(infos: &[(String, String, String)]) -> String
 /// Open/read failures, an oversized or truncated header, or invalid header
 /// JSON (all → the Python caller degrades to `{}`/`[]`).
 pub fn header_display_json(path: &Path, max_header: u64) -> StResult<String> {
-    use std::io::Read;
-    let mut f = File::open(path).map_err(|e| crate::pipeline::io_ctx(e, "reading", path))?;
-    let mut prefix = [0u8; PREFIX_LEN];
-    f.read_exact(&mut prefix).map_err(|_| {
-        StError::Format("file is too short to hold a safetensors header".to_owned())
-    })?;
-    let header_len = u64::from_le_bytes(prefix);
-    if header_len > max_header {
-        return Err(StError::Format(format!(
-            "header size {header_len} exceeds the {max_header}-byte cap"
-        )));
-    }
-    let len = usize::try_from(header_len)
-        .map_err(|_| StError::Format("header size does not fit this platform".to_owned()))?;
-    let mut region = vec![0u8; len];
-    f.read_exact(&mut region).map_err(|_| {
-        StError::Format("file is truncated before the end of its header".to_owned())
-    })?;
+    let region = read_header_region(path, max_header)?;
     let json = trim_json_tail(&region);
     let (tensors, metadata, _odd) = parse_header_json(json)?;
 
@@ -1392,5 +1610,224 @@ mod tests {
         }
         assert_eq!(dtype_bitsize("FLOAT32"), None);
         assert_eq!(dtype_bitsize(""), None);
+    }
+
+    // ---- Phase 6: the display tensor tree ---------------------------------
+
+    fn tensor(name: &str, shape: &[u64]) -> TensorEntry {
+        TensorEntry {
+            name: name.to_owned(),
+            dtype: "BF16".to_owned(),
+            shape: shape.to_vec(),
+            start: 0,
+            end: 0,
+        }
+    }
+
+    /// Decode the wire form into `(nodes, leaves)` for readable assertions.
+    fn decode_tree(json: &str) -> (Vec<serde_json::Value>, Vec<u64>) {
+        let parsed: serde_json::Value = serde_json::from_str(json).expect("valid JSON");
+        assert_eq!(parsed["v"].as_u64(), Some(u64::from(TENSOR_TREE_VERSION)));
+        let nodes = parsed["nodes"].as_array().expect("nodes").clone();
+        let leaves = parsed["leaves"]
+            .as_array()
+            .expect("leaves")
+            .iter()
+            .map(|v| v.as_u64().expect("leaf index"))
+            .collect();
+        (nodes, leaves)
+    }
+
+    #[test]
+    fn tensor_tree_groups_by_dotted_name() {
+        // `a.b.w` -> folder a -> folder b -> leaf w; `a.x` -> folder a -> leaf x
+        let tensors = vec![
+            tensor("a.b.w", &[2, 4]), // 8 params
+            tensor("a.x", &[3]),      // 3 params
+            tensor("top", &[5]),      // root leaf, 5 params
+            tensor("a.b.v", &[1, 1]), // 1 param
+        ];
+        let (nodes, leaves) = decode_tree(&encode_tensor_tree(&tensors));
+        // Only FOLDERS are nodes (`x`, `w`, `v`, `top` are leaves): pre-order
+        // root -> a -> b.
+        let seg: Vec<&str> = nodes
+            .iter()
+            .map(|n| n[0].as_str().expect("segment"))
+            .collect();
+        assert_eq!(seg, ["", "a", "b"]);
+        // root has ONE folder child (a) and 1 own leaf (`top`)
+        assert_eq!(nodes[0][1].as_u64(), Some(1), "root child folders");
+        assert_eq!(nodes[0][2].as_u64(), Some(1), "root own tensors (top)");
+        assert_eq!(nodes[0][3].as_u64(), Some(4), "root total count");
+        assert_eq!(nodes[0][4].as_u64(), Some(8 + 3 + 5 + 1), "root params");
+        // folder a: 1 child (b), 1 own tensor (x), 3 in the subtree
+        assert_eq!(nodes[1][1].as_u64(), Some(1));
+        assert_eq!(nodes[1][2].as_u64(), Some(1));
+        assert_eq!(nodes[1][3].as_u64(), Some(3));
+        assert_eq!(nodes[1][4].as_u64(), Some(8 + 3 + 1));
+        // folder b: no children, 2 own tensors
+        assert_eq!(nodes[2][1].as_u64(), Some(0));
+        assert_eq!(nodes[2][2].as_u64(), Some(2));
+        assert_eq!(nodes[2][3].as_u64(), Some(2));
+        // leaves: own-before-children emission -> root's `top` (2), then
+        // folder a's own `x` (1), then a's child b's (0, 3)
+        assert_eq!(leaves, vec![2, 1, 0, 3]);
+    }
+
+    #[test]
+    fn tensor_tree_handles_scalars_unnamed_levels_and_dots_only() {
+        let tensors = vec![
+            tensor("scale", &[]),   // scalar -> 1 param, root leaf
+            tensor("a..b.w", &[2]), // empty level -> "(unnamed)"
+            tensor("", &[4]),       // empty name -> root leaf, 4 params
+            tensor(".", &[1]),      // two empty segments -> folder + leaf
+        ];
+        let (nodes, leaves) = decode_tree(&encode_tensor_tree(&tensors));
+        let seg: Vec<&str> = nodes
+            .iter()
+            .map(|n| n[0].as_str().expect("segment"))
+            .collect();
+        // pre-order: root, `a` -> `(unnamed)` -> `b` (from "a..b.w"), then the
+        // root's second folder `(unnamed)` (from ".").
+        assert_eq!(seg, ["", "a", "(unnamed)", "b", "(unnamed)"]);
+        assert_eq!(nodes[0][2].as_u64(), Some(2), "scale + the empty name");
+        assert_eq!(nodes[0][3].as_u64(), Some(4));
+        assert_eq!(nodes[0][4].as_u64(), Some(1 + 4 + 2 + 1));
+        assert_eq!(leaves, vec![0, 2, 1, 3]);
+    }
+
+    #[test]
+    fn tensor_tree_leaves_cover_every_tensor_exactly_once() {
+        // A MoE-shaped set: 40 layers x 8 experts x 3 projections + per-layer
+        // attention, i.e. the folder-heavy layout the fold exists for.
+        let mut tensors = Vec::new();
+        for layer in 0..40 {
+            tensors.push(tensor(
+                &format!("model.layers.{layer}.self_attn.q_proj.weight"),
+                &[16, 8],
+            ));
+            for expert in 0..8 {
+                for proj in ["gate_proj", "up_proj", "down_proj"] {
+                    tensors.push(tensor(
+                        &format!("model.layers.{layer}.mlp.experts.{expert}.{proj}.weight"),
+                        &[8, 4],
+                    ));
+                }
+            }
+        }
+        let json = encode_tensor_tree(&tensors);
+        let (nodes, leaves) = decode_tree(&json);
+        // every tensor index appears exactly once
+        let mut sorted = leaves.clone();
+        sorted.sort_unstable();
+        let expected: Vec<u64> = (0..tensors.len() as u64).collect();
+        assert_eq!(sorted, expected);
+        // the root aggregate is the whole set
+        assert_eq!(nodes[0][3].as_u64(), Some(tensors.len() as u64));
+        // 40 layers x (one [16,8] attention = 128 + 24 expert [8,4] = 768)
+        assert_eq!(nodes[0][4].as_u64(), Some(40 * (128 + 24 * 32)));
+        // sum of own-tensor counts == tensor count (no double counting)
+        let own: u64 = nodes.iter().map(|n| n[2].as_u64().expect("t")).sum();
+        assert_eq!(own, tensors.len() as u64);
+        // pre-order integrity: every node's childCount matches the frame walk
+        // (the decoder's next-sibling skip relies on it) — verified by
+        // re-walking with a stack and requiring full consumption.
+        let mut stack: Vec<(usize, u64)> = vec![(0, 0)];
+        let mut seen = 0usize;
+        let mut cursor = 0usize;
+        while let Some((idx, next)) = stack.last_mut() {
+            if *next == 0 {
+                seen += 1;
+                cursor += nodes[*idx][2].as_u64().expect("t") as usize;
+            }
+            let children = nodes[*idx][1].as_u64().expect("c");
+            if *next < children {
+                let child = nth_child(&nodes, *idx, *next as usize);
+                *next += 1;
+                stack.push((child, 0));
+            } else {
+                stack.pop();
+            }
+        }
+        assert_eq!(seen, nodes.len(), "every node is visited exactly once");
+        assert_eq!(cursor, leaves.len(), "leaf cursor consumed every leaf");
+    }
+
+    /// Node index of the `child`-th child of `parent` — the same subtree skip
+    /// the frontend decoder precomputes from `childCount`.
+    fn nth_child(nodes: &[serde_json::Value], parent: usize, child: usize) -> usize {
+        let mut idx = parent + 1;
+        for _ in 0..child {
+            idx += subtree_size_at(nodes, idx);
+        }
+        idx
+    }
+
+    fn subtree_size_at(nodes: &[serde_json::Value], idx: usize) -> usize {
+        let children = nodes[idx][1].as_u64().expect("c") as usize;
+        let mut size = 1;
+        let mut cursor = idx + 1;
+        for _ in 0..children {
+            let child_size = subtree_size_at(nodes, cursor);
+            size += child_size;
+            cursor += child_size;
+        }
+        size
+    }
+
+    #[test]
+    fn tensor_tree_json_reads_a_real_file_and_matches_the_header_parse() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model.safetensors");
+        let out = vec![
+            entry("blk.0.w", "BF16", &[2, 2], 0, 8),
+            entry("blk.1.w", "BF16", &[2], 8, 12),
+            entry("bias", "F32", &[4], 12, 28),
+        ];
+        let image = file_image(
+            Some(&[("format".to_owned(), "pt".to_owned())]),
+            &out,
+            &[0u8; 28],
+        );
+        std::fs::write(&path, &image).unwrap();
+
+        let tree = tensor_tree_json(&path, 32 * 1024 * 1024).expect("tree");
+        let (nodes, leaves) = decode_tree(&tree);
+        let seg: Vec<&str> = nodes
+            .iter()
+            .map(|n| n[0].as_str().expect("segment"))
+            .collect();
+        assert_eq!(seg, ["", "blk", "0", "1"]);
+        assert_eq!(leaves, vec![2, 0, 1], "root leaf first, then blk's");
+
+        // the leaf indices address the SAME tensor order as the header display
+        let header = header_display_json(&path, 32 * 1024 * 1024).expect("header");
+        let parsed: serde_json::Value = serde_json::from_str(&header).unwrap();
+        let names: Vec<&str> = parsed["tensors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, ["blk.0.w", "blk.1.w", "bias"]);
+        let resolved: Vec<&str> = leaves.iter().map(|i| names[*i as usize]).collect();
+        assert_eq!(resolved, ["bias", "blk.0.w", "blk.1.w"]);
+    }
+
+    #[test]
+    fn tensor_tree_json_reports_the_same_failures_as_the_header_parse() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("gone.safetensors");
+        assert!(tensor_tree_json(&missing, 1024).is_err());
+        // a header larger than the cap is refused (B4 guard parity)
+        let path = dir.path().join("big.safetensors");
+        let out = vec![entry("w", "F32", &[1], 0, 4)];
+        let image = file_image(None, &out, &[0u8; 4]);
+        std::fs::write(&path, &image).unwrap();
+        assert!(
+            tensor_tree_json(&path, 4).is_err(),
+            "cap too small for the header"
+        );
+        assert!(tensor_tree_json(&path, 1024).is_ok());
     }
 }

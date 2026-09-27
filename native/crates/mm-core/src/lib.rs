@@ -13,7 +13,8 @@
 //! * Phase 4 — NO surface change: the dtype extension (all 22 safetensors
 //!   dtypes, Neo band 128–146) lives inside `znn-codec`; the `api_version`
 //!   stays 3 (the `/zipnn/inspect` route is pure Python),
-//! * Phase 5 — scan / index / hash.
+//! * Phase 5 — scan / index / hash,
+//! * Phase 6 — the display tensor tree + the optional library watcher.
 //!
 //! Binding facts (Plan §3.2, §3.3):
 //!
@@ -34,6 +35,7 @@ use pyo3::prelude::*;
 
 mod jobs;
 mod phase5;
+mod phase6;
 
 /// Version of the Python-facing API surface (Plan §4.2.2 `api_version()`).
 /// Bumped whenever the surface changes incompatibly; `py/native.py` checks it
@@ -54,7 +56,12 @@ mod phase5;
 ///   `py/manager.py` / `py/utils.py` / `py/identify.py` / `py/download.py` call
 ///   these directly, so a v3 binary must NOT pass the loader handshake of a v4
 ///   backend (exact-range check in `py/native.py`).
-const API_VERSION: u32 = 4;
+/// * 5 — Phase 6: the display tensor tree (`safetensors_tensor_tree`, the
+///   Rust pre-grouping of Plan §4.7.3) + the optional library watcher
+///   (`watch_start` / `watch_poll` / `watch_stop` / `watch_diagnostics`,
+///   Plan §4.7.2‑2). `py/manager.py` and `py/watcher.py` call these directly,
+///   so a v4 binary must NOT pass the loader handshake of a v5 backend.
+const API_VERSION: u32 = 5;
 
 /// `"x.y.z+commit"` — the crate version plus the git commit the binary was
 /// built from (embedded by `build.rs`, Plan §4.2.2 `core_version()`).
@@ -75,7 +82,9 @@ fn core_version_string() -> String {
 /// Phase 5 (`api_version` 4) adds the scan / hygiene / safetensors-header /
 /// hash surface (`scan_models`, `scan_hygiene`, `safetensors_header`,
 /// `hash_file`, `hasher_new`/`update`/`finalize`) + the persistent front-matter
-/// index (the later phases of the refresh plan, Agent/Plan.md).
+/// index (the later phases of the refresh plan, Agent/Plan.md); Phase 6
+/// (`api_version` 5) adds the display tensor tree and the optional library
+/// watcher.
 #[pymodule]
 mod mm_core {
     use pyo3::prelude::*;
@@ -234,6 +243,53 @@ mod mm_core {
         super::phase5::phase5_diagnostics()
     }
 
+    /// The display tensor tree of a safetensors file, pre-grouped in Rust
+    /// (`{"v":1,"nodes":[[segment,childCount,tensorCount,totalCount,
+    /// totalParams],…],"leaves":[tensorIndex,…]}` — pre-order, root first).
+    /// The leaf indices address the `tensors` array of `safetensors_header`
+    /// for the SAME file. Synchronous (GIL released); raises on an unreadable
+    /// / oversized / invalid header (the caller degrades to the frontend's own
+    /// grouping). Plan §4.7.3, Phase 6.
+    #[pyfunction]
+    fn safetensors_tensor_tree(py: Python<'_>, path: &str) -> PyResult<String> {
+        super::phase6::safetensors_tensor_tree(py, path)
+    }
+
+    /// Start watching `roots` recursively (Plan §4.7.2‑2 `watch_roots`);
+    /// returns the session handle. `opts`: `debounceMs` (default 500).
+    /// A missing root is skipped and reported; a watch-budget exhaustion marks
+    /// the session `degraded` so Python falls back to the TTL refresh.
+    #[pyfunction]
+    #[pyo3(signature = (roots, opts=None))]
+    fn watch_start(
+        py: Python<'_>,
+        roots: Vec<String>,
+        opts: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<u64> {
+        super::phase6::watch_start(py, roots, opts)
+    }
+
+    /// Drain a session's pending changes as JSON (`paths` / `rescan` /
+    /// `degraded` / `stopped` / `roots` / `watched` / `ageMs` / `errors`).
+    /// Cheap and non-blocking — polled from the Python asyncio task.
+    #[pyfunction]
+    fn watch_poll(handle: u64) -> PyResult<String> {
+        super::phase6::watch_poll(handle)
+    }
+
+    /// Stop a watch session and drop it (raises on an unknown handle).
+    #[pyfunction]
+    fn watch_stop(handle: u64) -> PyResult<()> {
+        super::phase6::watch_stop(handle)
+    }
+
+    /// Watcher diagnostics: `{"sessions": n, "watchedRoots": n,
+    /// "inotifyBudget": n|null}` (never raises).
+    #[pyfunction]
+    fn watch_diagnostics(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
+        super::phase6::watch_diagnostics(py)
+    }
+
     /// `(done, total, phase)` of a job; phase ∈ {prepare, tensors, write,
     /// verify, delta, done, failed} — `done`/`failed` are terminal.
     #[pyfunction]
@@ -275,6 +331,6 @@ mod tests {
     fn api_version_matches_the_loader_contract() {
         // py/native.py pins MIN_API_VERSION..MAX_API_VERSION — keep the two
         // sides in lockstep (the loader test suite asserts the same range).
-        assert_eq!(super::API_VERSION, 4);
+        assert_eq!(super::API_VERSION, 5);
     }
 }
