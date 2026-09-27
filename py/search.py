@@ -22,25 +22,37 @@ GET /model-manager/civitai/image-meta?model-version-id=&url=
     Generation metadata (prompt / sampler / steps / seed / resources, …) of one
     preview image of a Civitai model version (``withMeta=true&flatMeta=true``).
 
-All network calls run in the IO executor; a failing provider degrades to an
-``error`` entry instead of failing the whole search.
+Network calls run on the event loop through the shared aiohttp session
+(``py/http_client.py``, Quick Win A3 — Plan §4.8-A3); only the hub SDKs
+(``huggingface_hub`` / ``modelscope_hub``) still use an IO-executor worker, and
+a failing provider degrades to an ``error`` entry instead of failing the whole
+search.
 """
 
 import asyncio
 import hashlib
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any, cast
 from urllib.parse import quote, urlparse
 
-import requests
 from aiohttp import web
 
-from . import auth, utils
+from . import auth, http_client, utils
 from .information import MODELSCOPE_INTL_ENDPOINT
 
-SEARCH_TIMEOUT = 12.0
+# A3 (Plan §4.8-A3 / §6.2 Phase 6): every hub round trip of this module goes
+# through the shared aiohttp session (`py/http_client.py`) instead of a
+# blocking `requests.get` in an io-executor worker - no thread hop, one
+# connector, one timeout policy. The base URLs are module constants so the mock
+# tests can point them at a local server (no live API dependency).
+SEARCH_TIMEOUT = http_client.SEARCH_TIMEOUT
+#: Extra seconds the three-provider sweep waits past the per-call timeout
+#: before it returns partial results (the historical `as_completed(...,
+#: timeout=SEARCH_TIMEOUT + 5)` margin; a constant so the mock tests can
+#: exercise the partial-results path without a 5 s sleep).
+SWEEP_MARGIN = 5.0
+CIVITAI_API_BASE = "https://civitai.com/api/v1"
+HF_API_BASE = "https://huggingface.co/api"
 _UA = {"User-Agent": "ComfyUI-Model-Manager-Neo/0.1"}
 
 # owner -> avatar url (or None when the hub has none); bounded, best effort.
@@ -99,27 +111,15 @@ def _sniff_image_content_type(body: bytes) -> str:
     return "application/octet-stream"
 
 
-def _fetch_avatar_bytes(url: str) -> bytes | None:
-    try:
-        r = requests.get(url, headers=_UA, timeout=10, stream=True)
-    except Exception:
-        return None
-    try:
-        if r.status_code != 200:
-            return None
-        chunks: list[bytes] = []
-        received = 0
-        for chunk in r.iter_content(64 * 1024):
-            if not chunk:
-                continue
-            received += len(chunk)
-            if received > _AVATAR_PROXY_MAX_BYTES:
-                return None
-            chunks.append(chunk)
-        body = b"".join(chunks)
-        return body or None
-    finally:
-        r.close()
+async def _fetch_avatar_bytes(url: str) -> bytes | None:
+    """Fetch an avatar body, capped at `_AVATAR_PROXY_MAX_BYTES`.
+
+    Streaming with the cap enforced WHILE reading (the historical
+    `stream=True` + `iter_content` behaviour), so a hostile or misbehaving CDN
+    object cannot balloon the in-memory cache. Any failure - transport, non-200,
+    oversize - degrades to None, exactly as before.
+    """
+    return await http_client.fetch_bytes_capped(url, headers=_UA, timeout=10.0, max_bytes=_AVATAR_PROXY_MAX_BYTES)
 
 
 def avatar_proxy_url(url: str | None) -> str | None:
@@ -138,7 +138,7 @@ def avatar_proxy_url(url: str | None) -> str | None:
     return f"/model-manager/avatar?url={quote(url, safe='')}"
 
 
-def _hf_avatar(owner: str) -> str | None:
+async def _hf_avatar(owner: str) -> str | None:
     """Hugging Face owner avatar.
 
     Personal accounts answer ``{"avatarUrl": …}`` on
@@ -153,14 +153,14 @@ def _hf_avatar(owner: str) -> str | None:
         return _AVATAR_CACHE[owner]
     for kind in ("users", "organizations"):
         try:
-            r = requests.get(
-                f"https://huggingface.co/api/{kind}/{owner}/avatar",
+            status, payload = await http_client.fetch_status_json(
+                f"{HF_API_BASE}/{kind}/{owner}/avatar",
                 headers=_UA,
-                timeout=8,
+                timeout=8.0,
             )
-            if r.status_code != 200:
+            if status != 200:
                 continue
-            url = (r.json() or {}).get("avatarUrl")
+            url = (payload or {}).get("avatarUrl")
             if isinstance(url, str) and url:
                 return _cache_avatar(owner, url)
         except Exception:
@@ -168,11 +168,15 @@ def _hf_avatar(owner: str) -> str | None:
     return _cache_avatar(owner, None)
 
 
-def _search_huggingface(query: str, limit: int, cursor: str | None, sort: str) -> tuple[list[dict], str | None]:
+def _hf_list_models(query: str, limit: int, offset: int, sort: str) -> list[Any]:
+    """The blocking `huggingface_hub` page fetch (httpx2 under the hood).
+
+    Stays in an executor: A3 unifies Neo's OWN round trips on aiohttp, it does
+    not replace the hub SDK (Plan §3.8 - `huggingface_hub` 2.x is httpx2-based,
+    so a "unified" stack would be a third one).
+    """
     from huggingface_hub import HfApi
 
-    items: list[dict] = []
-    offset = max(0, int(cursor or 0))
     # `expand=["author"]` is required: without it list_models leaves
     # `author` empty on search results (verified against huggingface_hub).
     # One extra item is fetched to learn whether a further page exists.
@@ -189,6 +193,17 @@ def _search_huggingface(query: str, limit: int, cursor: str | None, sort: str) -
         # owner link) plus the counters the result rows show as icons.
         expand=["author", "downloads", "likes"],
     )
+    return list(models)
+
+
+async def _search_huggingface(query: str, limit: int, cursor: str | None, sort: str) -> tuple[list[dict], str | None]:
+    offset = max(0, int(cursor or 0))
+    loop = asyncio.get_running_loop()
+    models = await loop.run_in_executor(utils.io_executor(), _hf_list_models, query, limit, offset, sort)
+
+    # Window selection is unchanged (skip `offset`, keep `limit + 1` to learn
+    # whether a further page exists).
+    page: list[tuple[dict, str]] = []
     seen = 0
     for m in models:
         mid = getattr(m, "id", None) or getattr(m, "modelId", None)
@@ -197,27 +212,45 @@ def _search_huggingface(query: str, limit: int, cursor: str | None, sort: str) -
         if seen < offset:
             seen += 1
             continue
-        if len(items) > limit:
+        if len(page) > limit:
             break
         owner, repo = mid.split("/", 1)
         owner = getattr(m, "author", None) or owner
-        items.append(
-            {
-                "platform": "hf",
-                "key": mid,
-                "owner": owner,
-                "repo": repo,
-                "title": mid,
-                "downloads": getattr(m, "downloads", 0) or 0,
-                "likes": getattr(m, "likes", 0) or 0,
-                "avatar": _hf_avatar(owner),
-                "pageUrl": f"https://huggingface.co/{mid}",
-                "ownerUrl": f"https://huggingface.co/{owner}",
-            }
+        page.append(
+            (
+                {
+                    "platform": "hf",
+                    "key": mid,
+                    "owner": owner,
+                    "repo": repo,
+                    "title": mid,
+                    "downloads": getattr(m, "downloads", 0) or 0,
+                    "likes": getattr(m, "likes", 0) or 0,
+                    # filled in below (the avatar probes are concurrent now);
+                    # the key stays in its historical position in the dict
+                    "avatar": None,
+                    "pageUrl": f"https://huggingface.co/{mid}",
+                    "ownerUrl": f"https://huggingface.co/{owner}",
+                },
+                owner,
+            )
         )
         seen += 1
-    next_cursor = str(offset + limit) if len(items) > limit else None
-    return items[:limit], next_cursor
+    has_more = len(page) > limit
+    page = page[:limit]
+
+    # A3: one avatar probe per DISTINCT owner, concurrently (the cache still
+    # absorbs repeats across searches).
+    owners = list(dict.fromkeys(owner for _, owner in page))
+    avatars = await asyncio.gather(*[_hf_avatar(owner) for owner in owners])
+    by_owner = dict(zip(owners, avatars, strict=True))
+    items: list[dict] = []
+    for item, owner in page:
+        item["avatar"] = by_owner.get(owner)
+        items.append(item)
+
+    next_cursor = str(offset + limit) if has_more else None
+    return items, next_cursor
 
 
 _MS_OWNER_CACHE: dict[str, tuple[str | None, str | None, str | None]] = {}
@@ -247,9 +280,24 @@ def _ms_plain_description(desc: str | None) -> str | None:
     try:
         leaves: list[str] = []
 
+        def is_leaf_marker(node) -> bool:
+            """The rich-text leaf marker, in either shape the API has been seen
+            to send.
+
+            BUG FIX: only the bare ``"leaf"`` marker was recognised, but the
+            documented payload (this function's own docstring, verified against
+            the live endpoint) carries an ATTRIBUTE dict at that position -
+            ``["span", {"data-type": "leaf"}, "…"]`` - so every rich-text
+            description flattened to an empty string and the owner tooltip
+            silently showed nothing.
+            """
+            if node == "leaf":
+                return True
+            return isinstance(node, dict) and node.get("data-type") == "leaf"
+
         def walk(node):
             if isinstance(node, list):
-                if len(node) >= 2 and node[-2] == "leaf" and isinstance(node[-1], str):
+                if len(node) >= 2 and is_leaf_marker(node[-2]) and isinstance(node[-1], str):
                     leaves.append(node[-1])
                 for child in node:
                     walk(child)
@@ -264,7 +312,7 @@ def _ms_plain_description(desc: str | None) -> str | None:
         return None
 
 
-def _ms_owner_info(owner: str, name: str) -> tuple[str | None, str | None, str | None]:
+async def _ms_owner_info(owner: str, name: str) -> tuple[str | None, str | None, str | None]:
     """(avatar, display, description) of a ModelScope owner, via the payload.
 
     ``GET /api/v1/models/{owner}/{name}`` answers ``{"Data": {"Name": ...,
@@ -283,14 +331,14 @@ def _ms_owner_info(owner: str, name: str) -> tuple[str | None, str | None, str |
     if owner in _MS_OWNER_CACHE:
         return _MS_OWNER_CACHE[owner]
     try:
-        r = requests.get(
+        status, payload = await http_client.fetch_status_json(
             f"{MODELSCOPE_INTL_ENDPOINT}/api/v1/models/{owner}/{name}",
             headers=_UA,
-            timeout=8,
+            timeout=8.0,
         )
-        if r.status_code != 200:
+        if status != 200:
             return _cache_ms_owner(owner, (None, None, None))
-        data = (r.json() or {}).get("Data") or {}
+        data = (payload or {}).get("Data") or {}
         org = data.get("Organization") or {}
         display = org.get("Name")
         desc = org.get("Description")
@@ -309,19 +357,34 @@ def _ms_owner_info(owner: str, name: str) -> tuple[str | None, str | None, str |
         return _cache_ms_owner(owner, (None, None, None))
 
 
-def _search_modelscope(query: str, limit: int, cursor: str | None, sort: str) -> tuple[list[dict], str | None]:
+def _ms_list_repos(query: str, limit: int, page_number: int, sort: str) -> Any:
+    """The blocking `modelscope_hub` page fetch (stays in an executor — A3
+    unifies Neo's own round trips, not the hub SDKs; Plan §3.8)."""
     from modelscope_hub import HubApi
 
     api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT)
+    return api.list_repos("model", search=query, sort=sort, page_number=page_number, page_size=limit)
+
+
+async def _search_modelscope(query: str, limit: int, cursor: str | None, sort: str) -> tuple[list[dict], str | None]:
     page_number = max(1, int(cursor or 1))
-    page = api.list_repos("model", search=query, sort=sort, page_number=page_number, page_size=limit)
-    items: list[dict] = []
+    loop = asyncio.get_running_loop()
+    page = await loop.run_in_executor(utils.io_executor(), _ms_list_repos, query, limit, page_number, sort)
+
+    rows: list[tuple[Any, str, str]] = []
     for r in page.items:
         owner = getattr(r, "owner", None)
         name = getattr(r, "name", None)
         if not owner or not name:
             continue
-        avatar, display, description = _ms_owner_info(owner, name)
+        rows.append((r, owner, name))
+
+    # A3: the owner probes (one per result) run concurrently on the loop
+    # instead of serially inside an executor worker.
+    infos = await asyncio.gather(*[_ms_owner_info(owner, name) for _, owner, name in rows])
+
+    items: list[dict] = []
+    for (r, owner, name), (avatar, display, description) in zip(rows, infos, strict=True):
         items.append(
             {
                 "platform": "modelscope",
@@ -342,7 +405,7 @@ def _search_modelscope(query: str, limit: int, cursor: str | None, sort: str) ->
     return items, next_cursor
 
 
-def _search_civitai(query: str, limit: int, cursor: str | None, sort: str) -> tuple[list[dict], str | None]:
+async def _search_civitai(query: str, limit: int, cursor: str | None, sort: str) -> tuple[list[dict], str | None]:
     token = auth.get_civitai_token()
     headers = dict(_UA)
     if token:
@@ -352,14 +415,17 @@ def _search_civitai(query: str, limit: int, cursor: str | None, sort: str) -> tu
     # (verified live: "Cannot use page param with query search").
     if cursor:
         params["cursor"] = cursor
-    r = requests.get(
-        "https://civitai.com/api/v1/models",
-        params=params,
-        headers=headers,
-        timeout=SEARCH_TIMEOUT,
+    # A3: fully async (no executor hop at all) - and a non-2xx still raises the
+    # requests-worded HttpStatusError the provider wrapper reports verbatim.
+    payload = (
+        await http_client.fetch_json(
+            f"{CIVITAI_API_BASE}/models",
+            params=params,
+            headers=headers,
+            timeout=SEARCH_TIMEOUT,
+        )
+        or {}
     )
-    r.raise_for_status()
-    payload = r.json() or {}
     items: list[dict] = []
     # Sort keys for the post-pass below (the API ignores `sort` whenever a
     # `query` is present - verified live - so the orders its payload can
@@ -458,50 +524,48 @@ class SearchRoutes:
             # its own cursor; a fresh search runs every provider cursor-less.
             platform = (request.query.get("platform") or "").strip()
             cursor = (request.query.get("cursor") or "").strip() or None
-            loop = asyncio.get_running_loop()
 
-            def run(provider: str, page_cursor: str | None, sort: str):
+            async def run(provider: str, page_cursor: str | None, sort: str) -> tuple[str, dict]:
                 try:
-                    items, next_cursor = _PROVIDERS[provider](query, limit, page_cursor, sort)
+                    items, next_cursor = await _PROVIDERS[provider](query, limit, page_cursor, sort)
                     return provider, {"items": items, "nextCursor": next_cursor}
                 except Exception as e:  # provider outage must not kill the rest
                     utils.print_warning(f"search provider {provider} failed: {e}")
                     return provider, {"items": [], "error": str(e), "nextCursor": None}
 
             if platform in _PROVIDERS:
-                name, res = await loop.run_in_executor(
-                    utils.io_executor(), run, platform, cursor, _resolve_sort(request, platform)
-                )
+                # A3 (Plan §4.8-A3): the providers are coroutines now, so the
+                # whole request runs on the event loop - the io-executor hop
+                # (one of eight workers, pinned for the entire round trip) is
+                # gone.
+                name, res = await run(platform, cursor, _resolve_sort(request, platform))
                 return web.json_response({"success": True, "data": {name: res}})
 
-            # The three-provider sweep waits on its futures, so the wait must
-            # NOT happen on the server's event loop (it froze every websocket
-            # and request for up to the full search timeout). The fan-out pool
-            # runs inside one io-executor worker; a hung provider degrades to
-            # a per-column timeout entry instead of failing the whole search.
+            # The three-provider sweep runs as three concurrent coroutines on
+            # the loop (A3): the wait no longer needs an executor worker, and
+            # the historical contract is kept exactly - the sweep is bounded by
+            # the search timeout + 5 s and a provider that does not answer in
+            # time degrades to a per-column "search timed out" entry instead of
+            # failing the whole search (partial results survive).
             sort_map = {name: _resolve_sort(request, name) for name in _PROVIDERS}
-
-            def run_all():
-                data: dict[str, dict] = {}
-                pool = ThreadPoolExecutor(max_workers=len(_PROVIDERS))
-                try:
-                    futs = {name: pool.submit(run, name, None, sort_map[name]) for name in _PROVIDERS}
-                    try:
-                        for fut in as_completed(futs.values(), timeout=SEARCH_TIMEOUT + 5):
-                            name, res = fut.result()
-                            data[name] = res
-                    except FuturesTimeoutError:
-                        utils.print_warning("search: provider timed out, returning partial results")
-                    for name in _PROVIDERS:
-                        data.setdefault(
-                            name,
-                            {"items": [], "error": "search timed out", "nextCursor": None},
-                        )
-                finally:
-                    pool.shutdown(wait=False, cancel_futures=True)
-                return data
-
-            data = await loop.run_in_executor(utils.io_executor(), run_all)
+            tasks = {name: asyncio.create_task(run(name, None, sort_map[name])) for name in _PROVIDERS}
+            done, pending = await asyncio.wait(tasks.values(), timeout=SEARCH_TIMEOUT[1] + SWEEP_MARGIN)
+            if pending:
+                utils.print_warning("search: provider timed out, returning partial results")
+                for task in pending:
+                    task.cancel()
+                # Let the cancellations settle so no task is left dangling.
+                await asyncio.gather(*pending, return_exceptions=True)
+            data: dict[str, dict] = {}
+            for task in tasks.values():
+                if task in done and not task.cancelled():
+                    name, res = task.result()
+                    data[name] = res
+            for name in _PROVIDERS:
+                data.setdefault(
+                    name,
+                    {"items": [], "error": "search timed out", "nextCursor": None},
+                )
             return web.json_response({"success": True, "data": data})
 
         @routes.get("/model-manager/avatar")
@@ -525,8 +589,9 @@ class SearchRoutes:
 
             hit = _AVATAR_PROXY_CACHE.get(url)
             if hit is None:
-                loop = asyncio.get_running_loop()
-                body = await loop.run_in_executor(utils.io_executor(), _fetch_avatar_bytes, url)
+                # A3: the fetch is async now, so the io-executor hop (and the
+                # worker it pinned for the whole round trip) is gone.
+                body = await _fetch_avatar_bytes(url)
                 if body is None:
                     raise web.HTTPNotFound()
                 etag = f'"avatar-{hashlib.sha256(body).hexdigest()[:16]}"'
@@ -571,19 +636,18 @@ class SearchRoutes:
                         ),
                     }
                 )
-            loop = asyncio.get_running_loop()
-
-            def fetch():
-                r = requests.get(
-                    "https://civitai.com/api/v1/me",
-                    headers={**_UA, "Authorization": f"Bearer {token}"},
-                    timeout=SEARCH_TIMEOUT,
-                )
-                r.raise_for_status()
-                return r.json() or {}
-
             try:
-                me = await loop.run_in_executor(utils.io_executor(), fetch)
+                # A3: async on the loop (was a blocking requests.get inside an
+                # io-executor worker). The exception shape is unchanged -
+                # `HttpStatusError.response.status_code` is what the 401 hint
+                # below reads, and `str(e)` keeps the requests wording.
+                me = (
+                    await http_client.fetch_json(
+                        f"{CIVITAI_API_BASE}/me",
+                        headers={**_UA, "Authorization": f"Bearer {token}"},
+                        timeout=SEARCH_TIMEOUT,
+                    )
+                ) or {}
                 return web.json_response(
                     {
                         "success": True,
@@ -616,25 +680,22 @@ class SearchRoutes:
             url = (request.query.get("url") or "").strip()
             if not version_id or not url:
                 return web.json_response({"success": True, "data": None})
-            loop = asyncio.get_running_loop()
-
-            def fetch():
-                r = requests.get(
-                    "https://civitai.com/api/v1/images",
-                    params={
-                        "modelVersionId": version_id,
-                        "withMeta": "true",
-                        "flatMeta": "true",
-                        "limit": "100",
-                    },
-                    headers=_UA,
-                    timeout=SEARCH_TIMEOUT,
-                )
-                r.raise_for_status()
-                return r.json() or {}
-
             try:
-                payload = await loop.run_in_executor(utils.io_executor(), fetch)
+                # A3: async on the loop (was a blocking requests.get in a
+                # worker).
+                payload = (
+                    await http_client.fetch_json(
+                        f"{CIVITAI_API_BASE}/images",
+                        params={
+                            "modelVersionId": version_id,
+                            "withMeta": "true",
+                            "flatMeta": "true",
+                            "limit": "100",
+                        },
+                        headers=_UA,
+                        timeout=SEARCH_TIMEOUT,
+                    )
+                ) or {}
             except Exception as e:
                 utils.print_warning(f"civitai image meta fetch failed: {e}")
                 return web.json_response({"success": True, "data": None})

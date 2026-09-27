@@ -424,6 +424,51 @@ def get_model_tensors(filename: str):
     return tensors
 
 
+def get_model_header(filename: str) -> dict:
+    """Everything the model-detail Information tab needs, in ONE place.
+
+    ``{"metadata": {...}, "tensors": [...], "tensorTree": {...} | None}`` —
+    the first two are exactly what [get_model_metadata] / [get_model_tensors]
+    return (and are served by the same native header parse), the third is the
+    Phase-6 display tensor tree pre-grouped in Rust (Plan §4.7.3
+    "テンソルツリー事前グループ化"): a ``{"v":1,"nodes":[…],"leaves":[…]}``
+    document whose leaf indices address THIS response's ``tensors`` array.
+
+    ``tensorTree`` is ``None`` whenever it cannot be produced (a legacy engine,
+    a non-safetensors file, a header the tree parse rejects), and the frontend
+    then folds the tree itself from ``tensors`` exactly as it did before Phase
+    6 — so this is a pure acceleration, never a behaviour change.
+    """
+    empty: dict = {"metadata": {}, "tensors": [], "tensorTree": None}
+    if not filename.endswith(".safetensors"):
+        return empty
+    mm = _native_core()
+    if mm is not None:
+        try:
+            header = json.loads(mm.safetensors_header(filename))
+        except Exception:
+            header = {}
+        meta = header.get("metadata")
+        tensors = header.get("tensors")
+        tree = None
+        try:
+            tree = json.loads(mm.safetensors_tensor_tree(filename))
+        except Exception as e:
+            # The tree is an optimisation: the frontend folds it itself.
+            print_warning(f"native tensor tree failed ({e}); the frontend will group")
+        return {
+            "metadata": meta if isinstance(meta, dict) else {},
+            "tensors": tensors if isinstance(tensors, list) else [],
+            "tensorTree": tree if isinstance(tree, dict) else None,
+        }
+    # Legacy engine: no tree (the frontend's own grouping is the fallback).
+    return {
+        "metadata": get_model_metadata(filename),
+        "tensors": get_model_tensors(filename),
+        "tensorTree": None,
+    }
+
+
 # Preview file naming scheme (ordered by display priority):
 #   1. `<basename>.<ext>`          the primary preview
 #   2. `<basename>.preview.<ext>`  the second preview (historic name)
@@ -889,7 +934,16 @@ def set_setting_value(request: web.Request, key: str, value: Any):
         print_debug(f"Failed to save setting {key}: {e}")
 
 
-def get_setting_value(request: web.Request, key: str, default: Any = None) -> Any:
+def get_setting_value(request: web.Request | None, key: str, default: Any = None) -> Any:
+    """A persisted ComfyUI setting.
+
+    ``request`` may be None for a READ from a background task (Phase 6's model
+    watcher): ComfyUI's `UserManager.get_request_user_id` only touches the
+    request in `--multi-user` mode and returns ``"default"`` otherwise, so the
+    single-user default deployment resolves the setting file without one. Under
+    `--multi-user` the lookup raises, is swallowed below and the default is
+    returned - the safe answer for a per-user value read process-wide.
+    """
     try:
         setting_id = resolve_setting_key(key)
         settings = config.serverInstance.user_manager.settings.get_settings(request)

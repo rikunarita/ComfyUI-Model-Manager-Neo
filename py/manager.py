@@ -9,7 +9,7 @@ import folder_paths
 import yaml
 from aiohttp import web
 
-from . import native, utils
+from . import native, utils, watcher
 
 
 def _preview_field_keys(model_data: dict) -> list[str]:
@@ -106,11 +106,29 @@ class ModelManager:
             model_base_paths = utils.resolve_model_base_paths()
             return web.json_response({"success": True, "data": model_base_paths})
 
+        @routes.get("/model-manager/watch-status")
+        async def watch_status(request):
+            """Diagnostics of the optional library watcher (Plan §4.7.2-2).
+
+            Read-only: whether the setting is on, whether the polling task and
+            the native session are up, how many roots are armed (network roots
+            are skipped by design), the degrade state and the event/broadcast
+            counters. Handy for a bug report - and for the Phase-6 acceptance
+            check that a network mount or an exhausted inotify budget degrades
+            to the TTL refresh instead of failing.
+            """
+            return web.json_response({"success": True, "data": watcher.watcher.diagnostics()})
+
         @routes.get("/model-manager/models")
         async def get_folders(request):
             """
             Returns the base folders for models.
             """
+            # Phase 6: the watcher task normally starts from the server's
+            # on_startup hook; this is the lazy fallback for a host where that
+            # hook was not available (it is a no-op once the task is up, and it
+            # never raises - the watcher is optional).
+            watcher.watcher.ensure_task()
             try:
                 result = utils.resolve_model_base_paths()
                 return web.json_response({"success": True, "data": result})
@@ -602,8 +620,11 @@ class ModelManager:
     def get_model_info(self, model_path: str):
         directory = os.path.dirname(model_path)
 
-        metadata = utils.get_model_metadata(model_path)
-        tensors = utils.get_model_tensors(model_path)
+        # ONE header fetch for the whole detail payload (Plan §4.7.3): the
+        # native path parses the safetensors header once for metadata+tensors
+        # and once for the pre-grouped display tree, instead of the two
+        # separate parses `get_model_metadata` + `get_model_tensors` did.
+        header = utils.get_model_header(model_path)
 
         description_file = utils.get_model_description_name(model_path)
         description_file = utils.join_path(directory, description_file)
@@ -613,9 +634,13 @@ class ModelManager:
                 description = f.read()
 
         return {
-            "metadata": metadata,
+            "metadata": header["metadata"],
             "description": description,
-            "tensors": tensors,
+            "tensors": header["tensors"],
+            # Phase 6: the tensor tree folded in Rust (leaf indices address the
+            # `tensors` array above). `None` = the frontend folds it itself,
+            # exactly as before Phase 6 — an additive, optional field.
+            "tensorTree": header["tensorTree"],
         }
 
     def update_model(self, model_path: str, model_data: dict):

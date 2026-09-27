@@ -10,12 +10,15 @@ from urllib.parse import parse_qs, urlparse
 
 import folder_paths
 import markdownify
-import requests
 import yaml
 from aiohttp import web
 from PIL import Image
 
-from . import auth, config, utils
+from . import auth, config, http_client, utils
+
+# A3 (Plan §4.8-A3): the hub base URLs are module constants so the mock tests
+# can point them at a local server (no live API dependency).
+HF_API_BASE = "https://huggingface.co/api"
 
 # ---------------------------------------------------------------------------
 # Browser-cacheable SVG artwork.
@@ -97,23 +100,38 @@ _PREVIEW_ENCODE_LIMIT = 64
 CIVITAI_HOSTS = ("civitai.com", "civitai.red")
 
 
+def civitai_api_base(host: str) -> str:
+    """The Civitai API base of the host a model URL arrived on.
+
+    A function (not an f-string at the call site) for two reasons: the mirror
+    hosts must reach THEIR OWN API rather than the canonical one, and the A3
+    mock tests point it at a local server without touching the URL parsing.
+    """
+    return f"https://{host}/api/v1"
+
+
 class ModelSearcher(ABC):
     """
     Abstract class for model searcher.
+
+    A3 (Plan §4.8-A3): the lookup is a coroutine. The HTTP round trips run on
+    the server's event loop through the shared aiohttp session; a searcher whose
+    backend is a blocking SDK (ModelScope) moves that call into an executor
+    itself, so the route never pins an io worker for a network wait.
     """
 
     @abstractmethod
-    def search_by_url(self, url: str) -> list[dict]:
+    async def search_by_url(self, url: str) -> list[dict]:
         pass
 
 
 class UnknownWebsiteSearcher(ModelSearcher):
-    def search_by_url(self, url: str):
+    async def search_by_url(self, url: str):
         raise RuntimeError("Unknown Website, please input a URL from huggingface.co, civitai.com or modelscope.ai.")
 
 
 class CivitaiModelSearcher(ModelSearcher):
-    def search_by_url(self, url: str):
+    async def search_by_url(self, url: str):
         parsed_url = urlparse(url)
 
         # The host the URL arrived on must be used for the API round trip
@@ -133,11 +151,15 @@ class CivitaiModelSearcher(ModelSearcher):
             return []
 
         headers = auth.get_civitai_headers()
-        # Timeouts everywhere: a hung API must not pin an io-executor worker
-        # (and the dialog spinner) forever. (connect, read-between-bytes).
-        response = requests.get(f"https://{host}/api/v1/models/{model_id}", headers=headers, timeout=(10, 60))
-        response.raise_for_status()
-        res_data: dict = response.json()
+        # Timeouts everywhere: a hung API must not pin the dialog spinner
+        # forever. (connect, read-between-bytes) - the same pair the replaced
+        # `requests.get(timeout=(10, 60))` used, and the same raise_for_status
+        # wording for a non-2xx (http_client.HttpStatusError).
+        res_data: dict = await http_client.fetch_json(
+            f"{civitai_api_base(host)}/models/{model_id}",
+            headers=headers,
+            timeout=http_client.HUB_TIMEOUT,
+        )
 
         model_versions: list[dict] = res_data["modelVersions"]
         if version_id:
@@ -244,7 +266,7 @@ class CivitaiModelSearcher(ModelSearcher):
 
 
 class HuggingfaceModelSearcher(ModelSearcher):
-    def search_by_url(self, url: str):
+    async def search_by_url(self, url: str):
         parsed_url = urlparse(url)
 
         pathname = parsed_url.path
@@ -266,10 +288,12 @@ class HuggingfaceModelSearcher(ModelSearcher):
 
         headers = auth.get_hf_headers()
 
-        # Fetch model info from HF API
-        response = requests.get(f"https://huggingface.co/api/models/{model_id}", headers=headers, timeout=(10, 60))
-        response.raise_for_status()
-        res_data: dict = response.json()
+        # Fetch model info from HF API (A3: shared aiohttp session, no executor)
+        res_data: dict = await http_client.fetch_json(
+            f"{HF_API_BASE}/models/{model_id}",
+            headers=headers,
+            timeout=http_client.HUB_TIMEOUT,
+        )
 
         # Fetch file tree to get actual file sizes
         file_sizes = {}
@@ -277,10 +301,11 @@ class HuggingfaceModelSearcher(ModelSearcher):
             # BUG FIX: without `recursive=true` the tree API only returns the
             # repository root, so files inside sub-directories never got a
             # size (shown as 0 B until the download corrected it).
-            tree_url = f"https://huggingface.co/api/models/{model_id}/tree/{revision}?recursive=true"
-            tree_response = requests.get(tree_url, headers=headers, timeout=(10, 60))
-            if tree_response.status_code == 200:
-                tree_data = tree_response.json()
+            tree_url = f"{HF_API_BASE}/models/{model_id}/tree/{revision}?recursive=true"
+            status, tree_data = await http_client.fetch_status_json(
+                tree_url, headers=headers, timeout=http_client.HUB_TIMEOUT
+            )
+            if status == 200:
                 file_sizes = self._build_file_sizes(tree_data)
         except Exception as e:
             utils.print_warning(f"Failed to fetch file tree for size info: {e}")
@@ -428,7 +453,16 @@ class ModelScopeModelSearcher(ModelSearcher):
     (`website: ModelScope`), plus the repo/file pair the downloader needs.
     """
 
-    def search_by_url(self, url: str):
+    def _list_repo_files(self, repo_id: str):
+        """The blocking `modelscope_hub` call (A3 keeps SDK traffic in an
+        executor; only Neo's own round trips moved to aiohttp — Plan §3.8)."""
+        from modelscope_hub import HubApi
+
+        token = auth.get_modelscope_token()
+        api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT, token=token)
+        return api.list_repo_files(repo_id, "model")
+
+    async def search_by_url(self, url: str):
         parsed_url = urlparse(url)
         parts = [p for p in parsed_url.path.strip("/").split("/") if p]
         if len(parts) < 3 or parts[0] != "models":
@@ -436,11 +470,8 @@ class ModelScopeModelSearcher(ModelSearcher):
         owner, name = parts[1], parts[2]
         repo_id = f"{owner}/{name}"
 
-        from modelscope_hub import HubApi
-
-        token = auth.get_modelscope_token()
-        api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT, token=token)
-        files = api.list_repo_files(repo_id, "model")
+        loop = asyncio.get_running_loop()
+        files = await loop.run_in_executor(utils.io_executor(), self._list_repo_files, repo_id)
 
         model_page = f"{MODELSCOPE_INTL_ENDPOINT}/models/{repo_id}"
         models: list[dict] = []
@@ -506,15 +537,17 @@ class Information:
             """
             try:
                 model_page = request.query.get("model-page", None)
-                # BUG FIX: `search_by_url` performs one or more blocking
-                # `requests.get` round trips (Civitai model + version data, or
-                # the Hugging Face model info AND recursive file tree). Running
-                # them inline froze ComfyUI's event loop for the whole lookup -
-                # no websocket traffic, no other request served - which is the
-                # same defect already fixed for hashing, the Civitai hash
-                # lookup, the preview download and the model-library walks.
-                loop = asyncio.get_running_loop()
-                result = await loop.run_in_executor(utils.io_executor(), self.fetch_model_info, model_page)
+                # BUG FIX (historical): `search_by_url` performed one or more
+                # blocking `requests.get` round trips (Civitai model + version
+                # data, or the Hugging Face model info AND recursive file tree)
+                # and running them inline froze ComfyUI's event loop, so they
+                # were moved to an io-executor worker. A3 (Plan §4.8-A3) makes
+                # the round trips async on the loop instead - which is strictly
+                # better than either predecessor: no freeze AND no worker pinned
+                # for the duration of the lookup. The ModelScope SDK call is the
+                # one blocking part left, and it runs in an executor inside its
+                # searcher.
+                result = await self.fetch_model_info(model_page)
                 return web.json_response({"success": True, "data": result})
             except Exception as e:
                 error_msg = f"Fetch model info failed: {e!s}"
@@ -701,12 +734,12 @@ class Information:
             img_byte_arr.seek(0)
             return img_byte_arr
 
-    def fetch_model_info(self, model_page: str):
+    async def fetch_model_info(self, model_page: str):
         if not model_page:
             return []
 
         model_searcher = self.get_model_searcher_by_url(model_page)
-        return model_searcher.search_by_url(model_page)
+        return await model_searcher.search_by_url(model_page)
 
     def get_model_searcher_by_url(self, url: str) -> ModelSearcher:
         parsed_url = urlparse(url)
