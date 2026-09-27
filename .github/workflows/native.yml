@@ -176,7 +176,9 @@ jobs:
       # -> import -> api_version handshake) is covered end to end.
       - name: Loader regression tests against the built artifact
         run: |
-          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow
+          # markdownify + pillow are module-level imports of py/information.py, which
+          # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
+          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
           python -m pytest tests -q
 
       - uses: actions/upload-artifact@v4
@@ -416,7 +418,9 @@ jobs:
           path: native/native-bin
 
       - name: Python test dependencies
-        run: python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow
+        run: # markdownify + pillow are module-level imports of py/information.py, which
+          # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
+          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
 
       # The legacy path (vendored zipnn) needs its runtime stack; the CPU
       # wheel index keeps the install small (no CUDA payload).

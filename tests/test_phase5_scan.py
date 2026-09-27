@@ -393,6 +393,9 @@ def test_scan_repeated_base_path_prefix_keeps_the_subfolder(tmp_path, monkeypatc
     Rust scan always used `strip_prefix`; the Python walk now uses
     `removeprefix`, and this pins the two together.
     """
+    # Golden test: BOTH engines must run, so it skips where the native binary is
+    # absent (ci.yml's verify job) exactly like the other parity tests here.
+    _require_native()
     import folder_paths
 
     ck = tmp_path / "models" / "checkpoints"
@@ -430,6 +433,7 @@ def test_scan_survives_a_non_utf8_sidecar(tmp_path, monkeypatch, index_cache, wh
     reads lossily. Both engines now decode with replacement characters, which
     this pins entry-for-entry.
     """
+    _require_native()  # skips without a built artifact (ci.yml's verify job)
     import folder_paths
 
     ck = tmp_path / "checkpoints"
