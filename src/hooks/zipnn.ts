@@ -316,6 +316,14 @@ export const inspectZipnnModel = async (model: {
  * it — Plan §4.6.4 "圧縮確認ダイアログに明示"). The dialog itself is never
  * delayed by the check.
  */
+/**
+ * Monotonic id of the latest `confirmSingleZipnn` dialog. The inspect
+ * pre-check is async: without this guard, opening the confirm for model A
+ * and then quickly for model B could let A's (slower) result rewrite B's
+ * dialog message with A's dtype list.
+ */
+let confirmEpoch = 0
+
 export const confirmSingleZipnn = (
   model: {
     type: string
@@ -327,6 +335,7 @@ export const confirmSingleZipnn = (
   modelKey: string,
 ): void => {
   const compressing = !model.basename.endsWith('.znn')
+  const epoch = ++confirmEpoch
   let settled = false
   confirm.require({
     message: compressing ? t('zipnnConfirmCompress') : t('zipnnConfirmDecompress'),
@@ -354,9 +363,10 @@ export const confirmSingleZipnn = (
   })
   if (!compressing) return
   void inspectZipnnModel(model).then(info => {
-    // Only upgrade THIS dialog, and only while it is still open: the user
-    // may have accepted/rejected before the header read landed (the choice
-    // stays valid either way — the pre-check is informational).
+    // Only upgrade THIS dialog (epoch), and only while it is still open:
+    // the user may have accepted/rejected before the header read landed
+    // (the choice stays valid either way — the pre-check is informational).
+    if (epoch !== confirmEpoch) return
     if (!info?.extended || settled || !confirmState.visible || !confirmState.options) return
     const dtypes = (info.extendedDtypes ?? []).join(', ')
     confirmState.options = {

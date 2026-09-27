@@ -389,6 +389,14 @@ def test_inspect_helper_survives_broken_files(tmp_path):
     missing = tmp_path / "missing.safetensors"
     out = compress.inspect_safetensors_dtypes(str(missing))
     assert "error" in out
+    # a header that is VALID JSON but not an object (hostile/corrupt file)
+    import struct
+
+    weird = tmp_path / "weird.safetensors"
+    body = b"[1,2,3]"
+    weird.write_bytes(struct.pack("<Q", len(body)) + body)
+    out = compress.inspect_safetensors_dtypes(str(weird))
+    assert "error" in out
 
 
 # ---------------------------------------------------------------------------

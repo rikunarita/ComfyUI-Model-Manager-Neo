@@ -1595,6 +1595,8 @@ def inspect_safetensors_dtypes(path: str) -> dict[str, Any]:
         if raw is None:
             return {"error": "unreadable or oversized safetensors header"}
         header = json.loads(raw)
+        if not isinstance(header, dict):
+            return {"error": "safetensors header is not a JSON object"}
     except Exception as e:
         return {"error": f"safetensors header parse failed: {e}"}
 

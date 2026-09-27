@@ -331,8 +331,12 @@ const znnInfo = computed<{ summary: string; extended: boolean } | null>(() => {
   if (typeof infosRaw !== 'string' || !infosRaw) return null
   let counts = new Map<string, number>()
   try {
-    const infos = JSON.parse(infosRaw) as Record<string, { dtype?: unknown }>
-    for (const spec of Object.values(infos)) {
+    const infos = JSON.parse(infosRaw) as unknown
+    // the record form {name: {dtype, shape}} — anything else (array,
+    // scalar, null) is a corrupt/hostile value: hide the section instead
+    // of rendering nonsense counts
+    if (!infos || typeof infos !== 'object' || Array.isArray(infos)) return null
+    for (const spec of Object.values(infos as Record<string, { dtype?: unknown }>)) {
       const dtype = String(spec?.dtype ?? '?')
       counts.set(dtype, (counts.get(dtype) ?? 0) + 1)
     }
