@@ -89,7 +89,7 @@ notify + notify-debouncer-full **直接採用**〔extended-notify 不導入 — 
 "leaves":[tensorIndex,…]}` で返す（leaf は `header_display_json` の
   `tensors` を index で指す = 二重転送なし。own-leaves-before-children なので
   デコード側はカーソル 1 本）。65,268 テンソル MoE でブラウザ内 fold
-  **1,190 ms → 16.2 ms（×73）**。ヘッダ読みは `read_header_region` へ抽出し
+  **1,329 ms → 12.8 ms（×104）**。ヘッダ読みは `read_header_region` へ抽出し
   `header_display_json` と共有（同一 B4 32 MiB キャップ・同一 parse 順）。
   深さ爆発（敵対的な多段ドット名）に備え**再帰ではなく明示スタック**。
 - `watch.rs`（`watch` feature）— notify 8.2.0 + notify-debouncer-full 0.7.0
