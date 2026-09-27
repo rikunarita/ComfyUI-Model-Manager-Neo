@@ -132,6 +132,43 @@ class TaskContent:
         }
 
 
+def _seed_hasher_from_file(mm, handle: int, path: str) -> bool:
+    """Feed an already-downloaded partial file to an incremental hasher.
+
+    BUG FIX (Phase 5 audit): this read used to run directly ON the event loop
+    inside `download_model_file_http`. A resumed download can be tens of
+    gigabytes and the "it is page-cached anyway" assumption only holds while
+    the same process wrote it moments ago - after a ComfyUI restart the cache is
+    cold, so resuming a 10 GB task froze every websocket and request for the
+    whole disk read. It now runs in the io executor like every other blocking
+    step of the download path.
+
+    Returns False when the file cannot be read; the caller then drops the
+    hasher and `_download_complete` verifies by re-reading (correctness is
+    unchanged, only the extra I/O returns for that one task).
+    """
+    try:
+        with open(path, "rb") as pf:
+            for block in iter(lambda: pf.read(_DOWNLOAD_CHUNK), b""):
+                mm.hasher_update(handle, block)
+        return True
+    except Exception as e:
+        utils.print_warning(f"inline hasher seeding failed ({e}); will re-read to verify")
+        return False
+
+
+def _drop_hasher(mm, handle: int) -> None:
+    """Release a hasher handle that will not be finalised (best effort).
+
+    Keeps the native registry tidy when inline hashing is abandoned mid-task
+    (a failed seed, a lost handle); `hasher_finalize` removes the entry.
+    """
+    try:
+        mm.hasher_finalize(handle)
+    except Exception:
+        pass
+
+
 def _sha256_of(path: str) -> str | None:
     """Lower-case hex SHA256 of a file (None when it vanished)."""
     if not os.path.isfile(path):
@@ -622,6 +659,8 @@ class ModelDownload:
         if not model_url:
             raise RuntimeError("No downloadUrl found")
 
+        loop = asyncio.get_running_loop()
+
         download_path = utils.get_download_path()
         download_tmp_file = utils.join_path(download_path, f"{task_id}.download")
 
@@ -724,9 +763,16 @@ class ModelDownload:
                     if use_inline_hash and mm is not None:
                         hasher = mm.hasher_new(["SHA256"])
                         if downloaded_size > 0 and os.path.isfile(download_tmp_file):
-                            with open(download_tmp_file, "rb") as pf:
-                                for block in iter(lambda: pf.read(_DOWNLOAD_CHUNK), b""):
-                                    mm.hasher_update(hasher, block)
+                            seeded = await loop.run_in_executor(
+                                utils.io_executor(),
+                                _seed_hasher_from_file,
+                                mm,
+                                hasher,
+                                download_tmp_file,
+                            )
+                            if not seeded:
+                                _drop_hasher(mm, hasher)
+                                hasher = None
 
                     with open(download_tmp_file, open_mode) as f:
                         async for chunk in response.content.iter_chunked(_DOWNLOAD_CHUNK):
@@ -737,8 +783,16 @@ class ModelDownload:
                             f.write(chunk)
                             if hasher is not None and mm is not None:
                                 # Zero-copy: the chunk is borrowed at the PyO3
-                                # boundary, never copied into Rust.
-                                mm.hasher_update(hasher, chunk)
+                                # boundary, never copied into Rust. A lost
+                                # handle (the native registry evicts past its
+                                # cap) must NOT fail a download whose bytes are
+                                # perfectly fine - drop inline verification and
+                                # let `_download_complete` re-read instead.
+                                try:
+                                    mm.hasher_update(hasher, chunk)
+                                except Exception as e:
+                                    utils.print_warning(f"inline hasher update failed ({e}); will re-read to verify")
+                                    hasher = None
                             downloaded_size += len(chunk)
 
                             if time.time() - last_update_time >= interval:

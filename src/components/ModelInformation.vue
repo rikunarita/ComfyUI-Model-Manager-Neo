@@ -261,7 +261,7 @@
 
 <script setup lang="ts">
 import { Folder, FolderOpen, Info, Pencil } from '@lucide/vue'
-import { computed, ref } from 'vue'
+import { computed, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import InformationValue from 'components/InformationValue.vue'
 import { Button } from 'components/ui/button'
@@ -270,12 +270,20 @@ import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { useModelDescription, useModelMetadata } from 'hooks/model'
 import { useToast } from 'hooks/toast'
 import { type BaseModel, type SafetensorsTensor } from 'types/typings'
+import { compareText } from 'utils/modelFilter'
 import {
   type InformationRow,
   buildInformationRows,
   parseFrontmatter,
   writeFrontmatter,
 } from 'utils/modelInformation'
+import { PERF_PREFIX, perfTime } from 'utils/perf'
+import {
+  buildTensorTreePayload,
+  createTensorTreeIndex,
+  tensorParams,
+  tensorTail,
+} from 'utils/tensorTree'
 
 interface Props {
   /** The detail window's edit mode gates the (warning-gated) metadata edit. */
@@ -345,7 +353,7 @@ const znnInfo = computed<{ summary: string; extended: boolean } | null>(() => {
   }
   if (!counts.size) return null
   const summary = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .sort((a, b) => b[1] - a[1] || compareText(a[0], b[0]))
     .map(([dtype, count]) => `${dtype}\u00d7${count}`)
     .join(', ')
   return { summary, extended: source['znn_neo_extended'] === '1' }
@@ -371,20 +379,25 @@ const rawRows = computed(() => {
 /** Leaves rendered per node before the explicit "show all" expansion. */
 const TENSOR_PAGE = 500
 
+/**
+ * The form model WITHOUT Vue's reactive wrapper.
+ *
+ * `tensors` and `tensorTree` are large read-only payloads that
+ * `ModelContent.vue` shares by reference into the form data, which is a deep
+ * `ref` - so reading them through `model.value` hands out Proxy-wrapped arrays
+ * whose every element access goes through a trap. Walking 65k tensors (and
+ * validating an 87k-node tree) that way costs more than the fold it replaced.
+ * `toRaw` keeps the ref-level dependency (a replaced form still re-runs this)
+ * while giving the decoder plain arrays. Nothing here writes to the model.
+ */
+const rawModel = () => toRaw(model.value) as BaseModel
+
 const tensors = computed<SafetensorsTensor[]>(() => {
-  const list = (model.value as BaseModel).tensors
+  const list = rawModel().tensors
   return Array.isArray(list) ? list : []
 })
 
-interface TensorTreeNode {
-  segment: string
-  path: string
-  children: TensorTreeNode[]
-  tensors: SafetensorsTensor[]
-  totalCount: number
-  totalParams: number
-}
-
+/** One rendered row of the tensor table (folder / leaf / "show all"). */
 interface TensorRow {
   key: string
   kind: 'folder' | 'leaf' | 'more'
@@ -397,81 +410,36 @@ interface TensorRow {
   allLeaves?: boolean
 }
 
-const tensorParams = (list: SafetensorsTensor[]) =>
-  list.reduce((total, tensor) => total + (tensor.shape ?? []).reduce((acc, dim) => acc * dim, 1), 0)
-
 /**
- * Group tensors by their dotted name into a folder tree:
- * `a.b.c.w` → folder `a` → folder `b` → folder `c` → leaf `w`.
- * Names without dots become top-level leaves.
+ * Random access over the tensor tree (Plan §4.7.3, Phase 6).
+ *
+ * The backend folds the tree in Rust while it parses the header anyway and
+ * ships the compact pre-order table; `createTensorTreeIndex` validates it and
+ * answers children/leaves queries WITHOUT materialising the ~87k node objects a
+ * big MoE header used to cost (measured 1,190 ms of main-thread JS per dialog
+ * open on the 2 vCPU dev container -> 13 ms; BENCH §11.3). A backend that
+ * cannot provide the tree (legacy engine,
+ * `MM_NATIVE=0`) falls back to the same fold in JS, so there is exactly ONE
+ * rendering path.
  */
-const tensorTree = computed<TensorTreeNode>(() => {
-  const root: TensorTreeNode = {
-    segment: '',
-    path: '',
-    children: [],
-    tensors: [],
-    totalCount: 0,
-    totalParams: 0,
+const tensorIndex = computed(() => {
+  const list = tensors.value
+  const payload = rawModel().tensorTree
+  // C5: the two sources get their own sample names, so `__mmNeoPerf.summary()`
+  // shows whether the Rust payload path or the JS fallback ran (and what each
+  // cost) instead of one blended number.
+  if (payload) {
+    const fromBackend = perfTime(`${PERF_PREFIX}info.tensorTree.decode`, () =>
+      createTensorTreeIndex(payload, list),
+    )
+    if (fromBackend) return fromBackend
+    // A payload this decoder does not trust (wrong version, inconsistent
+    // counts, a leaf index outside the tensor list): fall through to the JS
+    // fold rather than render a wrong table.
   }
-  const nodes = new Map<string, TensorTreeNode>()
-  for (const tensor of tensors.value) {
-    const segments = (tensor.name ?? '').split('.')
-    let parent = root
-    let path = ''
-    for (let i = 0; i < segments.length - 1; i++) {
-      const segment = segments[i] || '(unnamed)'
-      path = path ? `${path}.${segment}` : segment
-      let node = nodes.get(path)
-      if (!node) {
-        node = { segment, path, children: [], tensors: [], totalCount: 0, totalParams: 0 }
-        nodes.set(path, node)
-        parent.children.push(node)
-      }
-      parent = node
-    }
-    parent.tensors.push(tensor)
-  }
-  const aggregate = (node: TensorTreeNode): [number, number] => {
-    let count = node.tensors.length
-    let params = tensorParams(node.tensors)
-    for (const child of node.children) {
-      const [childCount, childParams] = aggregate(child)
-      count += childCount
-      params += childParams
-    }
-    node.totalCount = count
-    node.totalParams = params
-    return [count, params]
-  }
-  /**
-   * Natural order for tree segments: pure-number segments (tensor-name levels
-   * like `0`, `1`, `2`, `10`, …) compare as NUMBERS so `2` never lands after
-   * `19`; everything else keeps a locale-aware compare that also understands
-   * embedded digit runs (`layer2` before `layer10`).
-   */
-  const naturalCompare = (a: string, b: string): number => {
-    const an = Number(a)
-    const bn = Number(b)
-    if (a.trim() !== '' && b.trim() !== '' && Number.isFinite(an) && Number.isFinite(bn)) {
-      if (an !== bn) return an - bn
-      return a.localeCompare(b)
-    }
-    return a.localeCompare(b, undefined, { numeric: true })
-  }
-
-  /** Leaf (tensor) tail shown under a node: the name minus the node prefix. */
-  const tensorTail = (node: TensorTreeNode, tensor: SafetensorsTensor) =>
-    node.path ? (tensor.name ?? '').slice(node.path.length + 1) : (tensor.name ?? '')
-
-  const sortChildren = (node: TensorTreeNode) => {
-    node.children.sort((a, b) => naturalCompare(a.segment, b.segment))
-    node.tensors.sort((a, b) => naturalCompare(tensorTail(node, a), tensorTail(node, b)))
-    node.children.forEach(sortChildren)
-  }
-  aggregate(root)
-  sortChildren(root)
-  return root
+  return perfTime(`${PERF_PREFIX}info.tensorTree.fallbackFold`, () =>
+    createTensorTreeIndex(buildTensorTreePayload(list), list),
+  )
 })
 
 /** Expanded folder paths; empty by default = maximally collapsed. */
@@ -493,50 +461,59 @@ const toggleTensorLeaves = (path: string) => {
   allLeavesNodes.value = next
 }
 
-/** Depth-first row list honouring the collapsed/expanded + paging state. */
-const tensorRows = computed<TensorRow[]>(() => {
-  const rows: TensorRow[] = []
-  const walk = (node: TensorTreeNode, depth: number) => {
-    for (const child of node.children) {
-      rows.push({
-        key: `f:${child.path}`,
-        kind: 'folder',
-        depth,
-        path: child.path,
-        segment: child.segment,
-        totalCount: child.totalCount,
-        totalParams: child.totalParams,
-      })
-      if (expandedNodes.value.has(child.path)) walk(child, depth + 1)
+/** Depth-first row list honouring the collapsed/expanded + paging state.
+ *  Only the EXPANDED part of the tree is touched: a collapsed MoE renders its
+ *  root child, not its 87k nodes. */
+const tensorRows = computed<TensorRow[]>(() =>
+  perfTime(`${PERF_PREFIX}info.tensorRows`, () => {
+    const index = tensorIndex.value
+    const rows: TensorRow[] = []
+    if (!index) return rows
+    const walk = (nodeIndex: number, path: string, depth: number) => {
+      for (const childIndex of index.childrenOf(nodeIndex)) {
+        const childPath = index.pathOf(childIndex, path)
+        const view = index.viewOf(childIndex, path)
+        rows.push({
+          key: `f:${childPath}`,
+          kind: 'folder',
+          depth,
+          path: childPath,
+          segment: view.segment,
+          totalCount: view.totalCount,
+          totalParams: view.totalParams,
+        })
+        if (expandedNodes.value.has(childPath)) walk(childIndex, childPath, depth + 1)
+      }
+      const all = allLeavesNodes.value.has(path)
+      const leaves = index.tensorsOf(nodeIndex, path)
+      const shown = all ? leaves : leaves.slice(0, TENSOR_PAGE)
+      for (const tensor of shown) {
+        const tail = tensorTail(path, tensor)
+        rows.push({
+          key: `t:${tensor.name}`,
+          kind: 'leaf',
+          depth,
+          path: tensor.name,
+          segment: tail || tensor.name,
+          tensor,
+        })
+      }
+      if (leaves.length > TENSOR_PAGE) {
+        rows.push({
+          key: `m:${path}`,
+          kind: 'more',
+          depth,
+          path,
+          segment: '',
+          totalCount: leaves.length,
+          allLeaves: all,
+        })
+      }
     }
-    const all = allLeavesNodes.value.has(node.path)
-    const leaves = all ? node.tensors : node.tensors.slice(0, TENSOR_PAGE)
-    for (const tensor of leaves) {
-      const tail = node.path ? tensor.name.slice(node.path.length + 1) : tensor.name
-      rows.push({
-        key: `t:${tensor.name}`,
-        kind: 'leaf',
-        depth,
-        path: tensor.name,
-        segment: tail || tensor.name,
-        tensor,
-      })
-    }
-    if (node.tensors.length > TENSOR_PAGE) {
-      rows.push({
-        key: `m:${node.path}`,
-        kind: 'more',
-        depth,
-        path: node.path,
-        segment: '',
-        totalCount: node.tensors.length,
-        allLeaves: all,
-      })
-    }
-  }
-  walk(tensorTree.value, 0)
-  return rows
-})
+    walk(0, '', 0)
+    return rows
+  }),
+)
 
 /** Structural shape rendering, e.g. `[1280, 4, 2]`; scalars read `[]`. */
 const formatShape = (shape: number[]) => `[${(shape ?? []).join(', ')}]`
@@ -549,9 +526,16 @@ const compactCount = (value: number): string => {
 }
 
 const tensorsSummary = computed(() => {
-  const params = tensorParams(tensors.value)
+  const index = tensorIndex.value
+  // The root's subtree aggregates ARE the whole-file totals (every tensor is a
+  // leaf of exactly one node), so the summary is O(1) instead of a reduce over
+  // every tensor.
+  const count = index ? index.rootCount : tensors.value.length
+  const params = index
+    ? index.rootParams
+    : tensors.value.reduce((total, tensor) => total + tensorParams(tensor), 0)
   return t('info.tensorsSummary', {
-    count: tensors.value.length,
+    count,
     params: compactCount(params),
   })
 })

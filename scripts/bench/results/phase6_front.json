@@ -1,0 +1,214 @@
+{
+  "phase": 6,
+  "kind": "front",
+  "note": "Headless measurement of the REAL src/utils modules (compiled with the repository tsc). The \"naive\"/\"legacy\" sides are verbatim copies of the pre-Phase-6 component code, inlined here as the before-side of every gate. The gates are same-run ratios, so they hold on any machine; the absolute numbers belong to the env block below (K15 is judged on the reference 8C/16T machine - Plan §2.2). The browser paint leg of K15 is instrumented in the app itself (src/utils/perf.ts: mm.grid.queryToPaint via __mmNeoPerf.summary()).",
+  "env": {
+    "date": "2026-09-27T15:22:23+0000",
+    "node": "v20.20.2",
+    "platform": "Linux-4.19.91-c8dfc93.al7.x86_64-x64",
+    "cpus": 2,
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.50GHz",
+    "memTotal": "1083460 kB",
+    "icu": "system icu"
+  },
+  "config": {
+    "models": 5050,
+    "keystrokes": 200,
+    "columns": 6,
+    "moeTensors": 65268,
+    "moeLayers": 84,
+    "moeExperts": 256
+  },
+  "grid": {
+    "keystrokeNaive": {
+      "count": 200,
+      "min": 3.9748100000001614,
+      "p50": 6.57850899999994,
+      "p95": 10.5666369999999,
+      "p99": 15.215498999999909,
+      "max": 25.117377000000033,
+      "mean": 6.785629594999992
+    },
+    "keystrokeHoisted": {
+      "count": 200,
+      "min": 0.6184720000001107,
+      "p50": 1.2854870000001029,
+      "p95": 3.9641939999996794,
+      "p99": 6.184282000000167,
+      "max": 26.99425599999995,
+      "mean": 1.7488887049999948
+    },
+    "keystrokeHoistedLocaleSort": {
+      "count": 200,
+      "min": 0.6147689999997965,
+      "p50": 1.2679520000001503,
+      "p95": 3.493359000000055,
+      "p99": 4.8876310000005105,
+      "max": 5.326105999999982,
+      "mean": 1.4674560999999813
+    },
+    "initialRenderNaive": {
+      "count": 20,
+      "min": 4.739884999999958,
+      "p50": 5.362363999999616,
+      "p95": 7.952320999999756,
+      "p99": 32.004257999999936,
+      "max": 32.004257999999936,
+      "mean": 6.965708099999892
+    },
+    "initialRenderHoisted": {
+      "count": 20,
+      "min": 4.425188000000162,
+      "p50": 4.947003999999652,
+      "p95": 7.0348269999994955,
+      "p99": 9.540657999999894,
+      "max": 9.540657999999894,
+      "mean": 5.451561299999867
+    },
+    "numericLocaleCompare": {
+      "count": 9,
+      "min": 265.1039579999997,
+      "p50": 291.23063699999966,
+      "p95": 299.84251399999994,
+      "p99": 299.84251399999994,
+      "max": 299.84251399999994,
+      "mean": 286.2799013333331
+    },
+    "numericHoistedCollator": {
+      "count": 9,
+      "min": 8.232414000000063,
+      "p50": 9.30432799999926,
+      "p95": 11.610179999999673,
+      "p99": 11.610179999999673,
+      "max": 11.610179999999673,
+      "mean": 9.520040888888616
+    },
+    "defaultLocaleCompare": {
+      "count": 9,
+      "min": 1.4544200000000274,
+      "p50": 1.473374000000149,
+      "p95": 2.2288440000002083,
+      "p99": 2.2288440000002083,
+      "max": 2.2288440000002083,
+      "mean": 1.6021402222223615
+    },
+    "defaultHoistedCollator": {
+      "count": 9,
+      "min": 3.840476999999737,
+      "p50": 5.134629000000132,
+      "p95": 6.051577000000179,
+      "p99": 6.051577000000179,
+      "max": 6.051577000000179,
+      "mean": 4.979431777777892
+    }
+  },
+  "tensorTree": {
+    "legacyFold": {
+      "count": 3,
+      "min": 1140.0809289999997,
+      "p50": 1328.6167289999994,
+      "p95": 1360.2661829999997,
+      "p99": 1360.2661829999997,
+      "max": 1360.2661829999997,
+      "mean": 1276.3212803333329
+    },
+    "payloadBuild": {
+      "count": 3,
+      "min": 528.4439250000014,
+      "p50": 628.1143779999984,
+      "p95": 693.9528730000002,
+      "p99": 693.9528730000002,
+      "max": 693.9528730000002,
+      "mean": 616.8370586666666
+    },
+    "payloadBytes": 2728331,
+    "payloadNodes": 87195,
+    "indexCreate": {
+      "count": 5,
+      "min": 4.605358000000706,
+      "p50": 7.6825820000012754,
+      "p95": 9.102433000000019,
+      "p99": 9.102433000000019,
+      "max": 9.102433000000019,
+      "mean": 6.8075413999999
+    },
+    "renderCollapsed": {
+      "count": 20,
+      "min": 4.522094999996625,
+      "p50": 5.089512999998988,
+      "p95": 6.3682020000014745,
+      "p99": 27.1347480000004,
+      "max": 27.1347480000004,
+      "mean": 6.381048200000078
+    },
+    "legacyRenderCollapsed": {
+      "count": 5,
+      "min": 1125.6286660000005,
+      "p50": 1273.066912000002,
+      "p95": 1357.6758329999975,
+      "p99": 1357.6758329999975,
+      "max": 1357.6758329999975,
+      "mean": 1262.7215900000003
+    },
+    "fallbackPath": {
+      "count": 3,
+      "min": 617.4074120000005,
+      "p50": 711.680897000002,
+      "p95": 770.3398830000006,
+      "p99": 770.3398830000006,
+      "max": 770.3398830000006,
+      "mean": 699.8093973333343
+    },
+    "parity": {
+      "ok": true,
+      "nodes": 87195,
+      "count": 65268,
+      "params": 1035825315840
+    },
+    "crossCheck": {
+      "ran": true,
+      "identical": true,
+      "tensors": 2086,
+      "jsNodes": 2892,
+      "rustNodes": 2892,
+      "jsBytes": 66993,
+      "rustBytes": 66993,
+      "diff": null
+    },
+    "validator": {
+      "acceptsTheRealPayload": true,
+      "rejectsNull": true,
+      "rejectsANonObject": true,
+      "rejectsAWrongVersion": true,
+      "rejectsMissingArrays": true,
+      "rejectsANodeTupleOfTheWrongShape": true,
+      "rejectsANonStringSegment": true,
+      "rejectsANegativeOrNonFiniteCount": true,
+      "rejectsALeafIndexOutsideTheTensorList": true,
+      "rejectsANonIntegerLeaf": true,
+      "rejectsInconsistentOwnCounts": true,
+      "rejectsABrokenPreOrderStructure": true,
+      "rejectsAnEmptyNodeTable": true,
+      "rejectsATreeForADifferentTensorList": true,
+      "acceptsAnEmptyHeader": true
+    }
+  },
+  "gates": {
+    "k15BudgetMs": 16,
+    "keystrokeP95Ms": 3.9641939999996794,
+    "keystrokeP95WithinBudget": true,
+    "c1HoistingIsFaster": true,
+    "c1SpeedupP95": 2.6655196491394606,
+    "c2NumericHoistingIsFaster": true,
+    "c2NumericSpeedupP50": 31.300555719878194,
+    "c2DefaultComparatorIsTheFastestMeasured": true,
+    "c2DefaultLocaleCompareSpeedupP50": 3.4849461168716243,
+    "tensorTreeDecodeIsFasterThanTheBrowserFold": true,
+    "tensorTreeSpeedupP50": 104.02496450268903,
+    "rowsAreIdentical": true,
+    "tensorTreeParity": true,
+    "tensorTreeValidatorRejectsBadPayloads": true,
+    "rustJsTreeIdentical": true,
+    "passed": true
+  }
+}

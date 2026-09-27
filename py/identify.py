@@ -24,11 +24,14 @@ import json
 import os
 import struct
 
-import requests
 import yaml
 from aiohttp import web
 
-from . import auth, native, utils
+from . import auth, http_client, native, utils
+
+# A3 (Plan §4.8-A3): module constant so the mock tests can point the catalog
+# lookup at a local server (no live API dependency).
+CIVITAI_API_BASE = "https://civitai.com/api/v1"
 
 _AUTOV1_OFFSET = 0x100000  # 1 MiB
 _AUTOV1_WINDOW = 0x10000  # 64 KiB
@@ -160,28 +163,31 @@ def _shape_match(version: dict, kind: str, value: str) -> dict:
     }
 
 
-def lookup_by_hashes(hashes: dict[str, str]) -> dict | None:
-    """First catalog hit across the hash notations (None when no entry)."""
+async def lookup_by_hashes(hashes: dict[str, str]) -> dict | None:
+    """First catalog hit across the hash notations (None when no entry).
+
+    A3 (Plan §4.8-A3): the sequential per-notation probes run on the event loop
+    through the shared aiohttp session. They MUST stay sequential - the first
+    hit wins, and firing all five at once would trade one thread hop for five
+    round trips the catalog does not need.
+    """
     headers = auth.get_civitai_headers()
     for kind in _LOOKUP_ORDER:
         value = (hashes.get(kind) or "").strip()
         if not value:
             continue
         try:
-            r = requests.get(
-                f"https://civitai.com/api/v1/model-versions/by-hash/{value}",
+            status, payload = await http_client.fetch_status_json(
+                f"{CIVITAI_API_BASE}/model-versions/by-hash/{value}",
                 headers=headers,
                 timeout=_LOOKUP_TIMEOUT,
             )
         except Exception as e:
             utils.print_warning(f"civitai by-hash lookup ({kind}) failed: {e}")
             continue
-        if r.status_code != 200:
+        if status != 200:
             continue
-        try:
-            payload = r.json() or {}
-        except Exception:
-            continue
+        payload = payload or {}
         if not payload.get("id"):
             continue
         return _shape_match(payload, kind, value)
@@ -205,22 +211,23 @@ class IdentifyRoutes:
                 return web.json_response({"success": False, "error": f"File not found: {filename}"})
 
             loop = asyncio.get_running_loop()
-
-            def run():
-                hashes = recorded_hashes(full_path)
-                match = lookup_by_hashes(hashes)
+            try:
+                # A3 (Plan §4.8-A3): the old `run()` did the catalog lookups in
+                # an io worker AND nested a `cpu_executor().submit(...).result()`
+                # for the hashing - two thread hops, one of them blocking a
+                # worker while waiting on the other pool. The lookups are async
+                # now and the hash pass is awaited on the CPU pool directly.
+                hashes = await loop.run_in_executor(utils.io_executor(), recorded_hashes, full_path)
+                match = await lookup_by_hashes(hashes)
                 hashed_file = False
                 if match is None:
-                    computed = utils.cpu_executor().submit(compute_hashes, full_path).result()
+                    computed = await loop.run_in_executor(utils.cpu_executor(), compute_hashes, full_path)
                     hashed_file = True
                     # Recorded values win where both exist; the computed set
                     # fills every notation the sidecar did not carry.
                     hashes = {**computed, **hashes}
-                    match = lookup_by_hashes(hashes)
-                return {"matched": match, "hashes": hashes, "hashedFile": hashed_file}
-
-            try:
-                data = await loop.run_in_executor(utils.io_executor(), run)
+                    match = await lookup_by_hashes(hashes)
+                data = {"matched": match, "hashes": hashes, "hashedFile": hashed_file}
                 return web.json_response({"success": True, "data": data})
             except Exception as e:
                 error_msg = f"Identify model failed: {e}"

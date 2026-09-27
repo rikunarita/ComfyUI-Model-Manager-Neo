@@ -15,7 +15,9 @@
           <PreviewVideo :src="preview" />
         </div>
         <div v-else class="size-full p-1 hover:p-0">
-          <img class="size-full rounded-mm-ctl object-cover" :src="preview" />
+          <!-- C4 (Plan §4.8): async decode keeps the virtual-scrolled grid
+               from stalling on the main thread while images arrive. -->
+          <img class="size-full rounded-mm-ctl object-cover" :src="preview" decoding="async" />
         </div>
       </div>
 

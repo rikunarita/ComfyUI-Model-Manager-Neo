@@ -176,7 +176,9 @@ jobs:
       # -> import -> api_version handshake) is covered end to end.
       - name: Loader regression tests against the built artifact
         run: |
-          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow
+          # markdownify + pillow are module-level imports of py/information.py, which
+          # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
+          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
           python -m pytest tests -q
 
       - uses: actions/upload-artifact@v4
@@ -279,7 +281,7 @@ jobs:
           import sys
           import mm_core
 
-          assert mm_core.api_version() == 4, mm_core.api_version()
+          assert mm_core.api_version() == 5, mm_core.api_version()
           print(f"abi3 import OK on CPython {sys.version.split()[0]}: {mm_core.core_version()}")
           PY
 
@@ -416,7 +418,9 @@ jobs:
           path: native/native-bin
 
       - name: Python test dependencies
-        run: python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow
+        run: # markdownify + pillow are module-level imports of py/information.py, which
+          # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
+          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
 
       # The legacy path (vendored zipnn) needs its runtime stack; the CPU
       # wheel index keeps the install small (no CUDA payload).
@@ -428,6 +432,26 @@ jobs:
 
       - name: Integration tests (pytest)
         run: python -m pytest tests -q
+
+      # Phase 6 (Plan §4.7.3): the display tensor tree crosses a WIRE FORMAT
+      # boundary - Rust folds it, TypeScript decodes it, and TypeScript can
+      # also fold it itself as the fallback for a legacy backend. pytest pins
+      # Rust == a Python reference; this pins the JS encoder == the Rust one
+      # against the REAL built artifact, so a change to either side that breaks
+      # the fallback fails here instead of in a user's Information tab.
+      # typescript is installed outside the repository (the pnpm store is not
+      # materialised in this job) and handed to the harness via MMNEO_TSC.
+      - name: Tensor-tree wire cross-check (Rust == TypeScript)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mkdir -p /tmp/mmneo-tsc && cd /tmp/mmneo-tsc
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund --silent typescript@6.0.3 >/dev/null
+          cd "$GITHUB_WORKSPACE"
+          MMNEO_TSC=/tmp/mmneo-tsc/node_modules/typescript/bin/tsc \
+            node scripts/bench/front/k15.mjs --cross-check \
+            --models 1500 --keystrokes 40 --moe-layers 12 --moe-experts 8 \
+            --json-out /tmp/phase6_front_crosscheck.json
 
       # L5 (Plan §5.1): Neo(Rust) compress → official decompress, official
       # compress → Neo decompress, and per-tensor blob parity — against the

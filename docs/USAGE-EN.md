@@ -593,6 +593,17 @@ ComfyUI **Settings → Model Manager Neo**:
 - **Exclude model types (separate with commas)** — hides those types from the
   grids and pickers.
 - **Include hidden files (start with .)** — same as the toolbar eye button.
+- **Watch model folders for external changes** — off by default. When on, the
+  native core watches every model folder (`notify` + a 500 ms debounce) and a
+  model added or removed by _another_ program (a `cp` into `models/loras`, a
+  second downloader, a mounted volume filling up) refreshes the affected list
+  within ~1.5 s instead of waiting for the 30 s revalidation. Network-mounted
+  folders are skipped automatically (inotify-style watchers do not receive
+  events from NFS/SMB shares) and an exhausted Linux watch budget
+  (`fs.inotify.max_user_watches`) degrades to the periodic refresh with a
+  warning in the log; `MM_WATCH_ROOTS=1/0` overrides the setting. The status of
+  the watcher — armed roots, degrade state, event counters — is served read-only
+  at `GET /model-manager/watch-status`.
 
 ### UI
 
@@ -603,6 +614,13 @@ ComfyUI **Settings → Model Manager Neo**:
   (0 = off); **Auto‑compress on download** — compress right after a download
   completes; **Download → Pause during prompt** — hold transfers while ComfyUI
   executes a prompt and resume them afterwards.
+- **Record UI performance marks (K15)** — off by default. Instruments the grid
+  recompute/paint and the tensor-tree build with `performance.mark` and keeps the
+  samples in a ring buffer; read them in the browser console with
+  `__mmNeoPerf.summary()` (P50/P95/P99 in ms), `__mmNeoPerf.enable()` /
+  `.disable()` / `.reset()`. The same numbers for a 5,000-model synthetic library
+  are produced headlessly by `scripts/bench/front/k15.mjs`
+  (`docs/BENCH.md` §11).
 
 ## 12. Languages
 

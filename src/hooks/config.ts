@@ -15,6 +15,12 @@ import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
 import { $el, app } from 'scripts/comfyAPI'
 import { resolveIcon } from 'utils/iconMap'
+import { setPerfEnabled } from 'utils/perf'
+
+/** ComfyUI setting IDs registered by this store (persisted keys - do not
+ *  rename: an existing installation's saved value is keyed by the string). */
+const WATCH_MODEL_FOLDERS_ID = 'ModelManager.Scan.WatchModelFolders'
+const PERF_MARKS_ID = 'ModelManager.UI.PerfMarks'
 
 /**
  * Sort values each model-search platform accepts (verified against the live
@@ -539,5 +545,36 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       defaultValue: false,
       type: 'boolean',
     })
+
+    // Phase 6 (Plan §4.7.2-2): the OPTIONAL filesystem watcher that turns
+    // external changes (a copy into models/, another downloader) into the same
+    // `models_changed` event the UI's own operations broadcast. Default OFF -
+    // it holds one inotify watch per folder on Linux, and the backend skips
+    // network-mounted roots automatically (they keep the 30 s TTL refresh).
+    app.ui?.settings.addSetting({
+      id: WATCH_MODEL_FOLDERS_ID,
+      category: [t('modelManager'), t('setting.modelList'), 'WatchModelFolders'],
+      name: t('setting.watchModelFolders'),
+      tooltip: t('setting.watchModelFoldersTooltip'),
+      defaultValue: false,
+      type: 'boolean',
+    })
+
+    // Phase 6 (Plan §4.8-C5): the K15 instrumentation switch. Off by default;
+    // the samples are read from the console handle `__mmNeoPerf.summary()`.
+    app.ui?.settings.addSetting({
+      id: PERF_MARKS_ID,
+      category: [t('modelManager'), t('setting.ui'), 'PerfMarks'],
+      name: t('setting.perfMarks'),
+      tooltip: t('setting.perfMarksTooltip'),
+      defaultValue: false,
+      type: 'boolean',
+      onChange: (value: boolean) => {
+        // ComfyUI persists the value, so perf.ts must not write its own
+        // localStorage flag on top of it.
+        setPerfEnabled(Boolean(value), false)
+      },
+    })
+    setPerfEnabled(Boolean(app.ui?.settings.getSettingValue<boolean>(PERF_MARKS_ID)), false)
   })
 }

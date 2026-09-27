@@ -64,6 +64,20 @@ try:
 except Exception:
     pass
 
+# Phase 6 (Plan §4.7.2-2 / §4.8-A3): the optional model-library watcher
+# (setting-gated, default OFF - py/watcher.py) starts with the server and
+# releases its inotify watches on shutdown, and the shared aiohttp session the
+# hub lookups now use is closed with the app instead of leaking at exit.
+# Both are best effort: a server object without the aiohttp hooks (or a stub in
+# tests) simply leaves the TTL revalidation in charge.
+try:
+    from .py import http_client, watcher
+
+    watcher.install_server_hooks()
+    http_client.install_cleanup_hook()
+except Exception:
+    pass
+
 WEB_DIRECTORY = "web"
 NODE_CLASS_MAPPINGS = {}
 __all__ = ["NODE_CLASS_MAPPINGS", "WEB_DIRECTORY"]

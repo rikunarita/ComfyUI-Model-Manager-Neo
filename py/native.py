@@ -41,11 +41,15 @@ from . import config, utils
 #   (scan_models/scan_hygiene/safetensors_header/hash_file/hasher_*) that
 #   py/manager.py, py/utils.py, py/identify.py and py/download.py call
 #   directly, plus the persistent front-matter index.
+# * 5 — Phase 6: the display tensor tree (safetensors_tensor_tree, the Rust
+#   pre-grouping of Plan §4.7.3) that py/utils.py serves to the model-detail
+#   route, plus the optional library watcher (watch_start/watch_poll/
+#   watch_stop/watch_diagnostics, Plan §4.7.2-2) that py/watcher.py drives.
 # The range is EXACT (min == max): an older binary would pass a `>=` handshake
 # and then fail with an AttributeError deep inside a compression task — an
 # incompatible binary must be rejected at load time with a clear reason().
-MIN_API_VERSION = 4
-MAX_API_VERSION = 4
+MIN_API_VERSION = 5
+MAX_API_VERSION = 5
 
 _NATIVE_DIR = "native"
 _NATIVE_BIN_DIR = "native-bin"

@@ -33,11 +33,17 @@
 //! | [`hash`]           | multi-algorithm one-pass hashing (SHA256/AutoV1/AutoV2/CRC32/ |
 //! |                    | BLAKE3) + the incremental hasher for download inline verify   |
 //! |                    | (Phase 5, Plan §4.8-B1/B2)                                    |
+//! | [`watch`]          | optional library file-watching (notify + debouncer-full,       |
+//! |                    | 500 ms debounce, watch-budget degrade — Phase 6, §4.7.2-2)     |
 //!
 //! `safetensors_io` also carries the Phase-5 `header_display_json` (the
 //! header-only jiter parse behind `get_model_metadata`/`get_model_tensors`,
-//! B4). Optional file-watching (`watch_roots`) is scaffolded behind the
-//! `watch` feature but not wired (Plan §4.7.2-2 marks it optional).
+//! B4) and the Phase-6 `tensor_tree_json` (the display tensor tree
+//! pre-grouped in Rust, Plan §4.7.3 "テンソルツリー事前グループ化").
+//! File-watching (`watch_roots`, Plan §4.7.2-2) lives behind the `watch`
+//! feature, which is ON by default so the shipped prebuilt binaries expose
+//! `mm_core.watch_*` — the *runtime* switch (a ComfyUI setting) is what
+//! defaults to OFF.
 //!
 //! Test organisation (Plan §3.4.3): unit tests are inline `#[cfg(test)]`
 //! (they reach private APIs — the Rust convention); the `tests/` folder
@@ -87,6 +93,8 @@ pub mod planes;
 pub mod reorder;
 pub mod safetensors_io;
 pub mod scan;
+#[cfg(feature = "watch")]
+pub mod watch;
 pub mod znn_tensor;
 
 /// Magic bytes of the ZipNN container: the ZN header starts with `b"ZN"`

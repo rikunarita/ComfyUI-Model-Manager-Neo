@@ -8,6 +8,26 @@ export interface SafetensorsTensor {
   shape: number[]
 }
 
+/**
+ * One PRE-ORDER node entry of the Rust-folded display tensor tree (Phase 6,
+ * Plan §4.7.3): `[segment, childCount, tensorCount, totalCount, totalParams]`.
+ * `totalCount` / `totalParams` are SUBTREE aggregates.
+ */
+export type TensorTreeNodeTuple = [string, number, number, number, number]
+
+/**
+ * The tensor-tree wire document (`znn_codec::safetensors_io::encode_tensor_tree`
+ * → `mm_core.safetensors_tensor_tree` → the model-detail route). `leaves` holds
+ * indices into the SAME response's `tensors` array, in node pre-order with
+ * `tensorCount` entries per node (own leaves before children).
+ */
+export interface TensorTreePayload {
+  /** Wire-format version (`TENSOR_TREE_VERSION` in utils/tensorTree). */
+  v: number
+  nodes: TensorTreeNodeTuple[]
+  leaves: number[]
+}
+
 export interface BaseModel {
   id: number | string
   basename: string
@@ -22,6 +42,12 @@ export interface BaseModel {
   metadata: Record<string, string>
   /** Exact safetensors tensor layout; only the detail endpoint provides it. */
   tensors?: SafetensorsTensor[]
+  /**
+   * The display tensor tree pre-grouped in Rust (Phase 6, Plan §4.7.3); only
+   * the detail endpoint provides it. `null`/absent → the frontend folds the
+   * tree from `tensors` itself (the pre-Phase-6 behaviour).
+   */
+  tensorTree?: TensorTreePayload | null
 }
 
 export interface Model extends BaseModel {

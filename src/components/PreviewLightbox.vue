@@ -38,6 +38,7 @@
             class="max-h-[92vh] max-w-[92vw] rounded-mm-card object-contain shadow-mm-3"
             :src="current"
             :alt="ariaLabel"
+            decoding="async"
           />
           <div
             v-if="items.length > 1"

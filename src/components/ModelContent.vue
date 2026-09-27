@@ -114,7 +114,36 @@ const emits = defineEmits<{
   reset: []
 }>()
 
-const formInstance = useModelFormData(() => cloneDeep(toRaw(props.model)))
+/**
+ * The heavy READ-ONLY display payloads of a model detail: the exact tensor list
+ * and its Rust-folded tree (Plan §4.7.3, Phase 6).
+ *
+ * Neither is editable through this form and neither is sent by the save path
+ * (`hooks/model.ts buildUpdatePayload` submits only preview / description /
+ * type / pathIndex / fullname), yet both used to be deep-cloned on every dialog
+ * open and JSON-stringified on every dirty check. On a 65k-tensor MoE header
+ * that measured **218 ms (tensors) + 130 ms (tree) per clone** - i.e. the clone
+ * alone cost several times what the whole tensor-tree fold costs after the Rust
+ * pre-grouping (16 ms), so the payloads are kept BY REFERENCE and left out of
+ * the dirty snapshot. Reference sharing is safe exactly because they are
+ * read-only: `ModelInformation.vue` walks them, nothing writes to them.
+ */
+const READONLY_DISPLAY_KEYS = ['tensors', 'tensorTree'] as const
+
+const isDisplayKey = (key: string) => (READONLY_DISPLAY_KEYS as readonly string[]).includes(key)
+
+const getFormData = (): BaseModel => {
+  const raw = toRaw(props.model) as unknown as Record<string, unknown>
+  const shared: Record<string, unknown> = {}
+  const editable: Record<string, unknown> = {}
+  for (const key of Object.keys(raw)) {
+    if (isDisplayKey(key)) shared[key] = raw[key]
+    else editable[key] = raw[key]
+  }
+  return Object.assign(cloneDeep(editable), shared) as unknown as BaseModel
+}
+
+const formInstance = useModelFormData(getFormData)
 
 useModelBaseInfoEditor(formInstance)
 const previewEditor = useModelPreviewEditor(formInstance)
@@ -124,12 +153,25 @@ useModelMetadataEditor(formInstance)
 /** JSON baseline of the form, taken whenever the editor reaches a clean
  *  state (entering edit mode, reset, or a fresh model instance). */
 const dirtySnapshot = ref('')
+/** The editor state a save would persist, minus the read-only display payloads
+ *  (see READONLY_DISPLAY_KEYS): the dirty check must not stringify ~65k tensor
+ *  entries and an ~87k-node tree on every snapshot/compare. They cannot become
+ *  dirty - nothing in the form writes to them. */
+const editableState = () => {
+  const form = toRaw(formInstance.formData.value) as unknown as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const key of Object.keys(form)) {
+    if (!isDisplayKey(key)) out[key] = form[key]
+  }
+  return out
+}
+
 /** The whole editor state that a save would persist: form fields PLUS the
  *  gallery order and the currently selected primary page (the page pick
  *  lives outside formData until submit). */
 const editorState = () =>
   JSON.stringify({
-    form: toRaw(formInstance.formData.value),
+    form: editableState(),
     gallery: previewEditor.defaultContent.value,
     page: previewEditor.defaultContentPage.value,
   })

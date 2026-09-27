@@ -1976,3 +1976,292 @@ linux-x86_64 が 2.4→2.87 MB へ成長し、universal2 fat が **4.8 MB**（�
 - 残件は不変: Phase 2 K2/K3 参照機再計測、K10 5000 モデル ≤100 ms の参照機
   確認、K11 端到端 ≤40 ms（processed JSON のルート直スピルス設計 = 公開契約
   変更を伴うため範囲外と記録済み）、実 UI 手動 QA（Phase 7 統合）。
+
+## 2026-09-27（第 8 セッション）— Phase 5 最終バグチェック（6 件修正）+ Phase 6 完全実装（C1–C5・テンソルツリー Rust 化・A3・watch_roots）
+
+**完了**: Plan §6.2 Phase 6 の**全項目**（任意項目 A3 / watch_roots を含む）を実装し、
+全ゲート緑で [x] 化。api_version 4→5。着手前の Phase 5 精査で **6 件**のバグを
+発見・修正（すべて回帰テスト化）、Phase 6 の実装中に既存バグ **1 件**を追加発見・修正。
+
+### 環境再構築（セッション冒頭ロールバック対策 — 第 6 セッションと同型）
+
+apt（build-essential/clang/mold/libpython3.11-dev/curl）→ rustup stable **1.98.1**
+（+rustfmt/clippy）→ pip（ruff/mypy/pytest/pytest-asyncio/maturin/numpy/safetensors/
+torch 2.14.0+cpu/**markdownify・huggingface_hub・hf_xet・modelscope_hub・pillow** =
+`-r requirements.txt`。A3 のテストは `py/information.py` を import するため
+markdownify/PIL が必須）→ pnpm 12.3.4 + `pnpm install --frozen-lockfile`。
+**dependency-cruiser 18 は Node ≥22 必須**（この環境は 20.20.2）→ 公式 tarball の
+Node v22.20.0 を作業領域外へ展開して `depcruise src` を実行
+（**136 modules / 409 dependencies、違反 0**）。cargo は 1 GiB 制約で
+`CARGO_BUILD_JOBS=1..2`。debug ビルド 1 m 36 s、release（lto=fat）2 m 02 s。
+
+**この環境の重要な癖（次セッション向け）**: bash ツールへ渡した**ファイル内容の中の
+`"$ARENA_WORKSPACE"` 文字列はワークスペース実体の env 変数へ置換される**。heredoc 内の
+Python 文字列リテラルに絶対パスを書くと `""$ARENA_WORKSPACE""` のような壊れた構文に
+なり、`write_file` で書いた絶対パスは実体と一致せず `FileNotFoundError` になる。
+**スクリプト内は相対パス（`cd` して実行）か `os.path.dirname(__file__)` を使うこと。**
+もう一つ: **バックグラウンド実行（`nohup … &`）はツール呼び出しをまたぐと殺される**
+（cargo build を裏で回して途中で消えた）。長時間ビルドは `timeout` 付きの同期実行で。
+
+### Phase 5 最終バグチェック（ユーザ指示「念のため精査」）— 発見 6 件、全て修正
+
+対象を Phase 5 の差分（`scan.rs` / `index.rs` / `hash.rs` /
+`safetensors_io::header_display_json` / `mm-core phase5.rs` / `py/native.py` /
+`manager.py` / `utils.py` / `identify.py` / `download.py` / フロント
+`models_changed` リスナー）に絞って精読 + 実走査。**codec 経路は Phase 4 の
+4 回監査と整合（変更ゼロ）**、scan/index/hash の golden parity も再確認した上で、
+以下を修正した（詳細表は BENCH §11.5）。
+
+1. **resume 時のイベントループ停止（重大・応答性）**: インライン検証のシード読み
+   （部分ファイル全文）が `download_model_file_http` の中で**同期実行**されていた。
+   「page-cache だから安い」は同一プロセス内の再開でのみ成立し、ComfyUI 再起動後の
+   resume は cold read = 10 GB で数秒、websocket も全リクエストも止まる
+   （Plan §1.2.2 課題 6 と同じクラス）。`io_executor` へ移動し、失敗時はハッシャを
+   破棄して従来の `_sha256_of` 再読込検証へ degrade（正しさ不変）。
+2. **失われたハッシャ handle でダウンロード全体が失敗し得た**: native 側 registry は
+   4096 で oldest eviction するため、理論上は稼働中の handle が消えて
+   `hasher_update` が `KeyError` → 書き込みループから例外が伝播し**バイト列が正常な
+   ダウンロードが失敗**する。try/except で inline 検証だけ放棄するようにした。
+3. **永続インデックスの無限成長**: `SiteIndex` に上限が無く、削除済みサイドカーの
+   entry が永遠に残る（Python 側 `_SITE_CACHE` は 4096 上限）。
+   `MAX_ENTRIES = 262_144` を新設し超過時に任意の半分を prune（派生データなので
+   miss は再パースのみ — R7 の設計思想のまま）。
+4. **不正 UTF‑8 の `.md` 1 個でフォルダ一覧が全滅（legacy 経路）**:
+   `open(..., encoding="utf-8").read(4096)` の `UnicodeDecodeError` が
+   `except OSError` を抜けて `get_file_info` → ルートまで伝播し
+   `Read models failed` になっていた。`errors="replace"` にして native の
+   `from_utf8_lossy` と挙動を統一（**両エンジン同一値**であることをテストで固定）。
+5. **base path を繰り返す副フォルダで `subFolder` が壊れる（legacy 経路）**:
+   `str.replace(prefix, "")` が**全**出現を削除していた（native は `strip_prefix`
+   で正しい）。`removeprefix` へ。preview URL と rename/delete の fullname が
+   別ファイルを指し得たため、放置すると実害のある経路だった。
+6. **フォルダ新規作成が他クライアントへ伝わらない**: `create-folder` ルートだけが
+   `models_changed` を送っていなかった（delete/update は送る）。
+   `reason="create-folder"` でブロードキャスト（生成ガードが二重取得を吸収）。
+
+**Phase 6 実装中に mock テストが検出した既存バグ（7 件目）**:
+`_ms_plain_description` の leaf 判定が `node[-2] == "leaf"` のみで、実 API /
+同関数 docstring 記載の属性 dict 形 `["span",{"data-type":"leaf"},"…"]` を
+一度も拾わず **ModelScope owner のプロフィール説明ツールチップが常に空**だった
+（c404bcc 由来の潜在バグ）。両形を受理する `is_leaf_marker` にして固定。
+
+### Phase 6 実装（Plan §6.2 の全項目）
+
+- **C1**: `src/utils/modelFilter.ts` 新設（`buildSearchTokens` /
+  `buildModelRows` / `filterModels` / `chunkRows`）。`DialogManager.vue` の
+  per-model `tokens.map(buildRegex)` を撤去し、filter→sort→chunk を**純関数 1 本**に
+  （コンポーネントとヘッドレス計測器が同一コードを測る）。
+- **C2**: **計測で設計を修正した**（下記「計測」参照）。`compareText` =
+  `localeCompare` 維持 / `compareTextNumeric` = hoisted numeric Collator。
+  旧直呼び 7 箇所（DialogManager・DialogExplorer×2・model.ts・ModelInformation×3）を
+  全て共有モジュール経由に集約。
+- **C3**: `hooks/model.ts` の `models` を `shallowRef` へ。**影響棚卸しを先行実施**し、
+  全 12 消費者（App.vue / DialogManager×2 / explorer〔cloneDeep 済み〕/
+  DialogHygiene / DialogModelDetail〔getter watch〕/ DialogCreateTask /
+  DialogHfUpload / ModelBaseInfo / useTypeSizes / useModelFolder〔cloneDeep 済み〕/
+  stars・selection は別ストア）が読み取り専用または複製後に操作することを
+  doc コメントに列挙（R8 のロールバック単位 = この 1 行）。
+- **C4**: `decoding="async"` を raster プレビュー 7 箇所へ（`ResponseImage`×2・
+  `ModelCard`〔実際のスクロール源〕・`ModelPreview`・`PreviewLightbox`・
+  `DialogCreateTask`・`DialogIdentifyHash`・`DialogHfUpload`）。SMIL アニメの
+  フォルダアイコン等はタイムライン再開挙動を変えるため**意図的に非適用**。
+- **C5**: `src/utils/perf.ts`（ring buffer + P50/P95/P99 + `__mmNeoPerf` ハンドル +
+  既定 OFF + 設定 `ModelManager.UI.PerfMarks`）+ 計測点 6 種 +
+  **ヘッドレス計測器 `scripts/bench/front/k15.mjs`**（CI 常設）。
+- **テンソルツリー Rust 事前グループ化**: `encode_tensor_tree` /
+  `tensor_tree_json`（pre-order 線形符号）+ `mm_core.safetensors_tensor_tree` +
+  `utils.get_model_header`（metadata/tensors/tree を 1 ルートで = 詳細ルートの
+  ヘッダ解析回数を増やさない）+ `src/utils/tensorTree.ts`（**遅延インデックス**:
+  87k ノードを materialize しない。JS フォールバック エンコーダも同モジュールに
+  置き、レンダリング経路は 1 本）。`ModelInformation.vue` は行生成のみ差し替え
+  （キー・折りたたみ・500 件ページングは不変）。
+- **A3（requests → aiohttp）**: `py/http_client.py` 新設 + `search.py` /
+  `information.py` / `identify.py` の **10 箇所**を移行（`utils.py` の preview 取得
+  2 箇所は PIL パイプライン内で executor 実行のまま = Plan の対象外。内訳は
+  search 6 / information 3 / identify 1）。parity の要点: タイムアウトは
+  `(connect, sock_read, total=None)` へ忠実写像（**total ではない**ことを実測テストで
+  固定）、`HttpStatusError` が requests の `raise_for_status` 文言を**逐語再現**し
+  `.response.status_code` も維持（Civitai 401 誘導文が依存）、JSON は content-type
+  を検査しない（`requests.json()` 準拠 — ModelScope CDN が octet-stream で返す
+  実例あり）、`trust_env=True` でプロキシ環境変数を踏襲。3 者並列検索は nested
+  ThreadPoolExecutor を廃し `asyncio.wait` の**部分結果契約を維持**
+  （`SWEEP_MARGIN` 定数化でテスト可能に）。identify の**二重スレッドホップ**
+  （io worker 内から `cpu_executor().submit(...).result()`）も解消。
+- **watch_roots**: `znn_codec::watch`（notify 8.2.0 + notify-debouncer-full 0.7.0
+  直接採用・500 ms デバウンス・ポーリング方式 = notify スレッドが GIL を取らない・
+  `MaxFilesWatch` → `degraded`・`need_rescan` → full invalidation・Access 除外）+
+  `mm_core.watch_start/poll/stop/diagnostics` + `py/watcher.py`（asyncio タスク 1 本・
+  1 s ポーリング・path→type 最長一致・type 単位 2 s クールダウン・`.tmp` 除外・
+  network root 自動スキップ・degrade 600 s クールオフ・native 不在でも静かに TTL）+
+  設定 `ModelManager.Scan.WatchModelFolders`（**既定 OFF**・i18n×3・
+  `MM_WATCH_ROOTS` 上書き）+ `app.on_startup/on_cleanup` フック +
+  `GET /model-manager/watch-status`（読み取り専用）。フロントは**無改修**。
+  **request 無しでの設定読み取り**は ComfyUI `app/user_manager.py` /
+  `app/app_settings.py` を一次ソースで確認して採用（single-user では
+  `get_request_user_id` が request に触れない。`--multi-user` では例外 →
+  既定値 OFF に degrade = 安全側）。`watch` cargo feature は **default-on**
+  （同梱バイナリが `watch_*` を持たなければ設定が永久に動かないため）。
+
+### 計測（K15・C1/C2・テンソルツリー — BENCH §11、同一実行内 before/after）
+
+2 vCPU / 1 GiB / Node v20.20.2（system ICU）、5,050 モデル・200 keystroke・
+65,268 テンソル MoE。**ゲートは同一実行内比率**なのでランナー非依存。
+
+- **K15 keystroke（JS 作業）**: naive p95 **10.57 ms** → 出荷経路 **3.96 ms**
+  （**×2.7**、C1 のみでは 3.49 ms = ×3.0。4 回実行の幅: naive 10.57–14.23 /
+  出荷経路 3.20–3.96 ms = ×2.7–4.0）。**≤ 16 ms 予算の 25 %**。
+- **K15 初回グリッド**: 行構築 p95 7.95 → **7.03 ms**（scan 自体は Phase 5 K9 =
+  0.145 s）。paint 脚は実 UI 側で `mm.grid.queryToPaint` として計測可能。
+- **描画行は naive と完全一致**（`rowsAreIdentical` ゲート）。
+- **C2 の設計判断（重要 — Plan の前提が一部逆だった）**: 5,050 名ソートで
+  `a.localeCompare(b)` **1.47 ms** vs hoisted `Intl.Collator().compare`
+  **5.13 ms（×3.5 遅い）**。V8 は**既定 options の localeCompare に内部キャッシュ
+  済み既定 collator の高速経路**を持つ。一方 options 付きは高速経路が無く
+  `{numeric:true}` は **291.23 ms** vs hoisted numeric Collator **9.30 ms
+  （×31.3 速い）**。→ 既定 variant は `localeCompare` を維持し、numeric variant
+  のみ Collator 化。**両選択を bench ゲートで機械固定**（V8 の挙動が変われば CI が
+  知らせる）。Plan §4.8‑C2 に実装注記を追記済み。
+- **テンソルツリー**: ブラウザ内 fold **1,328.62 ms** → Rust payload デコード
+  **7.68 ms** + 折りたたみ行描画 **5.09 ms** = **12.77 ms（×104）**。payload は
+  **2.73 MB / 87,195 ノード**（leaf は `tensors` の index = 二重転送なし）。
+  JS フォールバック経路でも 712 ms（sort が消える分だけ旧より軽い）。
+- **Rust == Python 参照 == JS エンコーダの三者同一性**: pytest 5 件（Rust vs
+  Python 参照、scalar / `(unnamed)` / 点無し名 / MoE 形 / leaf index 整合 /
+  root 集計）+ bench `--cross-check`（**2,086 テンソル / 2,892 ノード /
+  66,993 B がバイト一致**）。
+
+### 全ゲート再検証（release .so against・全緑）
+
+- cargo fmt ✓ / **clippy `--workspace --all-targets --all-features -D warnings` ✓** /
+  cargo test: znn-codec **195**（Phase 5 の 181 から +14 = tensor tree 5・watch 8・
+  index cap 1）+ 統合 4（extended_band）+ mm-core `--no-default-features` **5** ✓
+- **pytest 176 passed**（Phase 5 の 127 から **+49**: tensor tree 6・A3 http 19・
+  watcher 18・download seeding 3・scan 監査回帰 3）
+  / **native バイナリ無しの ci.yml 相当でも 59 passed・117 skipped・0 failed**
+- ruff check + format ✓ / **mypy 16 files ✓**（`py/http_client.py`・`py/watcher.py`
+  を mypy.ini へ追加）/ pnpm typecheck ✓ / eslint ✓ / prettier ✓ /
+  **dependency-cruiser ✓（136 modules / 409 deps、違反 0・Node 22 で実行）** /
+  **`pnpm build` ✓**（web バンドル再生成、`__mmNeoPerf` / `WatchModelFolders` /
+  `(unnamed)` を manager.js 内で確認）
+- release `.so`（host build）**3,139,424 B = 予算 4 MB の 75 %**（Phase 5 の
+  2,869,968 B から **+269 KB** = notify/debouncer-full + tensor tree）。
+  `verify_native_binary.py`: **libpython 非依存 ✓**（NEEDED = libgcc_s/libm/libc/
+  ld-linux のみ）。`max_glibc 2.34 > floor 2.28` は **host ビルドのため期待通り**
+  （CI は zigbuild で 2.28 に固定 — 第 6 セッションの記録と同じ）。
+- api_version **4→5** を 4 者同期（`py/native.py` [5,5]・`mm-core lib.rs` +
+  その test・`native.yml` abi3-import・pytest の 3 アサート）。
+- **fuzz 表面は不変**（codec 無変更。`safetensors_io` は関数追加と
+  `read_header_region` 抽出のみで、パイプラインは `StContainer::parse` 側 =
+  触っていない。scan/hash/index/watch は fuzz ターゲット外）→
+  **fuzz-long 再ディスパッチ不要**（run 6 の 18 h 証跡が有効）。
+
+### CI（GitHub Actions）の変更
+
+- `ci.yml`: **`Frontend K15 bench (C5)`** ステップを追加（Build の後）。
+  `src/utils` 実物を tsc でコンパイルして before/after を同一実行内で計測し、
+  ゲート（比率 + parity）で失敗する。絶対値は記録のみ（判定は参照機）。
+- `native.yml`: integration（ubuntu）に **`Tensor-tree wire cross-check
+(Rust == TypeScript)`** を追加。pnpm ストアが無いジョブなので typescript を
+  `/tmp/mmneo-tsc` へ npm install し `MMNEO_TSC` で渡す（実ビルド成果物 against）。
+  abi3-import の assert を **5** へ更新。
+- ワークフロー/ビルドスクリプトの他の部分は無変更（`watch` が default-on のため
+  `build-native.sh` に `--features` 追加は不要 = 4 プラットフォーム全てが
+  `watch_*` を持つ）。
+
+### 運営メモ（次セッション向け）
+
+- **残件（Phase 7 向け）**: third_party 撤去・`MM_NATIVE` スイッチ撤去・
+  README/USAGE 全面改訂・バイナリサイズ最終最適化・v0.3.0 の**公開準備まで**
+  （公開作業そのものはユーザ専任 — §6.3 規程）。L5 クロス検証 CI が
+  2 リリースサイクル連続 green かのゲート確認を最初に。
+- Phase 2 K2/K3 の参照機再計測、K10 5000 モデル ≤100 ms の参照機確認、
+  K11 端到端 ≤40 ms（公開契約変更を伴うため範囲外と記録済み）は**不変**。
+  実 UI 手動 QA は Phase 7 で統合（今回追加した `__mmNeoPerf` の paint 脚計測が
+  その際の K15 実測手段になる）。
+- `py/http_client.py` の共有セッションは**ループ変化を検出して作り直す**。
+  pytest-asyncio は テスト毎に新ループなので、`tests/test_phase6_http.py` は
+  autouse fixture で `close_session()` する（しないと "Unclosed client session"
+  警告と次テストでの再作成ノイズ）。
+- watcher は**シングルトン `watcher.watcher`** とクラス `ModelWatcher` を分離済み。
+  テストは必ず**新しいインスタンス**で作ること（シングルトンを汚すと
+  クールダウン状態が持ち越される）。
+- `scripts/bench/front/k15.mjs` は `--cross-check` 無しなら native 不要・約 30 s。
+  CI セルは縮小パラメータ（`--models 1500 --keystrokes 40 --moe-layers 12
+--moe-experts 8`）で約 6 s。
+
+### 追加（同日・push 後）— CI 失敗 2 件の修正 + Phase 6 独立精査で発見した 10 件
+
+push 後の CI（#136 / native #47）が失敗。原因を特定して修正し、さらに
+「Phase 6 の実装にバグが無いか精査せよ」というユーザ指示に対して独立精査
+（fresh eyes）を実施した。**CI 失敗 2 件 + 精査で 10 件**を修正、全て回帰テスト化。
+
+#### CI 失敗の原因（2 件 + 同種の潜在 1 件）
+
+1. **ci.yml `verify` の pytest 3 件失敗** — `test_phase5_scan.py` に追加した
+   監査回帰テスト 2 本（3 パラメータ）が `_set_engine(monkeypatch, "1")` で
+   native 経路を要求するのに **`_require_native()` の skip ガードを付け忘れ**た。
+   ci.yml にはビルド成果物が無い（native-bin は gitignore、成果物は native.yml が
+   ビルド）ため `MM_NATIVE=1 but the native core is unavailable` で失敗。
+   → 両テストに `_require_native()` を追加。**ローカルは .so があるため緑で、
+   CI 相当環境を再現して初めて出た**（以後、push 前に
+   `mv native/native-bin/.../mm_core.abi3.so` で成果物なしのスイートも回すこと）。
+2. **native.yml `native-build-linux` の "Loader regression tests" 10 件失敗** —
+   `ModuleNotFoundError: No module named 'markdownify'`。A3 のテストが
+   `py/search.py` → `py/information.py`（module-level で markdownify + PIL を
+   import）を初めて import する経路なのに、このジョブの pip 行が
+   `pytest pytest-asyncio aiohttp pyyaml requests pillow` だけだった。
+   **integration ジョブも同じ欠落**（native-build-linux の失敗で skip されていた
+   ため未顕在化）。→ 両方の pip 行に `markdownify` を追加 + テスト側にも
+   `pytest.importorskip("markdownify" / "PIL")` の明示ガード（最小環境では
+   collection error ではなく skip になる）。
+3. **同種の潜在失敗を CI 相当の再現で発見** — `test_network_root_skip_is_logged_once`
+   が native core の有無に依存していた（`_core()` が None だと root 選別まで
+   到達しない）。root 選別は純 Python なので**fake core を注入**して
+   バイナリ非依存に修正（「arm しようとしたら AssertionError」の形で
+   network-only ライブラリが arm しないことも同時に固定）。
+
+修正後の実測: **成果物なし（ci.yml 相当）59 passed / 117 skipped / 0 failed**、
+**成果物あり（native.yml 相当）176 passed**。front bench は CI #136 で
+**PASS 済み**（Node 22 / GH ランナー: keystroke p95 1.19 ms・C1 ×3.53・
+numeric ×33.4・既定 localeCompare ×2.15 速い・tree ×73.0）= **C2 の設計判断が
+CI ランナーの V8 でも再現した**ことの独立証跡。
+
+#### Phase 6 独立精査 — 発見 10 件（全て修正 + 固定）
+
+| #   | 領域                                    | 症状 / 根因                                                                                                                                                                                                                                                                                                                                              | 修正                                                                                                                                                                                                                                                                                                                               | 固定                                                                                                                          |
+| --- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1   | py/watcher.py                           | **`watch_start` / `watch_stop` がイベントループ上で実行**されていた。arm はライブラリ全体の walk + ディレクトリ毎の inotify watch 登録で数秒かかり得る（Phase 5 監査 #1 と同じ欠陥クラス）                                                                                                                                                               | io_executor へ移動。`_release_session` は async 化し、cancel 中でも `asyncio.shield` で確実に解放（notify スレッドのリーク防止）                                                                                                                                                                                                   | `test_arm_and_release_run_off_the_event_loop`（実行スレッドを記録して固定。poll は設計通りループ上）                          |
+| 2   | watch.rs                                | **`shared.errors` のロックを `Debouncer::watch()` の間保持**していた。kqueue/FSEvents は watch 呼び出しを watcher スレッドへ渡して待つ一方、その同じスレッドが走るイベントハンドラは `errors` をロックする = **ロック順序反転（macOS でデッドロックし得る）**                                                                                            | arm 中の報告はローカル Vec に集めて後からマージ（ロックを跨がない）                                                                                                                                                                                                                                                                | clippy/fmt + 既存 watch テスト 4 件                                                                                           |
+| 3   | watch.rs                                | **pending パス集合が無制限**。2 poll 間のバルクコピー（ライブラリ全体の複製等）で集合と次の poll の JSON が無限に伸びる                                                                                                                                                                                                                                  | `MAX_PENDING_PATHS = 4096` を超えたら **1 回の `rescan`（全面無効化）へ畳んで clear**（Python 側は `{type: null}` を配信するだけ）                                                                                                                                                                                                 | `a_burst_collapses_into_one_full_rescan`                                                                                      |
+| 4   | py/watcher.py                           | (a) 設定を**毎秒**読んでいた（= 既定 OFF のユーザでも `comfy.settings.json` の同期読み込みが 1 Hz でイベントループ上に発生）(b) network root のスキップを**毎秒 log**（スパム）(c) `rescan` 配信にクールダウンが無く、queue 溢れが持続すると毎秒全面再スキャン                                                                                           | (a) `SETTING_TTL = 5.0` のキャッシュ (b) root 毎に 1 回だけ log（解消したら再報告可）(c) `RESCAN_KEY` で type と同じクールダウンを適用                                                                                                                                                                                             | `test_setting_is_cached_for_the_ttl` / `test_network_root_skip_is_logged_once` / `test_rescan_broadcast_honours_the_cooldown` |
+| 5   | py/search.py                            | 3 者並列 sweep の実行中に**クライアントが離脱すると provider coroutine が 3 本オーファン化**（旧 executor 版は `pool.shutdown(cancel_futures=True)` が担っていた）                                                                                                                                                                                       | `asyncio.wait` を `except BaseException` で囲み、全 task を cancel して再送出                                                                                                                                                                                                                                                      | `test_search_sweep_cancels_providers_when_the_client_goes_away`                                                               |
+| 6   | ModelContent.vue / ModelInformation.vue | **Rust 事前グループ化の効果が相殺されていた**: `useModelFormData` の `cloneDeep(props.model)` が 65,268 テンソル（**218.5 ms**）と 87,195 ノードの payload（**130.0 ms**）まで深複製し、`editorState()` の dirty 判定が両方を**毎回 JSON.stringify**（open / reset / 判定のたび）。加えて deep `ref` 経由の走査は Proxy トラップ込みで fold 本体より高い | 読み取り専用表示 payload（`tensors` / `tensorTree`）を**参照共有**に変更（保存経路は元々これらを送らない = `buildUpdatePayload` は preview/description/type/pathIndex/fullname のみ）+ snapshot から除外 + `ModelInformation.vue` は `toRaw()` 経由で読む。端到端で ≈1,589 → ≈13 ms（**×120**、BENCH §11.3.1）                     | typecheck/eslint + bench の parity ゲート（表示は不変）                                                                       |
+| 7   | py/http_client.py                       | JSON デコードが**宣言 charset を無視**（`requests` は `Response.text` 経由で尊重する）+ 未知 codec 名で `LookupError` が 500 として逃げる                                                                                                                                                                                                                | charset 準拠 + UTF-8 フォールバック（RFC 8259）。`LookupError` を捕捉                                                                                                                                                                                                                                                              | `test_declared_charset_is_honoured_and_a_bogus_one_degrades`                                                                  |
+| 8   | utils/perf.ts                           | **`perfMark` / `perfMeasure` が export されているだけで未使用**（文書は「performance.mark 計測基盤」を謳っていた）                                                                                                                                                                                                                                       | `perfTime` が `name:start` / `name:end` の mark 対 + `performance.measure` を実際に発行（DevTools Performance パネルに見える）。anchor mark は measure 後に clear（長セッションで溜めない）。無効時は boolean 1 回 + 直呼びのまま                                                                                                  | bench が `perfTime` を経由して計測（同一コード経路）                                                                          |
+| 9   | utils/tensorTree.ts + py/utils.py       | **stale payload の検出が無かった**: `tensors` と tree はサーバ側で 2 回の別パースなので、間にファイルが差し替わると（ZipNN の rename・外部ダウンロード）別のテンソル表に対するツリーを描き得た                                                                                                                                                           | (a) デコーダに `leaves.length === tensors.length` 検査（不一致は JS フォールバックへ）(b) `get_model_header` が 2 回の native 呼び出しを `(mtime_ns, size)` で挟み、変化していれば tree を落とす                                                                                                                                   | `test_tensor_tree_is_dropped_when_the_file_changes_mid_read` + bench の validator 15 ケース                                   |
+| 10  | scripts/bench/front                     | **payload 検証（防御分岐）に一切のカバレッジが無かった**（このリポジトリの TypeScript に単体テストランナーは無い）                                                                                                                                                                                                                                       | 計測器に **15 ケースの accept/reject ゲート**を追加（版数違い・配列欠落・タプル形・非文字列 segment・負値/非有限・範囲外/非整数 leaf index・own count 不一致・pre-order 構造破綻〔存在しない子 / 二重 root〕・空 node 表・別テンソル表のツリーを拒否し、正常/空ヘッダ/実 payload は受理）= `tensorTreeValidatorRejectsBadPayloads` | CI（ci.yml + native.yml cross-check）が毎回実行                                                                               |
+
+#### このラウンドのゲート（全て緑）
+
+- cargo fmt ✓ / clippy `--workspace --all-targets --all-features -D warnings` ✓ /
+  cargo test: znn-codec **195**（watch +4 = record の dedupe/Access 除外・
+  バーストの rescan 畳み込み・need_rescan・予算エラーの degrade と error 上限）+
+  統合 4 + mm-core 5 ✓
+- pytest **176**（+9: charset・cancel・race guard・watcher 6）/
+  **成果物なし環境でも 59 passed・117 skipped・0 failed** ✓
+- ruff ✓ / mypy 16 files ✓ / typecheck ✓ / eslint ✓ / stylelint ✓ / prettier ✓ /
+  dependency-cruiser 136 modules 違反 0 ✓ / `pnpm build` ✓
+- release `.so` **3,139,424 B**（予算 75 %・libpython 非依存）
+- bench ゲート **PASS**（`tensorTreeValidatorRejectsBadPayloads` 追加後も全緑・
+  cross-check は 66,993 B バイト一致のまま）
+
+#### 運営メモ（追記）
+
+- **push 前の検証は「native 成果物あり」と「なし」の両方で pytest を回すこと**
+  （ci.yml は成果物なし、native.yml はあり。今回の失敗 1・3 はこの差分）。
+- native.yml で pytest を回す 2 ジョブ（native-build-linux の loader regression /
+  integration ×3 OS）の pip 行は**同一内容に保つこと**（`markdownify` 追加を
+  片方だけすると同じ失敗が再発する）。
+- watcher の arm/release は必ず executor 経由（`_tick` を直接呼ぶテストでも
+  スレッドを検証している）。`SETTING_TTL` / `TYPE_COOLDOWN` / `DEGRADE_RETRY` /
+  `MOUNTINFO_TTL` はテストから monkeypatch 可能な module 定数。

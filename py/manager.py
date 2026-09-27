@@ -9,7 +9,7 @@ import folder_paths
 import yaml
 from aiohttp import web
 
-from . import native, utils
+from . import native, utils, watcher
 
 
 def _preview_field_keys(model_data: dict) -> list[str]:
@@ -57,7 +57,14 @@ def _model_site_info_of(
     if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
         return hit[2], hit[3], hit[4], hit[5]
     try:
-        with open(path, encoding="utf-8") as f:
+        # BUG FIX: `errors="replace"` (was a strict decode caught only for
+        # OSError). A single `.md` sidecar with invalid UTF-8 raised
+        # UnicodeDecodeError, which escaped `get_file_info` and failed the WHOLE
+        # folder listing ("Read models failed: ...") instead of degrading that
+        # one model's front-matter. The native Rust scan reads the head with
+        # `from_utf8_lossy`, so both engines now behave the same on a corrupt
+        # sidecar: best-effort text, never a crash.
+        with open(path, encoding="utf-8", errors="replace") as f:
             head = f.read(4096)
     except OSError:
         return None, None, None, None
@@ -99,11 +106,29 @@ class ModelManager:
             model_base_paths = utils.resolve_model_base_paths()
             return web.json_response({"success": True, "data": model_base_paths})
 
+        @routes.get("/model-manager/watch-status")
+        async def watch_status(request):
+            """Diagnostics of the optional library watcher (Plan §4.7.2-2).
+
+            Read-only: whether the setting is on, whether the polling task and
+            the native session are up, how many roots are armed (network roots
+            are skipped by design), the degrade state and the event/broadcast
+            counters. Handy for a bug report - and for the Phase-6 acceptance
+            check that a network mount or an exhausted inotify budget degrades
+            to the TTL refresh instead of failing.
+            """
+            return web.json_response({"success": True, "data": watcher.watcher.diagnostics()})
+
         @routes.get("/model-manager/models")
         async def get_folders(request):
             """
             Returns the base folders for models.
             """
+            # Phase 6: the watcher task normally starts from the server's
+            # on_startup hook; this is the lazy fallback for a host where that
+            # hook was not available (it is a no-op once the task is up, and it
+            # never raises - the watcher is optional).
+            watcher.watcher.ensure_task()
             try:
                 result = utils.resolve_model_base_paths()
                 return web.json_response({"success": True, "data": result})
@@ -343,6 +368,12 @@ class ModelManager:
                 os.makedirs(target)
             except Exception as e:
                 return web.json_response({"success": False, "error": str(e)})
+            # Plan §4.7.2-1: a new folder changes the listing of that type, so
+            # the other clients invalidate it too (the creating client's own
+            # refresh and this broadcast are deduped by the frontend's
+            # generation guard). Without it, a folder created in one browser
+            # only appeared in the others after the 30 s TTL revalidate.
+            await utils.notify_models_changed(model_type, "create-folder")
             return web.json_response({"success": True})
 
     def scan_models(self, folder: str, include_hidden_files: bool = False):
@@ -383,7 +414,14 @@ class ModelManager:
                 prefix_path = f"{prefix_path}/"
 
             is_file = entry.is_file()
-            relative_path = utils.normalize_path(entry.path).replace(prefix_path, "")
+            # BUG FIX: `str.replace` removed EVERY occurrence of the base path,
+            # not just the leading one - a model below a sub-folder that
+            # happened to repeat the base path (`<base>/models/ck/...` under a
+            # base of `/models/ck/`) lost that middle segment, so `subFolder`
+            # (and with it the preview URL and the fullname used by rename /
+            # delete) pointed somewhere else. `removeprefix` strips the leading
+            # occurrence only, matching the native Rust scan's `strip_prefix`.
+            relative_path = utils.normalize_path(entry.path).removeprefix(prefix_path)
             sub_folder = os.path.dirname(relative_path)
             filename = os.path.basename(relative_path)
             basename = os.path.splitext(filename)[0] if is_file else filename
@@ -582,8 +620,11 @@ class ModelManager:
     def get_model_info(self, model_path: str):
         directory = os.path.dirname(model_path)
 
-        metadata = utils.get_model_metadata(model_path)
-        tensors = utils.get_model_tensors(model_path)
+        # ONE header fetch for the whole detail payload (Plan §4.7.3): the
+        # native path parses the safetensors header once for metadata+tensors
+        # and once for the pre-grouped display tree, instead of the two
+        # separate parses `get_model_metadata` + `get_model_tensors` did.
+        header = utils.get_model_header(model_path)
 
         description_file = utils.get_model_description_name(model_path)
         description_file = utils.join_path(directory, description_file)
@@ -593,9 +634,13 @@ class ModelManager:
                 description = f.read()
 
         return {
-            "metadata": metadata,
+            "metadata": header["metadata"],
             "description": description,
-            "tensors": tensors,
+            "tensors": header["tensors"],
+            # Phase 6: the tensor tree folded in Rust (leaf indices address the
+            # `tensors` array above). `None` = the frontend folds it itself,
+            # exactly as before Phase 6 — an additive, optional field.
+            "tensorTree": header["tensorTree"],
         }
 
     def update_model(self, model_path: str, model_data: dict):

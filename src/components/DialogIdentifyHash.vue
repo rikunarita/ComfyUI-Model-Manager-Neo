@@ -12,6 +12,7 @@
           v-if="match.images?.length"
           :src="match.images[0]"
           alt=""
+          decoding="async"
           class="size-24 shrink-0 rounded-mm-ctl border border-mm-border object-cover"
         />
         <div class="min-w-0 flex-1">

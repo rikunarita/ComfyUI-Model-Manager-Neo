@@ -1,7 +1,12 @@
 <template>
   <span class="relative">
-    <img :src="src" :alt="alt" v-bind="$attrs" @error="onError" />
-    <img v-if="error" v-show="loadError" :src="error" class="absolute top-0" />
+    <!-- C4 (Plan §4.8): decode off the main thread - the grid re-renders
+         dozens of these per scroll frame, and a synchronous decode is what
+         made fast scrolling stutter. `loading="lazy"` is deliberately NOT
+         set: the list is already virtualised, so every rendered image is
+         on-screen by definition. -->
+    <img :src="src" :alt="alt" decoding="async" v-bind="$attrs" @error="onError" />
+    <img v-if="error" v-show="loadError" :src="error" decoding="async" class="absolute top-0" />
   </span>
 </template>
 

@@ -78,8 +78,37 @@ mm-core（`phase5.rs`）が `scan_models` / `scan_hygiene` / `safetensors_header
 watch_roots は Phase 6 へ移管**（2026‑09‑27 ユーザ決定。A3 は aiohttp 統一の
 まま **Rust 化しない**〔reqwest 不採用 — Plan §3.8 注記〕、watch_roots は
 notify + notify-debouncer-full **直接採用**〔extended-notify 不導入 — Plan
-§3.1 注記〕。`watch` feature は宣言済みで土台 — 見送り根拠の記録は BENCH
-§10.5）。
+§3.1 注記〕。見送り根拠の記録は BENCH §10.5）→ **両方とも Phase 6 で実施済み**。
+
+**Phase 6（テンソルツリー事前グループ化 + ファイル監視）実装済み**
+（api_version=**5**、docs/BENCH.md §11 = K15 の証跡）:
+
+- `safetensors_io.rs::encode_tensor_tree` / `tensor_tree_json` — 表示用
+  テンソルツリーを Rust で折りたたみ、**pre-order の線形符号**
+  `{"v":1,"nodes":[[segment,childCount,tensorCount,totalCount,totalParams],…],
+"leaves":[tensorIndex,…]}` で返す（leaf は `header_display_json` の
+  `tensors` を index で指す = 二重転送なし。own-leaves-before-children なので
+  デコード側はカーソル 1 本）。65,268 テンソル MoE でブラウザ内 fold
+  **1,329 ms → 12.8 ms（×104）**。ヘッダ読みは `read_header_region` へ抽出し
+  `header_display_json` と共有（同一 B4 32 MiB キャップ・同一 parse 順）。
+  深さ爆発（敵対的な多段ドット名）に備え**再帰ではなく明示スタック**。
+- `watch.rs`（`watch` feature）— notify 8.2.0 + notify-debouncer-full 0.7.0
+  **直接採用**（extended-notify 不導入 — Plan §3.1）。500 ms デバウンス、
+  **ポーリング方式**（notify スレッドは GIL を取らず、重複排除済みの
+  パス集合へ追記するだけ = ジョブ API と同一哲学）、`ErrorKind::MaxFilesWatch`
+  は `degraded` 理由として報告（Python 側が TTL へ degrade）、
+  `Event::need_rescan` は full invalidation、Access イベントは除外。
+  **`watch` feature は default-on**: 同梱プリビルドが `watch_*` を持たなければ
+  設定が永久に動かないため（OFF なのは実行時の設定の方）。サイズ実測
+  linux-x86_64 release **3,137,312 B = 予算 4 MB の 75 %**（Phase 5 比 +267 KB）。
+- mm-core（`phase6.rs`）— `safetensors_tensor_tree` / `watch_start` /
+  `watch_poll` / `watch_stop` / `watch_diagnostics` を公開。Python 側の駆動は
+  `py/watcher.py`（asyncio タスク 1 本・1 s ポーリング・network root 自動
+  スキップ・type 単位クールダウン）、表示側の消費は `src/utils/tensorTree.ts`
+  （遅延インデックス + JS フォールバック エンコーダ）。
+- `index.rs` に **entry 上限**（`MAX_ENTRIES = 262_144`、超過時は任意の半分を
+  prune）— 派生データなので miss は再パースのみ（Python 側 `_SITE_CACHE` の
+  4096 上限と同じ発想。削除済みサイドカーの entry が永遠に残る成長を止める）。
 
 ## テスト配置と cargo ワークフロー（Plan §3.4.3）
 

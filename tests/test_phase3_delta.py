@@ -224,9 +224,9 @@ def test_native_core_exposes_the_phase3_api():
     mm = _native_core_or_skip()
     for fn in ("zipnn_delta_compress", "zipnn_delta_decompress", "walk_models", "move_with_sidecars"):
         assert hasattr(mm, fn), f"mm_core.{fn} missing (api_version={mm.api_version()})"
-    # The Phase 3 surface is still present at api_version 4 (Phase 5 ADDED the
+    # The Phase 3 surface is still present at api_version 5 (Phase 5/6 ADDED the
     # scan/hash functions; it did not remove the delta/batch ones).
-    assert mm.api_version() == 4
+    assert mm.api_version() == 5
 
 
 # ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import {
   provide,
   type Ref,
   ref,
+  shallowRef,
   toRaw,
   toValue,
   unref,
@@ -25,6 +26,7 @@ import { type BaseModel, type Model, type WithResolved } from 'types/typings'
 import { bytesToSize, formatDate, previewUrlToFile } from 'utils/common'
 import { NO_PREVIEW_SENTINEL, NO_PREVIEW_URL } from 'utils/media'
 import { genModelKey, resolveModelTypeLoader } from 'utils/model'
+import { compareText } from 'utils/modelFilter'
 import { dragAddModel } from 'utils/modelGrid'
 import { configSetting } from './config'
 
@@ -111,7 +113,27 @@ export const useModels = defineStore('models', store => {
 
   provide(modelFolderProvideKey, folders)
 
-  const models = ref<Record<string, Model[]>>({})
+  /**
+   * The model listing, per type (C3 — Plan §4.8, R8).
+   *
+   * `shallowRef`, not `ref`: a 5,000-model library used to be wrapped in deep
+   * reactive Proxies (every model object, every nested `metadata` map), which
+   * costs both memory and a proxy trap on every property read of every filter /
+   * sort / render pass. The store only ever REPLACES the record
+   * (`models.value = { ...models.value, [folder]: resData }`) — it never
+   * mutates an entry in place — so shallow reactivity is behaviour-identical
+   * while dropping the whole Proxy layer.
+   *
+   * Impact inventory (every consumer verified read-only or cloning first):
+   * App.vue (totalModelBytes / zipnn-settle lookup / autoCompressUnused),
+   * DialogManager.vue (`list` + `flatModels`), DialogExplorer via
+   * hooks/explorer (`cloneDeep` before it builds the tree), DialogHygiene,
+   * DialogModelDetail (watches `modelsData.value[type]` — a getter on the ref
+   * itself, so the swap still triggers), DialogCreateTask, DialogHfUpload,
+   * ModelBaseInfo, useTypeSizes, useModelFolder (`cloneDeep`). Stars and the
+   * selection live in their own stores, so they are unaffected.
+   */
+  const models = shallowRef<Record<string, Model[]>>({})
 
   /**
    * Per-folder request sequencing.
@@ -812,7 +834,8 @@ export const useModelFolder = (option: { type?: MaybeRefOrGetter<string | undefi
 
     const folderItems = cloneDeep(models.value[type]) ?? []
     const pureFolders = folderItems.filter(item => item.isFolder)
-    pureFolders.sort((a, b) => a.basename.localeCompare(b.basename))
+    // C2 (Plan §4.8): shared Intl.Collator instead of String#localeCompare.
+    pureFolders.sort((a, b) => compareText(a.basename, b.basename))
 
     const folders = modelFolders.value[type] ?? []
 
