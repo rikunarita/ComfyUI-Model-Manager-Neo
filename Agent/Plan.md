@@ -15,10 +15,11 @@
 
 ### 版数履歴
 
-| 版数 | 日付       | 変更概要                                                                                                                                                                                                                                                                     |
-| ---- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1.0  | 2026‑09‑22 | 初版。コードベース精読・技術調査・基本計画の策定                                                                                                                                                                                                                             |
-| 2.0  | 2026‑09‑22 | 全面改訂。(1) C コアのメモリ欠陥を実機実証し重大度評価を追加、(2) データ完全性保証設計を新設、(3) 追加最適化 8 件を精査・反映、(4) mold / rustfmt / clippy をツールチェーン標準に採用、(5) crate 最新版の再検証（jiter・bincode 3 等）、(6) 事業計画書レベルの構成へ全面再編 |
+| 版数 | 日付       | 変更概要                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0  | 2026‑09‑22 | 初版。コードベース精読・技術調査・基本計画の策定                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 2.0  | 2026‑09‑22 | 全面改訂。(1) C コアのメモリ欠陥を実機実証し重大度評価を追加、(2) データ完全性保証設計を新設、(3) 追加最適化 8 件を精査・反映、(4) mold / rustfmt / clippy をツールチェーン標準に採用、(5) crate 最新版の再検証（jiter・bincode 3 等）、(6) 事業計画書レベルの構成へ全面再編                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2.1  | 2026‑09‑28 | ユーザ決定: **Phase 7「ツールチェーン現代化・設定統合」を新設**（6 項目 — T1 アップロード preflight SHA256 の Rust 化〔既存 mm_core.hash_file へ接続〕・T2 Node v26.10.0〔nodejs.org dist 実測 = v26 系最新・2026‑09‑21〕・T3 Ruff 0.16.9〔PyPI latest 実測〕・T4 uv 導入は**開発・CI 層限定**〔ランタイムの requirements.txt / pip_install 契約は維持・uv 0.12.19 実測〕・T5 mypy.ini → pyproject.toml `[tool.mypy]` 統合〔mypy 2.3.1 で自動発見を実証済み〕+ 統合できる設定の統合〔tests/pytest.ini は rootdir 制御のため意図的に非統合〕・T6 設定ファイル全面見直し〔GitHub Actions の major 更新: checkout v7 / setup-node v7 / setup-python v7 / artifact v7・v8 / pnpm-action v6.1 / setup-uv v10.2 — 2026‑09‑28 API 実測〕）。**旧 Phase 7（third_party 撤去・配布仕上げ・リリース）は内容そのまま Phase 8 へ繰り下げ** — §6.1 総覧・§6.2・§7 リスク表（R1/R3/R6/R10/R13）・§9 と本文中の相互参照 5 箇所を同期更新。過去の MEMO / セッション記録中の「Phase 7」参照は現在の Phase 8 を指す。新 Phase 7 のバージョン事実は全て 2026‑09‑28 に一次ソースで確認（nodejs.org dist index / PyPI / GitHub API / vite・dependency-cruiser の engines / mypy 2.3.1 の `[tool.mypy]` 自動発見はサンドボックス実測で実証） |
 
 ### 進捗マーク凡例
 
@@ -636,7 +637,7 @@ tensors/compressedTensors` を維持）を残し、実処理をポーリング�
   バンドル（`*_DeltaZNN`）のディレクトリ意味論は既存ロジックを維持。
 - `py/manager.py` / `py/utils.py` / `py/identify.py` / `py/download.py`:
   該当関数を `mm_core` 呼び出しへ置換（JSON 形状は現行互換）。
-- 移行期は `MM_NATIVE=0/1/auto` で新旧経路を切替（Phase 7 で旧経路撤去）。
+- 移行期は `MM_NATIVE=0/1/auto` で新旧経路を切替（Phase 8 で旧経路撤去）。
 
 ## 4.3 ゼロコピー設計
 
@@ -1016,7 +1017,7 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
   両経路を CI で並行走行。
 - **paranoid モード**（圧縮後即解凍検証、§4.4.3）を設定で提供。
 - third_party 撤去は「L5 クロス検証 CI が 2 リリースサイクル連続 green」を
-  ゲート条件とする（Phase 7）。
+  ゲート条件とする（Phase 8）。
 - 各フェーズのロールバック単位 = そのフェーズの切替フラグ 1 本
   （旧経路が生きている限り、単一コミット revert で復帰可能）。
 
@@ -1026,16 +1027,17 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ## 6.1 フェーズ総覧
 
-| Phase | 名称                                              | 主成果物                         | 完了条件（要約）                                     |
-| ----- | ------------------------------------------------- | -------------------------------- | ---------------------------------------------------- |
-| 0     | 基盤準備                                          | ワークスペース・CI・ベンチ基盤   | 全ターゲットで abi3 ビルド疎通、KPI ベースライン記録 |
-| 1     | znn-codec フォーマット中核                        | ヘッダー/平面/huff0・FSE/codec   | L1–L3 green、C 版との圧縮率差 ±0.5%・速度同等以上    |
-| 2     | safetensors 圧縮/解凍 + 接続                      | mm-core API、compress.py 切替    | L4 green、K1–K3/K6 達成、UI QA                       |
-| 3     | デルタ + バッチ                                   | delta.rs、バッチプリミティブ     | K4/K5 達成、現行と同一挙動 QA                        |
-| 4     | dtype 大幅拡張                                    | 8 平面/f64/整数/MX 系、UI バッジ | 全拡張 dtype 往復 green、L5 退行なし                 |
-| 5     | スキャン/インデックス/ハッシュ/更新               | scan.rs、hash.rs、models_changed | K7–K11 達成、UI 退行なし                             |
-| 6     | フロントエンド表示最適化 + Phase 5 移管の任意項目 | C1–C5、A3、watch_roots（任意）   | K15 計測実証（任意項目は実施時のみ判定）             |
-| 7     | third_party 撤去・配布仕上げ                      | native-bin 単一経路、v0.3.0      | 全新規 clone で全 OS 動作                            |
+| Phase | 名称                                                    | 主成果物                                                                                                                              | 完了条件（要約）                                               |
+| ----- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| 0     | 基盤準備                                                | ワークスペース・CI・ベンチ基盤                                                                                                        | 全ターゲットで abi3 ビルド疎通、KPI ベースライン記録           |
+| 1     | znn-codec フォーマット中核                              | ヘッダー/平面/huff0・FSE/codec                                                                                                        | L1–L3 green、C 版との圧縮率差 ±0.5%・速度同等以上              |
+| 2     | safetensors 圧縮/解凍 + 接続                            | mm-core API、compress.py 切替                                                                                                         | L4 green、K1–K3/K6 達成、UI QA                                 |
+| 3     | デルタ + バッチ                                         | delta.rs、バッチプリミティブ                                                                                                          | K4/K5 達成、現行と同一挙動 QA                                  |
+| 4     | dtype 大幅拡張                                          | 8 平面/f64/整数/MX 系、UI バッジ                                                                                                      | 全拡張 dtype 往復 green、L5 退行なし                           |
+| 5     | スキャン/インデックス/ハッシュ/更新                     | scan.rs、hash.rs、models_changed                                                                                                      | K7–K11 達成、UI 退行なし                                       |
+| 6     | フロントエンド表示最適化 + Phase 5 移管の任意項目       | C1–C5、A3、watch_roots（任意）                                                                                                        | K15 計測実証（任意項目は実施時のみ判定）                       |
+| 7     | ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定） | T1 preflight SHA256 Rust 化、T2 Node v26.10.0、T3 Ruff 0.16.9、T4 uv（開発・CI 層）、T5 pyproject 設定統合、T6 設定ファイル全面見直し | 6 項目実施 + 全ゲートマトリクス緑 + Actions 更新後の CI 実走緑 |
+| 8     | third_party 撤去・配布仕上げ（旧 Phase 7）              | native-bin 単一経路、v0.3.0                                                                                                           | 全新規 clone で全 OS 動作                                      |
 
 ## 6.2 フェーズ詳細
 
@@ -1213,7 +1215,7 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
   手動 QA: 圧縮/解凍/進捗/キャンセルは自動化済み（ルート + ジョブ
   レベル、ws ゴールデン）。ディスク満杯（ENOSPC メッセージ経路 +
   tmp 自動削除は実装・単体検証、実容量注入は参照機 QA 手順書へ）と
-  実 ComfyUI UI での QA はユーザ側手順として USAGE 更新時（Phase 7）
+  実 ComfyUI UI での QA はユーザ側手順として USAGE 更新時（Phase 8）
   に統合。UI 契約自体はゴールデンテストで機械的に固定済み
 
 ### Phase 3 — デルタ圧縮 + バッチプリミティブ
@@ -1270,7 +1272,7 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
       クロスパス双方向 + legacy 単一コンテナ復元）、
       フォルダバッチ圧縮/解凍の現行同一挙動 QA（自動 parity/ゴールデン
       済み — 実 ComfyUI UI での手動 QA は Phase 2 の残件と同様に
-      USAGE 改訂（Phase 7）へ統合。UI 契約はゴールデンテストで機械固定）
+      USAGE 改訂（Phase 8）へ統合。UI 契約はゴールデンテストで機械固定）
 
 ### Phase 4 — dtype 大幅拡張（Neo 拡張帯）
 
@@ -1546,7 +1548,133 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
       `pnpm build`（web バンドル再生成）、api_version **4→5**
       （4 者同期）、release `.so` 3,137,312 B。証跡 BENCH §11
 
-### Phase 7 — third_party 撤去・配布仕上げ・リリース
+### Phase 7 — ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定・6 項目）
+
+- [ ] **T1: アップロード preflight SHA256 の Rust 化** — `py/upload_hf.py`
+      `hash_local_file`（モデル全文を Python hashlib の 1 MiB ループでハッシュ —
+      HF / ModelScope の重複検出 preflight で、remote サイズ一致時のみ呼ばれる）を
+      **既存の** `mm_core.hash_file(path, ["SHA256"])` へ差し替える
+      （Phase 5 B2 実装済み・identify が実使用・GIL 解放・SHA‑NI/AVX2
+      ランタイム検出・BENCH §10.2 実測 1239 MB/s〔SHA‑NI 無し soft backend〕）。
+      設計上の注意:
+  - 効果の正直な評価: CPython の hashlib も OpenSSL 経由で SHA 拡張を使うため、
+    SHA‑NI 搭載機での純速度差は小さい。実益は Python ループ除去・経路統一
+    （Neo の全文ハッシュが native 1 本に）・GIL 解放・将来の多表記 1 パス化の素地。
+  - **進捗表示**: チャンク毎の `report_progress(PHASE_HASH)` が native 単一呼び出し
+    では消える → v1 はフェーズ級表示とし、(任意) で progress atomic 付きの
+    ジョブ API 化（§4.2.2 のポーリング方式 — zipnn ジョブと同型）を実測と
+    UX 要件で判断（10 GB ≈ 8 s なので不定表示でも実害は小さい）。
+  - ハッシュは CPU 作業: 現状 preflight 全体が io_executor 実行 → ネットワーク段
+    （`model_info`）とハッシュ段を分離する（native は GIL 解放のため executor
+    選択の影響は小さいが、プール意味論の規律は維持）。
+  - native 不在時は Python ループへフォールバック（Phase 8 の `MM_NATIVE` 撤去で
+    単一経路化）。api_version 不変（新規 API なし — ジョブ化する場合のみ bump）。
+  - ゲート: ゴールデンテスト（hash_file == hashlib バイト一致）+ preflight の
+    モックフロー（`test_phase6_http.py` の MockHub パターン）+ 既存アップロード系
+    テスト全緑。
+- [ ] **T2: Node.js v26.10.0 へのアップデート** — 一次確認（nodejs.org dist index・
+      2026‑09‑28 実測）: **v26.10.0 = v26 系の最新**（2026‑09‑21 リリース。
+      Node 24 = LTS "Krypton"、v26 は current 系で 2026‑10 に LTS 昇格予定）。
+      変更点: ci.yml `node-version: 22` → `26.10.0`、`@types/node` ^22 → ^26、
+      README / 開発ドキュメントの前提記述。engines の一次確認済み:
+      vite 8.2.2 `^20.19.0 || >=22.12.0` ✓ / dependency-cruiser 18.4.0
+      `^22||^24||>=26` ✓（26 を明示サポート）/ pnpm・vue-tsc・eslint・stylelint・
+      fallow は実施時に実走で確認する。K15 bench のゲートは同一実行内比率なので
+      ランナー非依存だが、**C2 の comparator 選択ゲート（V8 の localeCompare
+      高速経路が前提）は Node 26 の V8 で再検証する**（Node 22 の GH ランナーで
+      設計判断が再現した前例あり — MEMO 第 8 セッション）。
+      ゲート: ci.yml + native.yml（cross-check セル）全緑 + K15 ゲート PASS。
+- [ ] **T3: Ruff 0.16.9 へのアップデート** — ci.yml のピン `ruff==0.16.8` →
+      `ruff==0.16.9`（PyPI latest = 0.16.9・2026‑09‑28 実測）。`ruff check` +
+      `ruff format --check` を再実行し、新バージョン由来の指摘があれば解消する。
+      ゲート: ci.yml 緑。
+- [ ] **T4: uv の導入（開発・CI 層専用 — 2026‑09‑28 ユーザ決定）** —
+      uv 最新版（2026‑09‑28 時点 0.12.19・PyPI 実測。実施時の latest を一次確認）。
+  - **CI**: ci.yml 1 行 + native.yml 4 箇所の `pip install` 行 →
+    `uv pip install`（`astral-sh/setup-uv` v10.2.0〔2026‑09‑21・API 実測〕+
+    cache。ドロップイン互換で解決+インストールが 8–100× — integration ジョブの
+    torch CPU wheel ~200 MB で最大効果。native.yml の pip 行同一内容規程
+    〔MEMO 第 8〕は維持）。
+  - **開発**: dev/test 依存（pytest・pytest-asyncio・torch〔CPU index は
+    `[[tool.uv.index]]` で明示〕・numpy・safetensors・maturin・ruff・mypy・
+    markdownify・huggingface_hub・hf_xet・modelscope_hub・pillow・aiohttp・pyyaml）を
+    `[dependency-groups]`（PEP 735）で宣言し **uv.lock をコミット**
+    （クロスプラットフォーム再現可能）→ MEMO 運営メモの「セッション冒頭の
+    環境再構築手順」を `uv sync --frozen` 一発へ。root pyproject は
+    `[build-system]` 無し = 仮想プロジェクト（`[tool.uv] package = false` で明示）。
+  - **ランタイム契約は置き換えない**: `requirements.txt`（ComfyUI 本体 /
+    ComfyUI-Manager エコシステムの契約 — Manager がこれを読んで自動インストール）と
+    `__init__.py` → `utils.pip_install`（**ユーザの ComfyUI Python 内**で走るため
+    uv の存在を仮定できない）は維持する。
+  - 二重原価の規律: requirements.txt（レンジ・ランタイム用）と uv.lock（ピン・
+    開発/CI 用）の同期は `uv pip compile` 等で pyproject から一方向生成する
+    （Phase 8 の「pyproject / requirements 整理」と統合）。
+  - ゲート: ci.yml + native.yml 全緑（ubuntu / windows / macOS）+
+    `uv sync --frozen` → pytest 176 のローカル再現。
+- [ ] **T5: mypy.ini → pyproject.toml 統合 + 統合できる設定の統合** —
+  - `[tool.mypy]` 統合: **実証済み**（2026‑09‑28・mypy 2.3.1 で
+    `--config-file` 無し実行が pyproject.toml の `[tool.mypy]` を自動発見し
+    全オプションを適用することをサンドボックス実測）。現行 mypy.ini は
+    per-module セクション無しの全グローバル オプション → TOML へ機械変換可能
+    （`files` はカンマ区切り文字列 → 文字列配列）。ヘッダ コメント
+    （ディレクトリ名にダッシュを含むため file-wise 検査・
+    `disallow_untyped_defs` 意図的 OFF の理由）は TOML コメントへ移す。
+    ci.yml のコマンド（`python -m mypy --config-file mypy.ini` →
+    `python -m mypy`）・README×2 の Development 表・MEMO の記録コマンドを
+    **同一コミットで**更新してから mypy.ini を削除する。**参照更新漏れは
+    「設定なし mypy」で CI が静かに弱化する**（第 9 セッションの fallow 漂移と
+    同じ教訓）。
+  - その他の統合候補: `.prettierrc` → package.json `"prettier"` キー、
+    `.stylelintrc.json` → package.json `"stylelint"` キー（両ツールとも公式対応。
+    挙動不変を確認して採用 — ゲート: format:check / lint:css 緑）。
+  - **意図的に統合しないもの（理由を記録）**: `tests/pytest.ini`（tests/ 内の
+    配置そのものが rootdir/confcutdir を制御し、root の `__init__.py` =
+    ComfyUI エントリポイントを収集連鎖から外す — 同ファイルと root conftest.py
+    のコメント参照。pyproject へ移すとこの防御が壊れる）、`eslint.config.js`
+    （flat config は JS ファイル必須）、`.dependency-cruiser.mjs` /
+    `.fallowrc.json`（JS 系ツールの固有フォーマット）、`native/pyproject.toml`
+    （maturin ビルド定義 — root とは別ワークスペース）、cargo / clippy /
+    rustfmt の設定（cargo は pyproject を読まない）。
+- [ ] **T6: 設定ファイルの全面見直し（最新記法・バージョンの一次ソース照合）** —
+  - **GitHub Actions**（2026‑09‑28 GitHub API 実測の latest）:
+    actions/checkout v4 → **v7.0.1** / setup-node v4 → **v7.0.0** /
+    setup-python v5 → **v7.0.0** / upload-artifact v4 → **v7.0.1** /
+    download-artifact v4 → **v8.0.1** / pnpm/action-setup v4 → **v6.1.0**
+    （`version:` を渡さない注意は ci.yml ヘッダ参照）/ Swatinem/rust-cache v2
+    （latest v2.9.2・同一メジャー）/ astral-sh/setup-uv **v10.2.0**（T4 で新設）。
+    各更新は release notes で破壊的変更（ランナー runtime 要件・
+    artifact バージョン間の相互運用 等）を一次確認し、**1 action ずつ別コミット**
+    で適用する（bisect 可能にする）。3 ワークフロー（ci / native / fuzz-long）全て。
+  - フロントエンド: `tsconfig.json`（TS 6 の非推奨オプション — k15.mjs に
+    baseUrl 廃止の注記前例）、`vite.config.ts`（Vite 8 / Rolldown 最新記法）、
+    `.prettierrc` / `.stylelintrc.json`（stylelint 17 standard）、
+    `eslint.config.js`（ESLint 10 flat）、`.dependency-cruiser.mjs`（18 schema）、
+    `.fallowrc.json`（同梱 schema.json 照合）、`package.json`
+    （packageManager ピン / engines）、`pnpm-workspace.yaml` / `.npmrc`
+    （pnpm 12 の現行キー — minimumReleaseAge 等のサプライチェーン設定）。
+  - Python: `pyproject.toml`（[project] メタデータ / [tool.ruff] ルールセットの
+    現状確認）、`requirements.txt`（レンジの妥当性）。
+  - Rust: `native/.cargo/config.toml`、`clippy.toml`（MSRV キー）、
+    `rustfmt.toml`（edition 2024）、workspace `Cargo.toml`
+    （crate バージョンの crates.io API 再照合 — §3.7 の規程通り）。
+  - その他: `.gitattributes` / `.gitignore`、`.vscode/`、`.husky/`。
+  - ゲート: 全 CI 緑 + ローカル全ゲートの**挙動不変**（純粋な記法/バージョン
+    現代化に限る。挙動を変える項目は個別にユーザ判断を仰ぐ）。
+    発見事項と一次証跡は MEMO へ記録。
+- [ ] 完了条件: 6 項目の全実施 + 全ゲートマトリクス緑（Rust L1 / mm-core /
+      統合・pytest 成果物あり/なし両方・ruff・mypy〔pyproject 設定経由〕・
+      typecheck / eslint / stylelint / prettier / dependency-cruiser / fallow /
+      build / K15 bench + cross-check）+ Actions 更新後の CI 実走緑 +
+      ドキュメント同期（README×2 Development 節・MEMO 運営メモ）。
+      **Phase 8 との順序**: 前後・交錯いずれも衝突しない — ただし T4/T5
+      （pyproject / 依存定義の整理）は Phase 8 の「pyproject / requirements 整理」の
+      **前**に着地させる方が手戻りが無い。
+
+### Phase 8 — third_party 撤去・配布仕上げ・リリース
+
+> 旧 Phase 7 — 2026‑09‑28 ユーザ指示により内容そのまま Phase 8 へ繰り下げ。
+> 過去の MEMO / セッション記録中の「Phase 7」参照（third_party 撤去・USAGE 改訂・
+> リリース準備・abi3t ストレッチ等）は**現在の Phase 8** を指す。
 
 - [ ] ゲート確認: L5 クロス検証 CI が 2 リリースサイクル連続 green
 - [ ] `py/compress.py` 旧経路（ensure_zipnn L160–628 ほか）全削除
@@ -1593,19 +1721,19 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
 
 | #   | リスク                                       | 確率 | 影響 | 緩和策                                                                                                                                                                              | 対応フェーズ |
 | --- | -------------------------------------------- | ---- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| R1  | huff0 ポートのビットレベルバグ（静かな破損） | 中   | 大   | L2 差分テスト + L3 fuzz + `znn_neo_src_sha256` 端到端検証（破損は**検知される**）。third_party は Phase 7 まで保持                                                                  | 1–7          |
+| R1  | huff0 ポートのビットレベルバグ（静かな破損） | 中   | 大   | L2 差分テスト + L3 fuzz + `znn_neo_src_sha256` 端到端検証（破損は**検知される**）。third_party は Phase 8 まで保持                                                                  | 1–8          |
 | R2  | 公式 zipnn との非互換（エコシステム分断）    | 低   | 大   | 互換帯は L5 を CI ゲート化。拡張帯はマーキング + UI 明示 + 明示エラー（静かな破損なし）                                                                                             | 1,4          |
-| R3  | abi3 バイナリの環境非互換（古い glibc 等）   | 中   | 中   | zigbuild glibc 2.28（現行 C の 2.34 要件より広い）、CI に旧環境スモーク、失敗時は明確なエラー表示                                                                                   | 0,7          |
+| R3  | abi3 バイナリの環境非互換（古い glibc 等）   | 中   | 中   | zigbuild glibc 2.28（現行 C の 2.34 要件より広い）、CI に旧環境スモーク、失敗時は明確なエラー表示                                                                                   | 0,8          |
 | R4  | Windows の mmap/ロック競合（AV・OneDrive）   | 中   | 中   | 読取専用共有 mmap、書込は tempfile+rename、Windows QA チェックリスト                                                                                                                | 2            |
 | R5  | rayon が ComfyUI 推論と CPU 競合             | 中   | 中   | 専用プール + `min(cpu,16)` 既定 + 実行中スレッド半減オプション                                                                                                                      | 2            |
-| R6  | リポジトリ肥大（native-bin ≤20 MB）          | 中   | 小   | サイズ CI ゲート（4 MB/本 = **目安** — 超過はユーザ判断で上限改定: §3.3/§6.3。合計 ≤20 MB はハード上限）。合計超過時は GitHub Releases 配信へ切替（ローダーに取得経路を設計時内蔵） | 0,7          |
+| R6  | リポジトリ肥大（native-bin ≤20 MB）          | 中   | 小   | サイズ CI ゲート（4 MB/本 = **目安** — 超過はユーザ判断で上限改定: §3.3/§6.3。合計 ≤20 MB はハード上限）。合計超過時は GitHub Releases 配信へ切替（ローダーに取得経路を設計時内蔵） | 0,8          |
 | R7  | 永続インデックスの破損/陳腐化                | 低   | 小   | チェックサム + 世代番号。不一致時は自動全再構築（常に派生データ）                                                                                                                   | 5            |
 | R8  | shallowRef 移行による UI 退行                | 中   | 中   | 影響棚卸し先行・段階移行・計測比較。問題時は対象ストアのみロールバック                                                                                                              | 6            |
 | R9  | PyO3/maturin の破壊的変更                    | 低   | 小   | Cargo.lock 同梱でピン留め、更新は専用 PR                                                                                                                                            | 全           |
-| R10 | 上流 zipnn の将来フォーマット変更            | 低   | 中   | ヘッダーのバージョンバイト厳密検査、上流リリース監視の CI 定期ジョブ化                                                                                                              | 1,7          |
+| R10 | 上流 zipnn の将来フォーマット変更            | 低   | 中   | ヘッダーのバージョンバイト厳密検査、上流リリース監視の CI 定期ジョブ化                                                                                                              | 1,8          |
 | R11 | f64 8 平面方式の圧縮率が期待未満             | 中   | 小   | 方式のモジュール化。目標は「破損せず現行（パススルー）以上」。測定後にトランケート等で改善                                                                                          | 4            |
 | R12 | 既存デルタファイル（C 版生成）の復旧不能     | 低   | 大   | C 版の往復は非クラッシュケースで全て正しいことを実証済み（付録 C.3）。Rust 解凍器は C 出力を 100% 受理（L2/L5）。万一の不一致ファイルは `.corrupt` 退避で原本（base）を保持         | 3            |
-| R13 | free-threaded Python 普及時の abi3 非対応    | 低   | 小   | PyO3 `abi3t-py315` 対応済み。需要確認後に追加ビルド（ストレッチ）                                                                                                                   | 7            |
+| R13 | free-threaded Python 普及時の abi3 非対応    | 低   | 小   | PyO3 `abi3t-py315` 対応済み。需要確認後に追加ビルド（ストレッチ）                                                                                                                   | 8            |
 
 ---
 
@@ -1671,7 +1799,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
       ルートで生存 + byte‑exact — 三層テスト固定）。L1 132 緑・pytest 59 緑・
       L2 quick 再 PASS・L3 6 ターゲット化（delta_decompress 追加、スモーク
       122 k execs クラッシュ 0）・api_version 3（ローダー exact レンジ同期）。
-      実 UI 手動 QA は Phase 2 残件と併せ Phase 7 で統合（BENCH §8）。
+      実 UI 手動 QA は Phase 2 残件と併せ Phase 8 で統合（BENCH §8）。
       **2026‑09‑26 独立監査で再検証**（dev の force‑push 巻き戻しから
       12 コミットを SHA 回収・マージ復元したツリーに対して）: L1 132 /
       pytest 60 / L2 quick 1,121 / L5 D 節 / K4・K5 再計測が全て一致し、
@@ -1761,7 +1889,11 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
       notify/debouncer-full + tensor tree）。fuzz 表面は不変
       （codec 無変更・新 API は fuzz ターゲット外）→ 再ディスパッチ不要。
       証跡 BENCH §11
-- [ ] **Phase 7** — third_party 撤去・配布仕上げ・v0.3.0 リリース
+- [ ] **Phase 7** — ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定・6 項目:
+      T1 アップロード preflight SHA256 の Rust 化 / T2 Node v26.10.0 /
+      T3 Ruff 0.16.9 / T4 uv 導入〔開発・CI 層限定〕/ T5 mypy.ini →
+      pyproject.toml 統合 + 統合できる設定 / T6 設定ファイル全面見直し）
+- [ ] **Phase 8** — third_party 撤去・配布仕上げ・v0.3.0 リリース（旧 Phase 7）
 
 ---
 
