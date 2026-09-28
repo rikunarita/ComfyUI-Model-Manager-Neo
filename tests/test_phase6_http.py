@@ -452,9 +452,12 @@ async def test_search_sweep_cancels_providers_when_the_client_goes_away(prompt_s
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
-    # let the inner cancellation be delivered before asserting on it
-    for _ in range(5):
-        await asyncio.sleep(0)
+    # Wait on the CONDITION (the provider's CancelledError handler setting the
+    # event), not a fixed number of loop yields: `task.cancel()` only schedules
+    # the inner cancellation, so a bare `sleep(0)` loop could assert before it
+    # is delivered. A bounded wait is both robust and fails loudly on a real
+    # orphan (the handler leaving the provider running with nobody to read it).
+    await asyncio.wait_for(cancelled.wait(), timeout=5)
     assert cancelled.is_set(), "the in-flight provider coroutine was orphaned"
 
 

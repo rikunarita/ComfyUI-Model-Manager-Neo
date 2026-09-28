@@ -2400,3 +2400,104 @@ Phase 6 差分の中核を全て実読 + 実走査し、以下がいずれも健
   ゼロ、`json-bench` は BENCH §2 の証跡計測器、`third_party`/`znn-cli`/`scripts/l2`・
   `l5`・fuzz corpus は CI/Phase 7 が参照、web バンドルに孤児なし = Phase 6 で旧
   ja/zh chunk は差し替え済み）。demo-assets はユーザが後で追加するため対象外。
+
+## 2026-09-28（第 10 セッション）— CI 完了確認 + テストコードのバグ/甘さ精査（4 件修正、全て mutation 検証）
+
+ユーザ指示「GitHub Actions の完了確認」+「テストコードのバグ・テストの甘さを精査・
+修正せよ」に対するセッション。**テストバグ（誤アサーション）は 0 件**、
+**カバレッジギャップ/脆弱アサーション 4 件**を修正（いずれも mutation testing で
+「回帰を捕捉できること」を実証）。production code は**一切変更していない**
+（差分は tests/ の 3 ファイルのみ）。
+
+### CI 完了確認（GitHub API 実測）
+
+第 9 セッションの push（2410f11）に対する Actions は**全て success**:
+CI #140（push）/ #141（PR）・native #51（push）/ #52（PR）。native #51 は
+**全 14 ジョブ green**（native-test×3 OS / native-build×3 / native-diff〔L2〕/
+fuzz-smoke〔L3〕/ abi3-import 3.10+3.13 / integration×3〔L4/L5 + tensor-tree
+cross-check + 新 rowsIdentical ゲート〕/ size-budget）。ci.yml #140 は新設の
+`Dead code & duplication (fallow)` ステップを含め全ステップ green（fallow バイナリが
+ubuntu-latest ランナで正常 install/run することも実証）。
+
+### テスト精査の方針と範囲（fresh eyes・一次コード against）
+
+基盤（`harness.py` の byte-exact safetensors writer / DTYPE_BITS の bit 境界 assert /
+決定的 LCG、`stubs.py` の ComfyUI master 忠実ミラー〔filter_files_extensions・
+safetensors_header の差分も文書化〕、`conftest.py`）+ 全 phase テストを実読。
+**総じて極めて高品質**を一次確認: byte-exact roundtrip（sha256）、golden metadata
+contract（`znn_compressed_vectors` == Python `json.dumps` 逐語）、native==legacy parity
+（scan/hygiene/header/hash/walk/move/batch）、degrade 経路、executor スレッド検証
+（`test_arm_and_release_run_off_the_event_loop`）、実 aiohttp モックサーバ
+（往復回数まで固定）、15 ケースの validator。**誤アサーション・偽陽性テストは
+発見されず**。Phase 5/6 監査の全修正（6+10 件）に対応する回帰テストが存在することも
+突き合わせて確認した。
+
+### 修正 4 件（全て mutation testing で有効性を実証）
+
+1. **download 書き込みループのガード接合部が未検証**（test_phase5_download.py）:
+   旧 `test_hasher_update_on_a_lost_handle_raises_and_is_caught_by_the_loop` は
+   名前/docstring が「ループが捕捉する」と謳うのに、実際は **native の KeyError
+   送出（前提条件）しか検証しておらず**、Phase 5 監査 #2 の本体（`hasher_update`
+   失敗 → `except` で `hasher=None` → 書き込み継続 → `_download_complete` の
+   `_sha256_of` re-read で検証完了）という**接合部が無テスト**だった。
+   → 端到端テスト `test_write_loop_survives_a_lost_hasher_handle_and_rereads` を新設
+   （ローカル aiohttp TestServer + **fake core**〔hasher_update が KeyError、
+   hasher_finalize は呼ばれたら AssertionError〕で `download_model_file_http` を駆動。
+   **native 不要 = ci.yml でも実行**。1.5 MiB=2 chunk で「最初の失敗後も書き続けて
+   完走・正しい sha・inline digest 未 stage・progress 100%」を固定）。旧テストは
+   `..._raises_keyerror` へ改名し docstring を実態（前提条件）に是正。
+   **mutation 検証**: ガードの try/except を外すと KeyError が伝播してテスト失敗。
+   ※ 駆動時の注意: TaskStatus 既定 status が `"pause"` だと書き込みループが即 break
+   する（協調ポーズ）。実オーケストレータ `download_model` は呼び出し前に
+   `status="doing"` にするので、テストも `md.get_task_status(task_id).status="doing"`
+   を設定する（これを忘れると 0 バイトで "pause" になる）。
+2. **`.tmp` フィルタの接合部が未検証**（test_phase6_watcher.py）: `_interesting`
+   （`.tmp` 除外）は単体テスト済みだが、`_tick` が実際にそれを適用して
+   「Neo 自身の atomic write チャーンではブロードキャストしない」ことは未検証だった
+   （回帰すると ZipNN 圧縮/ダウンロードのたびに再スキャン嵐）。
+   → `test_tmp_artefacts_alone_do_not_broadcast` を新設（`.tmp` のみの poll 報告で
+   `models_changed` ゼロ + `stats["events"]==0`）。**mutation 検証**: `_tick` の
+   `if _interesting(...)` を外すとブロードキャストして失敗。
+3. **type_matcher の sibling-prefix が未検証**（test_phase6_watcher.py）: 区切り文字を
+   考慮した前方一致（`prefix = root.rstrip(sep)+sep`）は正しいが、古典的バグ級
+   （naive `startswith(root)` だと `/models/ck_old` が root `/models/ck` に誤マッチ）
+   を固定するテストが無かった。→ `test_types_for_path_maps_the_longest_root_first` に
+   sibling ディレクトリの assert を追加。**mutation 検証**: `startswith(root)` に
+   変えると失敗。
+4. **cancel 伝播テストの脆弱なタイミング依存**（test_phase6_http.py）:
+   `test_search_sweep_cancels_providers_when_the_client_goes_away` が固定回数の
+   `for _ in range(5): await asyncio.sleep(0)` で cancel 伝播を待っていた（回数依存で
+   理論上 flaky）。→ 条件ベースの `await asyncio.wait_for(cancelled.wait(), timeout=5)`
+   へ（伝播完了を待つ・孤児化時は timeout で大声で失敗）。**mutation 検証**:
+   search.py の `for task: task.cancel()` を外すと TimeoutError で失敗。
+
+### 検証（テストのみの変更・全緑）
+
+pytest **178 passed**（native + torch = native.yml 相当、第 9 の 176 から **+2** =
+新規 2 件は native 不要）/ **58 passed・120 skipped**（native なし = ci.yml 相当、
+56→58）・ruff check ✓・ruff format ✓（49 files）・mypy 16 files ✓（py/ 無変更）。
+frontend ゲート（typecheck/eslint/stylelint/prettier/build/bench/fallow）は src/ を
+触っていないため影響なし（再実行不要）。native `.so` は debug ビルドで再作成
+（release lto=fat は 1 GiB で OOM するため）。
+
+### 判断記録（保守側 = 追加しなかったもの）
+
+- **resume seeding の executor オフロード（Phase 5 監査 #1）は thread 検証を
+  追加しなかった**: 206 + Range + 実 hasher（seed+残りで正しい sha を出す）+
+  スレッド記録が必要で複雑/脆弱になる。seeding の**正確性**は
+  `test_seed_hasher_from_file_matches_a_whole_file_hash` が、**「重い native 呼び出しを
+  loop 外で」パターン**は `test_arm_and_release_run_off_the_event_loop`（watcher）が
+  既に固定しているため、限界価値 < 脆弱テストのリスクと判断。
+
+### 運営メモ（次セッション向け）
+
+- **テストは mutation testing で「回帰を捕捉できること」まで検証すること**
+  （今回 4 件全てで実施: ガード/フィルタ/一致/cancel を意図的に壊して失敗を確認 →
+  復元）。アサーションが「通る」だけでは甘さの見逃しになる。
+- `download_model_file_http` を直接駆動するテストは **status="doing" の設定が必須**
+  （既定 "pause" だと書き込みループが即 break）。fake core は
+  `monkeypatch.setattr(download.native, "core_if_enabled", lambda: Fake())` で注入でき、
+  **native バイナリ無しで** inline-hash 経路を検証できる（ci.yml カバレッジになる）。
+- テストスイートの品質は極めて高い（byte-exact golden / parity / 逐語 contract /
+  degrade / thread 検証）。今後テストを増やす際は「既存の強いパターンの踏襲」と
+  「mutation で捕捉力を証明」を基準にすること。
