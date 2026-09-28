@@ -21,6 +21,7 @@
 | 2.0  | 2026‑09‑22 | 全面改訂。(1) C コアのメモリ欠陥を実機実証し重大度評価を追加、(2) データ完全性保証設計を新設、(3) 追加最適化 8 件を精査・反映、(4) mold / rustfmt / clippy をツールチェーン標準に採用、(5) crate 最新版の再検証（jiter・bincode 3 等）、(6) 事業計画書レベルの構成へ全面再編                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | 2.1  | 2026‑09‑28 | ユーザ決定: **Phase 7「ツールチェーン現代化・設定統合」を新設**（6 項目 — T1 アップロード preflight SHA256 の Rust 化〔既存 mm_core.hash_file へ接続〕・T2 Node v26.10.0〔nodejs.org dist 実測 = v26 系最新・2026‑09‑21〕・T3 Ruff 0.16.9〔PyPI latest 実測〕・T4 uv 導入は**開発・CI 層限定**〔ランタイムの requirements.txt / pip_install 契約は維持・uv 0.12.19 実測〕・T5 mypy.ini → pyproject.toml `[tool.mypy]` 統合〔mypy 2.3.1 で自動発見を実証済み〕+ 統合できる設定の統合〔tests/pytest.ini は rootdir 制御のため意図的に非統合〕・T6 設定ファイル全面見直し〔GitHub Actions の major 更新: checkout v7 / setup-node v7 / setup-python v7 / artifact v7・v8 / pnpm-action v6.1 / setup-uv v10.2 — 2026‑09‑28 API 実測〕）。**旧 Phase 7（third_party 撤去・配布仕上げ・リリース）は内容そのまま Phase 8 へ繰り下げ** — §6.1 総覧・§6.2・§7 リスク表（R1/R3/R6/R10/R13）・§9 と本文中の相互参照 5 箇所を同期更新。過去の MEMO / セッション記録中の「Phase 7」参照は現在の Phase 8 を指す。新 Phase 7 のバージョン事実は全て 2026‑09‑28 に一次ソースで確認（nodejs.org dist index / PyPI / GitHub API / vite・dependency-cruiser の engines / mypy 2.3.1 の `[tool.mypy]` 自動発見はサンドボックス実測で実証）                                                                                                                                                                                               |
 | 2.2  | 2026‑09‑28 | ユーザ決定 3 件: **(1) Phase 7 に T7「zenwebp 導入 + ライセンス整備」を追加** — zenwebp 0.4.4（imazen・pure‑Rust VP8/VP8L encode+decode・animation・ICC/EXIF/XMP）を一次確認し、§3.8 の「純 Rust ロッシー WebP エンコーダ不在」評価に 2026‑09‑28 追記（評価陳腐化）。第一段階はエンコードのみ（デコードは信頼できない入力の保安面のため PIL/libwebp 実績を維持）、第二段階でアニメ GIF/WebP の**アニメ WebP 保持**（現行は先頭フレーム固定化 = 実 UX 劣化の解消）。**AGPL‑3.0/商用デュアルライセンス**（LICENSE-AGPL3 + LICENSE-COMMERCIAL 実査）のため**ライセンス整備を必須条件化**（§8 節・native/NOTICE・README×2 Credits・registry 要件再確認・§3.7 crate 表 / AGPLv3 §13 = GPLv3 結合許可・ローカルアプリのためネットワーク条項は実質無作用）。**(2) Phase 7 に T8「utils.py 残り requests 2 箇所の aiohttp 化（A3 完了）」を追加** — IO プール枯渇リスク解消（read timeout 120 s × 8 slots）・http_client 方針一元化・MockHub テスト化。**requests は modelscope_hub の推移的依存として残る**ことを明記（pip show 実測: Required-by modelscope-hub — 依存削減ではなく構造的メリット）。**(3) Phase 8 のストレッチ項目（自由スレッド Python 向け abi3t ビルド実験）を削除** — リスク表 R13 の緩和策を「計画外の随時対応（PEP 803 = abi3t は CPython 3.15+・PyO3 abi3t-py315 対応済み・maturin は PyO3/maturin#3064 で整備中）」へ更新。Phase 7 完了条件を 6 → **8 項目**へ、§6.1 総覧・§9 チェックリストを同期 |
+| 2.3  | 2026‑09‑28 | ユーザ決定: **T7（zenwebp）は一気刷新 — 第一段階/第二段階の段階分けを挿まない**。静止 WebP エンコード + アニメ GIF/WebP のアニメ WebP 保持 + **WebP デコード**（codec の全面活用）をすべて T7 の内で実施する。旧段階案の「デコード側は PIL/libwebp 実績を維持」という保安考慮は**先送りではなくゲート化**して対処（L3 fuzz 新ターゲット = 敵対的 WebP → デコード経路の fuzz‑smoke 常設 + デコード parity ゴールデン + 上流 fuzz 実績の精査を採用の前提条件化）。PIL の完全除去は構造的に不可能（PNG/JPEG/GIF/BMP デコードは zenwebp の対象外 = WebP のみ。PIL は ComfyUI コア依存で常在）— PIL は非 WebP 入力のデコード + 全機能フォールバック（ロールバック単位）として残り、Phase 8 の `MM_NATIVE` 撤去まで両経路并存。§3.8 追記・§6.1 総覧・§9 チェックリスト・T7 本体を同期                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ### 進捗マーク凡例
 
@@ -490,9 +491,11 @@ crates.io 全件調査の結果、ZipNN が要求する**生 huff0 ブロック*
   最新コミット 2026‑09‑27・fuzz 基盤あり）が「**pure‑Rust WebP codec —
   lossy (VP8) / lossless (VP8L) の encode+decode** + alpha・animation・
   ICC/EXIF/XMP」として出現（crates.io API + GitHub 実査で一次確認）。
-  **Phase 7 T7 で導入を計画**（第一段階はエンコードのみ = デコード側の
-  信頼できない入力は PIL/libwebp の実績を維持。**AGPL‑3.0/商用デュアル
-  ライセンス**のためライセンス整備を必須条件とする — 詳細は T7）。
+  **Phase 7 T7 で一気刷新として導入**（2026‑09‑28 ユーザ決定 — 段階を
+  挿まない: 静止エンコード + アニメ WebP 保持 + WebP デコードを T7 の内で
+  一斉実施。デコード側の信頼できない入力の保安面は**先送りではなく
+  fuzz + parity ゲート化**で対処する。**AGPL‑3.0/商用デュアルライセンス**
+  のためライセンス整備を必須条件とする — 詳細は T7）。
   `_encode_preview` の分離構造は PIL フォールバックのロールバック単位として
   活用する。同系の webpx（668,335 DL）は libwebp の **C バインディング**で
   純 Rust でないため対象外。
@@ -1039,17 +1042,17 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ## 6.1 フェーズ総覧
 
-| Phase | 名称                                                    | 主成果物                                                                                                                                                                                                          | 完了条件（要約）                                               |
-| ----- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| 0     | 基盤準備                                                | ワークスペース・CI・ベンチ基盤                                                                                                                                                                                    | 全ターゲットで abi3 ビルド疎通、KPI ベースライン記録           |
-| 1     | znn-codec フォーマット中核                              | ヘッダー/平面/huff0・FSE/codec                                                                                                                                                                                    | L1–L3 green、C 版との圧縮率差 ±0.5%・速度同等以上              |
-| 2     | safetensors 圧縮/解凍 + 接続                            | mm-core API、compress.py 切替                                                                                                                                                                                     | L4 green、K1–K3/K6 達成、UI QA                                 |
-| 3     | デルタ + バッチ                                         | delta.rs、バッチプリミティブ                                                                                                                                                                                      | K4/K5 達成、現行と同一挙動 QA                                  |
-| 4     | dtype 大幅拡張                                          | 8 平面/f64/整数/MX 系、UI バッジ                                                                                                                                                                                  | 全拡張 dtype 往復 green、L5 退行なし                           |
-| 5     | スキャン/インデックス/ハッシュ/更新                     | scan.rs、hash.rs、models_changed                                                                                                                                                                                  | K7–K11 達成、UI 退行なし                                       |
-| 6     | フロントエンド表示最適化 + Phase 5 移管の任意項目       | C1–C5、A3、watch_roots（任意）                                                                                                                                                                                    | K15 計測実証（任意項目は実施時のみ判定）                       |
-| 7     | ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定） | T1 preflight SHA256 Rust 化、T2 Node v26.10.0、T3 Ruff 0.16.9、T4 uv（開発・CI 層）、T5 pyproject 設定統合、T6 設定ファイル全面見直し、T7 zenwebp 導入 + ライセンス整備、T8 utils.py requests 2 箇所の aiohttp 化 | 8 項目実施 + 全ゲートマトリクス緑 + Actions 更新後の CI 実走緑 |
-| 8     | third_party 撤去・配布仕上げ（旧 Phase 7）              | native-bin 単一経路、v0.3.0                                                                                                                                                                                       | 全新規 clone で全 OS 動作                                      |
+| Phase | 名称                                                    | 主成果物                                                                                                                                                                                                                                     | 完了条件（要約）                                               |
+| ----- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| 0     | 基盤準備                                                | ワークスペース・CI・ベンチ基盤                                                                                                                                                                                                               | 全ターゲットで abi3 ビルド疎通、KPI ベースライン記録           |
+| 1     | znn-codec フォーマット中核                              | ヘッダー/平面/huff0・FSE/codec                                                                                                                                                                                                               | L1–L3 green、C 版との圧縮率差 ±0.5%・速度同等以上              |
+| 2     | safetensors 圧縮/解凍 + 接続                            | mm-core API、compress.py 切替                                                                                                                                                                                                                | L4 green、K1–K3/K6 達成、UI QA                                 |
+| 3     | デルタ + バッチ                                         | delta.rs、バッチプリミティブ                                                                                                                                                                                                                 | K4/K5 達成、現行と同一挙動 QA                                  |
+| 4     | dtype 大幅拡張                                          | 8 平面/f64/整数/MX 系、UI バッジ                                                                                                                                                                                                             | 全拡張 dtype 往復 green、L5 退行なし                           |
+| 5     | スキャン/インデックス/ハッシュ/更新                     | scan.rs、hash.rs、models_changed                                                                                                                                                                                                             | K7–K11 達成、UI 退行なし                                       |
+| 6     | フロントエンド表示最適化 + Phase 5 移管の任意項目       | C1–C5、A3、watch_roots（任意）                                                                                                                                                                                                               | K15 計測実証（任意項目は実施時のみ判定）                       |
+| 7     | ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定） | T1 preflight SHA256 Rust 化、T2 Node v26.10.0、T3 Ruff 0.16.9、T4 uv（開発・CI 層）、T5 pyproject 設定統合、T6 設定ファイル全面見直し、T7 zenwebp 一気刷新（静止+アニメ+デコード）+ ライセンス整備、T8 utils.py requests 2 箇所の aiohttp 化 | 8 項目実施 + 全ゲートマトリクス緑 + Actions 更新後の CI 実走緑 |
+| 8     | third_party 撤去・配布仕上げ（旧 Phase 7）              | native-bin 単一経路、v0.3.0                                                                                                                                                                                                                  | 全新規 clone で全 OS 動作                                      |
 
 ## 6.2 フェーズ詳細
 
@@ -1673,10 +1676,11 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   - ゲート: 全 CI 緑 + ローカル全ゲートの**挙動不変**（純粋な記法/バージョン
     現代化に限る。挙動を変える項目は個別にユーザ判断を仰ぐ）。
     発見事項と一次証跡は MEMO へ記録。
-- [ ] **T7: `zenwebp` 導入（純 Rust WebP エンコード）+ ライセンス整備** —
-      プレビュー WebP エンコード（§3.8 が「PIL 維持」とした経路）を native へ。
+- [ ] **T7: `zenwebp` 導入（純 Rust WebP codec — エンコード/デコード/アニメ・
+      一気刷新）+ ライセンス整備** — プレビュー WebP パイプライン
+      （§3.8 が「PIL 維持」とした経路）を**一括で** native へ刷新する。
       **2026‑09‑28 ユーザ決定**（AGPL‑3.0 コンポーネントの採用を承認・
-      ライセンス整備を必須化）。
+      ライセンス整備を必須化・**段階を挿まず一気刷新**）。
   - **一次確認（2026‑09‑28・crates.io API + GitHub 実査）**: zenwebp **0.4.4**
     （imazen = Imageflow 開発元。created 2026‑01‑24 / 35,026 DL /
     updated 2026‑05‑02 / crate 722,687 B / 最新コミット 2026‑09‑27 /
@@ -1685,21 +1689,40 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
     animation, ICC/EXIF/XMP metadata」→ §3.8 の「純 Rust ロッシー
     エンコーダ不在」評価は陳腐化（§3.8 に 2026‑09‑28 追記済み）。
     同系 webpx（668,335 DL）は libwebp の **C バインディング**のため対象外。
-  - **アーキテクチャ**: パイプラインは「入力画像（PNG/JPEG/GIF/BMP/WebP）→
-    **PIL でデコード**（PIL は ComfyUI コア依存で環境に常在。zenwebp の
-    デコード対象は WebP のみ）→ ピクセルバッファ → **zenwebp でエンコード**」。
-    **第一段階（初回導入）はエンコードのみ** — デコードは信頼できない CDN 入力の保安面なので
-    PIL/libwebp の実績を維持し、zenwebp デコード採用は fuzz 実績が成熟してから
-    別途判断する。`_write_preview_content` の image 分岐（`Image.open` →
-    `save(..., "WEBP")`）を native 呼び出しへ差し替え、§3.8 の分離構造を
-    **PIL フォールバック**として維持（native 不在/失敗時のロールバック単位 =
-    Phase 8 の `MM_NATIVE` 撤去まで両経路并存）。
-  - **第二段階（機能追加 = 導入の実益）**: 現行はアニメ GIF / アニメ WebP
-    プレビューが**先頭フレームの静止 WebP に固定化**される（PIL
-    `Image.open` → 単一フレーム保存）。zenwebp の animation 対応で
-    **アニメ WebP 出力**（PIL でマルチフレーム + duration を抽出して引き渡し）
-    を実装する — 現行パイプラインでは不可能な UX 向上（Civitai プレビューで
-    実際に発生する劣化の解消）。
+  - **一括実施（2026‑09‑28 ユーザ決定 — 第一段階/第二段階の段階分けを
+    挿まない）**: プレビュー WebP パイプラインを zenwebp へ一気に刷新する。
+    範囲は次の 3 点（**すべて T7 の内**）:
+    1. **静止 WebP エンコード**: `_write_preview_content` の image 分岐
+       （`Image.open` → `save(..., "WEBP")`）を native 呼び出しへ差し替え
+       （デコード済みピクセルバッファを zenwebp へ引き渡す。同一寸法・
+       デコード可能の挙動契約は現行と parity ゲートで固定）。
+    2. **アニメ WebP 保持**: 現行はアニメ GIF / アニメ WebP プレビューが
+       **先頭フレームの静止 WebP に固定化**される（PIL `Image.open` →
+       単一フレーム保存）。PIL でマルチフレーム + duration を抽出して
+       zenwebp の animation エンコードへ引き渡し、**アニメ WebP を出力**する
+       （animation API の形状は実施時に一次ドキュメントで確認）—
+       現行パイプラインでは不可能な UX 向上（Civitai プレビューで実際に
+       発生する劣化の解消）。
+    3. **WebP デコード**: WebP 入力のデコードにも zenwebp を使う（codec の
+       全面活用）。**ただし PIL の完全除去は構造的に不可能** —
+       PNG/JPEG/GIF/BMP のデコードは zenwebp の対象外（WebP のみ）で、
+       PIL は ComfyUI コア依存として環境に常在する。パイプライン =
+       「非 WebP 入力 → PIL デコード / WebP 入力 → zenwebp デコード →
+       ピクセルバッファ（+フレーム列）→ zenwebp エンコード」。
+  - **保安面はゲート化して対処する（先送りしない）**: デコードは
+    **信頼できない CDN 入力**を扱う。zenwebp は純 Rust（メモリ安全）だが
+    v0.4.x と若いため、**採用の前提条件**として次を必須化する:
+    **(i)** 敵対的 WebP バイト列 → zenwebp デコード経路の **L3 fuzz 新ターゲット**
+    （fuzz‑smoke 60 s / CI 常設 + fuzz‑long で長時間バジェット）、
+    **(ii)** デコード parity ゴールデン（zenwebp vs PIL: 実 WebP コーパスで
+    ピクセル一致または正しいエラー）、**(iii)** 上流 fuzz 基盤の実績精査
+    （zenwebp リポジトリの `fuzz/` ディレクトリ存在は確認済み —
+    クラッシュ履歴・カバレッジを実施時に確認）。旧段階案の
+    「PIL/libwebp の実績を維持」という考慮は、これらのゲートで担保する。
+  - **PIL フォールバック = ロールバック単位**: §3.8 の分離構造を維持し、
+    native 不在/失敗時は**全機能**が現行 PIL 経路へフォールバックする
+    （Phase 8 の `MM_NATIVE` 撤去まで両経路并存。フォールバック側は
+    現行挙動のまま = アニメは先頭フレーム固定化）。
   - **ライセンス整備（必須 — 2026‑09‑28 ユーザ指示で明記）**: zenwebp は
     **AGPL‑3.0 / 商用デュアルライセンス**（一次確認: リポジトリの
     `LICENSE-AGPL3` + `LICENSE-COMMERCIAL`、docs.rs に AGPL 文言）。
@@ -1718,12 +1741,16 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   - **サイズゲート**: `.so` 増分を実測（現在 linux‑x86_64 **3,137,312 B =
     予算 4 MB の 75 %**。追加で目安超過の場合は §3.3/§6.3 規程により
     報告し上限改定はユーザ判断）。
-  - ゲート: Rust L1（エンコード往復・品質・アニメ・ICC）、pytest ゴールデン
-    （native vs PIL フォールバックのプレビュー出力 parity — エンコーダが
-    異なるためバイト一致ではなく「同一寸法・デコード可能・サイズ許容帯」の
-    挙動契約を固定）、アニメ WebP のフレーム数/duration 保持テスト、
-    既存プレビュー系テスト全緑、サイズ実測、**api_version bump**
-    （新規 API — §4.2.2 の 4 者同期規程）。
+  - ゲート: Rust L1（エンコード往復・品質・アニメ・ICC・**PIL とのデコード
+    parity**）、**L3 fuzz 新ターゲット**（敵対的 WebP → デコード経路 —
+    fuzz‑smoke 常設。native.yml の 6 ターゲット ハードコード ループと
+    fuzz‑long.yml の matrix を 7 へ拡張 — 同一コミットで更新）、
+    pytest ゴールデン（native vs PIL フォールバックの
+    プレビュー出力 parity — エンコーダが異なるためバイト一致ではなく
+    「同一寸法・デコード可能・サイズ許容帯」の挙動契約を固定）、
+    アニメ WebP のフレーム数/duration 保持テスト、既存プレビュー系テスト
+    全緑、サイズ実測、**api_version bump**（新規 API — §4.2.2 の
+    4 者同期規程）。
 - [ ] **T8: `py/utils.py` の残り `requests` 2 箇所の aiohttp 化（A3 の完了）** —
       対象: `save_model_preview` の URL 取得（L687・ダウンロード完了経路）と
       エディタ保存経路（L750）— いずれも io_executor 内のブロッキング
@@ -1995,8 +2022,9 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
       T1 アップロード preflight SHA256 の Rust 化 / T2 Node v26.10.0 /
       T3 Ruff 0.16.9 / T4 uv 導入〔開発・CI 層限定〕/ T5 mypy.ini →
       pyproject.toml 統合 + 統合できる設定 / T6 設定ファイル全面見直し /
-      T7 zenwebp 導入〔純 Rust WebP エンコード + アニメ WebP 保持・
-      **AGPL‑3.0 ライセンス整備を必須化**〕/ T8 utils.py 残り requests
+      T7 zenwebp 一気刷新〔静止エンコード + アニメ WebP 保持 + WebP デコード・
+      fuzz/parity ゲート・**AGPL‑3.0 ライセンス整備を必須化**〕/
+      T8 utils.py 残り requests
       2 箇所の aiohttp 化〔A3 完了 — requests は modelscope_hub の
       推移的依存として残存〕）
 - [ ] **Phase 8** — third_party 撤去・配布仕上げ・v0.3.0 リリース（旧 Phase 7）
