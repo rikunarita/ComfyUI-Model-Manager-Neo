@@ -62,7 +62,7 @@ const ESCAPED_STAR_RE = /\\\*/g
  * `.*` wildcard (so `*xl*` keeps working). A pattern that somehow fails to
  * compile falls back to the raw token, exactly as before.
  */
-export const buildTokenRegex = (raw: string): RegExp => {
+const buildTokenRegex = (raw: string): RegExp => {
   try {
     const escaped = raw.replace(REGEX_SPECIAL_RE, '\\$&').replace(ESCAPED_STAR_RE, '.*')
     return new RegExp(escaped, 'i')
@@ -105,7 +105,7 @@ const tokensMatch = (tokens: SearchToken[], fields: (string | null | undefined)[
  * model-type and smart-collection checks stay in the component — they read
  * stores this module must not know about).
  */
-export const filterModels = <T extends GridModel>(
+const filterModels = <T extends GridModel>(
   models: T[],
   tokens: SearchToken[],
   matches?: (model: T) => boolean,
@@ -126,11 +126,7 @@ export const filterModels = <T extends GridModel>(
  * one row per item). Returns `[]` for a non-positive width, mirroring the
  * guard the component kept for es-toolkit's `chunk()` (which throws there).
  */
-export const chunkRows = <T>(
-  list: T[],
-  columns: number,
-  keyOf: (model: T) => string,
-): GridRow<T>[] => {
+const chunkRows = <T>(list: T[], columns: number, keyOf: (model: T) => string): GridRow<T>[] => {
   if (columns < 1) return []
   const rows: GridRow<T>[] = []
   for (let start = 0; start < list.length; start += columns) {
@@ -199,7 +195,7 @@ export const compareText = (a: string, b: string): number => a.localeCompare(b)
 /** `a.localeCompare(b, undefined, { numeric: true })` semantics through the
  *  hoisted collator: embedded digit runs compare as numbers (`layer2` before
  *  `layer10`) at ~1/32 of the per-call cost. */
-export const compareTextNumeric = (a: string, b: string): number => numericCompare(a, b)
+const compareTextNumeric = (a: string, b: string): number => numericCompare(a, b)
 
 /**
  * Natural order for tree segments (the tensor tree's historical rule): a

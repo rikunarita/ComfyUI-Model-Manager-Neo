@@ -38,15 +38,17 @@ import { naturalCompare } from 'utils/modelFilter'
 
 /** Version of the wire format this decoder understands (the Rust encoder's
  *  `TENSOR_TREE_VERSION`). */
-export const TENSOR_TREE_VERSION = 1
+const TENSOR_TREE_VERSION = 1
 
 /** The name of an empty folder level (`a..b` → the middle level) — the same
  *  substitution the Rust fold and the historical frontend grouping apply. */
-export const UNNAMED_SEGMENT = '(unnamed)'
+const UNNAMED_SEGMENT = '(unnamed)'
 
-// The wire types live in types/typings (BaseModel references them); re-exported
-// here so consumers of this module have one import site.
-export type { TensorTreeNodeTuple, TensorTreePayload }
+// The wire types live in types/typings (BaseModel references them). The payload
+// type is re-exported here so consumers of this module have one import site (it
+// is the return type of buildTensorTreePayload); the node-tuple type is used
+// only inside this module, so it is deliberately NOT re-exported.
+export type { TensorTreePayload }
 
 /** One node as the renderer sees it. */
 export interface TensorTreeNodeView {

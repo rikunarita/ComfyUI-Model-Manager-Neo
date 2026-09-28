@@ -50,6 +50,20 @@ jobs:
       - name: Dependency graph (dependency-cruiser)
         run: pnpm deps
 
+      # Fallow (codebase intelligence): the documented "zero unused exports,
+      # zero duplication" invariant (README §Fallow). It is the graph-hygiene
+      # sibling of dependency-cruiser above. `unused-exports` / `unused-files` /
+      # `unresolved-imports` are ERROR-level in .fallowrc.json (a non-zero exit
+      # fails this step); `unused-types` / `private-type-leaks` are warnings and
+      # the single deliberate pnpm-workspace.yaml override is non-fatal, so a
+      # clean tree exits 0. Added after the Phase-6 final bug check found the
+      # invariant had drifted (utility modules exported helpers only the bench
+      # harness / their own file consume) precisely because nothing enforced it.
+      - name: Dead code & duplication (fallow)
+        run: |
+          pnpm fallow:dead
+          pnpm fallow:dupes
+
       - name: Format
         run: pnpm format:check
 

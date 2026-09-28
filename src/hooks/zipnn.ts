@@ -274,7 +274,7 @@ const beginTask = async (
  * every failure degrades to `null` and the dialog keeps its generic message
  * (a pre-check must never block a compression the user asked for).
  */
-export interface ZipnnInspect {
+interface ZipnnInspect {
   compressed?: boolean
   dtypes?: Record<string, number>
   tensors?: number
@@ -283,7 +283,7 @@ export interface ZipnnInspect {
   error?: string
 }
 
-export const inspectZipnnModel = async (model: {
+const inspectZipnnModel = async (model: {
   type: string
   pathIndex: number
   subFolder: string

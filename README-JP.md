@@ -751,7 +751,10 @@ Ruff（lint + format）。
 `@comfyorg/comfyui-desktop-bridge-types`（`@comfyorg/comfyui-frontend-types` の
 遷移的な型パッケージ）をピン留めする意図的な `pnpm-workspace.yaml` override です。
 `pnpm fallow:fix:dry` は `pnpm fallow:fix` が適用する前に、すべての自動削除を
-プレビューします。
+プレビューします。CI はこの不変条件を強制します: `ci.yml` の
+`Dead code & duplication (fallow)` ステップが `pnpm fallow:dead` +
+`pnpm fallow:dupes` を実行し、その ERROR レベルのルール
+（`unused-exports` / `unused-files` / `unresolved-imports`）がビルドを失敗させます。
 
 ### Lint & format スタック
 

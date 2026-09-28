@@ -2265,3 +2265,138 @@ CI ランナーの V8 でも再現した**ことの独立証跡。
 - watcher の arm/release は必ず executor 経由（`_tick` を直接呼ぶテストでも
   スレッドを検証している）。`SETTING_TTL` / `TYPE_COOLDOWN` / `DEGRADE_RETRY` /
   `MOUNTINFO_TTL` はテストから monkeypatch 可能な module 定数。
+
+## 2026-09-27（第 9 セッション）— Phase 6 最終バグチェック（バグなし）+ 描画行 parity ゲート新設 + fallow 不変条件の回復と CI ゲート化
+
+ユーザ指示「念のため Phase 6 のバグを精査し、見つかり次第修正、バグが無くなるまで
+検証・デバッグを反復」に対するセッション。**機能バグは 0 件**（第 8 セッションの
+独立精査 10 件が正しく、全ゲート緑をこの環境で再現）。加えて (1) テンソルツリーの
+**描画行 parity ゲート**を bench に新設（カバレッジギャップ解消）、(2) Phase 6 で
+**漂移していた fallow「未使用 export ゼロ」不変条件を回復**（13 export + 型 4 つを
+private 化）、(3) 同不変条件を **ci.yml のゲート化**（今回の漂移は fallow が CI で
+強制されていなかったことが原因）。
+
+### 環境再構築（セッション冒頭ロールバック対策 — 第 6/8 セッションと同型）
+
+apt（build-essential/clang/mold/libpython3.11-dev/curl/pkg-config）→ rustup stable
+**1.98.1**（+rustfmt/clippy）→ pip（ruff/mypy/pytest/pytest-asyncio/aiohttp/
+markdownify/huggingface_hub/hf_xet/modelscope_hub/pillow/numpy/safetensors +
+**torch 2.14.0+cpu** = フル 176 カバレッジ用）→ corepack pnpm 12.3.4 +
+`pnpm install --frozen-lockfile`。**dependency-cruiser 18 は Node ≥22 必須**
+（この環境は 20.20.2）→ 公式 tarball の Node v22.20.0 を `/tmp` へ展開して
+`depcruise src` を実行（136 modules / 409 deps、違反 0）。native `.so` は
+**debug ビルド**（`cargo build -p mm-core` = extension-module 既定）を
+`native/native-bin/linux-x86_64/mm_core.abi3.so` へ配置（gitignore 対象・68 MB）。
+**release（lto=fat）ビルドは 1 GiB で OOM（SIGKILL）**するため、テスト/検証は
+debug で十分（api_version ハンドシェークは同一）。
+
+### 全ゲート再検証（この環境で実測・全緑）
+
+- **Rust**: `cargo test -p znn-codec` **195** + 統合（extended_band）**4** +
+  `cargo test -p mm-core --no-default-features` **5**、clippy
+  `--workspace --all-targets --all-features -D warnings` ✓、`cargo fmt --check` ✓
+- **Python**: pytest **176 passed**（native + torch あり）/ **59 passed・117 skipped**
+  （native なし = ci.yml 相当、`mv` で成果物を退避して再現）、ruff check ✓、
+  ruff format ✓、mypy **16 files** ✓
+- **Frontend**: typecheck ✓、eslint ✓、stylelint ✓、prettier ✓、
+  dependency-cruiser ✓（136/409、違反 0・Node 22）、`pnpm build` ✓
+  （**決定的** — 同一ハッシュの chunk を再生成、manager.js は export 削除分のみ差分）
+- **K15 bench**: 全ゲート PASS（keystroke p95 予算内・C1 ×2.6–4.4・C2 numeric ×24・
+  既定 localeCompare 維持・tree ×60–104・rowsAreIdentical・tensorTreeParity・
+  **tensorTreeRowsIdentical〔新設〕**・validator 15 ケース）、`--cross-check`
+  **rustJsTreeIdentical: true**（Rust == JS エンコーダ バイト一致）
+- **fallow**: dead-code **検出 = 意図的な pnpm-workspace override のみ**（exit 0）・
+  dupes **0**・health/audit も exit 0
+
+### fresh eyes 精査 — 機能バグなしと判定した領域（negative findings）
+
+Phase 6 差分の中核を全て実読 + 実走査し、以下がいずれも健全であることを確認した
+（推測でなく一次コード against）:
+
+- **py/http_client.py**: `get_session` の None→生成は await を挟まず**同期アトミック**
+  （起動時の並発初回呼び出しでも二重生成しない）。loop 変化時のみ入る
+  `await close_session()` 分岐に理論上のレースがあるが、本番は loop が変わらない
+  ため到達せず（テストは autouse fixture が直列化）。`decode_json` の charset 準拠 +
+  `LookupError` フォールバック、`fetch_bytes_capped` の読みながら cap、
+  `HttpStatusError` の requests 逐語文言 + `.response.status_code` 維持 — 全て正しい。
+- **py/watcher.py**: `type_matcher` の最長一致 + 一度だけ realpath、rescan/type の
+  クールダウン（消費された rescan 信号を意図的に間引く = TTL が床）、
+  `_release_session` の `asyncio.shield`（cancel 中でも notify スレッド解放）、
+  arm/poll の executor 分離 — 設計通り。
+- **py/search.py**: 3 者並列 sweep の `except BaseException` cancel（オーファン化防止）、
+  `run()` が `Exception` のみ捕捉（CancelledError は伝播 = task が正しく cancelled 化）、
+  avatar/owner の distinct 並列 gather + キャッシュ、civitai の sort_keys 後段ソート。
+- **py/identify.py**: 二重スレッドホップ解消（recorded_hashes=io / compute_hashes=cpu /
+  lookup=loop）、`{**computed, **hashes}` の記録値優先。
+- **py/utils.py `get_model_header`**: `(mtime_ns, size)` で 2 回の native 呼び出しを挟み、
+  変化時は tree を落とす（stale payload ガード）— フロントの leaf 数検査と二重。
+- **native watch.rs**: arm 中の報告をローカル Vec に集めて後マージ（ロック順序反転の
+  解消）・poll_json は paths/errors/degraded を**逐次**ロック（同時保持なし）・
+  stop は debouncer をロック外で `stop_nonblocking`・`MAX_PENDING_PATHS` 超過で
+  1 rescan へ畳み込み・errors 64 上限 — デッドロック/リークなし。
+- **native safetensors_io `encode_tensor_tree`**: parent index < child index 不変条件に
+  よる逆順集計の正しさ、pre-order own-leaves-before-children の線形符号、
+  frame-stack による非再帰 emit（深名でスタック溢れしない）、saturating 集計。
+- **src/utils/tensorTree.ts `createTensorTreeIndex`**: leafOffset = tensorCount の累積、
+  `leaves.length === tensors.length` の stale ガード、subtree/parent の再構築 +
+  second-root / 未完 frame / `subtree[0] !== size` の構造検証（敵対的 payload を拒否）。
+- **C3 shallowRef（hooks/model.ts）**: 全 15 消費者を実査 — store は record 全体を
+  置換するのみ、消費者は読み取り / `cloneDeep`（explorer・useModelFolder）/ ローカル
+  配列への push のみで **in-place 変更ゼロ**。`.sort()` は全て copy/clone 後
+  （`[...x].sort` / `slice().sort` / filter 結果）。DialogModelDetail の
+  `watch(() => modelsData.value[type])` は shallowRef でも再代入で発火（getter が ref を追跡）。
+- **ModelContent.vue / ModelInformation.vue**: 表示専用 payload（tensors/tensorTree）の
+  参照共有は「読み取り専用 + 保存経路が送らない」で安全、`editableState()` が snapshot
+  から除外、ModelInformation は `toRaw()` 経由で Proxy トラップ回避。leaf の
+  `segment: tail || tensor.name` フォールバックは**legacy（873581f）と逐語同一**
+  （空 segment 名の表示も回帰なし）。
+
+### このセッションの変更（3 点 — 全て検証済み）
+
+1. **描画行 parity ゲート `tensorTreeRowsIdentical`（scripts/bench/front/k15.mjs）**:
+   遅延インデックス描画（`renderRows` = 出荷経路）が legacy 入れ子ツリー walk と
+   **同一の行キー列**（`f:<path>`/`t:<name>`、folders→leaves、DFS、ノード内
+   naturalCompare 順、500 件ページング）を出すことを、折りたたみ（root 直下 1 行）と
+   **全展開（MoE 84×256 = 152,462 行）**の両方で毎回照合。従来の `tensorTreeParity`
+   （root 集計 + 直下 children のみ）が届かない**描画順・再帰・ページングの回帰**を
+   捕捉する。証跡 JSON（`scripts/bench/results/phase6_front.json`）に決定的な
+   `rowsParity`（collapsed 1 / expanded 152462）+ `gates.tensorTreeRowsIdentical` を
+   外科的に追記（参照 timing 値と `rustJsTreeIdentical:true` は保持 = 再生成しない）。
+   BENCH §11.3 の「表示は不変」をこのゲートで機械固定した旨に更新。
+2. **fallow「未使用 export ゼロ」不変条件の回復**: Phase 6 の utility モジュールが
+   bench/自ファイル内でのみ消費される helper を export していた（第 8 セッションの
+   ゲートに fallow が無く未検出）。`fallow fix` で 13 値 export を private 化
+   （modelFilter: buildTokenRegex/filterModels/chunkRows/compareTextNumeric、
+   perf: perfMark/perfMeasure/perfSamples/perfSummary/perfReset/perfHandle、
+   tensorTree: TENSOR_TREE_VERSION/UNNAMED_SEGMENT、zipnn: inspectZipnnModel〔Phase 4 由来〕）
+   - 型 re-export `TensorTreeNodeTuple` を除去。**private 化の連鎖**で表面化した型
+     （ZipnnInspect/PerfHandle → PerfSample/PerfStat）も private 化（fallow の
+     `unused-types`=warn / `unused-exports`=error の区別を実測で確認）。全シンボルは
+     grep で**外部参照ゼロ**（コメント/ドキュメント参照のみ）を逐一確認してから実施。
+     typecheck/eslint/build/bench/fallow 全て緑で無破壊を確認（web バンドル再生成 =
+     minify 差分 5 行のみ、機能同一）。README/README-JP の Fallow 節も更新。
+3. **ci.yml に fallow ゲート新設**: `Dead code & duplication (fallow)` ステップ
+   （`pnpm fallow:dead` + `pnpm fallow:dupes`）を dependency-cruiser の後に追加。
+   ERROR レベル規則（unused-exports/unused-files/unresolved-imports）がビルドを
+   失敗させる（warn の unused-types/private-type-leaks と意図的な override は
+   exit 0 = クリーンツリーで緑）。**今回の漂移は fallow が CI で強制されて
+   いなかったことが原因**なので、再発を機械的に防ぐ。fallow は locked devDep
+   （`pnpm install --frozen-lockfile` で決定的に install）・Rust バイナリ
+   （Node 版非依存）・Debian 12 で動作確認済み = ランナでの flakiness リスク低。
+
+### 運営メモ（次セッション向け）
+
+- **fallow は CI ゲートになった**（ci.yml）。push 前に `pnpm fallow:dead` +
+  `pnpm fallow:dupes` を回すこと。export を消すと**その戻り型/注釈型が連鎖で
+  unused-types（warn）に落ちる**ので、型も併せて private 化すると clean になる
+  （error ではないので CI は落ちないが、README の「ゼロ」不変条件は型も含む）。
+- **release ビルドは 1 GiB で OOM する**（lto=fat + codegen-units=1）。native テスト/
+  検証は **debug ビルドの `.so`** で十分（api_version ハンドシェーク・全 pytest・
+  cross-check が同じ結果）。サイズゲート確認時のみ CI（zigbuild）に任せる。
+- **bench の証跡 JSON は再生成しない**（`--json-out` は既定で committed パスだが、
+  CI は `/tmp` へ書く）。timing 値は BENCH §11 が逐語参照する参照機のものなので、
+  ゲート追加時は**決定的な欄だけ外科的に追記**する（今回の rowsParity がその例）。
+- 不要ファイル整理: **削除対象なし**を一次調査で確認（コミット済み junk/`__pycache__`
+  ゼロ、`json-bench` は BENCH §2 の証跡計測器、`third_party`/`znn-cli`/`scripts/l2`・
+  `l5`・fuzz corpus は CI/Phase 7 が参照、web バンドルに孤児なし = Phase 6 で旧
+  ja/zh chunk は差し替え済み）。demo-assets はユーザが後で追加するため対象外。

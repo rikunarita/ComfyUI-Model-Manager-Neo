@@ -773,7 +773,10 @@ The tree is kept at **zero unused exports, zero duplication**; the single
 remaining finding is the deliberate `pnpm-workspace.yaml` override pinning
 `@comfyorg/comfyui-desktop-bridge-types` (a transitive type package of
 `@comfyorg/comfyui-frontend-types`). `pnpm fallow:fix:dry` previews every
-automatic removal before `pnpm fallow:fix` applies it.
+automatic removal before `pnpm fallow:fix` applies it. CI enforces the
+invariant: the `Dead code & duplication (fallow)` step of `ci.yml` runs
+`pnpm fallow:dead` + `pnpm fallow:dupes`, whose ERROR-level rules
+(`unused-exports` / `unused-files` / `unresolved-imports`) fail the build.
 
 ### Lint & format stack
 
