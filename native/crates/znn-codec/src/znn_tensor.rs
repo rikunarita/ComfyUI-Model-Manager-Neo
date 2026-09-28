@@ -67,7 +67,7 @@
 //! format. Legacy DEcompression of a Neo-extension file fails with the
 //! vendored decoder's explicit `ValueError: Unsupported Dtype N` (no silent
 //! corruption), which is the documented migration behaviour until the
-//! legacy path is removed (Phase 7).
+//! legacy path is removed (Phase 8).
 
 use std::sync::atomic::AtomicBool;
 

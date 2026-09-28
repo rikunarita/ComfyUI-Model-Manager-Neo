@@ -7,7 +7,7 @@ deliberately dumb and side-effect free — platform detection, one ``sys.path``
 entry, one ``import``, one version check. **No compilation, no pip, no
 network** (Plan §2.1-5); when anything does not line up, the module simply
 reports ``available() is False`` plus a human-readable ``reason()``, and the
-caller keeps using the vendored ``third_party`` path (until Phase 7 removes it).
+caller keeps using the vendored ``third_party`` path (until Phase 8 removes it).
 
 The ``MM_NATIVE`` environment variable switches the code path (Plan §5.4):
 
