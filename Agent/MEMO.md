@@ -2501,3 +2501,161 @@ frontend ゲート（typecheck/eslint/stylelint/prettier/build/bench/fallow）�
 - テストスイートの品質は極めて高い（byte-exact golden / parity / 逐語 contract /
   degrade / thread 検証）。今後テストを増やす際は「既存の強いパターンの踏襲」と
   「mutation で捕捉力を証明」を基準にすること。
+
+## 2026-09-28（第 11 セッション）— Phase 7 新設・T7/T8 追加・Phase 8 ストレッチ削除（ユーザ決定 3 件）+ 番号繰り下げの整合性一掃
+
+ユーザ指示による Plan.md 改訂（版数 **2.1 → 2.2**）と、フェーズ番号繰り下げに
+伴う**リポジトリ全体の整合性確認**を実施。コードの挙動変更はゼロ
+（コメント/docstring/ドキュメントのみ）。
+
+### Plan.md 改訂（ユーザ決定 — 版数履歴 2.1/2.2 に恒久記録）
+
+1. **Phase 7「ツールチェーン現代化・設定統合」を新設**（T1 アップロード
+   preflight SHA256 の Rust 化〔既存 `mm_core.hash_file` へ接続〕/ T2 Node
+   v26.10.0〔nodejs.org dist 実測 = v26 系最新・2026‑09‑21・vite 8.2.2 と
+   dependency-cruiser 18.4.0 の engines 充足を一次確認〕/ T3 Ruff 0.16.9
+   〔PyPI latest 実測・ci.yml ピン 0.16.8 から更新〕/ T4 uv 導入
+   **開発・CI 層限定**〔ランタイムの requirements.txt / `utils.pip_install`
+   契約は維持・uv 0.12.19 実測〕/ T5 mypy.ini → pyproject.toml `[tool.mypy]`
+   統合〔**mypy 2.3.1 の自動発見をサンドボックス実測で実証**・
+   tests/pytest.ini は rootdir/confcutdir 制御のため意図的に非統合〕/
+   T6 設定ファイル全面見直し〔GitHub Actions major 更新を API 実測で列挙:
+   checkout v4→v7.0.1 / setup-node v4→v7.0.0 / setup-python v5→v7.0.0 /
+   upload-artifact v4→v7.0.1 / download-artifact v4→v8.0.1 /
+   pnpm-action-setup v4→v6.1.0 / setup-uv v10.2.0・1 action ずつ別コミット規程〕）。
+   **旧 Phase 7（third_party 撤去・配布仕上げ・リリース）は内容そのまま
+   Phase 8 へ繰り下げ** — §6.1 総覧・§7 リスク表（R1: 1–8 / R3・R6: 0,8 /
+   R10: 1,8 / R13: —）・§9・本文相互参照 5 箇所を同期。
+2. **T7「zenwebp 導入 + ライセンス整備」を追加**（ユーザ決定・ライセンス整備の
+   明記を指示）。一次確認（crates.io API + GitHub 実査 2026‑09‑28）:
+   zenwebp **0.4.4**（imazen = Imageflow 開発元・created 2026‑01‑24・35,026 DL・
+   crate 722,687 B・最新コミット 2026‑09‑27・1,727 コミット・fuzz 基盤あり・
+   「pure‑Rust WebP codec — lossy (VP8) / lossless (VP8L) encode+decode +
+   alpha・animation・ICC/EXIF/XMP」）→ **§3.8 の「純 Rust ロッシー WebP
+   エンコーダ不在」評価は陳腐化**（§3.8 に 2026‑09‑28 追記）。同系 webpx
+   （668,335 DL）は libwebp の C バインディングのため対象外。設計:
+   第一段階はエンコードのみ（デコードは信頼できない CDN 入力の保安面 =
+   PIL/libwebp 実績維持・zenwebp デコードは fuzz 成熟後に別途判断）、
+   第二段階でアニメ GIF/WebP の**アニメ WebP 保持**（現行は先頭フレーム
+   固定化 = 実 UX 劣化）。**AGPL‑3.0/商用デュアルライセンス**
+   （LICENSE-AGPL3 + LICENSE-COMMERCIAL 実査・AGPLv3 §13 = GPLv3 結合許可・
+   ローカルアプリのためネットワーク条項は実質無作用）のため**ライセンス整備
+   (a)–(e) を必須条件化**（§8 節 / native/NOTICE〔Phase 8 の third_party
+   LICENSE 継承と統合〕/ README×2 Credits / registry 要件再確認 /
+   §3.7 crate 表 + Cargo.toml）。サイズゲート（現在 3,137,312 B = 4 MB
+   目安の 75 %）と api_version bump（4 者同期）も規定。
+3. **T8「utils.py 残り requests 2 箇所の aiohttp 化（A3 完了）」を追加**。
+   対象 L687（save_model_preview = DL 完了経路）/ L750（エディタ保存）。
+   メリットは構造的: IO プール枯渇解消（read timeout 120 s × 8 slots 専有 →
+   イベントループへ）・http_client 方針一元化（PREVIEW_TIMEOUT 定数は
+   定義済み）・MockHub テスト化。**requests は modelscope_hub の推移的依存
+   として残ることを明記**（pip show 実測: Required‑by modelscope-hub —
+   依存削減ではない）。
+4. **Phase 8 のストレッチ項目（自由スレッド Python 向け abi3t ビルド実験）を
+   削除**（ユーザ決定）。R13 緩和策を「計画外の随時対応」へ更新
+   （PEP 803 = abi3t は CPython 3.15+・PyO3 `abi3t-py315` 対応済み・
+   maturin は PyO3/maturin#3064 で整備中）。Phase 8 見出し下注記に削除記録。
+
+### 用語統一（ユーザ追加質問「v1 ってなんですか?」への対応）
+
+T1/T7/§3.8 追記/版数履歴で使っていた「v1」は**タスク内の最初の実装段階**の
+意（製品版本号 v0.3.0 等とは無関係）だが誤解を招くため、**「初版」（T1）/
+「第一段階」（T7 — 「第二段階」= アニメ WebP 保持と対になる）**へ統一
+（4 箇所）。なお §4.2.2 付近 L1190 の既存「v1 バイナリ」は api_version 1 の
+歴史的言及で**別の意味**のためそのまま（混同注意 — 今回統一した理由）。
+
+### 整合性一掃（リポジトリ全体 grep・全件一次確認）
+
+- **生きた参照 5 箇所を Phase 7 → Phase 8 へ更新**（いずれも旧 Phase 7 =
+  third_party/レガシー経路撤去を指す前方参照）: `py/native.py` モジュール
+  docstring、`native/native-bin/README.md` ×2、
+  `native/crates/znn-codec/src/znn_tensor.rs` の //! doc、
+  `tests/test_phase4_dtypes.py` docstring。全て同長置換 = 整形・挙動への
+  影響ゼロ。
+- **歴史記録は不改変（規程通り）**: MEMO 各セッションと BENCH 内の
+  「Phase 7」は当時の記録。Plan の Phase 8 見出し下注記 + 版数履歴 2.1 の
+  「過去の MEMO / セッション記録中の Phase 7 参照は現在の Phase 8 を指す」で
+  解決済み（セッションログの書き換えは行わない）。
+- **誤検出の確認**: BENCH §10.1 / Plan §4.7.2‑3 の「ストレッチ
+  （差分ペイロード `?since=<gen>`）」は**別の設計項目**で abi3t と無関係
+  （存置）。§3.2 / 付録 A の abi3t 記述は PyO3 の**能力記述**（作業項目で
+  ない）ため削除と整合。README×2 / USAGE×3 / docs / native README /
+  third_party README / .github ワークフローに古い Phase 7 参照・WebP 評価・
+  zenwebp 参照が無いことを grep で確認。
+- 検証: prettier 緑（Plan/MEMO/native-bin README）・ruff check + format 緑
+  （py 2 ファイルはコメントのみ）・cargo fmt は同幅置換のため影響なし
+  （doc comment 内テキスト）。
+
+### 運営メモ（次セッション向け）
+
+- **フェーズ番号は Plan.md §6 が正**: Phase 7 = ツールチェーン現代化・
+  設定統合（T1–T8）・Phase 8 = third_party 撤去・配布仕上げ・リリース。
+  旧 MEMO の「Phase 7」は現 Phase 8。
+- T7 実施時の注意: §3.8 の 2026‑09‑28 追記・ライセンス整備 (a)–(e)・
+  サイズゲート・api_version bump の 4 者同期・PIL フォールバック維持
+  （`_encode_preview` 分離構造がロールバック単位）。T8 実施時の注意:
+  requests 推移的依存残存の明記・挙動 parity 契約（寛容な warning+skip /
+  RuntimeError 文言 / blob: 拒否 / ローカル分岐 / raise_for_status 逐語）・
+  update_model が executor 内で走るための呼び出し鎖再構成の設計判断。
+
+## 2026-09-28（第 12 セッション）— T7（zenwebp）の一気刷新化（ユーザ決定）+ ドキュメント整合性の最終チェック
+
+ユーザ指示 2 件: (1)「第一段階・第二段階を挟まず、一気に zenwebp 刷新を行うように
+Plan.md を修正」(2)「ドキュメントの整合性の最終チェック」。Plan.md を改訂
+（版数 **2.3** 追加）し、リポジトリ全体の整合性を総点検した。コード変更ゼロ
+（Plan/MEMO のみ）。
+
+### Plan.md 改訂（T7 の一気刷新化）
+
+- **T7 本体を書き換え**: 「第一段階（エンコードのみ）/第二段階（アニメ）」の
+  段階分けを廃し、**範囲 3 点をすべて T7 の内**で一括実施する構造へ:
+  (1) 静止 WebP エンコード（`_write_preview_content` の image 分岐を native へ）、
+  (2) アニメ WebP 保持（PIL でマルチフレーム + duration 抽出 → zenwebp の
+  animation エンコード → アニメ WebP 出力 = 現行の先頭フレーム固定化の解消）、
+  (3) **WebP デコード**（codec の全面活用）。
+- **保安考慮は「先送り」でなく「ゲート化」へ**: 旧段階案の「デコードは信頼
+  できない CDN 入力のため PIL/libwebp 実績を維持」は、**採用の前提条件**
+  3 点に置換 — (i) 敵対的 WebP → zenwebp デコード経路の **L3 fuzz 新ターゲット**
+  （fuzz-smoke 常設 + fuzz-long）、(ii) デコード parity ゴールデン（vs PIL:
+  実 WebP コーパスでピクセル一致または正しいエラー）、(iii) 上流 fuzz 基盤の
+  実績精査（zenwebp リポジトリの `fuzz/` 存在は確認済み — クラッシュ履歴・
+  カバレッジを実施時確認）。
+- **PIL の構造的残存を明記**: 完全除去は不可能（PNG/JPEG/GIF/BMP デコードは
+  zenwebp の対象外 = WebP のみ。PIL は ComfyUI コア依存で常在）。パイプライン =
+  「非 WebP 入力 → PIL デコード / WebP 入力 → zenwebp デコード → ピクセル
+  バッファ（+フレーム列）→ zenwebp エンコード」。PIL フォールバック =
+  ロールバック単位（全機能が現行経路へ戻る。Phase 8 の MM_NATIVE 撤去まで
+  両経路并存。フォールバック側は現行挙動のまま = アニメは先頭フレーム固定化）。
+- **実施時の同期点を T7 ゲート欄に明記**: native.yml の fuzz-smoke は
+  **6 ターゲットがハードコード**（L507 の for ループ + "six targets" 表記）で
+  fuzz-long.yml も **matrix が 6 ターゲット**（L35）— 新ターゲット追加時に
+  **両方を 7 へ同一コミットで拡張**すること。Plan §9/BENCH/MEMO の
+  「6 ターゲット」言及は歴史記録のため変更不要（総点検で判定）。
+- 同期更新: §3.8 追記（「第一段階はエンコードのみ」→「一気刷新・保安面は
+  ゲート化」）・§6.1 総覧（T7 セル = 「zenwebp 一気刷新（静止+アニメ+
+  デコード）+ ライセンス整備」）・§9 チェックリスト・**版数履歴 2.3**。
+  ライセンス整備 (a)–(e)・サイズゲート・api_version bump（4 者同期）は不変。
+
+### ドキュメント整合性の最終チェック（全件一次確認・grep 総覧）
+
+- **「第一段階/第二段階」の残存 occurrence は全て意図的**: Plan 版数履歴 2.2
+  （当時の決定の歴史記録 — 2.3 が supersede）・2.3 と T7 本体（「段階分けを
+  挿まない」という決定の言及）・MEMO 第 11 セッション（歴史記録）。
+  README‑JP の「ウィザードの第一段階」は**アップロードウィザードの手順**で
+  zenwebp と無関係（誤検出）。
+- **「v1」**: Plan 内に残るのは L1193 の「v1 バイナリ」（api_version 1 の
+  歴史的言及・別意味）のみ。T1/T7/§3.8/版数履歴の段階用語は第 11 セッションで
+  初版/第一段階へ統一済み → 今回それらも一気刷新の表記へ更新。
+- **Phase 7/8**: 生きた参照（コード/README/native 系ドキュメント）に古い
+  Phase 7 はゼロ（第 11 セッションで 5 箇所更新済み）。MEMO/BENCH の歴史記録は
+  Plan の Phase 8 見出し下注記の規定通り不改変。
+- **zenwebp**: Plan/MEMO 以外に参照ゼロ（実装前の計画専用用語 = 正しい状態）。
+- **T8 の事実性**: `py/utils.py` の直接 requests 使用は L687/L750 の
+  **ちょうど 2 箇所**のまま（grep 実測）— 計画の記述と一致。
+- **相互参照**: T7 が参照する §3.8 / §4.2.2 / §3.3 / §6.3 / fuzz-smoke /
+  fuzz-long は全て実在（grep 確認）。版数履歴は 2.0 → 2.1 → 2.2 → 2.3 の
+  順序。Phase 7 完了条件は「8 項目 + T7 ライセンス整備 (a)–(e)」で T7 改訂後も
+  正確。
+- README×2 / USAGE×3 / docs/BENCH / native 系 README / third_party README /
+  workflows: 今回の改訂で変更不要なことを確認（zenwebp・段階・Phase 番号の
+  古い参照なし）。prettier 緑。

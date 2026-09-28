@@ -266,7 +266,7 @@ def test_legacy_engine_fails_cleanly_on_extended_files(mm, tmp_path):
     """The vendored zipnn 0.5.4 path must REJECT Neo-extension files with
     its explicit ValueError (never silent corruption), and its compressor
     keeps refusing f64 sources — the documented migration behaviour until
-    Phase 7 removes the legacy path."""
+    Phase 8 removes the legacy path."""
     if not _legacy_available():
         pytest.skip("vendored ZipNN C core unavailable on this platform")
     src = tmp_path / "f64model.safetensors"

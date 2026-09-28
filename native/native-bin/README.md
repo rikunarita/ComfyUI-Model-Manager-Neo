@@ -3,7 +3,7 @@
 `py/native.py` が **sys.path に追加して import するだけ** のプリビルド
 `mm_core` 拡張モジュールを置くディレクトリです（コンパイル不要・pip 不要・
 ネットワーク不要、Plan §2.1‑5）。`third_party/zipnn-core-bin/`（旧 C コア）の
-置き換え先で、Phase 7 で旧ディレクトリが撤去されたあとはここが唯一の
+置き換え先で、Phase 8 で旧ディレクトリが撤去されたあとはここが唯一の
 ネイティブコア供給経路になります。
 
 ## レイアウトと命名
@@ -45,4 +45,4 @@ scripts/build-native.sh --target windows-x86_64 --size-gate   # Windows ホス�
 ```
 
 コミット時はリポジトリルートの `.gitignore`（`*.so` 等を無視）に
-`third_party/zipnn-core-bin/` と同じ `!` 例外の追加が必要です（Phase 7 で整備）。
+`third_party/zipnn-core-bin/` と同じ `!` 例外の追加が必要です（Phase 8 で整備）。
