@@ -22,7 +22,7 @@
 | 2.1  | 2026‑09‑28 | ユーザ決定: **Phase 7「ツールチェーン現代化・設定統合」を新設**（6 項目 — T1 アップロード preflight SHA256 の Rust 化〔既存 mm_core.hash_file へ接続〕・T2 Node v26.10.0〔nodejs.org dist 実測 = v26 系最新・2026‑09‑21〕・T3 Ruff 0.16.9〔PyPI latest 実測〕・T4 uv 導入は**開発・CI 層限定**〔ランタイムの requirements.txt / pip_install 契約は維持・uv 0.12.19 実測〕・T5 mypy.ini → pyproject.toml `[tool.mypy]` 統合〔mypy 2.3.1 で自動発見を実証済み〕+ 統合できる設定の統合〔tests/pytest.ini は rootdir 制御のため意図的に非統合〕・T6 設定ファイル全面見直し〔GitHub Actions の major 更新: checkout v7 / setup-node v7 / setup-python v7 / artifact v7・v8 / pnpm-action v6.1 / setup-uv v10.2 — 2026‑09‑28 API 実測〕）。**旧 Phase 7（third_party 撤去・配布仕上げ・リリース）は内容そのまま Phase 8 へ繰り下げ** — §6.1 総覧・§6.2・§7 リスク表（R1/R3/R6/R10/R13）・§9 と本文中の相互参照 5 箇所を同期更新。過去の MEMO / セッション記録中の「Phase 7」参照は現在の Phase 8 を指す。新 Phase 7 のバージョン事実は全て 2026‑09‑28 に一次ソースで確認（nodejs.org dist index / PyPI / GitHub API / vite・dependency-cruiser の engines / mypy 2.3.1 の `[tool.mypy]` 自動発見はサンドボックス実測で実証）                                                                                                                                                                                               |
 | 2.2  | 2026‑09‑28 | ユーザ決定 3 件: **(1) Phase 7 に T7「zenwebp 導入 + ライセンス整備」を追加** — zenwebp 0.4.4（imazen・pure‑Rust VP8/VP8L encode+decode・animation・ICC/EXIF/XMP）を一次確認し、§3.8 の「純 Rust ロッシー WebP エンコーダ不在」評価に 2026‑09‑28 追記（評価陳腐化）。第一段階はエンコードのみ（デコードは信頼できない入力の保安面のため PIL/libwebp 実績を維持）、第二段階でアニメ GIF/WebP の**アニメ WebP 保持**（現行は先頭フレーム固定化 = 実 UX 劣化の解消）。**AGPL‑3.0/商用デュアルライセンス**（LICENSE-AGPL3 + LICENSE-COMMERCIAL 実査）のため**ライセンス整備を必須条件化**（§8 節・native/NOTICE・README×2 Credits・registry 要件再確認・§3.7 crate 表 / AGPLv3 §13 = GPLv3 結合許可・ローカルアプリのためネットワーク条項は実質無作用）。**(2) Phase 7 に T8「utils.py 残り requests 2 箇所の aiohttp 化（A3 完了）」を追加** — IO プール枯渇リスク解消（read timeout 120 s × 8 slots）・http_client 方針一元化・MockHub テスト化。**requests は modelscope_hub の推移的依存として残る**ことを明記（pip show 実測: Required-by modelscope-hub — 依存削減ではなく構造的メリット）。**(3) Phase 8 のストレッチ項目（自由スレッド Python 向け abi3t ビルド実験）を削除** — リスク表 R13 の緩和策を「計画外の随時対応（PEP 803 = abi3t は CPython 3.15+・PyO3 abi3t-py315 対応済み・maturin は PyO3/maturin#3064 で整備中）」へ更新。Phase 7 完了条件を 6 → **8 項目**へ、§6.1 総覧・§9 チェックリストを同期 |
 | 2.3  | 2026‑09‑28 | ユーザ決定: **T7（zenwebp）は一気刷新 — 第一段階/第二段階の段階分けを挿まない**。静止 WebP エンコード + アニメ GIF/WebP のアニメ WebP 保持 + **WebP デコード**（codec の全面活用）をすべて T7 の内で実施する。旧段階案の「デコード側は PIL/libwebp 実績を維持」という保安考慮は**先送りではなくゲート化**して対処（L3 fuzz 新ターゲット = 敵対的 WebP → デコード経路の fuzz‑smoke 常設 + デコード parity ゴールデン + 上流 fuzz 実績の精査を採用の前提条件化）。PIL の完全除去は構造的に不可能（PNG/JPEG/GIF/BMP デコードは zenwebp の対象外 = WebP のみ。PIL は ComfyUI コア依存で常在）— PIL は非 WebP 入力のデコード + 全機能フォールバック（ロールバック単位）として残り、Phase 8 の `MM_NATIVE` 撤去まで両経路并存。§3.8 追記・§6.1 総覧・§9 チェックリスト・T7 本体を同期                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 2.4  | 2026‑09‑28 | ユーザ決定: **T4（uv の導入）を撤回 — 削除**。Python の開発・CI 層は pip のまま現状維持（ci.yml / native.yml の pip 行は T3 の ruff ピン更新以外無変更）、**pnpm（フロントエンド）は現状維持**（T4 の対象範囲は元来 Python 側の pip 置換のみで pnpm/フロントエンドを含まなかった — 誤読防止のため記録）。T 番号は振り直さず **T4 は墓標として欠番**（版数履歴 2.1–2.3・MEMO の「T7 = zenwebp」「T8 = requests 2 箇所」等の歴史参照を保持。撤回前の計画全文は git 履歴 `25a7f00` 以前に残る）。Phase 7 完了条件を 8 → **7 項目**へ、T6 の Actions 更新リストから astral-sh/setup-uv（T4 で新設予定だったもの）を削除、§6.1 総覧・§9 チェックリスト・完了条件の順序注記（T4/T5 → T5）を同期。MEMO（§1.1 決定表・§2.2 手順 7・§5 現状）も同期                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2.4  | 2026‑09‑28 | ユーザ決定（同日・**撤回 → 復元**）: **T4（uv の導入）を一時撤回**（コミット 984f48a）— 理由は「uv ではフロントエンドのパッケージ管理ができない」だったが、これは **T4 の対象範囲の誤解**（T4 の範囲は **Python の開発・CI 層専用** = pip 置換 + uv.lock で、**pnpm/フロントエンドの変更は一切含まない**。pnpm は T4 の有無にかかわらず現状維持）。範囲確認の上、ユーザ指示により**撤回を撤回し T4 を原文どおり復元**（本コミットが 984f48a を supersedes — 完了条件 **8 項目**・T6 の astral-sh/setup-uv v10.2.0・§6.1/§9・MEMO §1.1/§2.2 手順 7/§5 の全てを撤回前へ戻し、T4 墓標と 7 項目化も撤去）。撤回→復元の経緯は git 履歴（984f48a）で追跡可能                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ### 進捗マーク凡例
 
@@ -1043,17 +1043,17 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 
 ## 6.1 フェーズ総覧
 
-| Phase | 名称                                                    | 主成果物                                                                                                                                                                                                                                  | 完了条件（要約）                                               |
-| ----- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| 0     | 基盤準備                                                | ワークスペース・CI・ベンチ基盤                                                                                                                                                                                                            | 全ターゲットで abi3 ビルド疎通、KPI ベースライン記録           |
-| 1     | znn-codec フォーマット中核                              | ヘッダー/平面/huff0・FSE/codec                                                                                                                                                                                                            | L1–L3 green、C 版との圧縮率差 ±0.5%・速度同等以上              |
-| 2     | safetensors 圧縮/解凍 + 接続                            | mm-core API、compress.py 切替                                                                                                                                                                                                             | L4 green、K1–K3/K6 達成、UI QA                                 |
-| 3     | デルタ + バッチ                                         | delta.rs、バッチプリミティブ                                                                                                                                                                                                              | K4/K5 達成、現行と同一挙動 QA                                  |
-| 4     | dtype 大幅拡張                                          | 8 平面/f64/整数/MX 系、UI バッジ                                                                                                                                                                                                          | 全拡張 dtype 往復 green、L5 退行なし                           |
-| 5     | スキャン/インデックス/ハッシュ/更新                     | scan.rs、hash.rs、models_changed                                                                                                                                                                                                          | K7–K11 達成、UI 退行なし                                       |
-| 6     | フロントエンド表示最適化 + Phase 5 移管の任意項目       | C1–C5、A3、watch_roots（任意）                                                                                                                                                                                                            | K15 計測実証（任意項目は実施時のみ判定）                       |
-| 7     | ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定） | T1 preflight SHA256 Rust 化、T2 Node v26.10.0、T3 Ruff 0.16.9、~~T4 uv~~（撤回）、T5 pyproject 設定統合、T6 設定ファイル全面見直し、T7 zenwebp 一気刷新（静止+アニメ+デコード）+ ライセンス整備、T8 utils.py requests 2 箇所の aiohttp 化 | 7 項目実施 + 全ゲートマトリクス緑 + Actions 更新後の CI 実走緑 |
-| 8     | third_party 撤去・配布仕上げ（旧 Phase 7）              | native-bin 単一経路、v0.3.0                                                                                                                                                                                                               | 全新規 clone で全 OS 動作                                      |
+| Phase | 名称                                                    | 主成果物                                                                                                                                                                                                                                     | 完了条件（要約）                                               |
+| ----- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| 0     | 基盤準備                                                | ワークスペース・CI・ベンチ基盤                                                                                                                                                                                                               | 全ターゲットで abi3 ビルド疎通、KPI ベースライン記録           |
+| 1     | znn-codec フォーマット中核                              | ヘッダー/平面/huff0・FSE/codec                                                                                                                                                                                                               | L1–L3 green、C 版との圧縮率差 ±0.5%・速度同等以上              |
+| 2     | safetensors 圧縮/解凍 + 接続                            | mm-core API、compress.py 切替                                                                                                                                                                                                                | L4 green、K1–K3/K6 達成、UI QA                                 |
+| 3     | デルタ + バッチ                                         | delta.rs、バッチプリミティブ                                                                                                                                                                                                                 | K4/K5 達成、現行と同一挙動 QA                                  |
+| 4     | dtype 大幅拡張                                          | 8 平面/f64/整数/MX 系、UI バッジ                                                                                                                                                                                                             | 全拡張 dtype 往復 green、L5 退行なし                           |
+| 5     | スキャン/インデックス/ハッシュ/更新                     | scan.rs、hash.rs、models_changed                                                                                                                                                                                                             | K7–K11 達成、UI 退行なし                                       |
+| 6     | フロントエンド表示最適化 + Phase 5 移管の任意項目       | C1–C5、A3、watch_roots（任意）                                                                                                                                                                                                               | K15 計測実証（任意項目は実施時のみ判定）                       |
+| 7     | ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定） | T1 preflight SHA256 Rust 化、T2 Node v26.10.0、T3 Ruff 0.16.9、T4 uv（開発・CI 層）、T5 pyproject 設定統合、T6 設定ファイル全面見直し、T7 zenwebp 一気刷新（静止+アニメ+デコード）+ ライセンス整備、T8 utils.py requests 2 箇所の aiohttp 化 | 8 項目実施 + 全ゲートマトリクス緑 + Actions 更新後の CI 実走緑 |
+| 8     | third_party 撤去・配布仕上げ（旧 Phase 7）              | native-bin 単一経路、v0.3.0                                                                                                                                                                                                                  | 全新規 clone で全 OS 動作                                      |
 
 ## 6.2 フェーズ詳細
 
@@ -1604,13 +1604,29 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
       `ruff==0.16.9`（PyPI latest = 0.16.9・2026‑09‑28 実測）。`ruff check` +
       `ruff format --check` を再実行し、新バージョン由来の指摘があれば解消する。
       ゲート: ci.yml 緑。
-- **T4: uv の導入 — 撤回（2026‑09‑28 ユーザ決定）**
-  Python の開発・CI 層は **pip のまま現状維持**（ci.yml / native.yml の
-  pip 行は T3 の ruff ピン更新以外無変更）。**pnpm（フロントエンド）は
-  T4 の対象ではなかったが、いずれにせよ現状維持**。T 番号は振り直さない —
-  T4 は墓標として欠番のまま（版数履歴 2.1–2.3 や MEMO 内の「T7 = zenwebp」
-  「T8 = requests 2 箇所」等の歴史参照を解決可能に保つため）。
-  撤回前の計画全文は git 履歴（`git show 25a7f00:Agent/Plan.md`）に残る。
+- [ ] **T4: uv の導入（開発・CI 層専用 — 2026‑09‑28 ユーザ決定）** —
+      uv 最新版（2026‑09‑28 時点 0.12.19・PyPI 実測。実施時の latest を一次確認）。
+  - **CI**: ci.yml 1 行 + native.yml 4 箇所の `pip install` 行 →
+    `uv pip install`（`astral-sh/setup-uv` v10.2.0〔2026‑09‑21・API 実測〕+
+    cache。ドロップイン互換で解決+インストールが 8–100× — integration ジョブの
+    torch CPU wheel ~200 MB で最大効果。native.yml の pip 行同一内容規程
+    〔MEMO 第 8〕は維持）。
+  - **開発**: dev/test 依存（pytest・pytest-asyncio・torch〔CPU index は
+    `[[tool.uv.index]]` で明示〕・numpy・safetensors・maturin・ruff・mypy・
+    markdownify・huggingface_hub・hf_xet・modelscope_hub・pillow・aiohttp・pyyaml）を
+    `[dependency-groups]`（PEP 735）で宣言し **uv.lock をコミット**
+    （クロスプラットフォーム再現可能）→ MEMO 運営メモの「セッション冒頭の
+    環境再構築手順」を `uv sync --frozen` 一発へ。root pyproject は
+    `[build-system]` 無し = 仮想プロジェクト（`[tool.uv] package = false` で明示）。
+  - **ランタイム契約は置き換えない**: `requirements.txt`（ComfyUI 本体 /
+    ComfyUI-Manager エコシステムの契約 — Manager がこれを読んで自動インストール）と
+    `__init__.py` → `utils.pip_install`（**ユーザの ComfyUI Python 内**で走るため
+    uv の存在を仮定できない）は維持する。
+  - 二重原価の規律: requirements.txt（レンジ・ランタイム用）と uv.lock（ピン・
+    開発/CI 用）の同期は `uv pip compile` 等で pyproject から一方向生成する
+    （Phase 8 の「pyproject / requirements 整理」と統合）。
+  - ゲート: ci.yml + native.yml 全緑（ubuntu / windows / macOS）+
+    `uv sync --frozen` → pytest 176 のローカル再現。
 - [ ] **T5: mypy.ini → pyproject.toml 統合 + 統合できる設定の統合** —
   - `[tool.mypy]` 統合: **実証済み**（2026‑09‑28・mypy 2.3.1 で
     `--config-file` 無し実行が pyproject.toml の `[tool.mypy]` を自動発見し
@@ -1641,7 +1657,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
     setup-python v5 → **v7.0.0** / upload-artifact v4 → **v7.0.1** /
     download-artifact v4 → **v8.0.1** / pnpm/action-setup v4 → **v6.1.0**
     （`version:` を渡さない注意は ci.yml ヘッダ参照）/ Swatinem/rust-cache v2
-    （latest v2.9.2・同一メジャー）。
+    （latest v2.9.2・同一メジャー）/ astral-sh/setup-uv **v10.2.0**（T4 で新設）。
     各更新は release notes で破壊的変更（ランナー runtime 要件・
     artifact バージョン間の相互運用 等）を一次確認し、**1 action ずつ別コミット**
     で適用する（bisect 可能にする）。3 ワークフロー（ci / native / fuzz-long）全て。
@@ -1770,15 +1786,15 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   - ゲート: MockHub parity テスト（200 / 非 200 / タイムアウト /
     content-type 欠落 / ローカル分岐 / blob 拒否）+ 既存のダウンロード完了・
     エディタ保存テスト全緑 + `py/` の直接 requests 参照ゼロをテストで固定。
-- [ ] 完了条件: **7 項目**の全実施（T4 撤回 — 2026‑09‑28 ユーザ決定。T7 はライセンス整備 (a)–(e) の完了を含む）+
+- [ ] 完了条件: **8 項目**の全実施（T7 はライセンス整備 (a)–(e) の完了を含む）+
       全ゲートマトリクス緑（Rust L1 / mm-core /
       統合・pytest 成果物あり/なし両方・ruff・mypy〔pyproject 設定経由〕・
       typecheck / eslint / stylelint / prettier / dependency-cruiser / fallow /
       build / K15 bench + cross-check）+ Actions 更新後の CI 実走緑 +
       ドキュメント同期（README×2 Development 節・Credits（T7c）・
       §8 ライセンス節（T7a）・MEMO 運営メモ）。
-      **Phase 8 との順序**: 前後・交錯いずれも衝突しない — ただし T5
-      （pyproject 設定の整理）は Phase 8 の「pyproject / requirements 整理」の
+      **Phase 8 との順序**: 前後・交錯いずれも衝突しない — ただし T4/T5
+      （pyproject / 依存定義の整理）は Phase 8 の「pyproject / requirements 整理」の
       **前**に着地させる方が手戻りが無い。
 
 ### Phase 8 — third_party 撤去・配布仕上げ・リリース
@@ -2003,14 +2019,15 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
       notify/debouncer-full + tensor tree）。fuzz 表面は不変
       （codec 無変更・新 API は fuzz ターゲット外）→ 再ディスパッチ不要。
       証跡 BENCH §11
-- [ ] **Phase 7** — ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定・7 項目
-      〔T4 uv は同日撤回〕: T1 アップロード preflight SHA256 の Rust 化 /
-      T2 Node v26.10.0 / T3 Ruff 0.16.9 / T5 mypy.ini → pyproject.toml 統合 +
-      統合できる設定 / T6 設定ファイル全面見直し /
+- [ ] **Phase 7** — ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定・8 項目:
+      T1 アップロード preflight SHA256 の Rust 化 / T2 Node v26.10.0 /
+      T3 Ruff 0.16.9 / T4 uv 導入〔開発・CI 層限定〕/ T5 mypy.ini →
+      pyproject.toml 統合 + 統合できる設定 / T6 設定ファイル全面見直し /
       T7 zenwebp 一気刷新〔静止エンコード + アニメ WebP 保持 + WebP デコード・
       fuzz/parity ゲート・**AGPL‑3.0 ライセンス整備を必須化**〕/
-      T8 utils.py 残り requests 2 箇所の aiohttp 化〔A3 完了 — requests は
-      modelscope_hub の推移的依存として残存〕）
+      T8 utils.py 残り requests
+      2 箇所の aiohttp 化〔A3 完了 — requests は modelscope_hub の
+      推移的依存として残存〕）
 - [ ] **Phase 8** — third_party 撤去・配布仕上げ・v0.3.0 リリース（旧 Phase 7）
 
 ---
