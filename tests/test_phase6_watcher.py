@@ -83,6 +83,13 @@ def test_types_for_path_maps_the_longest_root_first(tmp_path):
     assert watcher.types_for_path(str(nested / "a.safetensors"), base_paths) == ["extra", "checkpoints"]
     assert watcher.types_for_path(str(root / "loras" / "b.safetensors"), base_paths) == ["loras"]
     assert watcher.types_for_path(str(tmp_path / "elsewhere.safetensors"), base_paths) == []
+    # A sibling directory that shares a STRING prefix ("checkpoints_old") must
+    # NOT match the "checkpoints" root: the matcher is separator-aware, so a
+    # naive `startswith(root)` regression (dropping the trailing-sep prefix)
+    # would wrongly claim it and re-scan checkpoints on a backup-folder change.
+    sibling = root / "checkpoints_old"
+    sibling.mkdir()
+    assert watcher.types_for_path(str(sibling / "c.safetensors"), base_paths) == []
 
 
 def test_local_roots_skips_missing_and_network_roots(tmp_path, monkeypatch):
@@ -329,6 +336,42 @@ async def test_type_cooldown_collapses_a_bulk_copy(prompt_server, tmp_path, monk
     events = [data for event, data, _sid in prompt_server.sent if event == "models_changed"]
     assert len(events) == 1, events
     assert events[0]["type"] == "checkpoints"
+
+
+@pytest.mark.asyncio
+async def test_tmp_artefacts_alone_do_not_broadcast(prompt_server, tmp_path, monkeypatch):
+    """Neo's own atomic writes churn `.tmp` partials; only the final rename is
+    the event that matters. A poll reporting ONLY `.tmp` paths must broadcast
+    NOTHING - otherwise every ZipNN compress / download would trigger a spurious
+    re-scan storm. (`_interesting` is unit-tested above; this pins the JUNCTION:
+    that `_tick` actually applies it before matching/broadcasting.)"""
+    _watcher_mod, service, root = _make_watcher(monkeypatch, tmp_path)
+    payloads = [
+        json.dumps(
+            {
+                "paths": [str(root / "m.safetensors.tmp"), str(root / "part.tmp")],
+                "rescan": False,
+                "degraded": None,
+            }
+        ),
+    ]
+
+    class TmpCore:
+        def watch_start(self, roots, opts=None):
+            return 11
+
+        def watch_poll(self, handle):
+            return payloads.pop(0) if payloads else json.dumps({"paths": [], "rescan": False, "degraded": None})
+
+        def watch_stop(self, handle):
+            return None
+
+    monkeypatch.setattr(service, "_core", lambda: TmpCore())
+    await service._tick()  # arms AND polls the .tmp-only report in the same tick
+    await service._tick()  # nothing pending
+    events = [data for event, data, _sid in prompt_server.sent if event == "models_changed"]
+    assert events == [], ".tmp churn must never reach the client"
+    assert service.stats["events"] == 0, "filtered paths are not counted as events"
 
 
 @pytest.mark.asyncio

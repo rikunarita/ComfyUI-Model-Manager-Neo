@@ -154,10 +154,98 @@ def test_seed_hasher_from_file_reports_an_unreadable_file(tmp_path):
     download._drop_hasher(mm, 123456789)
 
 
-def test_hasher_update_on_a_lost_handle_raises_and_is_caught_by_the_loop(tmp_path):
-    """The write loop guards `hasher_update`: a handle the native registry
-    evicted must not fail a download whose bytes are fine."""
+def test_hasher_update_on_a_lost_handle_raises_keyerror(tmp_path):
+    """The native-side PRECONDITION the write loop's guard relies on: a handle
+    the registry evicted makes ``hasher_update`` raise (PyO3 maps mm-core's
+    unknown-handle guard to KeyError). The loop's catch-and-abandon behaviour
+    itself is driven end to end in
+    [test_write_loop_survives_a_lost_hasher_handle_and_rereads]."""
     mm = _require_native()
     # PyO3 maps the unknown-handle guard to KeyError (mm-core's PyKeyError).
     with pytest.raises(KeyError):
         mm.hasher_update(987654321, b"bytes")
+
+
+@pytest.mark.asyncio
+async def test_write_loop_survives_a_lost_hasher_handle_and_rereads(download_env, monkeypatch):
+    """Phase 5 audit #2, END TO END (the junction the unit test above only
+    sets up): when ``hasher_update`` raises mid-stream (a lost handle), the
+    write loop must CATCH it, abandon inline verification (``hasher = None``)
+    and KEEP WRITING, so a download whose bytes are perfectly fine still
+    completes - verified by the ``_sha256_of`` re-read fallback in
+    ``_download_complete`` (no inline digest was staged). Uses a fake core, so
+    it runs WITHOUT a built native binary (ci.yml's verify job covers it)."""
+    from aiohttp import web
+    from aiohttp.test_utils import TestServer
+
+    download, md, utils, dl_path = download_env
+
+    data = bytes((i * 31) & 0xFF for i in range(1536 * 1024))  # 1.5 MiB = two 1 MiB chunks
+    sha = hashlib.sha256(data).hexdigest().upper()
+    task_id = "lost-handle"
+
+    async def serve(_request):
+        return web.Response(body=data, headers={"Content-Type": "application/octet-stream"})
+
+    app = web.Application()
+    app.router.add_get("/model.safetensors", serve)
+    server = TestServer(app)
+    await server.start_server()
+    try:
+        url = str(server.make_url("/model.safetensors"))
+        md.set_task_content(
+            task_id,
+            download.TaskContent(
+                type="checkpoints",
+                pathIndex=0,
+                fullname="m.safetensors",
+                description="note body",
+                downloadPlatform="civitai",
+                downloadUrl=url,
+                sizeBytes=len(data),
+                hashes={"SHA256": sha},
+            ),
+        )
+
+        class LostHandleCore:
+            """`hasher_update` raises exactly like mm-core's evicted-handle
+            KeyError; `hasher_finalize` must NEVER run (the loop drops the
+            hasher on the first failure), so it fails the test if reached."""
+
+            def hasher_new(self, algos):
+                return 4242
+
+            def hasher_update(self, handle, chunk):
+                raise KeyError(handle)
+
+            def hasher_finalize(self, handle):
+                raise AssertionError("a dropped hasher must not be finalized")
+
+        monkeypatch.setattr(download.native, "core_if_enabled", lambda: LostHandleCore())
+
+        # the orchestrator (`download_model`) normally flips the task out of its
+        # default "pause" state before streaming; this test drives the http
+        # worker directly, so set it the same way (the write loop breaks on a
+        # "pause" status by design - cooperative pause).
+        md.get_task_status(task_id).status = "doing"
+
+        pushed: list[float] = []
+
+        async def progress_cb(status):
+            pushed.append(status.downloadedSize)
+
+        await md.download_model_file_http(task_id, {}, progress_cb, interval=0.0)
+
+        # the guard let the download finish despite the lost handle ...
+        model_path = utils.get_full_path("checkpoints", 0, "m.safetensors")
+        assert os.path.isfile(model_path), "the write loop must not fail a download over a lost hasher"
+        # ... with the CORRECT bytes (the re-read verified them against the published SHA)
+        with open(model_path, "rb") as f:
+            assert hashlib.sha256(f.read()).hexdigest().upper() == sha
+        # no inline digest was staged (the hasher was abandoned on the first chunk)
+        assert task_id not in md._inline_sha256
+        # the partial was renamed into the library, and progress reached 100%
+        assert not os.path.exists(utils.join_path(dl_path, f"{task_id}.download"))
+        assert pushed and pushed[-1] == len(data)
+    finally:
+        await server.close()
