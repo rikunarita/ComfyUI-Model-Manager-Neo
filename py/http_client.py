@@ -57,8 +57,9 @@ SEARCH_TIMEOUT: SearchTimeout = (12.0, 12.0)
 HUB_TIMEOUT: SearchTimeout = (10.0, 60.0)
 #: The avatar/owner probes: `timeout=8`.
 AVATAR_TIMEOUT: SearchTimeout = (8.0, 8.0)
-#: `utils.py`'s preview fetch: `timeout=(15, 120)` (kept for reference - the
-#: preview pipeline still runs in the executor, Plan §3.8).
+#: `utils.py`'s preview fetch: `timeout=(15, 120)` - now used by
+#: [fetch_preview] (Plan Phase 7 T8 moved the two preview round trips onto the
+#: shared session; the PIL/write leg stays in the executor).
 PREVIEW_TIMEOUT: SearchTimeout = (15.0, 120.0)
 
 #: Connector bound: generous for a fan-out of three providers plus avatars,
@@ -275,3 +276,29 @@ async def fetch_bytes_capped(
             return body or None
     except Exception:
         return None
+
+
+async def fetch_preview(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    timeout: SearchTimeout | float = PREVIEW_TIMEOUT,
+) -> tuple[bytes, str]:
+    """GET a preview URL; return ``(body, content-type)``.
+
+    The aiohttp replacement of the two ``requests.get(url, timeout=(15, 120))``
+    calls in ``utils.py``'s preview pipeline (Plan Phase 7 T8): the network
+    wait now runs on the event loop instead of pinning one of the eight
+    io-executor workers for up to the 120 s read timeout (the same pool-
+    exhaustion class A3 removed for the hub calls). A non-2xx status raises
+    [HttpStatusError] with the verbatim `requests` wording the callers already
+    surface; the content-type defaults to ``""`` exactly like
+    ``response.headers.get("content-type", "")``. `requests` downloaded the
+    whole (small) preview body before ``raise_for_status``, so the body is read
+    first here too - the exception is identical either way.
+    """
+    session = await get_session()
+    async with session.get(url, headers=headers, timeout=client_timeout(timeout)) as response:
+        body = await response.read()
+        raise_for_status(response.status, response.reason, str(response.url))
+        return body, response.headers.get("content-type", "") or ""

@@ -275,15 +275,21 @@ class ModelManager:
                 model_path = utils.get_valid_full_path(model_type, path_index, filename)
                 if model_path is None:
                     raise RuntimeError(f"File {filename} not found")
-                # BUG FIX: update_model() can download a preview over HTTP
-                # (save_model_preview with a URL string - the new client-side
-                # fetch fallback) and re-encode images with PIL, all blocking
-                # calls. Running them inline froze the server event loop for
-                # the whole operation (and deadlocks outright when the preview
-                # URL points back at ComfyUI itself). Same treatment as the
-                # other blocking handlers: run in the executor.
+                # BUG FIX: update_model() can download a preview over HTTP and
+                # re-encode images with PIL, all blocking calls. Running them
+                # inline froze the server event loop for the whole operation
+                # (and deadlocks outright when the preview URL points back at
+                # ComfyUI itself).
+                # Plan Phase 7 T8: the HTTP fetch now runs on the event loop
+                # (resolve_preview_sources via the shared aiohttp session), so a
+                # stalled CDN no longer pins one of the eight io-executor workers
+                # for the 120 s read timeout; only the millisecond-scale PIL /
+                # write + move legs go to the executor (update_model).
+                resolved_previews = await self._resolve_update_previews(model_data)
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(utils.io_executor(), self.update_model, model_path, model_data)
+                await loop.run_in_executor(
+                    utils.io_executor(), self.update_model, model_path, model_data, resolved_previews
+                )
                 await utils.notify_models_changed(model_type, "update")
                 # An edit can MOVE the model to another type; invalidate both
                 # listings so the destination grid picks it up and the source
@@ -643,26 +649,51 @@ class ModelManager:
             "tensorTree": header["tensorTree"],
         }
 
-    def update_model(self, model_path: str, model_data: dict):
+    async def _resolve_update_previews(self, model_data: dict) -> tuple | None:
+        """Resolve the editor gallery on the event loop (Plan Phase 7 T8).
 
+        Returns ``None`` (no preview work), ``("write", staged)`` (a resolved
+        gallery to rewrite) or ``("remove",)`` (an emptied gallery to delete).
+        The HTTP fetches happen HERE - on the loop, through the shared aiohttp
+        session - so ``update_model`` (io executor) only writes / moves and a
+        stalled CDN never pins an io worker. Raises the historical
+        "Failed to resolve preview entries" RuntimeError when a source cannot
+        be resolved, so the surfaced error wording is unchanged.
+        """
         preview_keys = _preview_field_keys(model_data)
-        if preview_keys:
-            # The client sends the whole gallery as previewFile, previewFile2,
-            # previewFile3, ... (feature: keep every preview). replace_model_
-            # previews resolves every source BEFORE removing the old set, so
-            # reorders never read a slot an earlier step already destroyed.
-            items = [model_data[k] for k in preview_keys]
-            entries = [i for i in items if not (type(i) is str and i in ("undefined", ""))]
-            if entries:
+        if not preview_keys:
+            return None
+        # The client sends the whole gallery as previewFile, previewFile2,
+        # previewFile3, ... (feature: keep every preview). resolve_preview_
+        # sources resolves every source BEFORE the old set is removed, so
+        # reorders never read a slot an earlier step already destroyed.
+        items = [model_data[k] for k in preview_keys]
+        entries = [i for i in items if not (type(i) is str and i in ("undefined", ""))]
+        if entries:
+            staged, failures = await utils.resolve_preview_sources(entries)
+            if failures or not staged:
                 # Same mechanics as the download-completion path: resolve all
-                # sources server-side, then rewrite the set in order. A partial
-                # write would silently reorder the primary, so failures raise
-                # and surface to the client.
-                utils.replace_model_previews(model_path, entries)
-            elif any(i == "undefined" for i in items if type(i) is str):
-                # "undefined" is the client's sentinel for an empty gallery:
-                # an editor save that removed every preview must delete the
-                # stored files instead of silently keeping them.
+                # sources server-side first. A partial write would silently
+                # reorder the primary, so a resolve failure raises and surfaces
+                # to the client (the old set is left untouched).
+                raise RuntimeError("Failed to resolve preview entries: " + "; ".join(failures or ["no entries"]))
+            return ("write", staged)
+        if any(i == "undefined" for i in items if type(i) is str):
+            # "undefined" is the client's sentinel for an empty gallery:
+            # an editor save that removed every preview must delete the
+            # stored files instead of silently keeping them.
+            return ("remove",)
+        return None
+
+    def update_model(self, model_path: str, model_data: dict, resolved_previews: tuple | None = None):
+
+        # Previews were resolved on the event loop (T8 - _resolve_update_
+        # previews); this runs in the io executor and only writes / moves.
+        if resolved_previews is not None:
+            action = resolved_previews[0]
+            if action == "write":
+                utils.write_resolved_previews(model_path, resolved_previews[1])
+            elif action == "remove":
                 utils.remove_model_preview(model_path)
 
         if "description" in model_data:
