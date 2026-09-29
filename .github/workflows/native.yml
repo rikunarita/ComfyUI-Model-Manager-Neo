@@ -47,7 +47,7 @@ jobs:
       run:
         working-directory: native
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -132,7 +132,7 @@ jobs:
   native-build-linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -191,7 +191,7 @@ jobs:
   native-build-macos:
     runs-on: macos-latest # arm64; universal2 covers x86_64 as well
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -229,7 +229,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -344,7 +344,7 @@ jobs:
       run:
         working-directory: native
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -405,7 +405,7 @@ jobs:
       # replaces), and a legacy-path source build would slow the gate down.
       MMNEO_SKIP_LEGACY: ${{ matrix.os != 'ubuntu-latest' && '1' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -473,7 +473,7 @@ jobs:
       run:
         working-directory: native/crates/znn-codec/fuzz
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
