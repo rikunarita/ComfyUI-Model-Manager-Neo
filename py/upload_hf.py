@@ -1,15 +1,15 @@
 import asyncio
 import hashlib
 import io
+import json
 import os
 import time
 import uuid
-from collections.abc import Callable
 from typing import Any
 
 from aiohttp import web
 
-from . import auth, download, utils
+from . import auth, download, native, utils
 
 # In-flight hub uploads (Hugging Face AND ModelScope), keyed by task id.
 #
@@ -235,8 +235,11 @@ class HubUploadBackend:
         """Create the repository when missing; True when it was created."""
         raise NotImplementedError
 
-    def preflight(self, api, repo_id: str, in_repo: str, file_size: int, hash_fn):
-        """Optional duplicate check before paying for a transfer; None = go."""
+    def preflight_remote(self, api, repo_id: str, in_repo: str, file_size: int):
+        """Network-only duplicate-check metadata (Plan Phase 7 T1 — split from
+        the CPU hash stage). ``None`` = no preflight / go; otherwise a dict
+        ``{"needs_hash": bool, "remote_sha": str | None, "url": str}`` the caller
+        turns into a duplicate/go decision after hashing on the cpu pool."""
         return
 
     def upload_one(self, api, payload: "_ProgressFile", in_repo: str):
@@ -248,6 +251,30 @@ class HubUploadBackend:
 
     def tree_url(self, repo_id: str, path_in_repo: str) -> str:
         return self.file_url(repo_id, path_in_repo)
+
+
+def _sha256_of_file(path: str) -> str:
+    """Lower-case SHA-256 hex of a whole file (upload duplicate preflight).
+
+    Plan Phase 7 T1: uses the EXISTING native ``mm_core.hash_file`` (one pass,
+    GIL released, SHA-NI/AVX2 runtime-detected — BENCH §10.2) when present, and
+    falls back to the Python ``hashlib`` 1 MiB loop when the native core is
+    unavailable (until Phase 8 removes ``MM_NATIVE``). The native notation is
+    upper-case (matching ``py/identify.py``); Hugging Face's LFS ``sha256`` is
+    lower-case, so the result is lower-cased — identical to the pre-T1
+    ``hashlib.sha256().hexdigest()``. No new native API (``api_version`` stays).
+    """
+    mm = native.core_if_enabled()
+    if mm is not None:
+        try:
+            return json.loads(mm.hash_file(path, ["SHA256"]))["SHA256"].lower()
+        except Exception as e:  # fall back to the Python hasher
+            utils.print_warning(f"native hash_file failed ({e}); using the Python hasher")
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 async def run_hub_upload(
@@ -320,24 +347,37 @@ async def run_hub_upload(
 
             Loop variables are bound as defaults: the executor may run this
             closure after the `for item in files` loop moved on (B023).
+
+            Plan Phase 7 T1: the hash is now a single native call
+            (``_sha256_of_file``), so the per-chunk ``report_progress`` collapses
+            to a phase-level report (hash start/end) — adequate UX (10 GB ≈ 8 s).
             """
-            digest = hashlib.sha256()
-            read_bytes = 0
-            with open(local_path, "rb") as handle:
-                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                    digest.update(chunk)
-                    read_bytes += len(chunk)
-                    report_progress(read_bytes, file_size, PHASE_HASH)
-            return digest.hexdigest()
+            report_progress(0, file_size, PHASE_HASH)
+            sha = _sha256_of_file(local_path)
+            report_progress(file_size, file_size, PHASE_HASH)
+            return sha
 
-        def _preflight(
-            in_repo: str = in_repo,
-            file_size: int = file_size,
-            hash_fn: Callable[[], str] = hash_local_file,
-        ):
-            return backend.preflight(ensure(), repo_id, in_repo, file_size, hash_fn)
+        # Plan Phase 7 T1: split the NETWORK preflight (model_info) from the CPU
+        # HASH stage — the round trip runs on the io pool, the hash on the cpu
+        # pool (native releases the GIL, but the pool semantics stay honest:
+        # hashing is CPU work, not a syscall-bound read).
+        def _preflight_remote(in_repo: str = in_repo, file_size: int = file_size):
+            return backend.preflight_remote(ensure(), repo_id, in_repo, file_size)
 
-        preflight = await loop.run_in_executor(utils.io_executor(), _preflight)
+        remote = await loop.run_in_executor(utils.io_executor(), _preflight_remote)
+        preflight = None
+        if remote is not None and remote.get("needs_hash"):
+            # Parity: the pre-T1 preflight caught a hash failure inside its own
+            # try/except and degraded to "go" (skip duplicate detection, still
+            # upload) — preserve that here now that the hash is a separate stage.
+            try:
+                local_sha = await loop.run_in_executor(utils.cpu_executor(), hash_local_file)
+                if remote.get("remote_sha") == local_sha:
+                    preflight = {"status": "duplicate", "url": remote.get("url")}
+                else:
+                    preflight = {"status": "go"}
+            except Exception:
+                preflight = {"status": "go"}
         if preflight and preflight.get("status") == "duplicate":
             dup_count += 1
             first_url = first_url or preflight.get("url") or backend.file_url(repo_id, in_repo)
@@ -359,9 +399,10 @@ async def run_hub_upload(
         # Hubs that consume the payload opaquely (modelscope_hub) never fire
         # per-chunk upload callbacks; run the hashing pass explicitly so the
         # bar shows real activity, and let the UI render the transfer itself
-        # as indeterminate (see `streams_upload_progress`).
+        # as indeterminate (see `streams_upload_progress`). Plan T1: hashing is
+        # CPU work → the cpu pool (was the io pool).
         if not backend.streams_upload_progress:
-            await loop.run_in_executor(utils.io_executor(), hash_local_file)
+            await loop.run_in_executor(utils.cpu_executor(), hash_local_file)
 
         def _transfer(local_path: str = local_path, in_repo: str = in_repo):
             api = ensure()
@@ -448,11 +489,17 @@ class HfBackend(HubUploadBackend):
             created = True
         return created
 
-    def preflight(self, api, repo_id: str, in_repo: str, file_size: int, hash_fn):
-        """Detect an identical file at the destination BEFORE paying for a
-        transfer attempt (the Hub's empty-commit skip is indistinguishable
-        from a broken upload from the outside). Cheap-first: remote size, then
-        the local hash only when sizes agree.
+    def preflight_remote(self, api, repo_id: str, in_repo: str, file_size: int):
+        """Network-only half of the duplicate check (Plan Phase 7 T1).
+
+        Detects an identical file at the destination BEFORE paying for a
+        transfer attempt (the Hub's empty-commit skip is indistinguishable from
+        a broken upload from the outside). Cheap-first: this only reads the
+        remote metadata; the local hash (the CPU stage) is computed by the
+        caller — on the cpu pool — only when this reports ``needs_hash`` (an
+        LFS object of the SAME size exists). Returns ``None`` (= go) on any
+        failure / missing LFS / size mismatch, else
+        ``{"needs_hash": True, "remote_sha": ..., "url": ...}``.
         """
         try:
             info = api.model_info(repo_id=repo_id, revision="main", files_metadata=True)
@@ -462,24 +509,23 @@ class HfBackend(HubUploadBackend):
                     target = sibling
                     break
             if target is None:
-                return {"status": "go"}
+                return None
             lfs = getattr(target, "lfs", None)
             remote_sha = getattr(lfs, "sha256", None) if lfs else None
             remote_size = getattr(lfs, "size", None) if lfs else getattr(target, "size", None)
             if not remote_sha:
-                return {"status": "go"}
+                return None
             if remote_size is not None and int(remote_size) != int(file_size):
-                return {"status": "go"}
-            if remote_sha == hash_fn():
-                from urllib.parse import quote
+                return None
+            from urllib.parse import quote
 
-                return {
-                    "status": "duplicate",
-                    "url": f"https://huggingface.co/{repo_id}/blob/main/{quote(in_repo)}",
-                }
-            return {"status": "go"}
+            return {
+                "needs_hash": True,
+                "remote_sha": remote_sha,
+                "url": f"https://huggingface.co/{repo_id}/blob/main/{quote(in_repo)}",
+            }
         except Exception:
-            return {"status": "go"}
+            return None
 
     def upload_one(self, api, payload: _ProgressFile, in_repo: str):
         head_sha = None
