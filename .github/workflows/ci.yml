@@ -30,10 +30,19 @@ jobs:
         with:
           python-version: "3.11"
 
+      # Plan Phase 7 T4: uv replaces pip in the CI layer - a drop-in
+      # `uv pip install --system` (8-100x faster resolve+install) against the
+      # setup-python interpreter. The RUNTIME contract is untouched:
+      # requirements.txt (read by ComfyUI / ComfyUI-Manager) and
+      # __init__.py -> utils.pip_install still run inside the USER's ComfyUI
+      # Python, where uv cannot be assumed. `enable-cache` persists uv's
+      # download cache (keyed on requirements.txt / pyproject.toml / uv.lock).
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
       - name: Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt mypy ruff==0.16.9 pytest pytest-asyncio aiohttp pyyaml requests pillow
+        run: uv pip install --system -r requirements.txt mypy ruff==0.16.9 pytest pytest-asyncio aiohttp pyyaml requests pillow
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile

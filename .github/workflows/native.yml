@@ -146,8 +146,14 @@ jobs:
         with:
           python-version: "3.11"
 
+      # Plan Phase 7 T4: uv replaces pip in the CI layer (drop-in
+      # `uv pip install --system` against the setup-python interpreter).
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
       - name: Install cross toolchain (pinned, Plan §3.3)
-        run: python -m pip install cargo-zigbuild==0.23.4 ziglang==0.16.0 maturin==1.15.0
+        run: uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0 maturin==1.15.0
 
       - name: Build linux-x86_64 (glibc 2.28 floor)
         run: ./scripts/build-native.sh --target linux-x86_64 --size-gate
@@ -178,7 +184,7 @@ jobs:
         run: |
           # markdownify + pillow are module-level imports of py/information.py, which
           # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
-          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
+          uv pip install --system pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
           python -m pytest tests -q
 
       - uses: actions/upload-artifact@v7
@@ -205,8 +211,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      # Plan Phase 7 T4: uv replaces pip in the CI layer.
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
       - name: Install maturin (pinned, Plan §3.3)
-        run: python -m pip install maturin==1.15.0
+        run: uv pip install --system maturin==1.15.0
 
       - name: Build macos-universal2 (maturin = both archs + lipo)
         run: ./scripts/build-native.sh --target macos-universal2 --size-gate
@@ -241,8 +252,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      # Plan Phase 7 T4: uv replaces pip in the CI layer.
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
       - name: Install maturin (pinned, Plan §3.3)
-        run: python -m pip install maturin==1.15.0
+        run: uv pip install --system maturin==1.15.0
 
       - name: Build windows-x86_64 (MSVC)
         run: ./scripts/build-native.sh --target windows-x86_64 --size-gate
@@ -411,6 +427,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      # Plan Phase 7 T4: uv replaces pip in the CI layer. The torch CPU wheel
+      # (~200 MB) install below is where uv's resolve+install speedup and the
+      # download cache pay off the most.
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
       - name: Fetch the built native artifact into native-bin/
         uses: actions/download-artifact@v8
         with:
@@ -420,15 +443,15 @@ jobs:
       - name: Python test dependencies
         run: # markdownify + pillow are module-level imports of py/information.py, which
           # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
-          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
+          uv pip install --system pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
 
       # The legacy path (vendored zipnn) needs its runtime stack; the CPU
       # wheel index keeps the install small (no CUDA payload).
       - name: Legacy-path dependencies (ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          python -m pip install numpy safetensors blake3
-          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          uv pip install --system numpy safetensors blake3
+          uv pip install --system torch --default-index https://download.pytorch.org/whl/cpu
 
       - name: Integration tests (pytest)
         run: python -m pytest tests -q
@@ -459,7 +482,7 @@ jobs:
       - name: L5 official-zipnn cross-validation (ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          python -m pip install zipnn==0.5.4
+          uv pip install --system zipnn==0.5.4
           python3 scripts/l5/official_cross.py
 
   fuzz-smoke:
