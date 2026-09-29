@@ -44,7 +44,7 @@
     "@comfyorg/comfyui-frontend-types": "1.49.3",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/markdown-it": "^14.2.0",
-    "@types/node": "^22.20.1",
+    "@types/node": "^26.6.3",
     "@vitejs/plugin-vue": "^6.0.8",
     "dependency-cruiser": "18.4.0",
     "eslint": "^10.10.0",
