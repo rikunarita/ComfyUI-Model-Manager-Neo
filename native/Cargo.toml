@@ -82,6 +82,15 @@ yaml-rust2 = "0.13.0"
 notify = "8.2.0"
 notify-debouncer-full = "0.7.0"
 
+# Phase 7 (Plan §3.8 追記 / T7 — プレビュー WebP パイプライン): zenwebp は純 Rust の
+# WebP codec（lossy VP8 + lossless VP8L の encode/decode・alpha・animation・
+# ICC/EXIF/XMP）。imazen（Imageflow 開発元）。**AGPL-3.0-only OR
+# LicenseRef-Imazen-Commercial** のデュアルライセンス — 本拡張は GPL-3.0-only なので
+# **AGPL-3.0 条件で組み込む**（AGPLv3 §13 が GPLv3 成果物との結合を明示許可・
+# native/NOTICE + README Credits + Plan §8 に帰属表示）。version は crates.io API で
+# 2026-09-29 再確認（0.4.5 は yanked・0.4.4 = max_stable_version）。
+zenwebp = "0.4.4"
+
 # Test / bench support
 proptest = "1.11.0"
 tempfile = "3.27.0"

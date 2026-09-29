@@ -15,7 +15,7 @@
 #
 # Transition-period gates (Plan §5.3):
 #   native-diff    L2 golden differential vs the bundled prebuilt C core
-#   fuzz-smoke     L3 cargo-fuzz smoke (6 targets x 60 s, ASan)
+#   fuzz-smoke     L3 cargo-fuzz smoke (7 targets x 60 s, ASan)
 #   integration    L4/L5 — the full pytest suite against the built artifact
 #                  on all three OSes + the official pip-zipnn 0.5.4
 #                  cross-validation on ubuntu (Phase 2)
@@ -297,7 +297,12 @@ jobs:
           import sys
           import mm_core
 
-          assert mm_core.api_version() == 5, mm_core.api_version()
+          assert mm_core.api_version() == 6, mm_core.api_version()
+          # v6 = Phase 7 T7's preview WebP codec must be present in the abi3 binary.
+          assert all(
+              hasattr(mm_core, n)
+              for n in ("webp_decode", "webp_decode_animation", "webp_encode", "webp_encode_animation")
+          )
           print(f"abi3 import OK on CPython {sys.version.split()[0]}: {mm_core.core_version()}")
           PY
 
@@ -486,9 +491,10 @@ jobs:
           python3 scripts/l5/official_cross.py
 
   fuzz-smoke:
-    # L3 cargo-fuzz smoke (Plan §5.1 L3): 6 targets x 60 s with ASan on every
+    # L3 cargo-fuzz smoke (Plan §5.1 L3): 7 targets x 60 s with ASan on every
     # push/PR (Phase 2 adds st_parse + blob_decompress — the hostile
-    # container / blob surface of the safetensors pipeline, §4.4.2). The
+    # container / blob surface of the safetensors pipeline, §4.4.2; Phase 7 T7
+    # adds webp_decode — the hostile-WebP preview decode surface). The
     # >=8 h budget runs in fuzz-long.yml (scheduled/dispatch), NOT on the
     # PR path (Plan: long runs are not PR gates).
     runs-on: ubuntu-latest
@@ -525,9 +531,9 @@ jobs:
       - name: Build fuzz targets (dev + ASan, gnu target)
         run: cargo +nightly fuzz build -D --target x86_64-unknown-linux-gnu
 
-      - name: Smoke-fuzz all six targets (60 s each)
+      - name: Smoke-fuzz all seven targets (60 s each)
         run: |
-          for t in huf_decompress zn_header codec_decompress st_parse blob_decompress delta_decompress; do
+          for t in huf_decompress zn_header codec_decompress st_parse blob_decompress delta_decompress webp_decode; do
             cargo +nightly fuzz run "$t" --target x86_64-unknown-linux-gnu --dev -- \
               -max_total_time=60 -rss_limit_mb=1024 -timeout=15
           done

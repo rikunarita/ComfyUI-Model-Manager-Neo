@@ -873,7 +873,7 @@ work standing on its shoulders is what makes any of the above possible.
 
 Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 [VueUse], [es-toolkit], [vue-sonner], [huggingface_hub], [hf_xet],
-[modelscope_hub], and [ZipNN].
+[modelscope_hub], [ZipNN], and [zenwebp].
 
 ---
 
@@ -882,6 +882,16 @@ Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 ## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="28" height="28" align="middle" alt=""> License
 
 **GPL‑3.0‑only** — see [`LICENSE`](LICENSE) for the full text.
+
+The Rust native core ([`native/`](native/)) additionally links **[zenwebp]** — a
+pure‑Rust WebP codec, **AGPL‑3.0‑only** OR Imazen‑commercial — for the preview
+WebP pipeline (Phase 7 / T7). Neo is GPL‑3.0‑only and uses zenwebp under the
+**AGPL‑3.0** terms; AGPLv3 §13 explicitly permits combining an AGPL work with a
+GPLv3 work (the AGPL part stays AGPL). ComfyUI is a **local** application, not a
+network service, so the AGPL network clause is effectively inoperative here, and
+the distribution source‑availability obligation is met by this public
+repository. Full third‑party attribution for the native core:
+[`native/NOTICE`](native/NOTICE).
 
 <div align="center">
 
@@ -902,5 +912,6 @@ Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 [hf_xet]: https://github.com/huggingface/xet-core
 [modelscope_hub]: https://github.com/modelscope/modelscope_hub
 [ZipNN]: https://github.com/zipnn/zipnn
+[zenwebp]: https://github.com/imazen/zenwebp
 [Qwen Studio]: https://chat.qwen.ai/
 [ComfyUI-Manager]: https://github.com/ltdrdata/ComfyUI-Manager

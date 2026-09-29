@@ -465,20 +465,21 @@ crates.io 全件調査の結果、ZipNN が要求する**生 huff0 ブロック*
 
 ## 3.7 データ処理 crate（確定バージョン表）
 
-| 用途               | crate                                    | バージョン                                               | 備考                                                                                           |
-| ------------------ | ---------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| safetensors 読取   | `memmap2` + 自前ヘッダーパーサ           | 0.9.11                                                   | ゼロコピー。32 MB ヘッダー上限ガード維持                                                       |
-| JSON               | `jiter`（第一候補）/ `simd-json`（比較） | 0.17.0 / 0.18.1                                          | jiter は非破壊解析で read‑only mmap に直接適用可。Phase 0 で 8 MB MoE ヘッダーによりベンチ確定 |
-| スキャン結果直列化 | `serde` + `serde_json`                   | 1.0.151                                                  | —                                                                                              |
-| ハッシュ           | `sha2` / `blake3` / `crc32fast`          | 0.11.0 / 1.8.7 / 1.5.2                                   | blake3 は `rayon`・`mmap` フィーチャ使用（並列ツリーハッシュ）。sha2 は SHA‑NI 実行時検出      |
-| 並列 walk          | `ignore`（第一候補）/ `dua-core`（比較） | 0.4.33 / 4.1.0                                           | Phase 5 でベンチ比較                                                                           |
-| インデックス       | `bincode`（+ `blake3` チェックサム）     | 2.0.1（§3.1 注記: 3.0.0 はコンパイル不能プレースホルダ） | 純 Rust・原子入替スナップショット。SQLite（C）は不採用                                         |
-| f16/bf16           | `half`                                   | 2.7.1                                                    | —                                                                                              |
-| バイト cast        | `bytemuck`                               | 1.25.2                                                   | 平面分割の安全な reinterpret                                                                   |
-| 監視（任意機能）   | `notify` + `notify-debouncer-full`       | 8.2.0 / 0.7.0                                            | デバウンスは公式クレートに委譲                                                                 |
-| YAML               | `yaml-rust2`                             | 0.13.0                                                   | front‑matter 部分集合。serde_yaml 系は deprecated のため不使用                                 |
-| 一時ファイル       | `tempfile`                               | 3.x                                                      | 原子入替                                                                                       |
-| PyO3 拡張          | `pyo3`（abi3-py310, extension-module）   | 0.29.2                                                   | —                                                                                              |
+| 用途                          | crate                                    | バージョン                                               | 備考                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------- | ---------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| safetensors 読取              | `memmap2` + 自前ヘッダーパーサ           | 0.9.11                                                   | ゼロコピー。32 MB ヘッダー上限ガード維持                                                                                                                                                                                                                                                                                                     |
+| JSON                          | `jiter`（第一候補）/ `simd-json`（比較） | 0.17.0 / 0.18.1                                          | jiter は非破壊解析で read‑only mmap に直接適用可。Phase 0 で 8 MB MoE ヘッダーによりベンチ確定                                                                                                                                                                                                                                               |
+| スキャン結果直列化            | `serde` + `serde_json`                   | 1.0.151                                                  | —                                                                                                                                                                                                                                                                                                                                            |
+| ハッシュ                      | `sha2` / `blake3` / `crc32fast`          | 0.11.0 / 1.8.7 / 1.5.2                                   | blake3 は `rayon`・`mmap` フィーチャ使用（並列ツリーハッシュ）。sha2 は SHA‑NI 実行時検出                                                                                                                                                                                                                                                    |
+| 並列 walk                     | `ignore`（第一候補）/ `dua-core`（比較） | 0.4.33 / 4.1.0                                           | Phase 5 でベンチ比較                                                                                                                                                                                                                                                                                                                         |
+| インデックス                  | `bincode`（+ `blake3` チェックサム）     | 2.0.1（§3.1 注記: 3.0.0 はコンパイル不能プレースホルダ） | 純 Rust・原子入替スナップショット。SQLite（C）は不採用                                                                                                                                                                                                                                                                                       |
+| f16/bf16                      | `half`                                   | 2.7.1                                                    | —                                                                                                                                                                                                                                                                                                                                            |
+| バイト cast                   | `bytemuck`                               | 1.25.2                                                   | 平面分割の安全な reinterpret                                                                                                                                                                                                                                                                                                                 |
+| 監視（任意機能）              | `notify` + `notify-debouncer-full`       | 8.2.0 / 0.7.0                                            | デバウンスは公式クレートに委譲                                                                                                                                                                                                                                                                                                               |
+| YAML                          | `yaml-rust2`                             | 0.13.0                                                   | front‑matter 部分集合。serde_yaml 系は deprecated のため不使用                                                                                                                                                                                                                                                                               |
+| 一時ファイル                  | `tempfile`                               | 3.x                                                      | 原子入替                                                                                                                                                                                                                                                                                                                                     |
+| PyO3 拡張                     | `pyo3`（abi3-py310, extension-module）   | 0.29.2                                                   | —                                                                                                                                                                                                                                                                                                                                            |
+| プレビュー WebP（Phase 7 T7） | `zenwebp`                                | 0.4.4（crates.io max_stable・0.4.5 は yanked）           | 純 Rust WebP codec（VP8/VP8L encode+decode・alpha・animation・ICC/EXIF/XMP）。imazen = Imageflow 開発元。**AGPL‑3.0‑only OR Imazen‑Commercial** → 本拡張は GPL‑3.0‑only なので AGPL‑3.0 条件で組込（§8・`native/NOTICE`・README×2）。`znn-codec::webp` がラップし mm-core が PyO3 バインド、fuzz L3 `webp_decode` がデコード経路を常設ファズ |
 
 ## 3.8 周辺領域の選定結論（Rust 化しない判断を含む）
 
@@ -1885,6 +1886,18 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   各ファイルに原典著作権表示 + SPDX + 変更履歴を付す。
 - アルゴリズム/フォーマット参照: ZipNN（MIT）— `native/NOTICE` に帰属表示
   （現行 `third_party/LICENSE-zipnn.txt` から継承）。
+- **zenwebp（Phase 7 / T7 — プレビュー WebP codec）**: **AGPL‑3.0‑only OR
+  LicenseRef‑Imazen‑Commercial** のデュアルライセンス（一次確認: crate の
+  `Copyright (C) 2025 Imazen LLC` + docs.rs の AGPL 文言 + Cargo.toml license 欄）。
+  本拡張は GPL‑3.0‑only なので **AGPL‑3.0 条件で組み込む**（商用ライセンスは
+  proprietary 利用向けで無関係）。法的根拠: AGPLv3 §13 は GPLv3 成果物との結合を
+  明示許可（AGPL 部分は AGPL のまま）。ComfyUI は**ローカルアプリ**（ネットワーク
+  サービスではない）ため AGPL のネットワーク条項は実質無作用、配布時の copyleft
+  義務 = ソース入手可能性は公開リポジトリで充足済み。整備（2026‑09‑29 実施）:
+  **(a)** 本節への項目追加、**(b)** `native/NOTICE` への帰属、**(c)** README×2 の
+  Credits & Attribution + License 節への追記、**(d)** registry 公開時の GPL/AGPL
+  結合要件の再確認（公開はユーザ専任・§6.3）、**(e)** §3.7 crate 表 + native
+  workspace / znn‑codec `Cargo.toml` への追加。
 - 論文: Hershcovitch et al., "ZipNN: Lossless Compression for AI Models"
   (arXiv:2411.05239) を README Credits に追記。
 - 採用 crate（PyO3/rayon = MIT OR Apache‑2.0 ほか）はすべて

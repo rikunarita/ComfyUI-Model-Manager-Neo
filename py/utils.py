@@ -606,6 +606,76 @@ def _resolve_local_preview(url: str) -> str | None:
     return local if os.path.isfile(local) else None
 
 
+# Plan Phase 7 T7: the preview WebP encoder settings — kept near PIL's
+# `Image.save(..., "WEBP")` defaults (quality 80, method 4) so pre/post-T7
+# preview sizes land in the same band (the parity gate is "same dimensions,
+# decodable, size within a tolerance", NOT byte-identity — the encoders differ).
+_WEBP_QUALITY = 80.0
+_WEBP_METHOD = 4
+
+
+def _is_webp(content: bytes) -> bool:
+    """WebP by magic bytes (``RIFF....WEBP``) — the only input the native
+    zenwebp decoder handles (non-WebP is decoded by PIL, Plan §3.8 追記)."""
+    return content[:4] == b"RIFF" and content[8:12] == b"WEBP"
+
+
+def _encode_preview_webp_native(mm, content: bytes, preview_path: str) -> None:
+    """Encode one preview image to WebP through the native zenwebp core (T7).
+
+    Pipeline (Plan §3.8 追記): a non-WebP input is decoded by PIL, a WebP input
+    by zenwebp; an animated source is re-encoded as an ANIMATED WebP (the
+    pre-T7 PIL path froze those to their first frame — a real Civitai-preview
+    regression this removes). Frame extraction: an animated WebP goes through
+    zenwebp's animation decoder (PIL does not surface per-frame WebP durations,
+    so native keeps them intact); an animated GIF is walked by PIL (which does
+    report GIF durations and applies disposal). Raises on any failure so the
+    caller falls back to the PIL path (the native rollback unit, until Phase 8
+    drops ``MM_NATIVE``).
+    """
+    from PIL import ImageSequence
+
+    is_webp = _is_webp(content)
+    with Image.open(BytesIO(content)) as image:
+        n_frames = getattr(image, "n_frames", 1)
+        if n_frames > 1:
+            # Animated. Every frame is normalised to the canvas the muxer opens
+            # with; durations are preserved from the source.
+            if is_webp:
+                # Animated WebP: decode natively so the per-frame durations
+                # survive (PIL leaves WebP frame durations unset).
+                frames, w, h, durations, loop, icc = mm.webp_decode_animation(content)
+            else:
+                # Animated GIF (or other multi-frame non-WebP): PIL walks the
+                # frames, applying disposal, and reports each frame's duration.
+                canvas = image.size
+                w, h = canvas
+                frames = []
+                durations = []
+                for frame in ImageSequence.Iterator(image):
+                    durations.append(int(frame.info.get("duration", 100) or 100))
+                    frame_img = frame.convert("RGBA")
+                    if frame_img.size != canvas:
+                        frame_img = frame_img.resize(canvas)
+                    frames.append(frame_img.tobytes())
+                loop = int(image.info.get("loop", 0) or 0)
+                icc = image.info.get("icc_profile", b"") or b""
+            webp = mm.webp_encode_animation(frames, w, h, durations, loop, icc, _WEBP_QUALITY, _WEBP_METHOD, False)
+        else:
+            # Still: a WebP input goes through zenwebp's decoder (full codec
+            # use); anything else is already in PIL's hands.
+            if is_webp:
+                rgba, w, h, icc = mm.webp_decode(content)
+            else:
+                rgba_img = image.convert("RGBA")
+                w, h = rgba_img.size
+                rgba = rgba_img.tobytes()
+                icc = image.info.get("icc_profile", b"") or b""
+            webp = mm.webp_encode(rgba, w, h, icc, _WEBP_QUALITY, _WEBP_METHOD, False)
+    with open(preview_path, "wb") as f:
+        f.write(webp)
+
+
 def _write_preview_content(
     model_path: str,
     content: bytes,
@@ -627,6 +697,17 @@ def _write_preview_content(
             f.write(content)
     elif kind == "image":
         preview_path = _get_preview_path(model_path, ".webp", suffix)
+        # Plan Phase 7 T7: encode through the native zenwebp core when present
+        # (still + animated WebP, WebP decoded natively). A native failure
+        # falls back to the PIL path — the rollback unit until Phase 8 removes
+        # MM_NATIVE — so a corrupt image still surfaces the same RuntimeError.
+        mm = _native_core()
+        if mm is not None:
+            try:
+                _encode_preview_webp_native(mm, content, preview_path)
+                return
+            except Exception as e:
+                print_warning(f"native WebP preview encode failed ({e}); using the PIL fallback")
         try:
             image = Image.open(BytesIO(content))
             image.save(preview_path, "WEBP")

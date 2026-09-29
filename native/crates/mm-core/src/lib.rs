@@ -36,6 +36,7 @@ use pyo3::prelude::*;
 mod jobs;
 mod phase5;
 mod phase6;
+mod phase7;
 
 /// Version of the Python-facing API surface (Plan §4.2.2 `api_version()`).
 /// Bumped whenever the surface changes incompatibly; `py/native.py` checks it
@@ -61,7 +62,12 @@ mod phase6;
 ///   (`watch_start` / `watch_poll` / `watch_stop` / `watch_diagnostics`,
 ///   Plan §4.7.2‑2). `py/manager.py` and `py/watcher.py` call these directly,
 ///   so a v4 binary must NOT pass the loader handshake of a v5 backend.
-const API_VERSION: u32 = 5;
+/// * 6 — Phase 7 (T7): the preview WebP codec (`webp_decode` / `webp_encode` /
+///   `webp_encode_animation`, the zenwebp-backed pure-Rust encode/decode/
+///   animation of Plan §3.8 追記). `py/utils.py` calls these directly (with a
+///   PIL fallback), so a v5 binary must NOT pass the loader handshake of a v6
+///   backend.
+const API_VERSION: u32 = 6;
 
 /// `"x.y.z+commit"` — the crate version plus the git commit the binary was
 /// built from (embedded by `build.rs`, Plan §4.2.2 `core_version()`).
@@ -290,6 +296,82 @@ mod mm_core {
         super::phase6::watch_diagnostics(py)
     }
 
+    /// Decode the first frame of a WebP into RGBA: returns
+    /// `(rgba, width, height, icc_profile)` (`icc_profile` empty when the file
+    /// carries no ICCP chunk). The WebP-decode leg of the preview pipeline and
+    /// the surface the L3 `webp_decode` fuzz target drives (Plan §3.8 追記 /
+    /// T7). GIL released; corrupt / hostile input raises `RuntimeError` (the
+    /// Python caller falls back to the PIL path), never a panic.
+    #[pyfunction]
+    fn webp_decode(py: Python<'_>, data: &[u8]) -> PyResult<(Vec<u8>, u32, u32, Vec<u8>)> {
+        super::phase7::webp_decode(py, data)
+    }
+
+    /// Decode every frame of an animated WebP: returns
+    /// `(frames_rgba, width, height, durations_ms, loop_count, icc)`. PIL does
+    /// not surface per-frame WebP durations, so an animated WebP preview is
+    /// decoded here (durations intact) and re-muxed by `webp_encode_animation`
+    /// (Plan T7). GIL released; a still / corrupt input raises `RuntimeError`.
+    #[pyfunction]
+    #[allow(clippy::type_complexity)] // the flat Python tuple of the animation decode
+    fn webp_decode_animation(
+        py: Python<'_>,
+        data: &[u8],
+    ) -> PyResult<(Vec<Vec<u8>>, u32, u32, Vec<u32>, u16, Vec<u8>)> {
+        super::phase7::webp_decode_animation(py, data)
+    }
+
+    /// Encode an RGBA buffer (`w * h * 4` bytes) into WebP bytes. A non-empty
+    /// `icc` is embedded as an ICCP chunk; `quality` (0..=100), `method`
+    /// (0..=6) and `lossless` mirror PIL's `save(..., "WEBP")` knobs. GIL
+    /// released (Plan T7).
+    #[pyfunction]
+    #[allow(clippy::too_many_arguments)] // flat PyO3 signature (the encoder knobs)
+    fn webp_encode(
+        py: Python<'_>,
+        rgba: &[u8],
+        w: u32,
+        h: u32,
+        icc: &[u8],
+        quality: f32,
+        method: u8,
+        lossless: bool,
+    ) -> PyResult<Vec<u8>> {
+        super::phase7::webp_encode(py, rgba, w, h, icc, quality, method, lossless)
+    }
+
+    /// Encode RGBA frames (each `w * h * 4` bytes) into an **animated** WebP,
+    /// preserving per-frame `durations_ms` (missing entry = 100) and
+    /// `loop_count` (0 = forever). Keeps an animated GIF / WebP preview
+    /// animated instead of freezing the first frame (Plan T7). GIL released.
+    #[pyfunction]
+    #[allow(clippy::too_many_arguments)] // flat PyO3 signature (frames + durations + knobs)
+    fn webp_encode_animation(
+        py: Python<'_>,
+        frames: Vec<Vec<u8>>,
+        w: u32,
+        h: u32,
+        durations_ms: Vec<u32>,
+        loop_count: u16,
+        icc: &[u8],
+        quality: f32,
+        method: u8,
+        lossless: bool,
+    ) -> PyResult<Vec<u8>> {
+        super::phase7::webp_encode_animation(
+            py,
+            frames,
+            w,
+            h,
+            durations_ms,
+            loop_count,
+            icc,
+            quality,
+            method,
+            lossless,
+        )
+    }
+
     /// `(done, total, phase)` of a job; phase ∈ {prepare, tensors, write,
     /// verify, delta, done, failed} — `done`/`failed` are terminal.
     #[pyfunction]
@@ -331,6 +413,6 @@ mod tests {
     fn api_version_matches_the_loader_contract() {
         // py/native.py pins MIN_API_VERSION..MAX_API_VERSION — keep the two
         // sides in lockstep (the loader test suite asserts the same range).
-        assert_eq!(super::API_VERSION, 5);
+        assert_eq!(super::API_VERSION, 6);
     }
 }

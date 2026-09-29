@@ -95,6 +95,7 @@ pub mod safetensors_io;
 pub mod scan;
 #[cfg(feature = "watch")]
 pub mod watch;
+pub mod webp;
 pub mod znn_tensor;
 
 /// Magic bytes of the ZipNN container: the ZN header starts with `b"ZN"`

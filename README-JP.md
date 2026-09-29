@@ -851,7 +851,7 @@ Neo がこれほど堅牢である大きな理由であり、このプロジェ�
 
 以下の優れたプロジェクトとともに作られています: [reka-ui]・[Tailwind CSS]・
 [Lucide]・[VueUse]・[es-toolkit]・[vue-sonner]・[huggingface_hub]・[hf_xet]・
-[modelscope_hub]・[ZipNN]。
+[modelscope_hub]・[ZipNN]・[zenwebp]。
 
 ---
 
@@ -860,6 +860,15 @@ Neo がこれほど堅牢である大きな理由であり、このプロジェ�
 ## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="28" height="28" align="middle" alt=""> ライセンス
 
 **GPL‑3.0‑only** — 全文は [`LICENSE`](LICENSE) を参照。
+
+Rust ネイティブコア（[`native/`](native/)）は、プレビュー WebP パイプライン
+（Phase 7 / T7）のため **[zenwebp]**（純 Rust の WebP codec・**AGPL‑3.0‑only**
+OR Imazen 商用デュアルライセンス）を静的リンクします。Neo は GPL‑3.0‑only で、
+zenwebp を **AGPL‑3.0** 条件で利用します。法的根拠: AGPLv3 §13 は AGPL 成果物と
+GPLv3 成果物の結合を明示的に許可します（AGPL 部分は AGPL のまま）。ComfyUI は
+**ローカルアプリ**（ネットワークサービスではない）のため AGPL のネットワーク条項は
+実質無作用で、配布時のソース入手可能性義務はこの公開リポジトリで充足されます。
+ネイティブコアの第三者帰属の全文は [`native/NOTICE`](native/NOTICE) を参照。
 
 <div align="center">
 
@@ -880,5 +889,6 @@ Neo がこれほど堅牢である大きな理由であり、このプロジェ�
 [hf_xet]: https://github.com/huggingface/xet-core
 [modelscope_hub]: https://github.com/modelscope/modelscope_hub
 [ZipNN]: https://github.com/zipnn/zipnn
+[zenwebp]: https://github.com/imazen/zenwebp
 [Qwen Studio]: https://chat.qwen.ai/
 [ComfyUI-Manager]: https://github.com/ltdrdata/ComfyUI-Manager
