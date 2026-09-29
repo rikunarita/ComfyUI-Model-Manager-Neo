@@ -58,7 +58,7 @@ jobs:
           workspaces: native
 
       # pyo3's build script wants a Python interpreter present.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -142,7 +142,7 @@ jobs:
         with:
           workspaces: native
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -201,7 +201,7 @@ jobs:
         with:
           workspaces: native
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -237,7 +237,7 @@ jobs:
         with:
           workspaces: native
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -266,7 +266,7 @@ jobs:
       matrix:
         python-version: ["3.10", "3.13"]
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -352,7 +352,7 @@ jobs:
         with:
           workspaces: native
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11" # matches the pinned cpython-311 .so ABI
 
@@ -407,7 +407,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
