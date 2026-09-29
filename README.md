@@ -728,6 +728,12 @@ corepack enable          # uses the pinned pnpm version
 pnpm install
 ```
 
+The Python backend's dev/test environment (pytest, ruff, mypy, the hub SDKs,
+torch‑CPU) is managed by **[uv]** — `uv sync --frozen` rebuilds it from
+`pyproject.toml`'s `[dependency-groups]` and the committed `uv.lock` in one shot
+(Plan Phase 7 T4). That is a dev/CI convenience only: the _runtime_ contract is
+unchanged, ComfyUI still installs `requirements.txt` itself on first launch.
+
 | Script                                | Purpose                                                                 |
 | ------------------------------------- | ----------------------------------------------------------------------- |
 | `pnpm dev`                            | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI) |
@@ -913,5 +919,6 @@ repository. Full third‑party attribution for the native core:
 [modelscope_hub]: https://github.com/modelscope/modelscope_hub
 [ZipNN]: https://github.com/zipnn/zipnn
 [zenwebp]: https://github.com/imazen/zenwebp
+[uv]: https://docs.astral.sh/uv/
 [Qwen Studio]: https://chat.qwen.ai/
 [ComfyUI-Manager]: https://github.com/ltdrdata/ComfyUI-Manager

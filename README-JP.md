@@ -704,6 +704,12 @@ corepack enable          # ピン留めされた pnpm 版を使います
 pnpm install
 ```
 
+Python バックエンドの開発/テスト環境（pytest・ruff・mypy・各 hub SDK・torch‑CPU）は
+**[uv]** で管理します — `uv sync --frozen` が `pyproject.toml` の
+`[dependency-groups]` とコミット済み `uv.lock` から一括で再構築します
+（Plan Phase 7 T4）。これは開発/CI の便宜のみで、**ランタイム契約は不変**です —
+ComfyUI は引き続き初回起動時に `requirements.txt` を自前でインストールします。
+
 | スクリプト                            | 用途                                                                        |
 | ------------------------------------- | --------------------------------------------------------------------------- |
 | `pnpm dev`                            | Vite 開発サーバ（ComfyUI でのホットリロード用 `web/manager-dev.js` を書込） |
@@ -890,5 +896,6 @@ GPLv3 成果物の結合を明示的に許可します（AGPL 部分は AGPL の
 [modelscope_hub]: https://github.com/modelscope/modelscope_hub
 [ZipNN]: https://github.com/zipnn/zipnn
 [zenwebp]: https://github.com/imazen/zenwebp
+[uv]: https://docs.astral.sh/uv/
 [Qwen Studio]: https://chat.qwen.ai/
 [ComfyUI-Manager]: https://github.com/ltdrdata/ComfyUI-Manager
