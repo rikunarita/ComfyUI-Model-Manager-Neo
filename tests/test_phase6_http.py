@@ -1002,3 +1002,56 @@ def test_py_backend_has_no_direct_requests_usage():
             elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "requests":
                 offenders.append(f"{path.name}: requests.{node.attr}")
     assert not offenders, f"direct requests usage remains in py/: {offenders}"
+
+
+@pytest.mark.asyncio
+async def test_resolve_preview_sources_mixed_source_kinds(hub_factory, model_lib):
+    """Junction (T8): one gallery mixing an http URL, our own local preview URL,
+    a blob: URL and a non-URL string — each takes its historical branch and the
+    per-index failure wording is unchanged."""
+    import os
+
+    utils = import_ext("utils")
+    webp = _webp_bytes()
+    checkpoints = str(model_lib / "checkpoints")
+    # a stored local preview the local branch can resolve
+    with open(os.path.join(checkpoints, "stored.webp"), "wb") as f:
+        f.write(webp)
+    hub = await hub_factory({"GET /ok.webp": (200, webp, {"Content-Type": "image/webp"})})
+
+    staged, failures = await utils.resolve_preview_sources(
+        [
+            f"{hub.base}/ok.webp",  # http -> fetched
+            "/model-manager/preview/checkpoints/0/stored.webp",  # local -> read from disk
+            "blob:http://x/y",  # blob -> failure wording
+            "not-a-url",  # invalid -> failure wording
+        ]
+    )
+    assert len(staged) == 2, f"http + local resolve, got {len(staged)}"
+    assert staged[0][2] == webp and staged[0][0].endswith("/ok.webp")
+    assert staged[1][2] == webp and staged[1][0].endswith("stored.webp")
+    joined = "; ".join(failures)
+    assert len(failures) == 2
+    assert "browser-local preview url" in joined
+    assert "invalid preview url" in joined
+    # the http round trip happened exactly once (local/blob never hit the hub)
+    assert hub.calls == [("GET", "/ok.webp")]
+
+
+@pytest.mark.asyncio
+async def test_save_model_preview_video_url_writes_the_original_bytes(hub_factory, model_lib):
+    """T8 parity: a video/* preview is still stored verbatim (no re-encode), the
+    async fetch must not change the video branch."""
+    import os
+
+    utils = import_ext("utils")
+    video = b"\x00\x00\x00\x18ftypmp42" + b"v" * 2048
+    hub = await hub_factory({"GET /p.mp4": (200, video, {"Content-Type": "video/mp4"})})
+    model_path = os.path.join(str(model_lib / "checkpoints"), "m.safetensors")
+    with open(model_path, "wb") as f:
+        f.write(b"x")
+    await utils.save_model_preview(model_path, f"{hub.base}/p.mp4")
+    out = os.path.join(str(model_lib / "checkpoints"), "m.mp4")
+    assert os.path.isfile(out)
+    with open(out, "rb") as f:
+        assert f.read() == video, "video previews are stored byte-for-byte"
