@@ -11,8 +11,9 @@
  *   7. eslint-config-prettier — MUST stay last: disables stylistic rules
  *                               that would conflict with Prettier
  *
- * Class *ordering* is delegated to prettier-plugin-tailwindcss (see .prettierrc)
- * so the two tools never fight over the same attribute.
+ * Class *ordering* is delegated to prettier-plugin-tailwindcss (see the
+ * `prettier` key in package.json) so the two tools never fight over the same
+ * attribute.
  */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

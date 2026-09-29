@@ -83,7 +83,7 @@ jobs:
         run: node scripts/bench/front/k15.mjs --json-out /tmp/phase6_front.json
 
       - name: Static types (mypy)
-        run: python -m mypy --config-file mypy.ini
+        run: python -m mypy
 
       - name: Python lint (ruff)
         run: ruff check py __init__.py tests scripts conftest.py

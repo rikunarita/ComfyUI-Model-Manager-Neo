@@ -20,6 +20,46 @@ DisplayName = "ComfyUI-Model-Manager-Neo"
 Icon = ""
 
 # ---------------------------------------------------------------------------
+# mypy: static types for the Python backend (Plan Phase 7 T5 - the former
+# mypy.ini, mechanically converted; mypy >= 1.x auto-discovers `[tool.mypy]`
+# in pyproject.toml, verified on mypy 2.3.1).
+#
+# The extension directory name contains a dash, so mypy cannot treat it as a
+# package; the backend modules are checked file-wise instead (`files` below).
+# `check_untyped_defs` catches real defects inside bodies even where signatures
+# are still loose; `disallow_untyped_defs` is left off deliberately - annotating
+# ~3k lines of aiohttp handlers is a dedicated follow-up, not part of this pass.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+files = [
+    "py/utils.py",
+    "py/auth.py",
+    "py/config.py",
+    "py/thread.py",
+    "py/native.py",
+    "py/manager.py",
+    "py/download.py",
+    "py/upload.py",
+    "py/upload_hf.py",
+    "py/upload_modelscope.py",
+    "py/information.py",
+    "py/compress.py",
+    "py/search.py",
+    "py/identify.py",
+    "py/http_client.py",
+    "py/watcher.py",
+]
+ignore_missing_imports = true
+explicit_package_bases = true
+mypy_path = "."
+namespace_packages = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+# ---------------------------------------------------------------------------
 # Ruff: lint + format for the Python backend (`py/`, `__init__.py`).
 # The rule set is curated, not maximal: correctness families (pyflakes,
 # bugbear, pyupgrade, comprehensions, returns, Ruff's own async/dict checks)

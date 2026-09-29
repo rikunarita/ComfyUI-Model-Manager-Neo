@@ -728,27 +728,27 @@ corepack enable          # uses the pinned pnpm version
 pnpm install
 ```
 
-| Script                                  | Purpose                                                                 |
-| --------------------------------------- | ----------------------------------------------------------------------- |
-| `pnpm dev`                              | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI) |
-| `pnpm build`                            | Production build into `web/`                                            |
-| `pnpm build:clean`                      | Remove `web/` then rebuild                                              |
-| `pnpm rebuild`                          | Remove `node_modules/` **and** `web/`, reinstall, then rebuild          |
-| `pnpm typecheck`                        | `vue-tsc --noEmit` type checking                                        |
-| `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                    |
-| `pnpm lint:css` / `pnpm lint:css:fix`   | Stylelint 17 (CSS + Vue SFC style blocks, Tailwind v4 aware)            |
-| `pnpm deps`                             | dependency-cruiser: import-graph gate (needs Node ≥ 22)                 |
-| `pnpm deps:graph`                       | write `dependency_graph.svg` of the module graph                        |
-| `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                     |
-| `pnpm py:lint` (`:fix`)                 | Ruff lint for the backend (`py/`, `__init__.py`)                        |
-| `pnpm py:format` (`:check`)             | Ruff format for the backend                                             |
-| `python -m mypy --config-file mypy.ini` | Backend static types, clean                                             |
-| `pnpm fallow`                           | Fallow full pipeline: dead code + duplication + health                  |
-| `pnpm fallow:dead` (`:type-aware`)      | unused files/exports/types/deps, cycles — optional TS semantic pass     |
-| `pnpm fallow:dupes`                     | AST clone detection (`mild` mode, see `.fallowrc.json`)                 |
-| `pnpm fallow:health`                    | complexity hotspots, refactor targets, 0–100 health score               |
-| `pnpm fallow:fix:dry` / `fallow:fix`    | preview / apply automatic cleanup (always dry-run first)                |
-| `pnpm fallow:audit`                     | PR-style gate: only findings introduced by the current change           |
+| Script                                | Purpose                                                                 |
+| ------------------------------------- | ----------------------------------------------------------------------- |
+| `pnpm dev`                            | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI) |
+| `pnpm build`                          | Production build into `web/`                                            |
+| `pnpm build:clean`                    | Remove `web/` then rebuild                                              |
+| `pnpm rebuild`                        | Remove `node_modules/` **and** `web/`, reinstall, then rebuild          |
+| `pnpm typecheck`                      | `vue-tsc --noEmit` type checking                                        |
+| `pnpm lint` / `pnpm lint:fix`         | ESLint (flat config)                                                    |
+| `pnpm lint:css` / `pnpm lint:css:fix` | Stylelint 17 (CSS + Vue SFC style blocks, Tailwind v4 aware)            |
+| `pnpm deps`                           | dependency-cruiser: import-graph gate (needs Node ≥ 22)                 |
+| `pnpm deps:graph`                     | write `dependency_graph.svg` of the module graph                        |
+| `pnpm format` / `pnpm format:check`   | Prettier (with the Tailwind plugin)                                     |
+| `pnpm py:lint` (`:fix`)               | Ruff lint for the backend (`py/`, `__init__.py`)                        |
+| `pnpm py:format` (`:check`)           | Ruff format for the backend                                             |
+| `python -m mypy`                      | Backend static types, clean                                             |
+| `pnpm fallow`                         | Fallow full pipeline: dead code + duplication + health                  |
+| `pnpm fallow:dead` (`:type-aware`)    | unused files/exports/types/deps, cycles — optional TS semantic pass     |
+| `pnpm fallow:dupes`                   | AST clone detection (`mild` mode, see `.fallowrc.json`)                 |
+| `pnpm fallow:health`                  | complexity hotspots, refactor targets, 0–100 health score               |
+| `pnpm fallow:fix:dry` / `fallow:fix`  | preview / apply automatic cleanup (always dry-run first)                |
+| `pnpm fallow:audit`                   | PR-style gate: only findings introduced by the current change           |
 
 > [!WARNING]
 > `pnpm dev` **deletes the whole `web/` directory** before writing

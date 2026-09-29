@@ -87,6 +87,90 @@
     "vue-sonner": "^2.0.9",
     "yaml": "^2.9.0"
   },
+  "prettier": {
+    "printWidth": 100,
+    "tabWidth": 2,
+    "useTabs": false,
+    "semi": false,
+    "singleQuote": true,
+    "trailingComma": "all",
+    "arrowParens": "avoid",
+    "bracketSpacing": true,
+    "endOfLine": "lf",
+    "plugins": [
+      "prettier-plugin-tailwindcss"
+    ],
+    "tailwindStylesheet": "./src/style.css",
+    "tailwindFunctions": [
+      "cn",
+      "cva",
+      "clsx",
+      "twMerge"
+    ],
+    "overrides": [
+      {
+        "files": [
+          "*.json",
+          "*.jsonc",
+          "*.yaml",
+          "*.yml"
+        ],
+        "options": {
+          "singleQuote": false
+        }
+      }
+    ]
+  },
+  "stylelint": {
+    "extends": [
+      "stylelint-config-standard"
+    ],
+    "rules": {
+      "import-notation": "string",
+      "at-rule-no-unknown": [
+        true,
+        {
+          "ignoreAtRules": [
+            "theme",
+            "source",
+            "utility",
+            "variant",
+            "custom-variant",
+            "plugin",
+            "reference",
+            "config",
+            "tailwind",
+            "apply"
+          ]
+        }
+      ],
+      "property-no-vendor-prefix": [
+        true,
+        {
+          "ignoreProperties": [
+            "appearance",
+            "backdrop-filter",
+            "-webkit-appearance",
+            "-webkit-backdrop-filter"
+          ]
+        }
+      ]
+    },
+    "overrides": [
+      {
+        "files": [
+          "**/*.vue"
+        ],
+        "customSyntax": "postcss-html"
+      }
+    ],
+    "ignoreFiles": [
+      "web/**",
+      "dist/**",
+      "node_modules/**",
+      "third_party/**"
+    ]
+  },
   "lint-staged": {
     "*.vue": [
       "eslint --fix",

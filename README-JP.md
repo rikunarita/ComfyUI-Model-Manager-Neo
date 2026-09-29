@@ -704,27 +704,27 @@ corepack enable          # ピン留めされた pnpm 版を使います
 pnpm install
 ```
 
-| スクリプト                              | 用途                                                                        |
-| --------------------------------------- | --------------------------------------------------------------------------- |
-| `pnpm dev`                              | Vite 開発サーバ（ComfyUI でのホットリロード用 `web/manager-dev.js` を書込） |
-| `pnpm build`                            | `web/` へのプロダクションビルド                                             |
-| `pnpm build:clean`                      | `web/` を削除してから再ビルド                                               |
-| `pnpm rebuild`                          | `node_modules/` と `web/` を削除、再インストール、再ビルド                  |
-| `pnpm typecheck`                        | `vue-tsc --noEmit` 型チェック                                               |
-| `pnpm lint` / `pnpm lint:fix`           | ESLint（flat config）                                                       |
-| `pnpm lint:css` / `pnpm lint:css:fix`   | Stylelint 17（CSS + Vue SFC の style ブロック、Tailwind v4 対応）           |
-| `pnpm deps`                             | dependency-cruiser: import グラフゲート（Node ≥ 22 が必要）                 |
-| `pnpm deps:graph`                       | モジュールグラフの `dependency_graph.svg` を書込                            |
-| `pnpm format` / `pnpm format:check`     | Prettier（Tailwind プラグイン入り）                                         |
-| `pnpm py:lint` (`:fix`)                 | バックエンドの Ruff lint（`py/`・`__init__.py`）                            |
-| `pnpm py:format` (`:check`)             | バックエンドの Ruff format                                                  |
-| `python -m mypy --config-file mypy.ini` | バックエンドの静的型検査。クリーン                                          |
-| `pnpm fallow`                           | Fallow フルパイプライン: デッドコード + 重複 + ヘルススコア                 |
-| `pnpm fallow:dead` (`:type-aware`)      | 未使用ファイル/export/型/依存・循環 — 任意の TS セマンティックパス          |
-| `pnpm fallow:dupes`                     | AST クローン検出（`mild` モード、`.fallowrc.json` 参照）                    |
-| `pnpm fallow:health`                    | 複雑度ホットスポット・リファクタ対象・0〜100 のヘルススコア                 |
-| `pnpm fallow:fix:dry` / `fallow:fix`    | 自動クリーンアップのプレビュー / 適用（必ず先に dry-run を）                |
-| `pnpm fallow:audit`                     | PR 形式ゲート: 現在の変更が導入した指摘のみ                                 |
+| スクリプト                            | 用途                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| `pnpm dev`                            | Vite 開発サーバ（ComfyUI でのホットリロード用 `web/manager-dev.js` を書込） |
+| `pnpm build`                          | `web/` へのプロダクションビルド                                             |
+| `pnpm build:clean`                    | `web/` を削除してから再ビルド                                               |
+| `pnpm rebuild`                        | `node_modules/` と `web/` を削除、再インストール、再ビルド                  |
+| `pnpm typecheck`                      | `vue-tsc --noEmit` 型チェック                                               |
+| `pnpm lint` / `pnpm lint:fix`         | ESLint（flat config）                                                       |
+| `pnpm lint:css` / `pnpm lint:css:fix` | Stylelint 17（CSS + Vue SFC の style ブロック、Tailwind v4 対応）           |
+| `pnpm deps`                           | dependency-cruiser: import グラフゲート（Node ≥ 22 が必要）                 |
+| `pnpm deps:graph`                     | モジュールグラフの `dependency_graph.svg` を書込                            |
+| `pnpm format` / `pnpm format:check`   | Prettier（Tailwind プラグイン入り）                                         |
+| `pnpm py:lint` (`:fix`)               | バックエンドの Ruff lint（`py/`・`__init__.py`）                            |
+| `pnpm py:format` (`:check`)           | バックエンドの Ruff format                                                  |
+| `python -m mypy`                      | バックエンドの静的型検査。クリーン                                          |
+| `pnpm fallow`                         | Fallow フルパイプライン: デッドコード + 重複 + ヘルススコア                 |
+| `pnpm fallow:dead` (`:type-aware`)    | 未使用ファイル/export/型/依存・循環 — 任意の TS セマンティックパス          |
+| `pnpm fallow:dupes`                   | AST クローン検出（`mild` モード、`.fallowrc.json` 参照）                    |
+| `pnpm fallow:health`                  | 複雑度ホットスポット・リファクタ対象・0〜100 のヘルススコア                 |
+| `pnpm fallow:fix:dry` / `fallow:fix`  | 自動クリーンアップのプレビュー / 適用（必ず先に dry-run を）                |
+| `pnpm fallow:audit`                   | PR 形式ゲート: 現在の変更が導入した指摘のみ                                 |
 
 > [!WARNING]
 > `pnpm dev` は `manager-dev.js` を書く前に **`web/` ディレクトリ全体を削除**
