@@ -1802,16 +1802,20 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   - ゲート: MockHub parity テスト（200 / 非 200 / タイムアウト /
     content-type 欠落 / ローカル分岐 / blob 拒否）+ 既存のダウンロード完了・
     エディタ保存テスト全緑 + `py/` の直接 requests 参照ゼロをテストで固定。
-- [/] 完了条件: **8 項目**の全実施（T7 はライセンス整備 (a)–(e) の完了を含む）+
-  全ゲートマトリクス緑（Rust L1 / mm-core /
-  統合・pytest 成果物あり/なし両方・ruff・mypy〔pyproject 設定経由〕・
-  typecheck / eslint / stylelint / prettier / dependency-cruiser / fallow /
-  build / K15 bench + cross-check）+ Actions 更新後の CI 実走緑 +
-  ドキュメント同期（README×2 Development 節・Credits（T7c）・
-  §8 ライセンス節（T7a）・MEMO 運営メモ）。
-  **Phase 8 との順序**: 前後・交錯いずれも衝突しない — ただし T4/T5
-  （pyproject / 依存定義の整理）は Phase 8 の「pyproject / requirements 整理」の
-  **前**に着地させる方が手戻りが無い。
+- [x] 完了条件: **8 項目**の全実施（T7 はライセンス整備 (a)–(e) の完了を含む）+
+      全ゲートマトリクス緑（Rust L1 / mm-core /
+      統合・pytest 成果物あり/なし両方・ruff・mypy〔pyproject 設定経由〕・
+      typecheck / eslint / stylelint / prettier / dependency-cruiser / fallow /
+      build / K15 bench + cross-check）+ Actions 更新後の CI 実走緑 +
+      ドキュメント同期（README×2 Development 節・Credits（T7c）・
+      §8 ライセンス節（T7a）・MEMO 運営メモ）。
+      **CI 実走緑 確認済み（2026‑09‑29）**: ed86b64 → ci.yml #162 / native.yml #73、
+      00f185f（サイズ目安 5 MB 改定 + pnpm 12.8.1 + 接合部テスト）→ ci.yml #163 /
+      native.yml #74、いずれも **全ジョブ success**（size-budget・fuzz-smoke 7 本・
+      abi3-import api_version 6・integration ×3 OS 含む）。
+      **Phase 8 との順序**: 前後・交錯いずれも衝突しない — ただし T4/T5
+      （pyproject / 依存定義の整理）は Phase 8 の「pyproject / requirements 整理」の
+      **前**に着地させる方が手戻りが無い。
 
 ### Phase 8 — third_party 撤去・配布仕上げ・リリース
 
@@ -2084,9 +2088,11 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   `-D warnings`（workspace all-targets all-features）/ fmt・pytest **207**（native+torch）・
   ruff / mypy 16 files / typecheck / eslint / stylelint / prettier / dependency-cruiser /
   fallow（dead+dupes）/ build / K15 bench（Node 26）・`uv sync --frozen`→207。
-  **残るは Actions 更新後の CI 実走緑の確認のみ**（push 後・次ターンでユーザ確認 —
-  Plan 完了条件の「CI 実走緑」）。サイズゲートは CI（zigbuild・4 プラットフォーム）で実測 —
-  5 MiB 目安超過時は §6.3 によりユーザ判断で上限改定。
+  **Actions 更新後の CI 実走緑 確認済み（2026‑09‑29）**: ed86b64 → ci.yml #162 /
+  native.yml #73、00f185f → ci.yml #163 / native.yml #74、いずれも全ジョブ success
+  （size-budget・fuzz-smoke 7 本・abi3-import api_version 6・integration ×3 OS・
+  L5 公式 zipnn クロス検証・K15 cross-check 含む）= Plan 完了条件の「CI 実走緑」充足。
+  サイズは CI 実測でも budget 内（linux-x86_64 4,110,816 B = 5 MiB 目安の 78 %）。
 - [ ] **Phase 8** — third_party 撤去・配布仕上げ・v0.3.0 リリース（旧 Phase 7）
 
 ---
