@@ -1568,7 +1568,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
 
 ### Phase 7 — ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定・6 項目）
 
-- [ ] **T1: アップロード preflight SHA256 の Rust 化** — `py/upload_hf.py`
+- [x] **T1: アップロード preflight SHA256 の Rust 化** — `py/upload_hf.py`
       `hash_local_file`（モデル全文を Python hashlib の 1 MiB ループでハッシュ —
       HF / ModelScope の重複検出 preflight で、remote サイズ一致時のみ呼ばれる）を
       **既存の** `mm_core.hash_file(path, ["SHA256"])` へ差し替える
@@ -1590,7 +1590,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   - ゲート: ゴールデンテスト（hash_file == hashlib バイト一致）+ preflight の
     モックフロー（`test_phase6_http.py` の MockHub パターン）+ 既存アップロード系
     テスト全緑。
-- [ ] **T2: Node.js v26.10.0 へのアップデート** — 一次確認（nodejs.org dist index・
+- [x] **T2: Node.js v26.10.0 へのアップデート** — 一次確認（nodejs.org dist index・
       2026‑09‑28 実測）: **v26.10.0 = v26 系の最新**（2026‑09‑21 リリース。
       Node 24 = LTS "Krypton"、v26 は current 系で 2026‑10 に LTS 昇格予定）。
       変更点: ci.yml `node-version: 22` → `26.10.0`、`@types/node` ^22 → ^26、
@@ -1602,11 +1602,11 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
       高速経路が前提）は Node 26 の V8 で再検証する**（Node 22 の GH ランナーで
       設計判断が再現した前例あり — MEMO 第 8 セッション）。
       ゲート: ci.yml + native.yml（cross-check セル）全緑 + K15 ゲート PASS。
-- [ ] **T3: Ruff 0.16.9 へのアップデート** — ci.yml のピン `ruff==0.16.8` →
+- [x] **T3: Ruff 0.16.9 へのアップデート** — ci.yml のピン `ruff==0.16.8` →
       `ruff==0.16.9`（PyPI latest = 0.16.9・2026‑09‑28 実測）。`ruff check` +
       `ruff format --check` を再実行し、新バージョン由来の指摘があれば解消する。
       ゲート: ci.yml 緑。
-- [ ] **T4: uv の導入（Python の開発・CI 層専用 = pip 置換 — 2026‑09‑28 ユーザ決定）** —
+- [x] **T4: uv の導入（Python の開発・CI 層専用 = pip 置換 — 2026‑09‑28 ユーザ決定）** —
       uv 最新版（2026‑09‑28 時点 0.12.19・PyPI 実測。実施時の latest を一次確認）。
   - **対象範囲の明確化（2026‑09‑28 ユーザ指示で明記）**: uv の導入は
     **Python の pip 置換のみ**（開発・CI 層）。**フロントエンドのパッケージ管理
@@ -1637,7 +1637,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
     （Phase 8 の「pyproject / requirements 整理」と統合）。
   - ゲート: ci.yml + native.yml 全緑（ubuntu / windows / macOS）+
     `uv sync --frozen` → pytest 176 のローカル再現。
-- [ ] **T5: mypy.ini → pyproject.toml 統合 + 統合できる設定の統合** —
+- [x] **T5: mypy.ini → pyproject.toml 統合 + 統合できる設定の統合** —
   - `[tool.mypy]` 統合: **実証済み**（2026‑09‑28・mypy 2.3.1 で
     `--config-file` 無し実行が pyproject.toml の `[tool.mypy]` を自動発見し
     全オプションを適用することをサンドボックス実測）。現行 mypy.ini は
@@ -1661,7 +1661,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
     `.fallowrc.json`（JS 系ツールの固有フォーマット）、`native/pyproject.toml`
     （maturin ビルド定義 — root とは別ワークスペース）、cargo / clippy /
     rustfmt の設定（cargo は pyproject を読まない）。
-- [ ] **T6: 設定ファイルの全面見直し（最新記法・バージョンの一次ソース照合）** —
+- [x] **T6: 設定ファイルの全面見直し（最新記法・バージョンの一次ソース照合）** —
   - **GitHub Actions**（2026‑09‑28 GitHub API 実測の latest）:
     actions/checkout v4 → **v7.0.1** / setup-node v4 → **v7.0.0** /
     setup-python v5 → **v7.0.0** / upload-artifact v4 → **v7.0.1** /
@@ -1687,7 +1687,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   - ゲート: 全 CI 緑 + ローカル全ゲートの**挙動不変**（純粋な記法/バージョン
     現代化に限る。挙動を変える項目は個別にユーザ判断を仰ぐ）。
     発見事項と一次証跡は MEMO へ記録。
-- [ ] **T7: `zenwebp` 導入（純 Rust WebP codec — エンコード/デコード/アニメ・
+- [x] **T7: `zenwebp` 導入（純 Rust WebP codec — エンコード/デコード/アニメ・
       一気刷新）+ ライセンス整備** — プレビュー WebP パイプライン
       （§3.8 が「PIL 維持」とした経路）を**一括で** native へ刷新する。
       **2026‑09‑28 ユーザ決定**（AGPL‑3.0 コンポーネントの採用を承認・
@@ -1762,7 +1762,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
     アニメ WebP のフレーム数/duration 保持テスト、既存プレビュー系テスト
     全緑、サイズ実測、**api_version bump**（新規 API — §4.2.2 の
     4 者同期規程）。
-- [ ] **T8: `py/utils.py` の残り `requests` 2 箇所の aiohttp 化（A3 の完了）** —
+- [x] **T8: `py/utils.py` の残り `requests` 2 箇所の aiohttp 化（A3 の完了）** —
       対象: `save_model_preview` の URL 取得（L687・ダウンロード完了経路）と
       エディタ保存経路（L750）— いずれも io_executor 内のブロッキング
       `requests.get(timeout=(15, 120))`。
@@ -1796,16 +1796,16 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   - ゲート: MockHub parity テスト（200 / 非 200 / タイムアウト /
     content-type 欠落 / ローカル分岐 / blob 拒否）+ 既存のダウンロード完了・
     エディタ保存テスト全緑 + `py/` の直接 requests 参照ゼロをテストで固定。
-- [ ] 完了条件: **8 項目**の全実施（T7 はライセンス整備 (a)–(e) の完了を含む）+
-      全ゲートマトリクス緑（Rust L1 / mm-core /
-      統合・pytest 成果物あり/なし両方・ruff・mypy〔pyproject 設定経由〕・
-      typecheck / eslint / stylelint / prettier / dependency-cruiser / fallow /
-      build / K15 bench + cross-check）+ Actions 更新後の CI 実走緑 +
-      ドキュメント同期（README×2 Development 節・Credits（T7c）・
-      §8 ライセンス節（T7a）・MEMO 運営メモ）。
-      **Phase 8 との順序**: 前後・交錯いずれも衝突しない — ただし T4/T5
-      （pyproject / 依存定義の整理）は Phase 8 の「pyproject / requirements 整理」の
-      **前**に着地させる方が手戻りが無い。
+- [/] 完了条件: **8 項目**の全実施（T7 はライセンス整備 (a)–(e) の完了を含む）+
+  全ゲートマトリクス緑（Rust L1 / mm-core /
+  統合・pytest 成果物あり/なし両方・ruff・mypy〔pyproject 設定経由〕・
+  typecheck / eslint / stylelint / prettier / dependency-cruiser / fallow /
+  build / K15 bench + cross-check）+ Actions 更新後の CI 実走緑 +
+  ドキュメント同期（README×2 Development 節・Credits（T7c）・
+  §8 ライセンス節（T7a）・MEMO 運営メモ）。
+  **Phase 8 との順序**: 前後・交錯いずれも衝突しない — ただし T4/T5
+  （pyproject / 依存定義の整理）は Phase 8 の「pyproject / requirements 整理」の
+  **前**に着地させる方が手戻りが無い。
 
 ### Phase 8 — third_party 撤去・配布仕上げ・リリース
 
@@ -2041,15 +2041,45 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
       notify/debouncer-full + tensor tree）。fuzz 表面は不変
       （codec 無変更・新 API は fuzz ターゲット外）→ 再ディスパッチ不要。
       証跡 BENCH §11
-- [ ] **Phase 7** — ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定・8 項目:
-      T1 アップロード preflight SHA256 の Rust 化 / T2 Node v26.10.0 /
-      T3 Ruff 0.16.9 / T4 uv 導入〔Python の開発・CI 層限定 = pip 置換・pnpm 現状維持〕/ T5 mypy.ini →
-      pyproject.toml 統合 + 統合できる設定 / T6 設定ファイル全面見直し /
-      T7 zenwebp 一気刷新〔静止エンコード + アニメ WebP 保持 + WebP デコード・
-      fuzz/parity ゲート・**AGPL‑3.0 ライセンス整備を必須化**〕/
-      T8 utils.py 残り requests
-      2 箇所の aiohttp 化〔A3 完了 — requests は modelscope_hub の
-      推移的依存として残存〕）
+- [/] **Phase 7** — ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定・8 項目:
+  T1 アップロード preflight SHA256 の Rust 化 / T2 Node v26.10.0 /
+  T3 Ruff 0.16.9 / T4 uv 導入〔Python の開発・CI 層限定 = pip 置換・pnpm 現状維持〕/ T5 mypy.ini →
+  pyproject.toml 統合 + 統合できる設定 / T6 設定ファイル全面見直し /
+  T7 zenwebp 一気刷新〔静止エンコード + アニメ WebP 保持 + WebP デコード・
+  fuzz/parity ゲート・**AGPL‑3.0 ライセンス整備を必須化**〕/
+  T8 utils.py 残り requests
+  2 箇所の aiohttp 化〔A3 完了 — requests は modelscope_hub の
+  推移的依存として残存〕）
+  **8 項目すべて実装・自動 QA 完了 2026‑09‑29**（第 15 セッション）:
+  T1 `_sha256_of_file`（native hash_file + Python フォールバック・preflight を
+  ネットワーク段 io / ハッシュ段 cpu へ分離・+8 テスト）/ T2 ci.yml node 26.10.0 +
+  `@types/node` ^26.6.3（C2 comparator ゲートを Node 26 の V8 で再検証 PASS・
+  numeric ×21.95 hoisted 優位 / default は localeCompare builtin 優位で維持）/
+  T3 ruff 0.16.9 / T4 uv 0.12.20（`[dependency-groups]` dev + `[tool.uv] package=false` +
+  pytorch-cpu explicit index + uv.lock コミット・ci.yml 1 + native.yml 4 ジョブを
+  `uv pip install --system` + setup-uv v10.2.0 へ・`uv sync --frozen`→pytest 再現）/
+  T5 `[tool.mypy]` pyproject 統合（mypy 2.3.1 自動発見実証・16 files）+ prettier/stylelint を
+  package.json へ（挙動不変）/ T6 GitHub Actions メジャー更新を**1 action ずつ別コミット**
+  （checkout v7・setup-node v7・setup-python v7・upload-artifact v7・download-artifact v8・
+  pnpm-action v6.1〔各 release notes で破壊的変更を一次確認〕・rust-cache は同一メジャーで v2 維持・
+  setup-uv v10.2.0 は T4 で新設）+ 全設定を一次ソース照合（crate バージョンは §3.7 と一致・
+  pnpm `minimum-release-age` の .npmrc 配置は pnpm 12 で無視される発見 → サプライチェーン設定のため
+  挙動不変を優先し MEMO 記録のみ）/ T7 zenwebp 0.4.4（`znn-codec::webp` 純 Rust +
+  mm-core phase7 バインド・api_version **5→6** 4 者同期・L1 +10・L3 fuzz `webp_decode` 7 本目・
+  pytest +9〔静止 parity / アニメ frame+duration 保持 / decode parity zenwebp==PIL / フォールバック〕・
+  **AGPL‑3.0 ライセンス整備 (a)–(e)**: Plan §8 + native/NOTICE 新設 + README×2 Credits/License +
+  §3.7 crate 表 + Cargo.toml・サイズ実測 release linux-x86_64 **4,110,816 B = 3.92 MiB =
+  4 MiB 目安の 98 %**〔zenwebp 増分 +0.93 MB・budget 内だが CI 実測で注視〕）/
+  T8 `http_client.fetch_preview` + `resolve_preview_sources`/`write_resolved_previews` 分割 +
+  `_resolve_update_previews`（editor fetch を event loop へ）+ save_model_preview(s) async 化・
+  `import requests` 削除（py/ 直接参照ゼロを AST テストで固定）・+12 テスト（接合部含む）。
+  **ローカル全ゲート緑**: Rust L1 **205**（znn-codec +10）/ mm-core 5 / 統合 4・clippy
+  `-D warnings`（workspace all-targets all-features）/ fmt・pytest **207**（native+torch）・
+  ruff / mypy 16 files / typecheck / eslint / stylelint / prettier / dependency-cruiser /
+  fallow（dead+dupes）/ build / K15 bench（Node 26）・`uv sync --frozen`→207。
+  **残るは Actions 更新後の CI 実走緑の確認のみ**（push 後・次ターンでユーザ確認 —
+  Plan 完了条件の「CI 実走緑」）。サイズゲートは CI（zigbuild・4 プラットフォーム）で実測 —
+  4 MiB 目安超過時は §6.3 によりユーザ判断で上限改定。
 - [ ] **Phase 8** — third_party 撤去・配布仕上げ・v0.3.0 リリース（旧 Phase 7）
 
 ---
