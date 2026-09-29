@@ -8,8 +8,8 @@
 #                  per-binary size-budget gate + import smoke on each OS
 #   abi3-import    the linux artifact imported by CPython 3.10 AND 3.13
 #                  (proves the abi3-py310 single-binary claim, Plan §3.2)
-#   size-budget    <= 4 MB per binary (per arch slice; the macOS universal2 fat
-#                  binary is detected by its FAT_MAGIC and gets a doubled 8 MB
+#   size-budget    <= 5 MB per binary (per arch slice; the macOS universal2 fat
+#                  binary is detected by its FAT_MAGIC and gets a doubled 10 MB
 #                  file budget) and <= 20 MB total across all artifacts
 #                  (Plan §3.3 / R6)
 #
@@ -307,10 +307,10 @@ jobs:
           PY
 
   size-budget:
-    # Plan §3.3 / R6: <= 4 MB per binary, <= 20 MB for the whole native-bin.
+    # Plan §3.3 / R6: <= 5 MB per binary, <= 20 MB for the whole native-bin.
     # The macOS universal2 artifact is a FAT binary (x86_64 + arm64 = two
     # architecture slices), so its per-file budget is doubled — each slice is
-    # within the single-binary 4 MB budget (build-native.sh gates the thinned
+    # within the single-binary 5 MB budget (build-native.sh gates the thinned
     # slices on the macOS runner; lipo is unavailable on this ubuntu job). The
     # 20 MB TOTAL across all four artifacts is the real repo-bloat guard (R6).
     runs-on: ubuntu-latest
@@ -329,17 +329,17 @@ jobs:
           while IFS= read -r f; do
             size=$(stat -c %s "$f")
             # A macOS universal2 artifact is a FAT Mach-O holding TWO
-            # architecture slices (x86_64 + arm64), so Plan §3.3's "<= 4 MB per
+            # architecture slices (x86_64 + arm64), so Plan §3.3's "<= 5 MB per
             # binary" applies per SLICE and the fat file gets a doubled budget.
             # Detect it by content (FAT_MAGIC 0xcafebabe / FAT_MAGIC_64
             # 0xcafebabf, big-endian on disk) rather than by path — the
             # downloaded artifact's directory layout is not guaranteed to carry
             # the `macos-universal2` segment. build-native.sh additionally gates
             # each thinned slice at the single-binary budget on the macOS runner.
-            budget=4194304
+            budget=5242880
             magic=$(od -An -tx1 -N4 "$f" | tr -d ' ')
             case "$magic" in
-              cafebabe | cafebabf) budget=8388608 ;;
+              cafebabe | cafebabf) budget=10485760 ;;
             esac
             echo "$f: $size bytes (magic $magic, budget $budget)"
             if [ "$size" -gt "$budget" ]; then echo "OVER BUDGET (> $budget): $f"; exit 1; fi

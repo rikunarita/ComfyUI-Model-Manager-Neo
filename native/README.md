@@ -100,7 +100,7 @@ notify + notify-debouncer-full **直接採用**〔extended-notify 不導入 — 
   `Event::need_rescan` は full invalidation、Access イベントは除外。
   **`watch` feature は default-on**: 同梱プリビルドが `watch_*` を持たなければ
   設定が永久に動かないため（OFF なのは実行時の設定の方）。サイズ実測
-  linux-x86_64 release **3,137,312 B = 予算 4 MB の 75 %**（Phase 5 比 +267 KB）。
+  linux-x86_64 release **4,110,816 B = 予算 5 MB の 78 %**（2026-09-29 T7 zenwebp 込み・目安は同日 4→5 MB 改定）。
 - mm-core（`phase6.rs`）— `safetensors_tensor_tree` / `watch_start` /
   `watch_poll` / `watch_stop` / `watch_diagnostics` を公開。Python 側の駆動は
   `py/watcher.py`（asyncio タスク 1 本・1 s ポーリング・network root 自動
@@ -153,7 +153,7 @@ native/
   `undocumented_unsafe_blocks = deny`。将来 unsafe を導入する場合は
   `// SAFETY:` コメント必須（レビュー規則、Plan §3.4.2）。
 - **サイズ予算**: release profile（`lto = "fat"` / `codegen-units = 1` / `strip`）で
-  1 バイナリ ≤ 4 MB（CI ゲート）。Phase 0 の hello world 実測は 0.4 MB 前後。
+  1 バイナリ ≤ 5 MB（CI ゲート・目安）。Phase 0 の hello world 実測は 0.4 MB 前後。
 
 ## ローカル開発環境の導入
 

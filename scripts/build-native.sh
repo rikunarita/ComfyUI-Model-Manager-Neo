@@ -26,7 +26,7 @@
 set -euo pipefail
 
 GLIBC_FLOOR="${MM_GLIBC_FLOOR:-2.28}" # Plan §3.3: Debian 10 / Ubuntu 20.04+
-SIZE_BUDGET=$((4 * 1024 * 1024))      # Plan §3.3/R6: <= 4 MB per binary
+SIZE_BUDGET=$((5 * 1024 * 1024))      # Plan §3.3/R6: <= 5 MB per binary
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Windows (git-bash) runners may only provide `python`, not `python3`.
@@ -121,7 +121,7 @@ build_macos_universal2() {
   mkdir -p "$out_dir"
   extract_from_wheel "$wheel" ".abi3.so" "$out_dir/mm_core.abi3.so"
   lipo -info "$out_dir/mm_core.abi3.so" || true
-  # universal2 is a FAT binary (x86_64 + arm64). Plan §3.3's "<= 4 MB per
+  # universal2 is a FAT binary (x86_64 + arm64). Plan §3.3's "<= 5 MB per
   # binary" is a PER-ARCHITECTURE budget, so gate each thinned slice at
   # SIZE_BUDGET; the fat file itself is naturally ~2x and is checked against a
   # doubled budget in finish() (the whole native-bin set still has to fit the

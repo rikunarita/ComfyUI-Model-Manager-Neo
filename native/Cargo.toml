@@ -9,7 +9,7 @@
 #
 # Release profile: `panic = "unwind"` is REQUIRED (PyO3 catches panics at the
 # boundary and turns them into Python exceptions; `abort` would kill the whole
-# ComfyUI process - Plan §3.3). Size budget: <= 4 MB per binary with
+# ComfyUI process - Plan §3.3). Size budget: <= 5 MB per binary with
 # lto = "fat" + codegen-units = 1 + strip (Plan §3.3, R6).
 
 [workspace]
