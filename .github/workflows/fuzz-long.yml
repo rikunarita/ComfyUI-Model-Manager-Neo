@@ -82,7 +82,7 @@ jobs:
 
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-crashes-${{ matrix.target }}
           path: native/crates/znn-codec/fuzz/artifacts/
@@ -120,7 +120,7 @@ jobs:
         run: python3 scripts/l2/golden_diff.py --cases 10500 --out scripts/l2/results/golden_diff.json
 
       - name: Upload the report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: l2-full-report
           path: scripts/l2/results/golden_diff.json

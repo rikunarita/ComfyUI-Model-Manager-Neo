@@ -181,7 +181,7 @@ jobs:
           python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
           python -m pytest tests -q
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-bin-linux
           path: |
@@ -218,7 +218,7 @@ jobs:
         run: |
           PYTHONPATH=native/native-bin/macos-universal2 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-bin-macos
           path: native/native-bin/macos-universal2/mm_core.abi3.so
@@ -251,7 +251,7 @@ jobs:
         run: |
           PYTHONPATH=native/native-bin/windows-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-bin-windows
           path: native/native-bin/windows-x86_64/mm_core.pyd
@@ -511,7 +511,7 @@ jobs:
 
       - name: Upload crash artifacts (if any)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-crashes
           path: native/crates/znn-codec/fuzz/artifacts/
