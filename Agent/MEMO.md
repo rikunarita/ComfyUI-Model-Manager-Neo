@@ -180,7 +180,7 @@ setting '1'` 警告は**無害**（成果物の glibc ≤2.28 は readelf で確
   `next_key()`**（next_object 反復は ExpectedSomeValue）。simd‑json 0.18 は
   `ValueAsObject/ValueObjectAccess/ValueAsScalar/ValueAsArray` trait import 必須。
 - **bincode: crates.io の `max_stable_version = 3.0.0` は `compile_error!`
-  プレースホルダ**（xkcd 2347 型のス쿼ットガード — .crate 展開で確認）→
+  プレースホルダ**（xkcd 2347 型のスクワットガード — .crate 展開で確認）→
   **2.0.1 が真の安定版**（Plan §3.1 注記）。
 - **macos‑universal2 は fat binary**: サイズ予算は per‑arch スライス判定
   （各 ≤5 MB）+ fat ファイルは 2× 予算。native.yml size‑budget は
@@ -224,6 +224,14 @@ PixelLayout::Rgba8, w, h).encode()`、still decode = `oneshot::decode_rgba`（�
   per-frame duration を info で公開しない**（GIF は公開）→ アニメ WebP 入力は
   native decode_animation で duration 保持。`ImageInfo::from_webp` でデコード前に
   canvas 次元をガード（敵対的ヘッダの過剰確保防止 = fuzz の要点）。AGPL‑3.0（§8・NOTICE）。
+- **GH ランナーの apt ハングが実在する**（native run #80・2026‑09‑30:
+  native-test ubuntu の「Install mold + clang」ステップが**無出力で 6 h ハング** →
+  GitHub のジョブ上限で run 全体が cancelled。同一ステップは run #79/#81 では
+  20 s 未満 = ミラー側の一過性ストール。サンドボックスの apt 25 KB/s 劣化
+  （§2.3）と同クラス）。対策（第 18 セッションで適用）: 全 apt ステップへ
+  `timeout-minutes: 10`（数分で赤くなり re-run で健全ミラーを引ける）+
+  ci/native/fuzz-long の全ジョブへ `timeout-minutes: 60`（fuzz-long の
+  360/120 は既存のまま。観測最長 8.8 min の ~7 倍 = 誤殺しない余裕）。
 - **release ビルドは 1 GiB でも通ることがある**（2026‑09‑29 T7 で zenwebp 込み
   lto=fat + codegen‑units=1 が 3m12s で成功 — §2.3 の「OOM」は常にではない。
   不安定なので `CARGO_BUILD_JOBS=1` + ディスク残量に注意。target/release は計測後削除）。
@@ -392,8 +400,20 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
   `.tmp` フィルタ接合部 / type_matcher sibling‑prefix / cancel 条件待ち）は
   全て mutation 検証済み。「**接合部**」（両端は個別テスト済みでも接続部が
   無テスト）を探せ。
+- **`time.monotonic()` は uptime 基準 — テストで「十分大きい」を仮定しない**
+  （2026‑09‑30 第 18 セッションで実証された flake クラス）: TTL 失効テストで
+  キャッシュ stamp に絶対原点 `0.0` を使うと、起動直後の CI ランナー
+  （uptime < TTL 秒）では「まだ失効していない」判定になる（実例: native
+  run #81 integration(ubuntu) — `test_mountinfo_body_is_cached_within_the_ttl`。
+  修正 = 相対原点 `now - (TTL + 1)`。monotonic を 5 s に固定したシミュレーション
+  で旧パターンの失敗と新パターンの決定論性を実証済み）。
+- **mutation 検証は「アサート無しの try/except‑pass」も探す**（第 18 セッション:
+  `test_webp_decode_rejects_garbage` が例外を要求しておらず、どんな退化でも
+  緑だった → `pytest.raises` 化。同型: loop/アニメ ICC 保持は Python 側
+  未固定で `loop = 0` / `icc = b""` ハードコード mutation が全テストを通過した
+  → 接合部テスト追加で捕捉を実証）。
 
-## 5. 現状と残件（2026‑09‑29 第 16 セッション時点）
+## 5. 現状と残件（2026‑10‑01 第 18 セッション時点）
 
 - **Phase 0–7 完了（CI 実走緑まで確認済み）**
   （詳細と完了条件の照合は Plan §9 / §6.2）。キー値:
@@ -401,8 +421,8 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
   native.yml abi3 assert / pytest 4 アサート）/ release `.so` linux-x86_64
   **4,110,816 B = 3.92 MiB = 5 MiB 目安の 78 %（2026‑09‑29 に目安 4→5 MB 改定・
   CI size-budget も green で実測 budget 内を確認）**（zenwebp 増分 +0.93 MB）/
-  Rust L1 **205**（znn-codec・webp +10）+ 統合 **4** + mm‑core **5** /
-  pytest **209**（native+torch）・成果物なし = ci.yml 相当は 83+126 skip /
+  Rust L1 **206**（znn-codec・webp +11）+ 統合 **4** + mm‑core **5** /
+  pytest **214**（native+torch）・成果物なし = ci.yml 相当は 86+128 skip /
   K15 達成（Node 26 で C2 ゲート再検証 PASS）/ fuzz は **7 ターゲット**
   （webp_decode 追加 — codec 表面が変わったので run 6 の 18 h 証跡は webp 経路には
   未適用・次回 fuzz-long で 7 本目を実走）/ pnpm **12.8.1**（ユーザ指示で UP）。
@@ -424,8 +444,13 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
   GitHub Actions メジャー更新（checkout/setup-node/setup-python v7・upload-artifact v7・
   download-artifact v8・pnpm-action v6.1）・mypy は `python -m mypy`（pyproject 自動発見）・
   native.yml abi3 assert = api_version 6 + webp 4 関数・fuzz は **7 ターゲット**
-  （webp_decode 追加・fuzz-smoke ループ + fuzz-long matrix）。**dev tip の CI 実走緑は
-  push 後・次ターンで確認**（ローカル全ゲートは緑）。
+  （webp_decode 追加・fuzz-smoke ループ + fuzz-long matrix）。Phase 7 の CI 実走緑は
+  第 16 セッションで確認済み（ci.yml #162/#163・native.yml #73/#74）。
+  **第 18 セッション（2026‑10‑01）で CI 耐障害性を強化**: 全 apt ステップ
+  `timeout-minutes: 10`（run #80 の 6 h ハング→cancelled 事案）+ 全ジョブ
+  `timeout-minutes: 60`（ci/native/fuzz-long）・actionlint 1.7.12 緑。
+  **第 18 の修正群（flake 修正 + 充実テスト + timeout）はローカル全ゲート緑 —
+  dev tip の CI 実走は push 後・次ターンで確認**。
 
 ## 6. セッション タイムライン（圧縮版 — 逐語原文は `git show 88b5e9c:Agent/MEMO.md`）
 
@@ -458,3 +483,4 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
 | 第 15 | 2026‑09‑29 | **Phase 7「ツールチェーン現代化・設定統合」8 項目（T1–T8）を完全実装・自動 QA 完了**（dev へコミット/プッシュ・CI 実走緑は次ターンでユーザ確認）。一次ソース照合（nodejs.org dist / PyPI / crates.io / GitHub API）で全バージョンを確認してから実施。**T3** ruff 0.16.9・**T2** Node 26.10.0 + `@types/node` ^26.6.3（C2 ゲートを Node 26 の V8 で再検証 PASS）・**T5** `[tool.mypy]` pyproject 統合（mypy 2.3.1 自動発見・16 files）+ prettier/stylelint を package.json へ（挙動不変）・**T4** uv 0.12.20（`[dependency-groups]`+uv.lock・setup-uv v10.2.0・`uv pip install --system`・`uv sync --frozen`→207 再現）・**T6** GitHub Actions を **1 action ずつ別コミット**でメジャー更新（checkout/setup-node/setup-python v7・upload-artifact v7・download-artifact v8・pnpm-action v6.1・rust-cache は同一メジャー v2 維持・各 release notes で破壊的変更を一次確認〔runner≥2.327.1・download-artifact v5 の ID ダウンロード変更は name/pattern のみ使用で非影響・upload v7↔download v8 は @actions/artifact v4 相互運用・setup-node v6 の auto-cache npm 限定は明示 cache:pnpm で非影響〕・setup-uv のみ v8+ でメジャータグ無し = v10.2.0 pin）+ 全設定を一次照合（crate は §3.7 一致・pnpm `minimum-release-age` の .npmrc 配置は pnpm 12 で無視 = 死に設定の発見 → 挙動不変を優先し記録のみ §4.1）・**T1** `_sha256_of_file`（native hash_file + フォールバック・preflight を network=io/hash=cpu へ分離・+8 テスト）・**T8** `http_client.fetch_preview` + `resolve_preview_sources`/`write_resolved_previews` 分割 + `_resolve_update_previews`（editor fetch を loop へ）+ save_model_preview(s) async 化・`import requests` 削除（py/ 直接参照ゼロを AST で固定・+12 テスト接合部含む）・**T7** zenwebp 0.4.4（`znn-codec::webp` 純 Rust + mm-core phase7・**api_version 5→6** 4 者同期・L1 +10・L3 fuzz `webp_decode` 7 本目〔native.yml/fuzz-long 同一コミット〕・pytest +9〔静止 parity/アニメ frame+duration 保持/decode parity zenwebp==PIL/フォールバック〕・**AGPL‑3.0 ライセンス整備 (a)–(e)**: Plan §8 + `native/NOTICE` 新設 + README×2 Credits/License + §3.7 crate 表 + Cargo.toml・サイズ実測 release linux-x86_64 **4,110,816 B = 3.92 MiB = 5 MiB 目安の 78 %（2026‑09‑29 に目安 4→5 MB 改定）**〔zenwebp +0.93 MB・budget 内・CI 実測で注視〕）。**罠**: AnimationDecoder のフレームは has_alpha で RGBA/RGB が変わる（長さ判別で RGBA 正規化）/ PIL は WebP の per-frame duration を公開しない（アニメ WebP 入力は native decode_animation で保持）。全 mutation testing で捕捉力実証（.lower() 除去・raise_for_status 削除・duration ハードコード・import requests 再混入）。**ローカル全ゲート緑**（Rust L1 205/mm-core 5/統合 4・clippy -D warnings・pytest 207・ruff/mypy/typecheck/eslint/stylelint/prettier/dep-cruiser/fallow/build/K15 Node26）。Plan §6.2 T1–T8 [x]・§9 Phase 7 [/]（CI 実走待ち）。 |
 | 第 16 | 2026‑09‑29 | **追加要件 3 件を完遂 + Phase 7 クローズ**。(1) **サイズ目安 4→5 MB/本**（ユーザ決定・Plan 版数 2.6）: native.yml size-budget 4194304→5242880・fat 8388608→10485760（合計 ≤20 MB の R6 ハード上限は維持）・build-native.sh SIZE_BUDGET・Plan §3.3/§6.3/R6/§5.3/T7/§9・MEMO・native README/Cargo.toml・BENCH は注記のみ。(2) **pnpm 12.3.4→12.8.1**（ユーザ指示）: packageManager の integrity は npm base64→**hex 変換が必須**（corepack は semver build metadata 制約で base64 の +/= を拒否 = 「expected a semver version」エラーの実測）。lock は packageManagerDependencies+@pnpm/exe が追従。(3) **Phase 7 バグ精査 = バグ 0 件**: 接合部エッジテスト 2 件追加（editor ギャラリーの http/local/blob/非URL 混在・video プレビューのバイト一致）→ native あり 209 / なし 83+126 skip 両緑。(4) **最新安定版監査**（報告のみ・実装は指示待ち）: 解決済み版ベースで照合 — 遅れは @vueuse/core 14→15（メジャー）・thiserror patch・npm マイナー 16 件（caret 範囲内 lock 古）・bincode/cargo-fuzz/TS7 は意図/除外・Python は互換レンジが設計。(5) **CI 実走緑を確認**: ed86b64→ci#162/native#73・00f185f→ci#163/native#74 全ジョブ success（size-budget・fuzz-smoke 7・abi3 v6・integration×3）。Plan §9 Phase 7 [x]・§6.2 完了条件 [x] クローズ。未決（ユーザ判断待ち）: npm/crate の最新版へのアップグレード実施、.npmrc minimum-release-age 削除/有効化の選択。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 第 17 | 2026‑09‑29 | **依存最新化 + 整理（ユーザ追加指示）**。(1) **最新安定版へアップグレード**（意図的/指示済み除外）: npm = vue 3.5.43・vite 8.3.1・prettier 3.9.9・eslint 10.11.0・typescript-eslint 8.71.0・eslint-plugin-vue 10.11.1・@vitejs/plugin-vue 6.0.9・reka-ui 2.10.5・tailwind-merge 3.7.0・vue-i18n 11.4.12・yaml 2.9.1・markdown-it 15.0.2・postcss 8.5.28・less 4.9.1・lint-staged 17.6.0・**@vueuse/core 15.0.0（メジャー・typecheck/build 緑で互換確認）**。crate = thiserror 2.0.21（lock のみ・Rust ゲートは CI 委譲）。**除外維持**: TypeScript 6.0.3（7 系は指示で除外 → **pnpm-workspace.yaml overrides に typescript: 6.0.3 を新設**し fallow-type-aware の open range による TS7 再解決を遮断）・bincode 2.0.1・cargo-fuzz 0.12.0・pnpm 12.8.1（指示）・Node 26.10.0・Python 互換レンジ。(2) **fallow は 3.27.0 で exact pin**（3.30 の type-aware が TS7 必須のため TS7 除外方針が優先）・**@lucide/vue は 1.48.0 で exact pin**（1.49.0 が当日公開で minimumReleaseAge 既定 1440 に flag → 1 day 経過後に解禁可）。(3) **整理**: `.npmrc` 削除（死に設定）+ `minimumReleaseAgeExclude` 削除（stale）・`minimumReleaseAge` 新設は不要（pnpm 既定 1440）。(4) ゲート全緑（typecheck/lint/lint:css/deps/build/fallow/format/K15 C2・pytest は Python 不変のため再実行不要）。**罠**: 1 GiB で age ゲート検証が OOM（→ §4.1）/ FS リセットで .git・.venv・/tmp ツール群が再消失（§1.2 の復元規程で回復・ツールは "$ARENA_WORKSPACE"/.tools へ永続化）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 第 18 | 2026‑10‑01 | **Phase 7 バグ厳密精査（第 2 弾・fresh eyes）+ CI 耐障害性強化**。機能バグ 0 件を再確認（T1/T7/T8 のコード精読・native API の敵対的境界検証〔canvas ガード/loop u16 境界/品質 clamp/garbage〕・プレビューパイプラインのエッジ電池 15 入力〔APNG/TIFF/CMYK/透明 GIF/disposal/ICC/破損/SVG/1x1〕・loop とアニメ ICC の端到端実証・pnpm 12.8.1 integrity の npm registry 一次照合・zenwebp 0.4.4 = max_stable の crates.io 再照合・api_version 6 の 4 者同期）。**発見と修正 2 件**: (1) **native run #81 integration(ubuntu) 失敗の根因 = テスト flake** — `test_mountinfo_body_is_cached_within_the_ttl` がキャッシュ stamp に絶対原点 `0.0` を使い `time.monotonic()`（= uptime 基準）が TTL 60 s 未満の起動直後ランナーで「失効していない」と誤判定 → 相対原点 `now - (TTL + 1)` へ修正（monotonic=5 s シミュレーションで旧パターンの失敗再現 + 新パターンの決定論性を実証）。(2) **native run #80 cancelled の根因 = apt ステップの 6 h ハング**（mold/clang install・ミラーの一過性ストール・run 全体がジョブ上限で cancelled）→ 全 apt ステップ `timeout-minutes: 10` + 全ジョブ `timeout-minutes: 60`（ci/native/fuzz-long・actionlint 1.7.12 緑）。**テストの甘さ 5 件を修正**（全て mutation 検証: loop=0 ハードコード / icc=b"" 破棄 / except→go 除去 / content_type ステージング退化 を新テストが捕捉）: アニメ loop 数保持（ANIM チャンクをバイト級解析）・アニメ ICC 保持（ICCP バイト一致）・T1 ハッシュ失敗→「go」降格の接合部・FileField（multipart アップロード）分岐 2 経路（史上初のカバレッジ）・`test_webp_decode_rejects_garbage` の pytest.raises 化 + Rust L1 にアニメ ICC 往復テスト（L1 205→206）。ゲート: pytest 214 / 86+128 skip・Rust L1 206+統合 4+mm-core 5・clippy -D warnings・fmt・ruff・mypy・typecheck/eslint/stylelint/deps/fallow/prettier/build・K15+cross-check（Node 26）全緑。**dev tip の CI 実走は push 後・次ターンでユーザ確認**。(3) ゴースト run 修正（311a320）の事後検証: PR #17 は正常系 pull_request run として guard 不活性・main 側 run（CI #171/native #82）は緑・#78 も re-run で緑回復 — 修正は意図どおり機能。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
