@@ -14,6 +14,9 @@ on:
 
 jobs:
   verify:
+    # Bound any hang (e.g. a stalled package mirror) far below GitHub's 6 h
+    # default: the observed worst green run is ~10 min.
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

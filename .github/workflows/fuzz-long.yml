@@ -56,6 +56,12 @@ jobs:
           workspaces: native/crates/znn-codec/fuzz
 
       - name: Install mold + clang (sanitizer linking)
+        # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
+        # got the whole push run cancelled (2026-09-30, run #80, native-test
+        # ubuntu: the step ran 14:36 -> 20:37 without output). A 10 min step
+        # budget fails fast instead - the job goes red in minutes and a re-run
+        # picks a healthy mirror (the same step took <20 s in runs #79/#81).
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y clang mold
@@ -116,6 +122,12 @@ jobs:
           python-version: "3.11"
 
       - name: Install mold + clang
+        # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
+        # got the whole push run cancelled (2026-09-30, run #80, native-test
+        # ubuntu: the step ran 14:36 -> 20:37 without output). A 10 min step
+        # budget fails fast instead - the job goes red in minutes and a re-run
+        # picks a healthy mirror (the same step took <20 s in runs #79/#81).
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y clang mold
