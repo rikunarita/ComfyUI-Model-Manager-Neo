@@ -29,7 +29,19 @@ on:
   pull_request:
 
 concurrency:
-  group: native-${{ github.ref }}
+  # NOTE (2026-09-30 incident, run #78): `group: native-${{ github.ref }}` is
+  # NOT collision-free. When a PR is merged seconds after opening, GitHub can
+  # materialize the `pull_request` run LATE (PR #16: merged 15 s after open;
+  # the run appeared 92 s after the merge) — and because the PR is already
+  # closed, its context resolves to the BASE branch: github.ref came back as
+  # refs/heads/main (checkout fetched the merge commit, `-B main`), so the
+  # ghost entered native-refs/heads/main and cancelled the legitimate
+  # main-push run ("Canceling since a higher priority waiting request for
+  # native-refs/heads/main exists"). Keying pull_request runs by PR NUMBER
+  # makes it structurally impossible for any PR-triggered run (ghost or not)
+  # to share a group with a push run; per-PR supersede-cancel semantics are
+  # unchanged (refs/pull/N/merge <-> PR number is 1:1).
+  group: native-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -38,6 +50,14 @@ env:
 
 jobs:
   native-test:
+    # Ghost-run guard (see the concurrency note above): a real pull_request
+    # run ALWAYS has github.ref = refs/pull/<n>/merge; when GitHub materializes
+    # a pull_request run late (PR merged seconds after opening), the closed
+    # PR's context resolves to a BRANCH ref instead — such a ghost must not
+    # execute (it would test an unrelated base-branch state under a
+    # PR-triggered run). Push runs are unaffected; downstream jobs
+    # (abi3-import / size-budget / integration) skip via `needs`.
+    if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
     strategy:
       fail-fast: false
       matrix:
@@ -130,6 +150,8 @@ jobs:
         run: cargo test --workspace --release --exclude mm-core
 
   native-build-linux:
+    # Ghost-run guard — see native-test.
+    if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -195,6 +217,8 @@ jobs:
             native/native-bin/linux-aarch64/mm_core.abi3.so
 
   native-build-macos:
+    # Ghost-run guard — see native-test.
+    if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
     runs-on: macos-latest # arm64; universal2 covers x86_64 as well
     steps:
       - uses: actions/checkout@v7
@@ -235,6 +259,8 @@ jobs:
           path: native/native-bin/macos-universal2/mm_core.abi3.so
 
   native-build-windows:
+    # Ghost-run guard — see native-test.
+    if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
     runs-on: windows-latest
     defaults:
       run:
@@ -360,6 +386,8 @@ jobs:
     # the ratio/speed runs execute on the reference machine and in the
     # scheduled fuzz-long workflow's companion job (results are committed
     # under scripts/l2/results/).
+    # Ghost-run guard — see native-test.
+    if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -497,6 +525,8 @@ jobs:
     # adds webp_decode — the hostile-WebP preview decode surface). The
     # >=8 h budget runs in fuzz-long.yml (scheduled/dispatch), NOT on the
     # PR path (Plan: long runs are not PR gates).
+    # Ghost-run guard — see native-test.
+    if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
     runs-on: ubuntu-latest
     defaults:
       run:
