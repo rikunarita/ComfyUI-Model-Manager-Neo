@@ -64,8 +64,11 @@ jobs:
       # sibling of dependency-cruiser above. `unused-exports` / `unused-files` /
       # `unresolved-imports` are ERROR-level in .fallowrc.json (a non-zero exit
       # fails this step); `unused-types` / `private-type-leaks` are warnings and
-      # the single deliberate pnpm-workspace.yaml override is non-fatal, so a
-      # clean tree exits 0. Added after the Phase-6 final bug check found the
+      # the remaining pnpm-workspace.yaml override (typescript) targets a declared
+      # devDependency, so fallow does not flag it and a clean tree exits 0. (The
+      # former desktop-bridge-types override was removed 2026-09-30 once
+      # comfyui-frontend-types 1.54.9 required 0.2.0 directly, making it redundant.)
+      # Added after the Phase-6 final bug check found the
       # invariant had drifted (utility modules exported helpers only the bench
       # harness / their own file consume) precisely because nothing enforced it.
       - name: Dead code & duplication (fallow)
