@@ -60,6 +60,23 @@ def _gradient_png(width: int, height: int) -> bytes:
     return buf.getvalue()
 
 
+def _webp_chunks(data: bytes) -> list[tuple[bytes, bytes]]:
+    """The top-level RIFF chunks of a WebP as ``(fourcc, payload)`` pairs."""
+    import struct
+
+    if data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+        return []
+    chunks: list[tuple[bytes, bytes]] = []
+    i, n = 12, len(data)
+    while i + 8 <= n:
+        fourcc = data[i : i + 4]
+        size = struct.unpack("<I", data[i + 4 : i + 8])[0]
+        payload = data[i + 8 : i + 8 + size]
+        chunks.append((fourcc, payload))
+        i += 8 + size + (size & 1)  # RIFF chunks are padded to an even size
+    return chunks
+
+
 def _webp_anmf_durations(data: bytes) -> list[int]:
     """Per-frame durations (ms) parsed from an animated WebP's ANMF chunks.
 
@@ -68,19 +85,34 @@ def _webp_anmf_durations(data: bytes) -> list[int]:
     preservation contract is checked at the byte level - the ANMF frame header
     carries Frame Duration as a 24-bit LE value at payload offset 12.
     """
-    import struct
-
-    if data[:4] != b"RIFF" or data[8:12] != b"WEBP":
-        return []
     durations: list[int] = []
-    i, n = 12, len(data)
-    while i + 8 <= n:
-        fourcc = data[i : i + 4]
-        size = struct.unpack("<I", data[i + 4 : i + 8])[0]
-        if fourcc == b"ANMF" and i + 8 + 15 <= n:
-            durations.append(int.from_bytes(data[i + 8 + 12 : i + 8 + 15], "little"))
-        i += 8 + size + (size & 1)  # RIFF chunks are padded to an even size
+    for fourcc, payload in _webp_chunks(data):
+        if fourcc == b"ANMF" and len(payload) >= 16:
+            durations.append(int.from_bytes(payload[12:15], "little"))
     return durations
+
+
+def _webp_anim_loop_count(data: bytes) -> int | None:
+    """The ANIM chunk's Loop Count (u16 LE at payload offset 4, after the
+    4-byte background colour); ``None`` when the file carries no ANIM chunk.
+
+    Byte-level on purpose: neither PIL's ``info`` nor ``n_frames`` surfaces
+    the loop count of a WebP, so the preservation contract (a GIF's Netscape
+    loop / a source WebP's ANIM loop must survive the re-mux) is only pinned
+    by parsing the container.
+    """
+    for fourcc, payload in _webp_chunks(data):
+        if fourcc == b"ANIM" and len(payload) >= 6:
+            return int.from_bytes(payload[4:6], "little")
+    return None
+
+
+def _webp_iccp(data: bytes) -> bytes | None:
+    """The ICCP chunk payload (``None`` when the file carries no ICC profile)."""
+    for fourcc, payload in _webp_chunks(data):
+        if fourcc == b"ICCP":
+            return payload
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +226,80 @@ def test_animated_webp_input_stays_animated(tmp_path, monkeypatch):
     assert _webp_anmf_durations(out) == [150, 250], "animated WebP durations preserved"
 
 
+def test_animation_loop_count_is_preserved(tmp_path, monkeypatch):
+    """The source loop count survives the re-mux (ANIM chunk, byte level).
+
+    Both animation legs must carry it: an animated GIF's Netscape loop
+    (``image.info["loop"]``, read AFTER the frame iteration - PIL keeps the
+    key) and an animated WebP's ANIM loop (from ``webp_decode_animation``).
+    A regression that hardcoded ``loop = 0`` would silently turn every
+    finite-loop preview into an infinite one and pass every other test here.
+    """
+    _require_native(monkeypatch)
+    utils = import_ext("utils")
+    from PIL import Image
+
+    model = tmp_path / "m.safetensors"
+    model.write_bytes(b"x")
+    out_path = tmp_path / "m.webp"
+    frames = [Image.new("RGB", (12, 10), c) for c in [(255, 0, 0), (0, 0, 255)]]
+
+    def remux(content: bytes, content_type: str, name: str) -> bytes:
+        if out_path.exists():
+            out_path.unlink()
+        utils._write_preview_content(str(model), content, content_type, name, "")
+        return out_path.read_bytes()
+
+    # animated GIF with a finite Netscape loop
+    buf = io.BytesIO()
+    frames[0].save(buf, "GIF", save_all=True, append_images=frames[1:], duration=[50, 60], loop=5)
+    assert _webp_anim_loop_count(remux(buf.getvalue(), "image/gif", "a.gif")) == 5
+
+    # animated GIF that loops forever (0) stays 0 (not 1, not dropped)
+    buf = io.BytesIO()
+    frames[0].save(buf, "GIF", save_all=True, append_images=frames[1:], duration=[50, 60], loop=0)
+    assert _webp_anim_loop_count(remux(buf.getvalue(), "image/gif", "a.gif")) == 0
+
+    # animated WebP input: the ANIM loop goes through webp_decode_animation
+    buf = io.BytesIO()
+    frames[0].save(buf, "WEBP", save_all=True, append_images=frames[1:], duration=[50, 60], loop=3)
+    assert _webp_anim_loop_count(remux(buf.getvalue(), "image/webp", "a.webp")) == 3
+
+
+def test_animation_icc_profile_is_preserved(tmp_path, monkeypatch):
+    """An animated WebP's ICC profile survives the native decode -> re-mux
+    (ICCP chunk, byte level). ``decode_animation`` surfaces the profile and
+    ``_encode_preview_webp_native`` must hand it to ``webp_encode_animation``;
+    dropping it there would shift colours on wide-gamut previews and pass
+    every dimension/duration assertion above.
+    """
+    _require_native(monkeypatch)
+    utils = import_ext("utils")
+    from PIL import Image
+
+    icc = b"audit-icc-profile-payload-for-animation"
+    frames = [Image.new("RGB", (14, 11), c) for c in [(200, 10, 10), (10, 200, 10)]]
+    buf = io.BytesIO()
+    frames[0].save(
+        buf,
+        "WEBP",
+        save_all=True,
+        append_images=frames[1:],
+        duration=[90, 110],
+        loop=0,
+        icc_profile=icc,
+    )
+    content = buf.getvalue()
+    assert _webp_iccp(content) == icc, "PIL must write the ICCP chunk we preserve"
+
+    model = tmp_path / "m.safetensors"
+    model.write_bytes(b"x")
+    utils._write_preview_content(str(model), content, "image/webp", "anim-icc.webp", "")
+    out = (tmp_path / "m.webp").read_bytes()
+    assert _webp_iccp(out) == icc, "the re-muxed animation must carry the same ICCP bytes"
+    assert _webp_anmf_durations(out) == [90, 110], "durations intact alongside the ICC"
+
+
 # ---------------------------------------------------------------------------
 # PIL fallback (the native rollback unit)
 # ---------------------------------------------------------------------------
@@ -281,11 +387,20 @@ def test_webp_decode_parity_with_pil(monkeypatch):
 
 def test_webp_decode_rejects_garbage(monkeypatch):
     """mm_core.webp_decode maps a corrupt input to a RuntimeError (never a
-    panic / hang) - the production face of the L3 webp_decode fuzz target."""
+    panic / hang) - the production face of the L3 webp_decode fuzz target.
+
+    The deterministic malformed inputs MUST raise (a decode that silently
+    returned pixels for garbage would defeat the whole guard chain); the
+    random bytes only must not crash the interpreter (they cannot be a
+    *guaranteed* error - randomness is not assertable).
+    """
     native = _require_native(monkeypatch)
     mm = native.core_if_enabled()
-    for bad in [b"", b"garbage", b"RIFF\x00\x00\x00\x00WEBP", os.urandom(64)]:
-        try:
+    for bad in [b"", b"garbage", b"RIFF\x00\x00\x00\x00WEBP", b"RIFF\x24\x00\x00\x00WEBPVP8X" + b"\x00" * 28]:
+        with pytest.raises(RuntimeError):
             mm.webp_decode(bad)
+    for _ in range(8):
+        try:
+            mm.webp_decode(os.urandom(64))
         except RuntimeError:
-            pass  # expected: a clean error, not a crash
+            pass  # expected for essentially every random input

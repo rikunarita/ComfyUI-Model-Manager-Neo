@@ -246,3 +246,69 @@ async def test_run_hub_upload_transfers_when_the_hash_differs(tmp_path, monkeypa
         backend=FakeBackend("tok", "owner/repo"),
     )
     assert uploaded == ["m.safetensors"], "a differing hash must proceed to transfer"
+
+
+@pytest.mark.asyncio
+async def test_run_hub_upload_degrades_to_go_when_the_hash_stage_fails(tmp_path, monkeypatch):
+    """JUNCTION parity (the comment in run_hub_upload promises it): pre-T1 the
+    preflight caught a hash failure inside its OWN try/except and degraded to
+    "go" (skip duplicate detection, still upload). Now that the hash is a
+    separate cpu-pool stage, a failing ``_sha256_of_file`` (unreadable file,
+    native panic-guard, disk error) must NOT abort the upload - the file
+    transfers and the Hub decides. Removing the ``except -> go`` degradation
+    in run_hub_upload fails this test.
+    """
+    _reset_native_loader()
+    upload_hf = import_ext("upload_hf")
+    utils = import_ext("utils")
+
+    sent: list[tuple] = []
+
+    async def fake_send_json(event, data, sid=None):
+        sent.append((event, data))
+
+    monkeypatch.setattr(utils, "send_json", fake_send_json)
+
+    def boom(_path):
+        raise OSError("hash stage on fire")
+
+    monkeypatch.setattr(upload_hf, "_sha256_of_file", boom)
+
+    data = os.urandom(512 * 1024 + 7)
+    path = tmp_path / "m.safetensors"
+    path.write_bytes(data)
+    sha = hashlib.sha256(data).hexdigest()
+    size = len(data)
+
+    uploaded: list[str] = []
+
+    class FakeBackend(upload_hf.HfBackend):
+        streams_upload_progress = True
+
+        def make_api(self, token):
+            return _fake_api(sha, size)  # same size AND sha -> needs_hash=True
+
+        def ensure_repo(self, api, repo_id, private):
+            return False
+
+        def upload_one(self, api, payload, in_repo):
+            uploaded.append(in_repo)
+            return (size, False)
+
+        def file_url(self, repo_id, in_repo):
+            return f"https://huggingface.co/{repo_id}/blob/main/{in_repo}"
+
+    await upload_hf.run_hub_upload(
+        task_id="t-hashfail",
+        token="tok",
+        files=[{"local_path": str(path), "path_in_repo": "m.safetensors"}],
+        repo_id="owner/repo",
+        path_in_repo="m.safetensors",
+        private=False,
+        total_size=size,
+        backend=FakeBackend("tok", "owner/repo"),
+    )
+    assert uploaded == ["m.safetensors"], "a hash failure degrades to 'go' - the upload proceeds"
+    complete = [d for ev, d in sent if ev == "hf_upload_complete"]
+    assert complete and complete[0]["deduplicated"] is False
+    assert not any(ev == "hf_upload_error" for ev, _ in sent), "the degradation must not surface an error"
