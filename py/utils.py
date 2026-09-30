@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import json
 import logging
@@ -10,10 +11,9 @@ from typing import Any
 
 import comfy.utils
 import folder_paths
-import requests
 from aiohttp import web
 
-from . import config
+from . import config, http_client
 
 # Media file extensions
 VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".avi", ".mkv", ".flv", ".wmv", ".m4v", ".ogv"]
@@ -511,7 +511,7 @@ def preview_candidates(basename: str) -> list[str]:
 
     The slot suffix MUST be the outer loop: this order is the listing order
     (manager.scan_models) and it has to agree with the positional slot writes
-    of save_model_previews()/replace_model_previews() (item 0 -> `<base>.<ext>`,
+    of save_model_previews()/write_resolved_previews() (item 0 -> `<base>.<ext>`,
     item 1 -> `<base>.preview.<ext>`, ...). The old extension-major order
     listed e.g. `m.preview2.mp4` BEFORE the primary `m.webp`, so any gallery
     holding a video kept re-sorting the primary away from slot 1 on every
@@ -606,6 +606,76 @@ def _resolve_local_preview(url: str) -> str | None:
     return local if os.path.isfile(local) else None
 
 
+# Plan Phase 7 T7: the preview WebP encoder settings — kept near PIL's
+# `Image.save(..., "WEBP")` defaults (quality 80, method 4) so pre/post-T7
+# preview sizes land in the same band (the parity gate is "same dimensions,
+# decodable, size within a tolerance", NOT byte-identity — the encoders differ).
+_WEBP_QUALITY = 80.0
+_WEBP_METHOD = 4
+
+
+def _is_webp(content: bytes) -> bool:
+    """WebP by magic bytes (``RIFF....WEBP``) — the only input the native
+    zenwebp decoder handles (non-WebP is decoded by PIL, Plan §3.8 追記)."""
+    return content[:4] == b"RIFF" and content[8:12] == b"WEBP"
+
+
+def _encode_preview_webp_native(mm, content: bytes, preview_path: str) -> None:
+    """Encode one preview image to WebP through the native zenwebp core (T7).
+
+    Pipeline (Plan §3.8 追記): a non-WebP input is decoded by PIL, a WebP input
+    by zenwebp; an animated source is re-encoded as an ANIMATED WebP (the
+    pre-T7 PIL path froze those to their first frame — a real Civitai-preview
+    regression this removes). Frame extraction: an animated WebP goes through
+    zenwebp's animation decoder (PIL does not surface per-frame WebP durations,
+    so native keeps them intact); an animated GIF is walked by PIL (which does
+    report GIF durations and applies disposal). Raises on any failure so the
+    caller falls back to the PIL path (the native rollback unit, until Phase 8
+    drops ``MM_NATIVE``).
+    """
+    from PIL import ImageSequence
+
+    is_webp = _is_webp(content)
+    with Image.open(BytesIO(content)) as image:
+        n_frames = getattr(image, "n_frames", 1)
+        if n_frames > 1:
+            # Animated. Every frame is normalised to the canvas the muxer opens
+            # with; durations are preserved from the source.
+            if is_webp:
+                # Animated WebP: decode natively so the per-frame durations
+                # survive (PIL leaves WebP frame durations unset).
+                frames, w, h, durations, loop, icc = mm.webp_decode_animation(content)
+            else:
+                # Animated GIF (or other multi-frame non-WebP): PIL walks the
+                # frames, applying disposal, and reports each frame's duration.
+                canvas = image.size
+                w, h = canvas
+                frames = []
+                durations = []
+                for frame in ImageSequence.Iterator(image):
+                    durations.append(int(frame.info.get("duration", 100) or 100))
+                    frame_img = frame.convert("RGBA")
+                    if frame_img.size != canvas:
+                        frame_img = frame_img.resize(canvas)
+                    frames.append(frame_img.tobytes())
+                loop = int(image.info.get("loop", 0) or 0)
+                icc = image.info.get("icc_profile", b"") or b""
+            webp = mm.webp_encode_animation(frames, w, h, durations, loop, icc, _WEBP_QUALITY, _WEBP_METHOD, False)
+        else:
+            # Still: a WebP input goes through zenwebp's decoder (full codec
+            # use); anything else is already in PIL's hands.
+            if is_webp:
+                rgba, w, h, icc = mm.webp_decode(content)
+            else:
+                rgba_img = image.convert("RGBA")
+                w, h = rgba_img.size
+                rgba = rgba_img.tobytes()
+                icc = image.info.get("icc_profile", b"") or b""
+            webp = mm.webp_encode(rgba, w, h, icc, _WEBP_QUALITY, _WEBP_METHOD, False)
+    with open(preview_path, "wb") as f:
+        f.write(webp)
+
+
 def _write_preview_content(
     model_path: str,
     content: bytes,
@@ -627,6 +697,17 @@ def _write_preview_content(
             f.write(content)
     elif kind == "image":
         preview_path = _get_preview_path(model_path, ".webp", suffix)
+        # Plan Phase 7 T7: encode through the native zenwebp core when present
+        # (still + animated WebP, WebP decoded natively). A native failure
+        # falls back to the PIL path — the rollback unit until Phase 8 removes
+        # MM_NATIVE — so a corrupt image still surfaces the same RuntimeError.
+        mm = _native_core()
+        if mm is not None:
+            try:
+                _encode_preview_webp_native(mm, content, preview_path)
+                return
+            except Exception as e:
+                print_warning(f"native WebP preview encode failed ({e}); using the PIL fallback")
         try:
             image = Image.open(BytesIO(content))
             image.save(preview_path, "WEBP")
@@ -639,14 +720,37 @@ def _write_preview_content(
         raise RuntimeError(f"FileTypeError: expected image or video, got {content_type or 'unknown'}")
 
 
-def save_model_preview(
+async def _write_preview_content_async(
+    model_path: str,
+    content: bytes,
+    content_type: str,
+    source_name: str,
+    suffix: str,
+) -> None:
+    """Run the blocking (PIL re-encode / file write) preview writer on the io
+    executor. Plan Phase 7 T8: with the URL fetch moved onto the event loop,
+    only this millisecond-scale leg is handed to a worker, so a slow CDN can no
+    longer pin one of the eight io slots for the 120 s read timeout."""
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(
+        io_executor(), _write_preview_content, model_path, content, content_type, source_name, suffix
+    )
+
+
+async def save_model_preview(
     model_path: str,
     file_or_url: Any,
     platform: str | None = None,
     headers: dict | None = None,
     suffix: str = "",
 ):
-    """Save one preview file for a model. Images -> WebP, videos -> original format"""
+    """Save one preview file for a model. Images -> WebP, videos -> original format.
+
+    Plan Phase 7 T8: the URL fetch runs on the event loop through the shared
+    aiohttp session (``http_client.fetch_preview``) instead of a blocking
+    ``requests.get`` in an io-executor worker; only the PIL / write leg goes to
+    the executor (``_write_preview_content_async``).
+    """
 
     # Download file if it is a URL
     if type(file_or_url) is str:
@@ -683,14 +787,12 @@ def save_model_preview(
                 print_warning(f"Ignoring invalid preview URL: {url}")
                 return
             # (connect, read) timeouts: a stalled CDN must not hang the
-            # download-completion path (which runs in the io pool) forever.
-            response = requests.get(url, headers=headers or {}, timeout=(15, 120))
-            response.raise_for_status()
-            content = response.content
-            content_type = response.headers.get("content-type", "")
+            # download-completion path forever. T8: the wait is on the event
+            # loop (shared aiohttp session), not an io-worker socket.
+            content, content_type = await http_client.fetch_preview(url, headers=headers or {})
             if not content_type:
                 content_type = resolve_file_content_type(url) or ""
-        _write_preview_content(model_path, content, content_type, url, suffix)
+        await _write_preview_content_async(model_path, content, content_type, url, suffix)
 
     # Handle uploaded file
     else:
@@ -703,25 +805,33 @@ def save_model_preview(
         filename: str = getattr(file_obj, "filename", "")
         file_obj.file.seek(0)
         content = file_obj.file.read()
-        _write_preview_content(model_path, content, content_type, filename or content_type, suffix)
+        await _write_preview_content_async(model_path, content, content_type, filename or content_type, suffix)
 
 
-def replace_model_previews(model_path: str, items: list[Any]) -> int:
-    """Rewrite the whole preview set in the supplied order (edit-save path).
+async def resolve_preview_sources(items: list[Any]) -> tuple[list[tuple[str, str, bytes]], list[str]]:
+    """Resolve every editor-gallery source to bytes (edit-save path, T8 async half).
 
     Mirrors the download-completion path: every source is resolved to bytes
     FIRST (local preview file read, HTTP download, or uploaded multipart
-    bytes), then the old set is removed and the bytes are written into the
-    suffix slots. Reading everything up front makes reorders collision-free
-    (an earlier slot write can never destroy a later entry's source), and
-    keeping the resolution server-side removes every browser-side failure
-    mode (fetch errors, MIME mislabeling, cache staleness).
+    bytes). Reading everything up front makes reorders collision-free (an
+    earlier slot write can never destroy a later entry's source), and keeping
+    the resolution server-side removes every browser-side failure mode (fetch
+    errors, MIME mislabeling, cache staleness).
 
-    Raises when any entry cannot be resolved or written: a partially written
-    gallery would silently reorder the primary preview.
+    Plan Phase 7 T8: this is the async half of the former
+    ``replace_model_previews`` - HTTP fetches run on the event loop through the
+    shared aiohttp session (``http_client.fetch_preview``) instead of a
+    blocking ``requests.get`` inside an io-executor worker, so a stalled CDN no
+    longer pins one of the eight io slots for the 120 s read timeout.
+
+    Returns ``(staged, failures)``: ``staged`` is the ordered list of
+    ``(name, content_type, bytes)`` and ``failures`` collects the per-index
+    error strings. The CALLER raises the historical
+    ``"Failed to resolve preview entries"`` RuntimeError (see
+    ``manager._resolve_update_previews``) so the surfaced wording is unchanged.
     """
     staged: list[tuple[str, str, bytes]] = []
-    resolve_failures: list[str] = []
+    failures: list[str] = []
     for index, item in enumerate(items):
         if item is None or item == "":
             continue
@@ -747,10 +857,7 @@ def replace_model_previews(model_path: str, items: list[Any]) -> int:
                         raise RuntimeError(f"browser-local preview url cannot be resolved server-side: {url[:48]}...")
                     if not url.startswith("http"):
                         raise RuntimeError(f"invalid preview url: {url}")
-                    response = requests.get(url, timeout=(15, 120))
-                    response.raise_for_status()
-                    content = response.content
-                    content_type = response.headers.get("content-type", "") or ""
+                    content, content_type = await http_client.fetch_preview(url)
                     name = url
             else:
                 if not isinstance(item, web.FileField):
@@ -761,9 +868,22 @@ def replace_model_previews(model_path: str, items: list[Any]) -> int:
                 name = getattr(item, "filename", "")
             staged.append((name, content_type, content))
         except Exception as e:
-            resolve_failures.append(f"#{index}: {e}")
-    if resolve_failures or not staged:
-        raise RuntimeError("Failed to resolve preview entries: " + "; ".join(resolve_failures or ["no entries"]))
+            failures.append(f"#{index}: {e}")
+    return staged, failures
+
+
+def write_resolved_previews(model_path: str, staged: list[tuple[str, str, bytes]]) -> int:
+    """Write an already-resolved gallery (edit-save path, T8 sync/executor half).
+
+    The synchronous half of the former ``replace_model_previews``: the old set
+    is removed and the staged bytes are re-encoded into the suffix slots. Runs
+    in the io executor (only the millisecond-scale PIL / write leg - the
+    network wait already happened on the loop in ``resolve_preview_sources``).
+
+    Raises when the gallery is too large or any entry cannot be written: a
+    partially written gallery would silently reorder the primary preview. The
+    RuntimeError wording is verbatim from the pre-T8 function.
+    """
     if len(staged) > len(_PREVIEW_SUFFIXES):
         # Writing past the scheme would create files no listing ever shows
         # (and no cleanup ever removes): refuse loudly instead.
@@ -783,7 +903,7 @@ def replace_model_previews(model_path: str, items: list[Any]) -> int:
     return written
 
 
-def save_model_previews(
+async def save_model_previews(
     model_path: str,
     items: list[Any],
     platform: str | None = None,
@@ -802,6 +922,9 @@ def save_model_previews(
     being dropped: a partially written gallery would otherwise reorder the
     primary behind the caller's back (the "primary swap reverted" defect).
 
+    Plan Phase 7 T8: async - each entry's URL fetch runs on the event loop
+    (shared aiohttp session) instead of blocking an io-executor worker.
+
     Returns the number of previews actually written.
     """
     written = 0
@@ -817,7 +940,7 @@ def save_model_previews(
             continue
         suffix = _PREVIEW_SUFFIXES[index]
         try:
-            save_model_preview(model_path, item, platform, headers, suffix=suffix)
+            await save_model_preview(model_path, item, platform, headers, suffix=suffix)
             written += 1
         except Exception as e:
             # One bad gallery entry must not lose the whole preview set.

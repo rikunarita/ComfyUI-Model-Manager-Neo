@@ -59,3 +59,10 @@ path = "fuzz_targets/delta_decompress.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "webp_decode"
+path = "fuzz_targets/webp_decode.rs"
+test = false
+doc = false
+bench = false

@@ -37,4 +37,12 @@ doc-valid-idents = [
     "AutoV2",
     "dtype",
     "dtypes",
+    "WebP",
+    "zenwebp",
+    "GIF",
+    "RGBA",
+    "ICCP",
+    "VP8",
+    "VP8L",
+    "PIL",
 ]

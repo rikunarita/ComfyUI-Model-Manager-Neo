@@ -728,27 +728,33 @@ corepack enable          # uses the pinned pnpm version
 pnpm install
 ```
 
-| Script                                  | Purpose                                                                 |
-| --------------------------------------- | ----------------------------------------------------------------------- |
-| `pnpm dev`                              | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI) |
-| `pnpm build`                            | Production build into `web/`                                            |
-| `pnpm build:clean`                      | Remove `web/` then rebuild                                              |
-| `pnpm rebuild`                          | Remove `node_modules/` **and** `web/`, reinstall, then rebuild          |
-| `pnpm typecheck`                        | `vue-tsc --noEmit` type checking                                        |
-| `pnpm lint` / `pnpm lint:fix`           | ESLint (flat config)                                                    |
-| `pnpm lint:css` / `pnpm lint:css:fix`   | Stylelint 17 (CSS + Vue SFC style blocks, Tailwind v4 aware)            |
-| `pnpm deps`                             | dependency-cruiser: import-graph gate (needs Node ≥ 22)                 |
-| `pnpm deps:graph`                       | write `dependency_graph.svg` of the module graph                        |
-| `pnpm format` / `pnpm format:check`     | Prettier (with the Tailwind plugin)                                     |
-| `pnpm py:lint` (`:fix`)                 | Ruff lint for the backend (`py/`, `__init__.py`)                        |
-| `pnpm py:format` (`:check`)             | Ruff format for the backend                                             |
-| `python -m mypy --config-file mypy.ini` | Backend static types, clean                                             |
-| `pnpm fallow`                           | Fallow full pipeline: dead code + duplication + health                  |
-| `pnpm fallow:dead` (`:type-aware`)      | unused files/exports/types/deps, cycles — optional TS semantic pass     |
-| `pnpm fallow:dupes`                     | AST clone detection (`mild` mode, see `.fallowrc.json`)                 |
-| `pnpm fallow:health`                    | complexity hotspots, refactor targets, 0–100 health score               |
-| `pnpm fallow:fix:dry` / `fallow:fix`    | preview / apply automatic cleanup (always dry-run first)                |
-| `pnpm fallow:audit`                     | PR-style gate: only findings introduced by the current change           |
+The Python backend's dev/test environment (pytest, ruff, mypy, the hub SDKs,
+torch‑CPU) is managed by **[uv]** — `uv sync --frozen` rebuilds it from
+`pyproject.toml`'s `[dependency-groups]` and the committed `uv.lock` in one shot
+(Plan Phase 7 T4). That is a dev/CI convenience only: the _runtime_ contract is
+unchanged, ComfyUI still installs `requirements.txt` itself on first launch.
+
+| Script                                | Purpose                                                                 |
+| ------------------------------------- | ----------------------------------------------------------------------- |
+| `pnpm dev`                            | Vite dev server (writes `web/manager-dev.js` for hot reload in ComfyUI) |
+| `pnpm build`                          | Production build into `web/`                                            |
+| `pnpm build:clean`                    | Remove `web/` then rebuild                                              |
+| `pnpm rebuild`                        | Remove `node_modules/` **and** `web/`, reinstall, then rebuild          |
+| `pnpm typecheck`                      | `vue-tsc --noEmit` type checking                                        |
+| `pnpm lint` / `pnpm lint:fix`         | ESLint (flat config)                                                    |
+| `pnpm lint:css` / `pnpm lint:css:fix` | Stylelint 17 (CSS + Vue SFC style blocks, Tailwind v4 aware)            |
+| `pnpm deps`                           | dependency-cruiser: import-graph gate (needs Node ≥ 22)                 |
+| `pnpm deps:graph`                     | write `dependency_graph.svg` of the module graph                        |
+| `pnpm format` / `pnpm format:check`   | Prettier (with the Tailwind plugin)                                     |
+| `pnpm py:lint` (`:fix`)               | Ruff lint for the backend (`py/`, `__init__.py`)                        |
+| `pnpm py:format` (`:check`)           | Ruff format for the backend                                             |
+| `python -m mypy`                      | Backend static types, clean                                             |
+| `pnpm fallow`                         | Fallow full pipeline: dead code + duplication + health                  |
+| `pnpm fallow:dead` (`:type-aware`)    | unused files/exports/types/deps, cycles — optional TS semantic pass     |
+| `pnpm fallow:dupes`                   | AST clone detection (`mild` mode, see `.fallowrc.json`)                 |
+| `pnpm fallow:health`                  | complexity hotspots, refactor targets, 0–100 health score               |
+| `pnpm fallow:fix:dry` / `fallow:fix`  | preview / apply automatic cleanup (always dry-run first)                |
+| `pnpm fallow:audit`                   | PR-style gate: only findings introduced by the current change           |
 
 > [!WARNING]
 > `pnpm dev` **deletes the whole `web/` directory** before writing
@@ -873,7 +879,7 @@ work standing on its shoulders is what makes any of the above possible.
 
 Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 [VueUse], [es-toolkit], [vue-sonner], [huggingface_hub], [hf_xet],
-[modelscope_hub], and [ZipNN].
+[modelscope_hub], [ZipNN], and [zenwebp].
 
 ---
 
@@ -882,6 +888,16 @@ Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 ## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="28" height="28" align="middle" alt=""> License
 
 **GPL‑3.0‑only** — see [`LICENSE`](LICENSE) for the full text.
+
+The Rust native core ([`native/`](native/)) additionally links **[zenwebp]** — a
+pure‑Rust WebP codec, **AGPL‑3.0‑only** OR Imazen‑commercial — for the preview
+WebP pipeline (Phase 7 / T7). Neo is GPL‑3.0‑only and uses zenwebp under the
+**AGPL‑3.0** terms; AGPLv3 §13 explicitly permits combining an AGPL work with a
+GPLv3 work (the AGPL part stays AGPL). ComfyUI is a **local** application, not a
+network service, so the AGPL network clause is effectively inoperative here, and
+the distribution source‑availability obligation is met by this public
+repository. Full third‑party attribution for the native core:
+[`native/NOTICE`](native/NOTICE).
 
 <div align="center">
 
@@ -902,5 +918,7 @@ Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 [hf_xet]: https://github.com/huggingface/xet-core
 [modelscope_hub]: https://github.com/modelscope/modelscope_hub
 [ZipNN]: https://github.com/zipnn/zipnn
+[zenwebp]: https://github.com/imazen/zenwebp
+[uv]: https://docs.astral.sh/uv/
 [Qwen Studio]: https://chat.qwen.ai/
 [ComfyUI-Manager]: https://github.com/ltdrdata/ComfyUI-Manager

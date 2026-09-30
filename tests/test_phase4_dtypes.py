@@ -461,12 +461,12 @@ def test_repo_native_loader_pins_api_5():
     `watch_start` and must be rejected at load, not fail with an AttributeError
     mid-request)."""
     native = import_ext("native")
-    assert (native.MIN_API_VERSION, native.MAX_API_VERSION) == (5, 5)
+    assert (native.MIN_API_VERSION, native.MAX_API_VERSION) == (6, 6)
     if not (REPO_ROOT / "native" / "native-bin").exists():
         return
     sys.modules.pop("mm_core", None)
     if native.load():
-        assert native.core().api_version() == 5
+        assert native.core().api_version() == 6
         # The Phase 5 surface is present.
         phase5_fns = (
             "scan_models",

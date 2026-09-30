@@ -704,27 +704,33 @@ corepack enable          # ピン留めされた pnpm 版を使います
 pnpm install
 ```
 
-| スクリプト                              | 用途                                                                        |
-| --------------------------------------- | --------------------------------------------------------------------------- |
-| `pnpm dev`                              | Vite 開発サーバ（ComfyUI でのホットリロード用 `web/manager-dev.js` を書込） |
-| `pnpm build`                            | `web/` へのプロダクションビルド                                             |
-| `pnpm build:clean`                      | `web/` を削除してから再ビルド                                               |
-| `pnpm rebuild`                          | `node_modules/` と `web/` を削除、再インストール、再ビルド                  |
-| `pnpm typecheck`                        | `vue-tsc --noEmit` 型チェック                                               |
-| `pnpm lint` / `pnpm lint:fix`           | ESLint（flat config）                                                       |
-| `pnpm lint:css` / `pnpm lint:css:fix`   | Stylelint 17（CSS + Vue SFC の style ブロック、Tailwind v4 対応）           |
-| `pnpm deps`                             | dependency-cruiser: import グラフゲート（Node ≥ 22 が必要）                 |
-| `pnpm deps:graph`                       | モジュールグラフの `dependency_graph.svg` を書込                            |
-| `pnpm format` / `pnpm format:check`     | Prettier（Tailwind プラグイン入り）                                         |
-| `pnpm py:lint` (`:fix`)                 | バックエンドの Ruff lint（`py/`・`__init__.py`）                            |
-| `pnpm py:format` (`:check`)             | バックエンドの Ruff format                                                  |
-| `python -m mypy --config-file mypy.ini` | バックエンドの静的型検査。クリーン                                          |
-| `pnpm fallow`                           | Fallow フルパイプライン: デッドコード + 重複 + ヘルススコア                 |
-| `pnpm fallow:dead` (`:type-aware`)      | 未使用ファイル/export/型/依存・循環 — 任意の TS セマンティックパス          |
-| `pnpm fallow:dupes`                     | AST クローン検出（`mild` モード、`.fallowrc.json` 参照）                    |
-| `pnpm fallow:health`                    | 複雑度ホットスポット・リファクタ対象・0〜100 のヘルススコア                 |
-| `pnpm fallow:fix:dry` / `fallow:fix`    | 自動クリーンアップのプレビュー / 適用（必ず先に dry-run を）                |
-| `pnpm fallow:audit`                     | PR 形式ゲート: 現在の変更が導入した指摘のみ                                 |
+Python バックエンドの開発/テスト環境（pytest・ruff・mypy・各 hub SDK・torch‑CPU）は
+**[uv]** で管理します — `uv sync --frozen` が `pyproject.toml` の
+`[dependency-groups]` とコミット済み `uv.lock` から一括で再構築します
+（Plan Phase 7 T4）。これは開発/CI の便宜のみで、**ランタイム契約は不変**です —
+ComfyUI は引き続き初回起動時に `requirements.txt` を自前でインストールします。
+
+| スクリプト                            | 用途                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| `pnpm dev`                            | Vite 開発サーバ（ComfyUI でのホットリロード用 `web/manager-dev.js` を書込） |
+| `pnpm build`                          | `web/` へのプロダクションビルド                                             |
+| `pnpm build:clean`                    | `web/` を削除してから再ビルド                                               |
+| `pnpm rebuild`                        | `node_modules/` と `web/` を削除、再インストール、再ビルド                  |
+| `pnpm typecheck`                      | `vue-tsc --noEmit` 型チェック                                               |
+| `pnpm lint` / `pnpm lint:fix`         | ESLint（flat config）                                                       |
+| `pnpm lint:css` / `pnpm lint:css:fix` | Stylelint 17（CSS + Vue SFC の style ブロック、Tailwind v4 対応）           |
+| `pnpm deps`                           | dependency-cruiser: import グラフゲート（Node ≥ 22 が必要）                 |
+| `pnpm deps:graph`                     | モジュールグラフの `dependency_graph.svg` を書込                            |
+| `pnpm format` / `pnpm format:check`   | Prettier（Tailwind プラグイン入り）                                         |
+| `pnpm py:lint` (`:fix`)               | バックエンドの Ruff lint（`py/`・`__init__.py`）                            |
+| `pnpm py:format` (`:check`)           | バックエンドの Ruff format                                                  |
+| `python -m mypy`                      | バックエンドの静的型検査。クリーン                                          |
+| `pnpm fallow`                         | Fallow フルパイプライン: デッドコード + 重複 + ヘルススコア                 |
+| `pnpm fallow:dead` (`:type-aware`)    | 未使用ファイル/export/型/依存・循環 — 任意の TS セマンティックパス          |
+| `pnpm fallow:dupes`                   | AST クローン検出（`mild` モード、`.fallowrc.json` 参照）                    |
+| `pnpm fallow:health`                  | 複雑度ホットスポット・リファクタ対象・0〜100 のヘルススコア                 |
+| `pnpm fallow:fix:dry` / `fallow:fix`  | 自動クリーンアップのプレビュー / 適用（必ず先に dry-run を）                |
+| `pnpm fallow:audit`                   | PR 形式ゲート: 現在の変更が導入した指摘のみ                                 |
 
 > [!WARNING]
 > `pnpm dev` は `manager-dev.js` を書く前に **`web/` ディレクトリ全体を削除**
@@ -851,7 +857,7 @@ Neo がこれほど堅牢である大きな理由であり、このプロジェ�
 
 以下の優れたプロジェクトとともに作られています: [reka-ui]・[Tailwind CSS]・
 [Lucide]・[VueUse]・[es-toolkit]・[vue-sonner]・[huggingface_hub]・[hf_xet]・
-[modelscope_hub]・[ZipNN]。
+[modelscope_hub]・[ZipNN]・[zenwebp]。
 
 ---
 
@@ -860,6 +866,15 @@ Neo がこれほど堅牢である大きな理由であり、このプロジェ�
 ## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="28" height="28" align="middle" alt=""> ライセンス
 
 **GPL‑3.0‑only** — 全文は [`LICENSE`](LICENSE) を参照。
+
+Rust ネイティブコア（[`native/`](native/)）は、プレビュー WebP パイプライン
+（Phase 7 / T7）のため **[zenwebp]**（純 Rust の WebP codec・**AGPL‑3.0‑only**
+OR Imazen 商用デュアルライセンス）を静的リンクします。Neo は GPL‑3.0‑only で、
+zenwebp を **AGPL‑3.0** 条件で利用します。法的根拠: AGPLv3 §13 は AGPL 成果物と
+GPLv3 成果物の結合を明示的に許可します（AGPL 部分は AGPL のまま）。ComfyUI は
+**ローカルアプリ**（ネットワークサービスではない）のため AGPL のネットワーク条項は
+実質無作用で、配布時のソース入手可能性義務はこの公開リポジトリで充足されます。
+ネイティブコアの第三者帰属の全文は [`native/NOTICE`](native/NOTICE) を参照。
 
 <div align="center">
 
@@ -880,5 +895,7 @@ Neo がこれほど堅牢である大きな理由であり、このプロジェ�
 [hf_xet]: https://github.com/huggingface/xet-core
 [modelscope_hub]: https://github.com/modelscope/modelscope_hub
 [ZipNN]: https://github.com/zipnn/zipnn
+[zenwebp]: https://github.com/imazen/zenwebp
+[uv]: https://docs.astral.sh/uv/
 [Qwen Studio]: https://chat.qwen.ai/
 [ComfyUI-Manager]: https://github.com/ltdrdata/ComfyUI-Manager

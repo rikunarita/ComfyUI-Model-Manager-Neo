@@ -24,6 +24,7 @@
 | 2.3  | 2026‑09‑28 | ユーザ決定: **T7（zenwebp）は一気刷新 — 第一段階/第二段階の段階分けを挿まない**。静止 WebP エンコード + アニメ GIF/WebP のアニメ WebP 保持 + **WebP デコード**（codec の全面活用）をすべて T7 の内で実施する。旧段階案の「デコード側は PIL/libwebp 実績を維持」という保安考慮は**先送りではなくゲート化**して対処（L3 fuzz 新ターゲット = 敵対的 WebP → デコード経路の fuzz‑smoke 常設 + デコード parity ゴールデン + 上流 fuzz 実績の精査を採用の前提条件化）。PIL の完全除去は構造的に不可能（PNG/JPEG/GIF/BMP デコードは zenwebp の対象外 = WebP のみ。PIL は ComfyUI コア依存で常在）— PIL は非 WebP 入力のデコード + 全機能フォールバック（ロールバック単位）として残り、Phase 8 の `MM_NATIVE` 撤去まで両経路并存。§3.8 追記・§6.1 総覧・§9 チェックリスト・T7 本体を同期                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | 2.4  | 2026‑09‑28 | ユーザ決定（同日・**撤回 → 復元**）: **T4（uv の導入）を一時撤回**（コミット 984f48a）— 理由は「uv ではフロントエンドのパッケージ管理ができない」だったが、これは **T4 の対象範囲の誤解**（T4 の範囲は **Python の開発・CI 層専用** = pip 置換 + uv.lock で、**pnpm/フロントエンドの変更は一切含まない**。pnpm は T4 の有無にかかわらず現状維持）。範囲確認の上、ユーザ指示により**撤回を撤回し T4 を原文どおり復元**（本コミットが 984f48a を supersedes — 完了条件 **8 項目**・T6 の astral-sh/setup-uv v10.2.0・§6.1/§9・MEMO §1.1/§2.2 手順 7/§5 の全てを撤回前へ戻し、T4 墓標と 7 項目化も撤去）。撤回→復元の経緯は git 履歴（984f48a）で追跡可能                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 2.5  | 2026‑09‑28 | ユーザ指示（**文言の明確化** — T4 の技術的内容・範囲に変更なし）: **T4 項目本文に「uv の導入 = Python の pip 置換のみ」「pnpm（フロントエンドのパッケージ管理）は最初から変更対象外 = 現状維持」を明示** — T4 見出しを「Python の開発・CI 層専用 = pip 置換」へ改め、「対象範囲の明確化」サブ項目を新設（T4 が触れないものの列挙: package.json / pnpm-lock.yaml / pnpm-workspace.yaml / corepack 設定 / pre-commit の `pnpm typecheck` 等のフロントエンドのワークフロー一切）。§6.1 総覧・§9 チェックリストの T4 表記も同期（「開発・CI 層」→「Python の開発・CI 層 = pip 置換・pnpm 現状維持」）。版数履歴 2.1/2.4・MEMO の記録はそのまま有効                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 2.6  | 2026‑09‑29 | ユーザ決定: **ビルド済みバイナリのサイズ目安を ≤4 MB/本 から ≤5 MB/本 へ改定**（fat universal2 は per‑slice ≤5 MB・ファイル ≤10 MB。合計 ≤20 MB の R6 ハード上限は**変更しない**）。根拠: Phase 7 T7（zenwebp）で linux‑x86_64 release が 4,110,816 B = 4 MB 目安の 98 % に達し余裕が消失（5 MB 目安なら 78 %）。§3.3 / §6.3 / R6 / §5.3 CI 表 / T7 ゲート欄 / native.yml size‑budget ゲート（4194304→5242880・fat 8388608→10485760）/ scripts/build-native.sh SIZE_BUDGET / native Cargo.toml・README / MEMO を同期。CI size‑budget は ed86b64 で green（改定前は 98 % で通過）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 ### 進捗マーク凡例
 
@@ -328,22 +329,27 @@ third_party/
 - パニック戦略は **`panic = "unwind"` 固定**（PyO3 が境界でパニックを捕捉し
   Python 例外化する。`abort` は ComfyUI プロセスを殺すため禁止）。
 - サイズ予算: `opt-level`・`lto = "fat"`・`codegen-units = 1`・`strip` で
-  **1 バイナリ ≤ 4 MB（目安）**、5 ファイル合計 ≤ 20 MB（Phase 0 で実測検証）。
-  〔2026‑09‑27 ユーザ決定〕**「1 バイナリ ≤ 4 MB」は絶対条件ではなく「目安」**:
+  **1 バイナリ ≤ 5 MB（目安）**、5 ファイル合計 ≤ 20 MB（Phase 0 で実測検証）。
+  〔2026‑09‑27 ユーザ決定〕**サイズ目安は絶対条件ではなく「目安」**:
   CI のサイズゲートはリポジトリ肥大の早期警戒装置として維持するが、超過は
   計画違反ではなくユーザ判断での上限改定で解決する（§6.3 規程・下記の
   universal2 per‑slice 判定がその先例）。合計 ≤ 20 MB（R6）はガードとして維持。
+  〔2026‑09‑29 ユーザ決定〕**目安を ≤4 MB/本 から ≤5 MB/本 へ改定**（fat は
+  per‑slice ≤5 MB・ファイル ≤10 MB）。根拠: Phase 7 T7（zenwebp）で
+  linux‑x86_64 が **4,110,816 B = 4 MB 目安の 98 %** に達し余裕が消失したため
+  （5 MB 目安なら 78 %）。合計 ≤20 MB は変更しない（R6 ハード上限は別決定）。
   〔Phase 5 実装注記 2026‑09‑27〕**macos‑universal2 は x86_64 + arm64 の
-  2 アーキテクチャを含む fat binary** のため、「1 バイナリ ≤ 4 MB」は
+  2 アーキテクチャを含む fat binary** のため、「1 バイナリ ≤ 5 MB」は
   **アーキテクチャ スライス単位**で適用する（`build-native.sh` が `lipo -thin`
-  の各スライスを ≤4 MB でゲート。fat ファイル自体は自然に約 2 倍 = ≤8 MB）。
+  の各スライスを ≤5 MB でゲート。fat ファイル自体は自然に約 2 倍 = ≤10 MB）。
   Phase 5 の機能追加（scan/hash/index/header + blake3/bincode/crc32fast/
   yaml‑rust2）で linux‑x86_64 が 2.4→2.87 MB へ成長し、universal2 fat が
-  4.8 MB と単一ファイル 4 MB を超えたため、size‑budget ゲートは FAT_MAGIC
-  （0xcafebabe/0xcafebabf）を content 判定して fat のみ 8 MB 予算を適用
+  4.8 MB と**当時の**単一ファイル上限 4 MB を超えたため、size‑budget ゲートは
+  FAT_MAGIC（0xcafebabe/0xcafebabf）を content 判定して fat のみ 2 倍予算を適用
   （ubuntu ジョブは lipo 不可のため magic 判定、macOS ジョブは per‑slice）。
-  **native‑bin 4 ファイル合計 ≈12 MB ≤ 20 MB（R6 のリポジトリ肥大ガードは
-  充足）**。単一アーキ成果物（linux x86_64/aarch64・windows）は全て ≤4 MB。
+  **native‑bin 4 ファイル合計 ≈12–20 MB ≤ 20 MB（R6 のリポジトリ肥大ガードは
+  充足）**。単一アーキ成果物（linux x86_64/aarch64・windows）は全て ≤5 MB
+  （2026‑09‑29 実測 ≈3.9–4.1 MB）。
 
 ## 3.4 ツールチェーン標準: mold / rustfmt / clippy（採用確定）
 
@@ -465,20 +471,21 @@ crates.io 全件調査の結果、ZipNN が要求する**生 huff0 ブロック*
 
 ## 3.7 データ処理 crate（確定バージョン表）
 
-| 用途               | crate                                    | バージョン                                               | 備考                                                                                           |
-| ------------------ | ---------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| safetensors 読取   | `memmap2` + 自前ヘッダーパーサ           | 0.9.11                                                   | ゼロコピー。32 MB ヘッダー上限ガード維持                                                       |
-| JSON               | `jiter`（第一候補）/ `simd-json`（比較） | 0.17.0 / 0.18.1                                          | jiter は非破壊解析で read‑only mmap に直接適用可。Phase 0 で 8 MB MoE ヘッダーによりベンチ確定 |
-| スキャン結果直列化 | `serde` + `serde_json`                   | 1.0.151                                                  | —                                                                                              |
-| ハッシュ           | `sha2` / `blake3` / `crc32fast`          | 0.11.0 / 1.8.7 / 1.5.2                                   | blake3 は `rayon`・`mmap` フィーチャ使用（並列ツリーハッシュ）。sha2 は SHA‑NI 実行時検出      |
-| 並列 walk          | `ignore`（第一候補）/ `dua-core`（比較） | 0.4.33 / 4.1.0                                           | Phase 5 でベンチ比較                                                                           |
-| インデックス       | `bincode`（+ `blake3` チェックサム）     | 2.0.1（§3.1 注記: 3.0.0 はコンパイル不能プレースホルダ） | 純 Rust・原子入替スナップショット。SQLite（C）は不採用                                         |
-| f16/bf16           | `half`                                   | 2.7.1                                                    | —                                                                                              |
-| バイト cast        | `bytemuck`                               | 1.25.2                                                   | 平面分割の安全な reinterpret                                                                   |
-| 監視（任意機能）   | `notify` + `notify-debouncer-full`       | 8.2.0 / 0.7.0                                            | デバウンスは公式クレートに委譲                                                                 |
-| YAML               | `yaml-rust2`                             | 0.13.0                                                   | front‑matter 部分集合。serde_yaml 系は deprecated のため不使用                                 |
-| 一時ファイル       | `tempfile`                               | 3.x                                                      | 原子入替                                                                                       |
-| PyO3 拡張          | `pyo3`（abi3-py310, extension-module）   | 0.29.2                                                   | —                                                                                              |
+| 用途                          | crate                                    | バージョン                                               | 備考                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------- | ---------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| safetensors 読取              | `memmap2` + 自前ヘッダーパーサ           | 0.9.11                                                   | ゼロコピー。32 MB ヘッダー上限ガード維持                                                                                                                                                                                                                                                                                                     |
+| JSON                          | `jiter`（第一候補）/ `simd-json`（比較） | 0.17.0 / 0.18.1                                          | jiter は非破壊解析で read‑only mmap に直接適用可。Phase 0 で 8 MB MoE ヘッダーによりベンチ確定                                                                                                                                                                                                                                               |
+| スキャン結果直列化            | `serde` + `serde_json`                   | 1.0.151                                                  | —                                                                                                                                                                                                                                                                                                                                            |
+| ハッシュ                      | `sha2` / `blake3` / `crc32fast`          | 0.11.0 / 1.8.7 / 1.5.2                                   | blake3 は `rayon`・`mmap` フィーチャ使用（並列ツリーハッシュ）。sha2 は SHA‑NI 実行時検出                                                                                                                                                                                                                                                    |
+| 並列 walk                     | `ignore`（第一候補）/ `dua-core`（比較） | 0.4.33 / 4.1.0                                           | Phase 5 でベンチ比較                                                                                                                                                                                                                                                                                                                         |
+| インデックス                  | `bincode`（+ `blake3` チェックサム）     | 2.0.1（§3.1 注記: 3.0.0 はコンパイル不能プレースホルダ） | 純 Rust・原子入替スナップショット。SQLite（C）は不採用                                                                                                                                                                                                                                                                                       |
+| f16/bf16                      | `half`                                   | 2.7.1                                                    | —                                                                                                                                                                                                                                                                                                                                            |
+| バイト cast                   | `bytemuck`                               | 1.25.2                                                   | 平面分割の安全な reinterpret                                                                                                                                                                                                                                                                                                                 |
+| 監視（任意機能）              | `notify` + `notify-debouncer-full`       | 8.2.0 / 0.7.0                                            | デバウンスは公式クレートに委譲                                                                                                                                                                                                                                                                                                               |
+| YAML                          | `yaml-rust2`                             | 0.13.0                                                   | front‑matter 部分集合。serde_yaml 系は deprecated のため不使用                                                                                                                                                                                                                                                                               |
+| 一時ファイル                  | `tempfile`                               | 3.x                                                      | 原子入替                                                                                                                                                                                                                                                                                                                                     |
+| PyO3 拡張                     | `pyo3`（abi3-py310, extension-module）   | 0.29.2                                                   | —                                                                                                                                                                                                                                                                                                                                            |
+| プレビュー WebP（Phase 7 T7） | `zenwebp`                                | 0.4.4（crates.io max_stable・0.4.5 は yanked）           | 純 Rust WebP codec（VP8/VP8L encode+decode・alpha・animation・ICC/EXIF/XMP）。imazen = Imageflow 開発元。**AGPL‑3.0‑only OR Imazen‑Commercial** → 本拡張は GPL‑3.0‑only なので AGPL‑3.0 条件で組込（§8・`native/NOTICE`・README×2）。`znn-codec::webp` がラップし mm-core が PyO3 バインド、fuzz L3 `webp_decode` がデコード経路を常設ファズ |
 
 ## 3.8 周辺領域の選定結論（Rust 化しない判断を含む）
 
@@ -1019,7 +1026,7 @@ Rust 化と独立に実施可能な項目を含む。重要度順。
 | --------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ci（既存）            | ubuntu                   | lint/typecheck/build/mypy/ruff（維持）+ **front K15 bench**（Phase 6 / C5: `src/utils` 実物を tsc でコンパイルし before/after を同一実行内で計測。ゲートは比率なのでランナー非依存） |
 | native-test           | ubuntu / windows / macos | `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test`、fuzz スモーク                                                                                                         |
-| native-cross          | ubuntu（zig）            | linux x86_64/aarch64（glibc ≥2.28）ビルド + サイズゲート（4 MB/本 = 目安・universal2 は per‑slice 判定 — §3.3）                                                                      |
+| native-cross          | ubuntu（zig）            | linux x86_64/aarch64（glibc ≥2.28）ビルド + サイズゲート（5 MB/本 = 目安・universal2 は per‑slice 判定 — §3.3）                                                                      |
 | native-diff（移行期） | ubuntu                   | L2 差分テスト（C プリビルド使用）                                                                                                                                                    |
 | integration           | ubuntu / windows / macos | L4/L5（pytest + 公式 zipnn クロス検証）+ **テンソルツリー wire クロスチェック**（ubuntu: 実ビルド成果物の Rust 符号 == TS フォールバック エンコーダ）                                |
 
@@ -1567,7 +1574,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
 
 ### Phase 7 — ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定・6 項目）
 
-- [ ] **T1: アップロード preflight SHA256 の Rust 化** — `py/upload_hf.py`
+- [x] **T1: アップロード preflight SHA256 の Rust 化** — `py/upload_hf.py`
       `hash_local_file`（モデル全文を Python hashlib の 1 MiB ループでハッシュ —
       HF / ModelScope の重複検出 preflight で、remote サイズ一致時のみ呼ばれる）を
       **既存の** `mm_core.hash_file(path, ["SHA256"])` へ差し替える
@@ -1589,7 +1596,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   - ゲート: ゴールデンテスト（hash_file == hashlib バイト一致）+ preflight の
     モックフロー（`test_phase6_http.py` の MockHub パターン）+ 既存アップロード系
     テスト全緑。
-- [ ] **T2: Node.js v26.10.0 へのアップデート** — 一次確認（nodejs.org dist index・
+- [x] **T2: Node.js v26.10.0 へのアップデート** — 一次確認（nodejs.org dist index・
       2026‑09‑28 実測）: **v26.10.0 = v26 系の最新**（2026‑09‑21 リリース。
       Node 24 = LTS "Krypton"、v26 は current 系で 2026‑10 に LTS 昇格予定）。
       変更点: ci.yml `node-version: 22` → `26.10.0`、`@types/node` ^22 → ^26、
@@ -1601,11 +1608,11 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
       高速経路が前提）は Node 26 の V8 で再検証する**（Node 22 の GH ランナーで
       設計判断が再現した前例あり — MEMO 第 8 セッション）。
       ゲート: ci.yml + native.yml（cross-check セル）全緑 + K15 ゲート PASS。
-- [ ] **T3: Ruff 0.16.9 へのアップデート** — ci.yml のピン `ruff==0.16.8` →
+- [x] **T3: Ruff 0.16.9 へのアップデート** — ci.yml のピン `ruff==0.16.8` →
       `ruff==0.16.9`（PyPI latest = 0.16.9・2026‑09‑28 実測）。`ruff check` +
       `ruff format --check` を再実行し、新バージョン由来の指摘があれば解消する。
       ゲート: ci.yml 緑。
-- [ ] **T4: uv の導入（Python の開発・CI 層専用 = pip 置換 — 2026‑09‑28 ユーザ決定）** —
+- [x] **T4: uv の導入（Python の開発・CI 層専用 = pip 置換 — 2026‑09‑28 ユーザ決定）** —
       uv 最新版（2026‑09‑28 時点 0.12.19・PyPI 実測。実施時の latest を一次確認）。
   - **対象範囲の明確化（2026‑09‑28 ユーザ指示で明記）**: uv の導入は
     **Python の pip 置換のみ**（開発・CI 層）。**フロントエンドのパッケージ管理
@@ -1636,7 +1643,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
     （Phase 8 の「pyproject / requirements 整理」と統合）。
   - ゲート: ci.yml + native.yml 全緑（ubuntu / windows / macOS）+
     `uv sync --frozen` → pytest 176 のローカル再現。
-- [ ] **T5: mypy.ini → pyproject.toml 統合 + 統合できる設定の統合** —
+- [x] **T5: mypy.ini → pyproject.toml 統合 + 統合できる設定の統合** —
   - `[tool.mypy]` 統合: **実証済み**（2026‑09‑28・mypy 2.3.1 で
     `--config-file` 無し実行が pyproject.toml の `[tool.mypy]` を自動発見し
     全オプションを適用することをサンドボックス実測）。現行 mypy.ini は
@@ -1660,7 +1667,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
     `.fallowrc.json`（JS 系ツールの固有フォーマット）、`native/pyproject.toml`
     （maturin ビルド定義 — root とは別ワークスペース）、cargo / clippy /
     rustfmt の設定（cargo は pyproject を読まない）。
-- [ ] **T6: 設定ファイルの全面見直し（最新記法・バージョンの一次ソース照合）** —
+- [x] **T6: 設定ファイルの全面見直し（最新記法・バージョンの一次ソース照合）** —
   - **GitHub Actions**（2026‑09‑28 GitHub API 実測の latest）:
     actions/checkout v4 → **v7.0.1** / setup-node v4 → **v7.0.0** /
     setup-python v5 → **v7.0.0** / upload-artifact v4 → **v7.0.1** /
@@ -1686,7 +1693,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   - ゲート: 全 CI 緑 + ローカル全ゲートの**挙動不変**（純粋な記法/バージョン
     現代化に限る。挙動を変える項目は個別にユーザ判断を仰ぐ）。
     発見事項と一次証跡は MEMO へ記録。
-- [ ] **T7: `zenwebp` 導入（純 Rust WebP codec — エンコード/デコード/アニメ・
+- [x] **T7: `zenwebp` 導入（純 Rust WebP codec — エンコード/デコード/アニメ・
       一気刷新）+ ライセンス整備** — プレビュー WebP パイプライン
       （§3.8 が「PIL 維持」とした経路）を**一括で** native へ刷新する。
       **2026‑09‑28 ユーザ決定**（AGPL‑3.0 コンポーネントの採用を承認・
@@ -1749,7 +1756,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
     `Cargo.toml` + §3.7 crate 表への追加（ライセンス欄 AGPL‑3.0・
     バージョンは crates.io API で再確認）。
   - **サイズゲート**: `.so` 増分を実測（現在 linux‑x86_64 **3,137,312 B =
-    予算 4 MB の 75 %**。追加で目安超過の場合は §3.3/§6.3 規程により
+    予算 5 MB の 59 %（T7 後実測 4,110,816 B = 78 %）**。追加で目安超過の場合は §3.3/§6.3 規程により
     報告し上限改定はユーザ判断）。
   - ゲート: Rust L1（エンコード往復・品質・アニメ・ICC・**PIL とのデコード
     parity**）、**L3 fuzz 新ターゲット**（敵対的 WebP → デコード経路 —
@@ -1761,7 +1768,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
     アニメ WebP のフレーム数/duration 保持テスト、既存プレビュー系テスト
     全緑、サイズ実測、**api_version bump**（新規 API — §4.2.2 の
     4 者同期規程）。
-- [ ] **T8: `py/utils.py` の残り `requests` 2 箇所の aiohttp 化（A3 の完了）** —
+- [x] **T8: `py/utils.py` の残り `requests` 2 箇所の aiohttp 化（A3 の完了）** —
       対象: `save_model_preview` の URL 取得（L687・ダウンロード完了経路）と
       エディタ保存経路（L750）— いずれも io_executor 内のブロッキング
       `requests.get(timeout=(15, 120))`。
@@ -1795,13 +1802,17 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   - ゲート: MockHub parity テスト（200 / 非 200 / タイムアウト /
     content-type 欠落 / ローカル分岐 / blob 拒否）+ 既存のダウンロード完了・
     エディタ保存テスト全緑 + `py/` の直接 requests 参照ゼロをテストで固定。
-- [ ] 完了条件: **8 項目**の全実施（T7 はライセンス整備 (a)–(e) の完了を含む）+
+- [x] 完了条件: **8 項目**の全実施（T7 はライセンス整備 (a)–(e) の完了を含む）+
       全ゲートマトリクス緑（Rust L1 / mm-core /
       統合・pytest 成果物あり/なし両方・ruff・mypy〔pyproject 設定経由〕・
       typecheck / eslint / stylelint / prettier / dependency-cruiser / fallow /
       build / K15 bench + cross-check）+ Actions 更新後の CI 実走緑 +
       ドキュメント同期（README×2 Development 節・Credits（T7c）・
       §8 ライセンス節（T7a）・MEMO 運営メモ）。
+      **CI 実走緑 確認済み（2026‑09‑29）**: ed86b64 → ci.yml #162 / native.yml #73、
+      00f185f（サイズ目安 5 MB 改定 + pnpm 12.8.1 + 接合部テスト）→ ci.yml #163 /
+      native.yml #74、いずれも **全ジョブ success**（size-budget・fuzz-smoke 7 本・
+      abi3-import api_version 6・integration ×3 OS 含む）。
       **Phase 8 との順序**: 前後・交錯いずれも衝突しない — ただし T4/T5
       （pyproject / 依存定義の整理）は Phase 8 の「pyproject / requirements 整理」の
       **前**に着地させる方が手戻りが無い。
@@ -1823,7 +1834,7 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
 - [ ] README / README‑JP / USAGE×3 の全面改訂
       （ZipNN 節を「純 Rust 実装」へ、対応 OS 表・相互運用マトリクス追加）
 - [ ] pyproject / requirements 整理、`native-bin/README.md` 整備
-- [ ] バイナリサイズ最終最適化（**4 MB/本 = 目安** — 2026‑09‑27 ユーザ決定で
+- [ ] バイナリサイズ最終最適化（**5 MB/本 = 目安** — 2026‑09‑27 目安化・2026‑09‑29 に 4→5 MB 改定で
       絶対条件から降格。§3.3 参照）
 - [ ] リリース v0.3.0 の**公開準備**（version.yaml / package.json / pyproject 同期）。
       **公開作業そのもの（GitHub Release の作成・タグの publish・registry への
@@ -1847,32 +1858,33 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   セッションは「公開準備」（バージョン番号同期・公開前検証・dev への
   コミット/プッシュ）までを行い、**勝手に公開しない**。dev→main マージは
   現行運用通りユーザの PR 操作による（MEMO の各セッション記録参照）。
-- **サイズ予算は目安**（2026‑09‑27 ユーザ決定）: 「1 バイナリ ≤ 4 MB」は
-  絶対条件ではなく目安（§3.3）。CI のサイズゲートはリポジトリ肥大の
-  早期警戒装置として維持するが、ゲート超過は計画違反ではなく
+- **サイズ予算は目安**（2026‑09‑27 ユーザ決定・2026‑09‑29 に 4→5 MB へ改定）:
+  「1 バイナリ ≤ 5 MB」は絶対条件ではなく目安（§3.3）。CI のサイズゲートは
+  リポジトリ肥大の早期警戒装置として維持するが、ゲート超過は計画違反ではなく
   **ユーザ判断で上限を改定する**運用（universal2 fat binary の per-slice
-  判定化がその先例）。native-bin 合計 ≤ 20 MB（R6）はリポジトリ肥大
-  ガードとして維持。
+  判定化がその先例、2026‑09‑29 の 4→5 MB 改定がその適用例）。native-bin
+  合計 ≤ 20 MB（R6）はリポジトリ肥大ガードとして維持（per-binary 改定とは
+  独立のハード上限）。
 
 ---
 
 # 7. リスク管理
 
-| #   | リスク                                       | 確率 | 影響 | 緩和策                                                                                                                                                                              | 対応フェーズ |
-| --- | -------------------------------------------- | ---- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| R1  | huff0 ポートのビットレベルバグ（静かな破損） | 中   | 大   | L2 差分テスト + L3 fuzz + `znn_neo_src_sha256` 端到端検証（破損は**検知される**）。third_party は Phase 8 まで保持                                                                  | 1–8          |
-| R2  | 公式 zipnn との非互換（エコシステム分断）    | 低   | 大   | 互換帯は L5 を CI ゲート化。拡張帯はマーキング + UI 明示 + 明示エラー（静かな破損なし）                                                                                             | 1,4          |
-| R3  | abi3 バイナリの環境非互換（古い glibc 等）   | 中   | 中   | zigbuild glibc 2.28（現行 C の 2.34 要件より広い）、CI に旧環境スモーク、失敗時は明確なエラー表示                                                                                   | 0,8          |
-| R4  | Windows の mmap/ロック競合（AV・OneDrive）   | 中   | 中   | 読取専用共有 mmap、書込は tempfile+rename、Windows QA チェックリスト                                                                                                                | 2            |
-| R5  | rayon が ComfyUI 推論と CPU 競合             | 中   | 中   | 専用プール + `min(cpu,16)` 既定 + 実行中スレッド半減オプション                                                                                                                      | 2            |
-| R6  | リポジトリ肥大（native-bin ≤20 MB）          | 中   | 小   | サイズ CI ゲート（4 MB/本 = **目安** — 超過はユーザ判断で上限改定: §3.3/§6.3。合計 ≤20 MB はハード上限）。合計超過時は GitHub Releases 配信へ切替（ローダーに取得経路を設計時内蔵） | 0,8          |
-| R7  | 永続インデックスの破損/陳腐化                | 低   | 小   | チェックサム + 世代番号。不一致時は自動全再構築（常に派生データ）                                                                                                                   | 5            |
-| R8  | shallowRef 移行による UI 退行                | 中   | 中   | 影響棚卸し先行・段階移行・計測比較。問題時は対象ストアのみロールバック                                                                                                              | 6            |
-| R9  | PyO3/maturin の破壊的変更                    | 低   | 小   | Cargo.lock 同梱でピン留め、更新は専用 PR                                                                                                                                            | 全           |
-| R10 | 上流 zipnn の将来フォーマット変更            | 低   | 中   | ヘッダーのバージョンバイト厳密検査、上流リリース監視の CI 定期ジョブ化                                                                                                              | 1,8          |
-| R11 | f64 8 平面方式の圧縮率が期待未満             | 中   | 小   | 方式のモジュール化。目標は「破損せず現行（パススルー）以上」。測定後にトランケート等で改善                                                                                          | 4            |
-| R12 | 既存デルタファイル（C 版生成）の復旧不能     | 低   | 大   | C 版の往復は非クラッシュケースで全て正しいことを実証済み（付録 C.3）。Rust 解凍器は C 出力を 100% 受理（L2/L5）。万一の不一致ファイルは `.corrupt` 退避で原本（base）を保持         | 3            |
-| R13 | free-threaded Python 普及時の abi3 非対応    | 低   | 小   | PyO3 `abi3t-py315` 対応済み（PEP 803 = abi3t は CPython 3.15+）。需要確認後に追加ビルド — **計画項目は 2026‑09‑28 ユーザ決定で削除済み（旧 Phase 8 ストレッチ）**、計画外の随時対応 | —            |
+| #   | リスク                                       | 確率 | 影響 | 緩和策                                                                                                                                                                                                         | 対応フェーズ |
+| --- | -------------------------------------------- | ---- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| R1  | huff0 ポートのビットレベルバグ（静かな破損） | 中   | 大   | L2 差分テスト + L3 fuzz + `znn_neo_src_sha256` 端到端検証（破損は**検知される**）。third_party は Phase 8 まで保持                                                                                             | 1–8          |
+| R2  | 公式 zipnn との非互換（エコシステム分断）    | 低   | 大   | 互換帯は L5 を CI ゲート化。拡張帯はマーキング + UI 明示 + 明示エラー（静かな破損なし）                                                                                                                        | 1,4          |
+| R3  | abi3 バイナリの環境非互換（古い glibc 等）   | 中   | 中   | zigbuild glibc 2.28（現行 C の 2.34 要件より広い）、CI に旧環境スモーク、失敗時は明確なエラー表示                                                                                                              | 0,8          |
+| R4  | Windows の mmap/ロック競合（AV・OneDrive）   | 中   | 中   | 読取専用共有 mmap、書込は tempfile+rename、Windows QA チェックリスト                                                                                                                                           | 2            |
+| R5  | rayon が ComfyUI 推論と CPU 競合             | 中   | 中   | 専用プール + `min(cpu,16)` 既定 + 実行中スレッド半減オプション                                                                                                                                                 | 2            |
+| R6  | リポジトリ肥大（native-bin ≤20 MB）          | 中   | 小   | サイズ CI ゲート（5 MB/本 = **目安** — 超過はユーザ判断で上限改定: §3.3/§6.3・2026‑09‑29 に 4→5 MB 改定。合計 ≤20 MB はハード上限）。合計超過時は GitHub Releases 配信へ切替（ローダーに取得経路を設計時内蔵） | 0,8          |
+| R7  | 永続インデックスの破損/陳腐化                | 低   | 小   | チェックサム + 世代番号。不一致時は自動全再構築（常に派生データ）                                                                                                                                              | 5            |
+| R8  | shallowRef 移行による UI 退行                | 中   | 中   | 影響棚卸し先行・段階移行・計測比較。問題時は対象ストアのみロールバック                                                                                                                                         | 6            |
+| R9  | PyO3/maturin の破壊的変更                    | 低   | 小   | Cargo.lock 同梱でピン留め、更新は専用 PR                                                                                                                                                                       | 全           |
+| R10 | 上流 zipnn の将来フォーマット変更            | 低   | 中   | ヘッダーのバージョンバイト厳密検査、上流リリース監視の CI 定期ジョブ化                                                                                                                                         | 1,8          |
+| R11 | f64 8 平面方式の圧縮率が期待未満             | 中   | 小   | 方式のモジュール化。目標は「破損せず現行（パススルー）以上」。測定後にトランケート等で改善                                                                                                                     | 4            |
+| R12 | 既存デルタファイル（C 版生成）の復旧不能     | 低   | 大   | C 版の往復は非クラッシュケースで全て正しいことを実証済み（付録 C.3）。Rust 解凍器は C 出力を 100% 受理（L2/L5）。万一の不一致ファイルは `.corrupt` 退避で原本（base）を保持                                    | 3            |
+| R13 | free-threaded Python 普及時の abi3 非対応    | 低   | 小   | PyO3 `abi3t-py315` 対応済み（PEP 803 = abi3t は CPython 3.15+）。需要確認後に追加ビルド — **計画項目は 2026‑09‑28 ユーザ決定で削除済み（旧 Phase 8 ストレッチ）**、計画外の随時対応                            | —            |
 
 ---
 
@@ -1885,6 +1897,18 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   各ファイルに原典著作権表示 + SPDX + 変更履歴を付す。
 - アルゴリズム/フォーマット参照: ZipNN（MIT）— `native/NOTICE` に帰属表示
   （現行 `third_party/LICENSE-zipnn.txt` から継承）。
+- **zenwebp（Phase 7 / T7 — プレビュー WebP codec）**: **AGPL‑3.0‑only OR
+  LicenseRef‑Imazen‑Commercial** のデュアルライセンス（一次確認: crate の
+  `Copyright (C) 2025 Imazen LLC` + docs.rs の AGPL 文言 + Cargo.toml license 欄）。
+  本拡張は GPL‑3.0‑only なので **AGPL‑3.0 条件で組み込む**（商用ライセンスは
+  proprietary 利用向けで無関係）。法的根拠: AGPLv3 §13 は GPLv3 成果物との結合を
+  明示許可（AGPL 部分は AGPL のまま）。ComfyUI は**ローカルアプリ**（ネットワーク
+  サービスではない）ため AGPL のネットワーク条項は実質無作用、配布時の copyleft
+  義務 = ソース入手可能性は公開リポジトリで充足済み。整備（2026‑09‑29 実施）:
+  **(a)** 本節への項目追加、**(b)** `native/NOTICE` への帰属、**(c)** README×2 の
+  Credits & Attribution + License 節への追記、**(d)** registry 公開時の GPL/AGPL
+  結合要件の再確認（公開はユーザ専任・§6.3）、**(e)** §3.7 crate 表 + native
+  workspace / znn‑codec `Cargo.toml` への追加。
 - 論文: Hershcovitch et al., "ZipNN: Lossless Compression for AI Models"
   (arXiv:2411.05239) を README Credits に追記。
 - 採用 crate（PyO3/rayon = MIT OR Apache‑2.0 ほか）はすべて
@@ -2028,15 +2052,47 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
       notify/debouncer-full + tensor tree）。fuzz 表面は不変
       （codec 無変更・新 API は fuzz ターゲット外）→ 再ディスパッチ不要。
       証跡 BENCH §11
-- [ ] **Phase 7** — ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定・8 項目:
-      T1 アップロード preflight SHA256 の Rust 化 / T2 Node v26.10.0 /
-      T3 Ruff 0.16.9 / T4 uv 導入〔Python の開発・CI 層限定 = pip 置換・pnpm 現状維持〕/ T5 mypy.ini →
-      pyproject.toml 統合 + 統合できる設定 / T6 設定ファイル全面見直し /
-      T7 zenwebp 一気刷新〔静止エンコード + アニメ WebP 保持 + WebP デコード・
-      fuzz/parity ゲート・**AGPL‑3.0 ライセンス整備を必須化**〕/
-      T8 utils.py 残り requests
-      2 箇所の aiohttp 化〔A3 完了 — requests は modelscope_hub の
-      推移的依存として残存〕）
+- [/] **Phase 7** — ツールチェーン現代化・設定統合（2026‑09‑28 ユーザ決定・8 項目:
+  T1 アップロード preflight SHA256 の Rust 化 / T2 Node v26.10.0 /
+  T3 Ruff 0.16.9 / T4 uv 導入〔Python の開発・CI 層限定 = pip 置換・pnpm 現状維持〕/ T5 mypy.ini →
+  pyproject.toml 統合 + 統合できる設定 / T6 設定ファイル全面見直し /
+  T7 zenwebp 一気刷新〔静止エンコード + アニメ WebP 保持 + WebP デコード・
+  fuzz/parity ゲート・**AGPL‑3.0 ライセンス整備を必須化**〕/
+  T8 utils.py 残り requests
+  2 箇所の aiohttp 化〔A3 完了 — requests は modelscope_hub の
+  推移的依存として残存〕）
+  **8 項目すべて実装・自動 QA 完了 2026‑09‑29**（第 15 セッション）:
+  T1 `_sha256_of_file`（native hash_file + Python フォールバック・preflight を
+  ネットワーク段 io / ハッシュ段 cpu へ分離・+8 テスト）/ T2 ci.yml node 26.10.0 +
+  `@types/node` ^26.6.3（C2 comparator ゲートを Node 26 の V8 で再検証 PASS・
+  numeric ×21.95 hoisted 優位 / default は localeCompare builtin 優位で維持）/
+  T3 ruff 0.16.9 / T4 uv 0.12.20（`[dependency-groups]` dev + `[tool.uv] package=false` +
+  pytorch-cpu explicit index + uv.lock コミット・ci.yml 1 + native.yml 4 ジョブを
+  `uv pip install --system` + setup-uv v10.2.0 へ・`uv sync --frozen`→pytest 再現）/
+  T5 `[tool.mypy]` pyproject 統合（mypy 2.3.1 自動発見実証・16 files）+ prettier/stylelint を
+  package.json へ（挙動不変）/ T6 GitHub Actions メジャー更新を**1 action ずつ別コミット**
+  （checkout v7・setup-node v7・setup-python v7・upload-artifact v7・download-artifact v8・
+  pnpm-action v6.1〔各 release notes で破壊的変更を一次確認〕・rust-cache は同一メジャーで v2 維持・
+  setup-uv v10.2.0 は T4 で新設）+ 全設定を一次ソース照合（crate バージョンは §3.7 と一致・
+  pnpm `minimum-release-age` の .npmrc 配置は pnpm 12 で無視される発見 → サプライチェーン設定のため
+  挙動不変を優先し MEMO 記録のみ）/ T7 zenwebp 0.4.4（`znn-codec::webp` 純 Rust +
+  mm-core phase7 バインド・api_version **5→6** 4 者同期・L1 +10・L3 fuzz `webp_decode` 7 本目・
+  pytest +9〔静止 parity / アニメ frame+duration 保持 / decode parity zenwebp==PIL / フォールバック〕・
+  **AGPL‑3.0 ライセンス整備 (a)–(e)**: Plan §8 + native/NOTICE 新設 + README×2 Credits/License +
+  §3.7 crate 表 + Cargo.toml・サイズ実測 release linux-x86_64 **4,110,816 B = 3.92 MiB =
+  5 MiB 目安の 78 %**〔zenwebp 増分 +0.93 MB・budget 内だが CI 実測で注視〕）/
+  T8 `http_client.fetch_preview` + `resolve_preview_sources`/`write_resolved_previews` 分割 +
+  `_resolve_update_previews`（editor fetch を event loop へ）+ save_model_preview(s) async 化・
+  `import requests` 削除（py/ 直接参照ゼロを AST テストで固定）・+12 テスト（接合部含む）。
+  **ローカル全ゲート緑**: Rust L1 **205**（znn-codec +10）/ mm-core 5 / 統合 4・clippy
+  `-D warnings`（workspace all-targets all-features）/ fmt・pytest **207**（native+torch）・
+  ruff / mypy 16 files / typecheck / eslint / stylelint / prettier / dependency-cruiser /
+  fallow（dead+dupes）/ build / K15 bench（Node 26）・`uv sync --frozen`→207。
+  **Actions 更新後の CI 実走緑 確認済み（2026‑09‑29）**: ed86b64 → ci.yml #162 /
+  native.yml #73、00f185f → ci.yml #163 / native.yml #74、いずれも全ジョブ success
+  （size-budget・fuzz-smoke 7 本・abi3-import api_version 6・integration ×3 OS・
+  L5 公式 zipnn クロス検証・K15 cross-check 含む）= Plan 完了条件の「CI 実走緑」充足。
+  サイズは CI 実測でも budget 内（linux-x86_64 4,110,816 B = 5 MiB 目安の 78 %）。
 - [ ] **Phase 8** — third_party 撤去・配布仕上げ・v0.3.0 リリース（旧 Phase 7）
 
 ---

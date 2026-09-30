@@ -45,11 +45,15 @@ from . import config, utils
 #   pre-grouping of Plan §4.7.3) that py/utils.py serves to the model-detail
 #   route, plus the optional library watcher (watch_start/watch_poll/
 #   watch_stop/watch_diagnostics, Plan §4.7.2-2) that py/watcher.py drives.
+# * 6 — Phase 7 (T7): the preview WebP codec (webp_decode / webp_encode /
+#   webp_encode_animation, the zenwebp-backed pure-Rust encode/decode/animation
+#   of Plan §3.8 追記) that py/utils.py's preview pipeline calls with a PIL
+#   fallback.
 # The range is EXACT (min == max): an older binary would pass a `>=` handshake
 # and then fail with an AttributeError deep inside a compression task — an
 # incompatible binary must be rejected at load time with a clear reason().
-MIN_API_VERSION = 5
-MAX_API_VERSION = 5
+MIN_API_VERSION = 6
+MAX_API_VERSION = 6
 
 _NATIVE_DIR = "native"
 _NATIVE_BIN_DIR = "native-bin"

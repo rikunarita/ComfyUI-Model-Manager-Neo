@@ -16,24 +16,33 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         # no `version:` on purpose - see the header note
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 26.10.0
           cache: pnpm
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
+      # Plan Phase 7 T4: uv replaces pip in the CI layer - a drop-in
+      # `uv pip install --system` (8-100x faster resolve+install) against the
+      # setup-python interpreter. The RUNTIME contract is untouched:
+      # requirements.txt (read by ComfyUI / ComfyUI-Manager) and
+      # __init__.py -> utils.pip_install still run inside the USER's ComfyUI
+      # Python, where uv cannot be assumed. `enable-cache` persists uv's
+      # download cache (keyed on requirements.txt / pyproject.toml / uv.lock).
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
       - name: Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt mypy ruff==0.16.8 pytest pytest-asyncio aiohttp pyyaml requests pillow
+        run: uv pip install --system -r requirements.txt mypy ruff==0.16.9 pytest pytest-asyncio aiohttp pyyaml requests pillow
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
@@ -55,8 +64,11 @@ jobs:
       # sibling of dependency-cruiser above. `unused-exports` / `unused-files` /
       # `unresolved-imports` are ERROR-level in .fallowrc.json (a non-zero exit
       # fails this step); `unused-types` / `private-type-leaks` are warnings and
-      # the single deliberate pnpm-workspace.yaml override is non-fatal, so a
-      # clean tree exits 0. Added after the Phase-6 final bug check found the
+      # the remaining pnpm-workspace.yaml override (typescript) targets a declared
+      # devDependency, so fallow does not flag it and a clean tree exits 0. (The
+      # former desktop-bridge-types override was removed 2026-09-30 once
+      # comfyui-frontend-types 1.54.9 required 0.2.0 directly, making it redundant.)
+      # Added after the Phase-6 final bug check found the
       # invariant had drifted (utility modules exported helpers only the bench
       # harness / their own file consume) precisely because nothing enforced it.
       - name: Dead code & duplication (fallow)
@@ -83,7 +95,7 @@ jobs:
         run: node scripts/bench/front/k15.mjs --json-out /tmp/phase6_front.json
 
       - name: Static types (mypy)
-        run: python -m mypy --config-file mypy.ini
+        run: python -m mypy
 
       - name: Python lint (ruff)
         run: ruff check py __init__.py tests scripts conftest.py

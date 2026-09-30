@@ -414,7 +414,7 @@ class ModelDownload:
             preview_items = [v for _, v in sorted(preview_items)]
             preview_items = [v for v in preview_items if not (type(v) is str and v in ("", "undefined"))]
             if preview_items:
-                utils.save_model_previews(task_path, preview_items, download_platform)
+                await utils.save_model_previews(task_path, preview_items, download_platform)
             self.set_task_content(task_id, task_data)
             task_status = TaskStatus(
                 taskId=task_id,

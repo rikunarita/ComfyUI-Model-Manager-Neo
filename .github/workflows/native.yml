@@ -8,14 +8,14 @@
 #                  per-binary size-budget gate + import smoke on each OS
 #   abi3-import    the linux artifact imported by CPython 3.10 AND 3.13
 #                  (proves the abi3-py310 single-binary claim, Plan §3.2)
-#   size-budget    <= 4 MB per binary (per arch slice; the macOS universal2 fat
-#                  binary is detected by its FAT_MAGIC and gets a doubled 8 MB
+#   size-budget    <= 5 MB per binary (per arch slice; the macOS universal2 fat
+#                  binary is detected by its FAT_MAGIC and gets a doubled 10 MB
 #                  file budget) and <= 20 MB total across all artifacts
 #                  (Plan §3.3 / R6)
 #
 # Transition-period gates (Plan §5.3):
 #   native-diff    L2 golden differential vs the bundled prebuilt C core
-#   fuzz-smoke     L3 cargo-fuzz smoke (6 targets x 60 s, ASan)
+#   fuzz-smoke     L3 cargo-fuzz smoke (7 targets x 60 s, ASan)
 #   integration    L4/L5 — the full pytest suite against the built artifact
 #                  on all three OSes + the official pip-zipnn 0.5.4
 #                  cross-validation on ubuntu (Phase 2)
@@ -47,7 +47,7 @@ jobs:
       run:
         working-directory: native
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -58,7 +58,7 @@ jobs:
           workspaces: native
 
       # pyo3's build script wants a Python interpreter present.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -132,7 +132,7 @@ jobs:
   native-build-linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -142,12 +142,18 @@ jobs:
         with:
           workspaces: native
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
+      # Plan Phase 7 T4: uv replaces pip in the CI layer (drop-in
+      # `uv pip install --system` against the setup-python interpreter).
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
       - name: Install cross toolchain (pinned, Plan §3.3)
-        run: python -m pip install cargo-zigbuild==0.23.4 ziglang==0.16.0 maturin==1.15.0
+        run: uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0 maturin==1.15.0
 
       - name: Build linux-x86_64 (glibc 2.28 floor)
         run: ./scripts/build-native.sh --target linux-x86_64 --size-gate
@@ -178,10 +184,10 @@ jobs:
         run: |
           # markdownify + pillow are module-level imports of py/information.py, which
           # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
-          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
+          uv pip install --system pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
           python -m pytest tests -q
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-bin-linux
           path: |
@@ -191,7 +197,7 @@ jobs:
   native-build-macos:
     runs-on: macos-latest # arm64; universal2 covers x86_64 as well
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -201,12 +207,17 @@ jobs:
         with:
           workspaces: native
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
+      # Plan Phase 7 T4: uv replaces pip in the CI layer.
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
       - name: Install maturin (pinned, Plan §3.3)
-        run: python -m pip install maturin==1.15.0
+        run: uv pip install --system maturin==1.15.0
 
       - name: Build macos-universal2 (maturin = both archs + lipo)
         run: ./scripts/build-native.sh --target macos-universal2 --size-gate
@@ -218,7 +229,7 @@ jobs:
         run: |
           PYTHONPATH=native/native-bin/macos-universal2 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-bin-macos
           path: native/native-bin/macos-universal2/mm_core.abi3.so
@@ -229,7 +240,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -237,12 +248,17 @@ jobs:
         with:
           workspaces: native
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
+      # Plan Phase 7 T4: uv replaces pip in the CI layer.
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
       - name: Install maturin (pinned, Plan §3.3)
-        run: python -m pip install maturin==1.15.0
+        run: uv pip install --system maturin==1.15.0
 
       - name: Build windows-x86_64 (MSVC)
         run: ./scripts/build-native.sh --target windows-x86_64 --size-gate
@@ -251,7 +267,7 @@ jobs:
         run: |
           PYTHONPATH=native/native-bin/windows-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-bin-windows
           path: native/native-bin/windows-x86_64/mm_core.pyd
@@ -266,11 +282,11 @@ jobs:
       matrix:
         python-version: ["3.10", "3.13"]
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: native-bin-linux
           path: native-bin
@@ -281,21 +297,26 @@ jobs:
           import sys
           import mm_core
 
-          assert mm_core.api_version() == 5, mm_core.api_version()
+          assert mm_core.api_version() == 6, mm_core.api_version()
+          # v6 = Phase 7 T7's preview WebP codec must be present in the abi3 binary.
+          assert all(
+              hasattr(mm_core, n)
+              for n in ("webp_decode", "webp_decode_animation", "webp_encode", "webp_encode_animation")
+          )
           print(f"abi3 import OK on CPython {sys.version.split()[0]}: {mm_core.core_version()}")
           PY
 
   size-budget:
-    # Plan §3.3 / R6: <= 4 MB per binary, <= 20 MB for the whole native-bin.
+    # Plan §3.3 / R6: <= 5 MB per binary, <= 20 MB for the whole native-bin.
     # The macOS universal2 artifact is a FAT binary (x86_64 + arm64 = two
     # architecture slices), so its per-file budget is doubled — each slice is
-    # within the single-binary 4 MB budget (build-native.sh gates the thinned
+    # within the single-binary 5 MB budget (build-native.sh gates the thinned
     # slices on the macOS runner; lipo is unavailable on this ubuntu job). The
     # 20 MB TOTAL across all four artifacts is the real repo-bloat guard (R6).
     runs-on: ubuntu-latest
     needs: [native-build-linux, native-build-macos, native-build-windows]
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: native-bin-*
           path: artifacts
@@ -308,17 +329,17 @@ jobs:
           while IFS= read -r f; do
             size=$(stat -c %s "$f")
             # A macOS universal2 artifact is a FAT Mach-O holding TWO
-            # architecture slices (x86_64 + arm64), so Plan §3.3's "<= 4 MB per
+            # architecture slices (x86_64 + arm64), so Plan §3.3's "<= 5 MB per
             # binary" applies per SLICE and the fat file gets a doubled budget.
             # Detect it by content (FAT_MAGIC 0xcafebabe / FAT_MAGIC_64
             # 0xcafebabf, big-endian on disk) rather than by path — the
             # downloaded artifact's directory layout is not guaranteed to carry
             # the `macos-universal2` segment. build-native.sh additionally gates
             # each thinned slice at the single-binary budget on the macOS runner.
-            budget=4194304
+            budget=5242880
             magic=$(od -An -tx1 -N4 "$f" | tr -d ' ')
             case "$magic" in
-              cafebabe | cafebabf) budget=8388608 ;;
+              cafebabe | cafebabf) budget=10485760 ;;
             esac
             echo "$f: $size bytes (magic $magic, budget $budget)"
             if [ "$size" -gt "$budget" ]; then echo "OVER BUDGET (> $budget): $f"; exit 1; fi
@@ -344,7 +365,7 @@ jobs:
       run:
         working-directory: native
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -352,7 +373,7 @@ jobs:
         with:
           workspaces: native
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11" # matches the pinned cpython-311 .so ABI
 
@@ -405,14 +426,21 @@ jobs:
       # replaces), and a legacy-path source build would slow the gate down.
       MMNEO_SKIP_LEGACY: ${{ matrix.os != 'ubuntu-latest' && '1' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
+      # Plan Phase 7 T4: uv replaces pip in the CI layer. The torch CPU wheel
+      # (~200 MB) install below is where uv's resolve+install speedup and the
+      # download cache pay off the most.
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
       - name: Fetch the built native artifact into native-bin/
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.artifact }}
           path: native/native-bin
@@ -420,15 +448,15 @@ jobs:
       - name: Python test dependencies
         run: # markdownify + pillow are module-level imports of py/information.py, which
           # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
-          python -m pip install pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
+          uv pip install --system pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
 
       # The legacy path (vendored zipnn) needs its runtime stack; the CPU
       # wheel index keeps the install small (no CUDA payload).
       - name: Legacy-path dependencies (ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          python -m pip install numpy safetensors blake3
-          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          uv pip install --system numpy safetensors blake3
+          uv pip install --system torch --default-index https://download.pytorch.org/whl/cpu
 
       - name: Integration tests (pytest)
         run: python -m pytest tests -q
@@ -459,13 +487,14 @@ jobs:
       - name: L5 official-zipnn cross-validation (ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          python -m pip install zipnn==0.5.4
+          uv pip install --system zipnn==0.5.4
           python3 scripts/l5/official_cross.py
 
   fuzz-smoke:
-    # L3 cargo-fuzz smoke (Plan §5.1 L3): 6 targets x 60 s with ASan on every
+    # L3 cargo-fuzz smoke (Plan §5.1 L3): 7 targets x 60 s with ASan on every
     # push/PR (Phase 2 adds st_parse + blob_decompress — the hostile
-    # container / blob surface of the safetensors pipeline, §4.4.2). The
+    # container / blob surface of the safetensors pipeline, §4.4.2; Phase 7 T7
+    # adds webp_decode — the hostile-WebP preview decode surface). The
     # >=8 h budget runs in fuzz-long.yml (scheduled/dispatch), NOT on the
     # PR path (Plan: long runs are not PR gates).
     runs-on: ubuntu-latest
@@ -473,7 +502,7 @@ jobs:
       run:
         working-directory: native/crates/znn-codec/fuzz
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -502,16 +531,16 @@ jobs:
       - name: Build fuzz targets (dev + ASan, gnu target)
         run: cargo +nightly fuzz build -D --target x86_64-unknown-linux-gnu
 
-      - name: Smoke-fuzz all six targets (60 s each)
+      - name: Smoke-fuzz all seven targets (60 s each)
         run: |
-          for t in huf_decompress zn_header codec_decompress st_parse blob_decompress delta_decompress; do
+          for t in huf_decompress zn_header codec_decompress st_parse blob_decompress delta_decompress webp_decode; do
             cargo +nightly fuzz run "$t" --target x86_64-unknown-linux-gnu --dev -- \
               -max_total_time=60 -rss_limit_mb=1024 -timeout=15
           done
 
       - name: Upload crash artifacts (if any)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-crashes
           path: native/crates/znn-codec/fuzz/artifacts/

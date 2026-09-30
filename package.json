@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.2.0",
   "type": "module",
-  "packageManager": "pnpm@12.3.4+sha512.961aa41fb077da3a04a441d9f8e15ebc0c96da8ef710b2eb67bf9ee7cb0610eabd48f1fd85f51cffe73846785fa0f87c56a3a872a1d893f8446741b5cce45457",
+  "packageManager": "pnpm@12.8.1+sha512.f64ba907507f5ceafe06c8d38e6052d0179444580ec1279ddd5bfc11cb48aa8a2644b66598e07e761da84872a9fc57d5f902b87fa49d024198d558612aabbe45",
   "scripts": {
     "dev": "pnpm install --frozen-lockfile && vite",
     "build": "pnpm install --frozen-lockfile && vite build",
@@ -41,51 +41,135 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@comfyorg/comfyui-frontend-types": "1.49.3",
+    "@comfyorg/comfyui-frontend-types": "1.54.9",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/markdown-it": "^14.2.0",
-    "@types/node": "^22.20.1",
-    "@vitejs/plugin-vue": "^6.0.8",
+    "@types/node": "^26.6.3",
+    "@vitejs/plugin-vue": "^6.0.9",
     "dependency-cruiser": "18.4.0",
-    "eslint": "^10.10.0",
+    "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import-x": "^4.17.1",
     "eslint-plugin-tailwindcss": "^4.4.0",
-    "eslint-plugin-vue": "^10.11.0",
-    "fallow": "^3.27.0",
+    "eslint-plugin-vue": "^10.11.1",
+    "fallow": "3.27.0",
     "globals": "^17.12.0",
     "husky": "^9.1.7",
-    "less": "^4.9.0",
-    "lint-staged": "^17.4.1",
-    "postcss": "^8.5.26",
+    "less": "^4.9.1",
+    "lint-staged": "^17.6.0",
+    "postcss": "^8.5.28",
     "postcss-html": "^2.0.0",
     "postcss-less": "^6.0.0",
-    "prettier": "^3.9.6",
+    "prettier": "^3.9.9",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "stylelint": "17.15.0",
     "stylelint-config-standard": "40.0.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.69.0",
-    "vite": "^8.2.2",
+    "typescript-eslint": "^8.71.0",
+    "vite": "^8.3.1",
     "vue-eslint-parser": "^10.4.1",
     "vue-tsc": "^3.3.11"
   },
   "dependencies": {
-    "@lucide/vue": "^1.38.0",
-    "@vueuse/core": "^14.4.0",
+    "@lucide/vue": "^1.49.0",
+    "@vueuse/core": "^15.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "es-toolkit": "^1.52.0",
-    "markdown-it": "^15.0.1",
+    "markdown-it": "^15.0.2",
     "markdown-it-metadata-block": "^1.0.6",
-    "reka-ui": "^2.10.4",
-    "tailwind-merge": "^3.6.0",
-    "vue": "^3.5.42",
-    "vue-i18n": "^11.4.10",
+    "reka-ui": "^2.10.5",
+    "tailwind-merge": "^3.7.0",
+    "vue": "^3.5.43",
+    "vue-i18n": "^11.4.12",
     "vue-sonner": "^2.0.9",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "tabWidth": 2,
+    "useTabs": false,
+    "semi": false,
+    "singleQuote": true,
+    "trailingComma": "all",
+    "arrowParens": "avoid",
+    "bracketSpacing": true,
+    "endOfLine": "lf",
+    "plugins": [
+      "prettier-plugin-tailwindcss"
+    ],
+    "tailwindStylesheet": "./src/style.css",
+    "tailwindFunctions": [
+      "cn",
+      "cva",
+      "clsx",
+      "twMerge"
+    ],
+    "overrides": [
+      {
+        "files": [
+          "*.json",
+          "*.jsonc",
+          "*.yaml",
+          "*.yml"
+        ],
+        "options": {
+          "singleQuote": false
+        }
+      }
+    ]
+  },
+  "stylelint": {
+    "extends": [
+      "stylelint-config-standard"
+    ],
+    "rules": {
+      "import-notation": "string",
+      "at-rule-no-unknown": [
+        true,
+        {
+          "ignoreAtRules": [
+            "theme",
+            "source",
+            "utility",
+            "variant",
+            "custom-variant",
+            "plugin",
+            "reference",
+            "config",
+            "tailwind",
+            "apply"
+          ]
+        }
+      ],
+      "property-no-vendor-prefix": [
+        true,
+        {
+          "ignoreProperties": [
+            "appearance",
+            "backdrop-filter",
+            "-webkit-appearance",
+            "-webkit-backdrop-filter"
+          ]
+        }
+      ]
+    },
+    "overrides": [
+      {
+        "files": [
+          "**/*.vue"
+        ],
+        "customSyntax": "postcss-html"
+      }
+    ],
+    "ignoreFiles": [
+      "web/**",
+      "dist/**",
+      "node_modules/**",
+      "third_party/**"
+    ]
   },
   "lint-staged": {
     "*.vue": [

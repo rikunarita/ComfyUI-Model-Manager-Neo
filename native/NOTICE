@@ -1,0 +1,61 @@
+ComfyUI-Model-Manager-Neo — native core (`mm_core`) third-party attributions
+============================================================================
+
+The native core (this `native/` workspace) is part of ComfyUI-Model-Manager-Neo,
+which is distributed under the GNU General Public License v3.0 ONLY
+(GPL-3.0-only) — see ../LICENSE. It statically links the Rust crates declared in
+`Cargo.toml` / `crates/*/Cargo.toml`. Permissive licences (MIT, Apache-2.0,
+BSD-2-Clause) are compatible with GPL-3.0 and need no further notice beyond
+their own terms; the ONE copyleft component that is not GPL-compatible-by-
+default is called out explicitly below.
+
+---------------------------------------------------------------------------
+zenwebp — pure-Rust WebP codec (Phase 7 / T7, Agent/Plan.md §3.8 追記)
+---------------------------------------------------------------------------
+Used for the preview WebP pipeline: `znn-codec`'s `webp` module decodes WebP
+(still + animated) and encodes WebP (still + animated) through zenwebp, and
+`mm-core` exposes it as `webp_decode` / `webp_decode_animation` /
+`webp_encode` / `webp_encode_animation`.
+
+  Copyright (C) 2025 Imazen LLC
+  Licence: AGPL-3.0-only OR LicenseRef-Imazen-Commercial (dual-licensed)
+  Upstream:  https://github.com/imazen/zenwebp
+  Version:   0.4.4 (crates.io max_stable_version; 0.4.5 is yanked)
+
+This extension is GPL-3.0-only and incorporates zenwebp under the **AGPL-3.0**
+terms (the Imazen commercial licence is for proprietary use and does not apply).
+Legal basis: AGPLv3 §13 explicitly permits combining an AGPL work with a GPLv3
+work into a single combined work (the AGPL-covered part remains under the AGPL).
+ComfyUI is a LOCAL desktop application, not a network service, so the AGPL's
+network-interaction clause (§13) is effectively inoperative for this use; the
+distribution copyleft obligation (making the corresponding source available) is
+satisfied by this public source repository. zenwebp itself is `forbid(unsafe_code)`
+and carries an upstream fuzz suite; Neo additionally fuzzes the decode path
+(`fuzz/fuzz_targets/webp_decode.rs`, the L3 `webp_decode` target).
+
+---------------------------------------------------------------------------
+ZipNN format + FiniteStateEntropy (huff0) — pure-Rust port in `znn-codec`
+---------------------------------------------------------------------------
+`znn-codec` is a clean-room Rust port of the ZipNN tensor-aware compression
+format and its FSE-derived huff0 coder.
+
+  ZipNN:                     MIT — Copyright (c) the ZipNN authors.
+                             Reference: Hershcovitch et al., "ZipNN: Lossless
+                             Compression for AI Models" (arXiv:2411.05239).
+  FiniteStateEntropy (huf0): BSD-2-Clause OR GPL-2.0 — Yann Collet. Neo selects
+                             the BSD-2-Clause path (GPL-2.0-only is incompatible
+                             with GPL-3.0-only).
+
+The full licence texts ship under ../third_party/ (LICENSE-zipnn.txt,
+LICENSE-FiniteStateEntropy.txt) for the still-vendored legacy C core. When
+Phase 8 removes `third_party/`, those texts will be inherited verbatim into this
+NOTICE. Per-file copyright / SPDX headers for the FSE-derived code live in
+`crates/znn-codec/src/huf/`.
+
+---------------------------------------------------------------------------
+Everything else
+---------------------------------------------------------------------------
+All other crates in the dependency tree (pyo3, rayon, sha2, blake3, jiter,
+memmap2, notify, serde, thiserror, zenwebp's own pure-Rust deps, …) are MIT
+and/or Apache-2.0 (Apache-2.0 is GPL-3-compatible) and are used under those
+terms; see each crate's licence metadata on crates.io.

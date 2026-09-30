@@ -19,8 +19,9 @@
   ],
   // `less` is consumed by vite through `<style lang="less">` SFC blocks, which
   // no import graph can see. `postcss-html` / `postcss-less` are loaded by
-  // stylelint at runtime through `.stylelintrc.json` (`customSyntax`) for the
-  // same SFC style blocks - also invisible to the import graph.
+  // stylelint at runtime through the `stylelint` key in package.json
+  // (`customSyntax`) for the same SFC style blocks - also invisible to the
+  // import graph.
   "ignoreDependencies": ["less", "postcss-html", "postcss-less"],
   "rules": {
     "unused-files": "error",

@@ -11,8 +11,9 @@
  *   7. eslint-config-prettier — MUST stay last: disables stylistic rules
  *                               that would conflict with Prettier
  *
- * Class *ordering* is delegated to prettier-plugin-tailwindcss (see .prettierrc)
- * so the two tools never fight over the same attribute.
+ * Class *ordering* is delegated to prettier-plugin-tailwindcss (see the
+ * `prettier` key in package.json) so the two tools never fight over the same
+ * attribute.
  */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -38,6 +39,10 @@ export default tseslint.config(
       'node_modules/**',
       'dist/**',
       'coverage/**',
+      // Python virtual environments (uv sync --frozen creates .venv/ - Plan T4);
+      // their site-packages ship stray .js files (torch, ...) that are not ours.
+      '.venv/**',
+      'venv/**',
       '**/*.tsbuildinfo',
       'pnpm-lock.yaml',
     ],

@@ -3,17 +3,18 @@ allowBuilds:
   vue-demi: true
   unrs-resolver: true
 
+# User-directed exception (2026-09-30): these two were published <1440 min ago and
+# are explicitly requested for immediate adoption; the default minimumReleaseAge
+# (1440) gate stays active for everything else.
 minimumReleaseAgeExclude:
-  - "@fallow-cli/darwin-arm64@3.27.0"
-  - "@fallow-cli/darwin-x64@3.27.0"
-  - "@fallow-cli/linux-arm64-gnu@3.27.0"
-  - "@fallow-cli/linux-arm64-musl@3.27.0"
-  - "@fallow-cli/linux-x64-gnu@3.27.0"
-  - "@fallow-cli/linux-x64-musl@3.27.0"
-  - "@fallow-cli/win32-arm64-msvc@3.27.0"
-  - "@fallow-cli/win32-x64-msvc@3.27.0"
-  - fallow-type-aware@3.27.0
-  - fallow@3.27.0
+  - "@lucide/vue@1.49.0"
+  - "@comfyorg/comfyui-frontend-types@1.54.9"
 
 overrides:
-  "@comfyorg/comfyui-desktop-bridge-types": "0.2.0"
+  # @comfyorg/comfyui-desktop-bridge-types override removed 2026-09-30:
+  # comfyui-frontend-types 1.54.9 now depends on desktop-bridge-types 0.2.0
+  # directly, so forcing it was redundant (fallow flagged it as dead-code).
+  # TypeScript 7 is excluded project-wide (peripheral-tool readiness — 2026-09-29
+  # user decision). fallow-type-aware's open `typescript` range would otherwise
+  # re-resolve to 7.x on update; pin the whole tree to the 6.x toolchain.
+  typescript: "6.0.3"

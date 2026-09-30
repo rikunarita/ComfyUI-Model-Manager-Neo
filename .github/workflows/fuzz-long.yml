@@ -1,6 +1,6 @@
 # Long-running L3 fuzz budget (Plan §5.1 L3: ">=8 hours, 0 panic/OOM/hang";
 # §6.2 Phase 1 completion condition "fuzz >=8 h"). GitHub's 6 h per-job limit
-# means the budget runs as a 6-target matrix x 3 h = 18 h total per schedule
+# means the budget runs as a 7-target matrix x 3 h = 21 h total per schedule
 # (each job well inside the limit; Phase 2 added st_parse + blob_decompress,
 # Phase 3 delta_decompress).
 # Crashes fail the job and are uploaded as artifacts; the committed corpus
@@ -32,12 +32,20 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          [huf_decompress, zn_header, codec_decompress, st_parse, blob_decompress, delta_decompress]
+          [
+            huf_decompress,
+            zn_header,
+            codec_decompress,
+            st_parse,
+            blob_decompress,
+            delta_decompress,
+            webp_decode,
+          ]
     defaults:
       run:
         working-directory: native/crates/znn-codec/fuzz
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -82,7 +90,7 @@ jobs:
 
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-crashes-${{ matrix.target }}
           path: native/crates/znn-codec/fuzz/artifacts/
@@ -95,7 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -103,7 +111,7 @@ jobs:
         with:
           workspaces: native
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -120,7 +128,7 @@ jobs:
         run: python3 scripts/l2/golden_diff.py --cases 10500 --out scripts/l2/results/golden_diff.json
 
       - name: Upload the report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: l2-full-report
           path: scripts/l2/results/golden_diff.json

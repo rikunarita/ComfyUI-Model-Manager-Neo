@@ -721,3 +721,337 @@ async def test_hf_searcher_uses_the_recursive_tree_for_sizes(hub_factory, monkey
     monkeypatch.setattr(information, "HF_API_BASE", f"{dead.base}/api")
     degraded = await searcher.search_by_url("https://huggingface.co/owner/repo")
     assert {model["basename"]: model["sizeBytes"] for model in degraded} == {"root": 0, "nested": 0}
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 / T8 - the preview pipeline's requests -> aiohttp completion (A3).
+#
+# Plan §6.2 Phase 7 T8 moves the LAST two blocking `requests.get` calls
+# (utils.save_model_preview's download-completion fetch and the editor-save
+# fetch) onto the shared aiohttp session, so a stalled CDN no longer pins one
+# of the eight io-executor workers for the 120 s read timeout. These tests pin
+# the behaviour-parity contract the Plan lists: 200 / non-200 (requests wording)
+# / timeout / missing content-type / the local-preview branch / blob rejection,
+# plus the "no direct requests in py/" invariant.
+# ---------------------------------------------------------------------------
+def _webp_bytes(rgb=(200, 30, 30), size=(8, 8)) -> bytes:
+    """A real (tiny) WebP so `_write_preview_content`'s PIL re-encode succeeds."""
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", size, rgb).save(buf, "WEBP")
+    return buf.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_fetch_preview_returns_body_and_content_type(hub_factory):
+    """200 with a content-type: (body, content-type) come back verbatim."""
+    http_client = import_ext("http_client")
+    body = _webp_bytes()
+    hub = await hub_factory({"GET /p.webp": (200, body, {"Content-Type": "image/webp"})})
+    got_body, got_ct = await http_client.fetch_preview(f"{hub.base}/p.webp")
+    assert got_body == body
+    assert got_ct == "image/webp"
+    assert hub.calls == [("GET", "/p.webp")]
+
+
+@pytest.mark.asyncio
+async def test_fetch_preview_non_2xx_keeps_the_requests_wording(hub_factory):
+    """A non-2xx raises HttpStatusError with `requests`' raise_for_status text
+    and the `.response.status_code` the call sites historically inspected."""
+    http_client = import_ext("http_client")
+    hub = await hub_factory({"GET /forbidden": (403, {"error": "nope"})})
+    with pytest.raises(http_client.HttpStatusError) as excinfo:
+        await http_client.fetch_preview(f"{hub.base}/forbidden")
+    message = str(excinfo.value)
+    assert message.startswith("403 Client Error:")
+    assert "for url:" in message
+    assert excinfo.value.response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_fetch_preview_passes_through_a_generic_content_type(hub_factory):
+    """A generic content-type (application/octet-stream - what an unlabelled CDN
+    object arrives as, and aiohttp's default for a raw body) is passed through
+    unchanged; `_write_preview_content`'s magic-byte sniff handles it, exactly
+    as the pre-T8 `response.headers.get("content-type", "")` path did."""
+    http_client = import_ext("http_client")
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 16
+    hub = await hub_factory({"GET /raw": (200, png)})
+    body, content_type = await http_client.fetch_preview(f"{hub.base}/raw")
+    assert body == png
+    assert content_type == "application/octet-stream"
+
+
+@pytest.mark.asyncio
+async def test_save_model_preview_falls_back_to_url_content_type_when_missing(model_lib, monkeypatch):
+    """When the fetch reports NO content-type (a real CDN can omit it; aiohttp's
+    test server cannot), save_model_preview falls back to
+    `resolve_file_content_type(url)` exactly as the pre-T8 requests path did."""
+    import os
+
+    utils = import_ext("utils")
+    http_client = import_ext("http_client")
+    checkpoints = str(model_lib / "checkpoints")
+    model_path = os.path.join(checkpoints, "m.safetensors")
+    with open(model_path, "wb") as f:
+        f.write(b"x")
+    webp = _webp_bytes()
+
+    async def fake_fetch(url, *, headers=None, timeout=None):
+        return webp, ""  # server sent no content-type
+
+    monkeypatch.setattr(http_client, "fetch_preview", fake_fetch)
+    await utils.save_model_preview(model_path, "https://cdn.example.com/img/p.webp")
+    # the URL-sniff fallback (or the WebP magic bytes) still re-encode to .webp
+    assert os.path.isfile(os.path.join(checkpoints, "m.webp"))
+
+
+@pytest.mark.asyncio
+async def test_fetch_preview_honours_the_read_timeout(hub_factory):
+    """The (connect, read-between-bytes) mapping means a stalled body trips the
+    sock_read budget - the network wait is on the loop, but it is still bounded
+    (a hung CDN cannot wedge the fetch forever)."""
+    http_client = import_ext("http_client")
+
+    async def hang(_request: web.Request) -> web.Response:
+        response = web.StreamResponse(status=200, headers={"Content-Type": "image/webp"})
+        await response.prepare(_request)
+        await response.write(b"partial")
+        await asyncio.sleep(5)  # far beyond the 0.2 s sock_read below
+        await response.write_eof()
+        return response
+
+    app = web.Application()
+    app.router.add_get("/hang", hang)
+    server = TestServer(app)
+    await server.start_server()
+    try:
+        base = str(server.make_url("")).rstrip("/")
+        with pytest.raises((asyncio.TimeoutError, TimeoutError)):
+            await http_client.fetch_preview(f"{base}/hang", timeout=(5.0, 0.2))
+    finally:
+        await server.close()
+
+
+@pytest.mark.asyncio
+async def test_save_model_preview_writes_webp_and_skips_blob(hub_factory, model_lib):
+    """Download-completion path: an HTTP image is re-encoded to `<base>.webp`;
+    a browser-local `blob:` URL is skipped with no fetch and no file."""
+    import os
+
+    utils = import_ext("utils")
+    model_path = os.path.join(str(model_lib / "checkpoints"), "m.safetensors")
+    with open(model_path, "wb") as f:
+        f.write(b"x")
+    hub = await hub_factory({"GET /p.webp": (200, _webp_bytes(), {"Content-Type": "image/webp"})})
+
+    await utils.save_model_preview(model_path, f"{hub.base}/p.webp")
+    assert os.path.isfile(os.path.join(str(model_lib / "checkpoints"), "m.webp"))
+
+    # blob: is refused server-side (never fetched) and writes nothing new.
+    await utils.save_model_preview(model_path, "blob:http://localhost/xyz")
+    assert hub.calls == [("GET", "/p.webp")], "the blob URL must not round-trip"
+
+
+@pytest.mark.asyncio
+async def test_save_model_preview_local_branch_reads_the_stored_file(model_lib):
+    """Our own `/model-manager/preview/...` URL is read from disk server-side
+    (no HTTP round trip), matching the pre-T8 behaviour."""
+    import os
+
+    utils = import_ext("utils")
+    checkpoints = str(model_lib / "checkpoints")
+    model_path = os.path.join(checkpoints, "m.safetensors")
+    with open(model_path, "wb") as f:
+        f.write(b"x")
+    with open(os.path.join(checkpoints, "src.webp"), "wb") as f:
+        f.write(_webp_bytes((0, 200, 0)))
+
+    await utils.save_model_preview(model_path, "/model-manager/preview/checkpoints/0/src.webp")
+    assert os.path.isfile(os.path.join(checkpoints, "m.webp"))
+
+
+@pytest.mark.asyncio
+async def test_save_model_previews_is_tolerant_of_a_bad_entry(hub_factory, model_lib):
+    """The download-completion path stays tolerant: a 500 on one gallery entry
+    is warned+skipped, the good one is written, and the call does NOT raise."""
+    import os
+
+    utils = import_ext("utils")
+    model_path = os.path.join(str(model_lib / "checkpoints"), "m.safetensors")
+    with open(model_path, "wb") as f:
+        f.write(b"x")
+    hub = await hub_factory(
+        {
+            "GET /ok.webp": (200, _webp_bytes(), {"Content-Type": "image/webp"}),
+            "GET /bad.webp": (500, {}),
+        }
+    )
+    written = await utils.save_model_previews(model_path, [f"{hub.base}/ok.webp", f"{hub.base}/bad.webp"])
+    assert written == 1
+    assert os.path.isfile(os.path.join(str(model_lib / "checkpoints"), "m.webp"))
+
+
+@pytest.mark.asyncio
+async def test_resolve_preview_sources_parity(hub_factory):
+    """Editor path (resolve half): a good URL stages its bytes+content-type, and
+    each failure class keeps its historical wording (404 -> requests text,
+    blob -> 'browser-local', non-URL -> 'invalid preview url')."""
+    utils = import_ext("utils")
+    webp = _webp_bytes((10, 20, 30))
+    hub = await hub_factory(
+        {
+            "GET /ok.webp": (200, webp, {"Content-Type": "image/webp"}),
+            "GET /gone.webp": (404, {}),
+        }
+    )
+    staged, failures = await utils.resolve_preview_sources(
+        [f"{hub.base}/ok.webp", f"{hub.base}/gone.webp", "blob:xyz", "not-a-url"]
+    )
+    assert len(staged) == 1
+    name, content_type, content = staged[0]
+    assert name.endswith("/ok.webp")
+    assert content_type == "image/webp"
+    assert content == webp
+    joined = "; ".join(failures)
+    assert len(failures) == 3
+    assert "404 Client Error" in joined
+    assert "browser-local preview url" in joined
+    assert "invalid preview url" in joined
+
+
+@pytest.mark.asyncio
+async def test_write_resolved_previews_rewrites_the_gallery(model_lib):
+    """Editor path (write half): staged bytes are re-encoded into the suffix
+    slots and the old set is replaced."""
+    import os
+
+    utils = import_ext("utils")
+    checkpoints = str(model_lib / "checkpoints")
+    model_path = os.path.join(checkpoints, "m.safetensors")
+    with open(model_path, "wb") as f:
+        f.write(b"x")
+    staged = [
+        ("a.webp", "image/webp", _webp_bytes((255, 0, 0))),
+        ("b.webp", "image/webp", _webp_bytes((0, 255, 0))),
+    ]
+    written = utils.write_resolved_previews(model_path, staged)
+    assert written == 2
+    assert os.path.isfile(os.path.join(checkpoints, "m.webp"))
+    assert os.path.isfile(os.path.join(checkpoints, "m.preview.webp"))
+
+
+@pytest.mark.asyncio
+async def test_update_model_junction_resolve_write_then_remove(hub_factory, model_lib):
+    """Junction test (MEMO §4.5 'junction' gap): the editor route resolves the
+    gallery on the loop (``_resolve_update_previews``) and hands the result to
+    ``update_model``, which writes/removes in the executor. Both halves are
+    pinned above; this pins the CONNECTION so a signature/plumbing regression
+    between them (the classic untested-junction defect) fails here."""
+    import os
+
+    manager = import_ext("manager")
+    mm = manager.ModelManager()
+    checkpoints = str(model_lib / "checkpoints")
+    model_path = os.path.join(checkpoints, "m.safetensors")
+    with open(model_path, "wb") as f:
+        f.write(b"x")
+    hub = await hub_factory({"GET /p.webp": (200, _webp_bytes(), {"Content-Type": "image/webp"})})
+
+    # ("write", staged): an http gallery entry is fetched on the loop, then written.
+    model_data = {"previewFile": f"{hub.base}/p.webp"}
+    resolved = await mm._resolve_update_previews(model_data)
+    assert resolved is not None and resolved[0] == "write"
+    mm.update_model(model_path, model_data, resolved)
+    webp_path = os.path.join(checkpoints, "m.webp")
+    assert os.path.isfile(webp_path)
+
+    # ("remove",): the "undefined" sentinel deletes the stored preview.
+    resolved = await mm._resolve_update_previews({"previewFile": "undefined"})
+    assert resolved == ("remove",)
+    mm.update_model(model_path, {}, resolved)
+    assert not os.path.isfile(webp_path)
+
+    # None: no preview keys -> no preview work (and no crash).
+    resolved = await mm._resolve_update_previews({"description": "x"})
+    assert resolved is None
+    mm.update_model(model_path, {}, resolved)
+
+
+def test_py_backend_has_no_direct_requests_usage():
+    """T8 gate: `py/` must not import or call `requests` directly any more (it
+    stays only as a transitive dep of modelscope_hub). AST-based so docstrings /
+    comments that mention `requests.get` (http_client.py explains the parity)
+    are NOT false positives."""
+    import ast
+
+    offenders: list[str] = []
+    for path in sorted((REPO_ROOT / "py").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "requests" or alias.name.startswith("requests."):
+                        offenders.append(f"{path.name}: import requests")
+            elif isinstance(node, ast.ImportFrom):
+                if node.module == "requests" or (node.module or "").startswith("requests."):
+                    offenders.append(f"{path.name}: from requests")
+            elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "requests":
+                offenders.append(f"{path.name}: requests.{node.attr}")
+    assert not offenders, f"direct requests usage remains in py/: {offenders}"
+
+
+@pytest.mark.asyncio
+async def test_resolve_preview_sources_mixed_source_kinds(hub_factory, model_lib):
+    """Junction (T8): one gallery mixing an http URL, our own local preview URL,
+    a blob: URL and a non-URL string — each takes its historical branch and the
+    per-index failure wording is unchanged."""
+    import os
+
+    utils = import_ext("utils")
+    webp = _webp_bytes()
+    checkpoints = str(model_lib / "checkpoints")
+    # a stored local preview the local branch can resolve
+    with open(os.path.join(checkpoints, "stored.webp"), "wb") as f:
+        f.write(webp)
+    hub = await hub_factory({"GET /ok.webp": (200, webp, {"Content-Type": "image/webp"})})
+
+    staged, failures = await utils.resolve_preview_sources(
+        [
+            f"{hub.base}/ok.webp",  # http -> fetched
+            "/model-manager/preview/checkpoints/0/stored.webp",  # local -> read from disk
+            "blob:http://x/y",  # blob -> failure wording
+            "not-a-url",  # invalid -> failure wording
+        ]
+    )
+    assert len(staged) == 2, f"http + local resolve, got {len(staged)}"
+    assert staged[0][2] == webp and staged[0][0].endswith("/ok.webp")
+    assert staged[1][2] == webp and staged[1][0].endswith("stored.webp")
+    joined = "; ".join(failures)
+    assert len(failures) == 2
+    assert "browser-local preview url" in joined
+    assert "invalid preview url" in joined
+    # the http round trip happened exactly once (local/blob never hit the hub)
+    assert hub.calls == [("GET", "/ok.webp")]
+
+
+@pytest.mark.asyncio
+async def test_save_model_preview_video_url_writes_the_original_bytes(hub_factory, model_lib):
+    """T8 parity: a video/* preview is still stored verbatim (no re-encode), the
+    async fetch must not change the video branch."""
+    import os
+
+    utils = import_ext("utils")
+    video = b"\x00\x00\x00\x18ftypmp42" + b"v" * 2048
+    hub = await hub_factory({"GET /p.mp4": (200, video, {"Content-Type": "video/mp4"})})
+    model_path = os.path.join(str(model_lib / "checkpoints"), "m.safetensors")
+    with open(model_path, "wb") as f:
+        f.write(b"x")
+    await utils.save_model_preview(model_path, f"{hub.base}/p.mp4")
+    out = os.path.join(str(model_lib / "checkpoints"), "m.mp4")
+    assert os.path.isfile(out)
+    with open(out, "rb") as f:
+        assert f.read() == video, "video previews are stored byte-for-byte"
