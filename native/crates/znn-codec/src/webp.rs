@@ -510,6 +510,22 @@ mod tests {
     }
 
     #[test]
+    fn animation_icc_profile_survives_the_round_trip() {
+        // The Python pipeline reads `icc` from decode_animation and hands it
+        // back to encode_animation (py/utils.py::_encode_preview_webp_native);
+        // this pins the Rust half of that junction - an animation carrying an
+        // ICCP chunk must come back with the same profile bytes.
+        let opts = WebpEncodeOpts::default();
+        let frames = vec![solid(6, 5, [9, 8, 7, 255]), solid(6, 5, [1, 2, 3, 255])];
+        let icc = b"animation-icc-profile-bytes".to_vec();
+        let webp = encode_animation(&frames, 6, 5, &[40, 60], 2, &icc, &opts).expect("encode anim");
+        let anim = decode_animation(&webp).expect("decode_animation");
+        assert_eq!(anim.icc, icc, "ICCP survives the animation round trip");
+        assert_eq!(anim.loop_count, 2);
+        assert_eq!(anim.durations_ms, vec![40, 60]);
+    }
+
+    #[test]
     fn decode_animation_rejects_a_still_webp() {
         // A still (non-animated) WebP is not an animation: decode_animation
         // must come back empty-handed rather than panic.

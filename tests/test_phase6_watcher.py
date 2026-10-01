@@ -432,8 +432,13 @@ def test_mountinfo_body_is_cached_within_the_ttl(monkeypatch):
     monkeypatch.setattr(watcher, "_mountinfo_cache", (time_mod.monotonic(), "SENTINEL"))
     assert watcher._linux_network_mount("/tmp") is None
     assert watcher._mountinfo_cache[1] == "SENTINEL", "an expired-free cache must not re-read"
-    # an expired cache re-reads the real file
-    monkeypatch.setattr(watcher, "_mountinfo_cache", (0.0, "SENTINEL"))
+    # an expired cache re-reads the real file. The expiry stamp must be RELATIVE
+    # to monotonic(): `time.monotonic()` is uptime-based, so an absolute `0.0`
+    # is only "expired" once the machine has been up for MOUNTINFO_TTL seconds -
+    # a freshly booted CI runner makes that assumption false (flaky failure
+    # observed on the GitHub ubuntu runner, native run #81).
+    expired_at = time_mod.monotonic() - (watcher.MOUNTINFO_TTL + 1.0)
+    monkeypatch.setattr(watcher, "_mountinfo_cache", (expired_at, "SENTINEL"))
     assert watcher._linux_network_mount("/") is None
     assert watcher._mountinfo_cache[1] != "SENTINEL", "an expired cache must re-read"
 

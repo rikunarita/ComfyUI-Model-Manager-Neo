@@ -21,6 +21,7 @@ behaviour that reach the user:
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 
 import pytest
@@ -1055,3 +1056,64 @@ async def test_save_model_preview_video_url_writes_the_original_bytes(hub_factor
     assert os.path.isfile(out)
     with open(out, "rb") as f:
         assert f.read() == video, "video previews are stored byte-for-byte"
+
+
+def _file_field(filename: str, content: bytes, content_type: str) -> web.FileField:
+    """A multipart upload entry shaped exactly like aiohttp's parser output."""
+    from multidict import CIMultiDict
+
+    return web.FileField(
+        name="file",
+        filename=filename,
+        file=io.BytesIO(content),  # type: ignore[arg-type]  # BytesIO quacks like the BufferedReader
+        content_type=content_type,
+        headers=CIMultiDict(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_save_model_preview_accepts_an_uploaded_file_field(model_lib):
+    """T8 junction: the editor's multipart upload branch (a ``web.FileField``
+    instead of a URL string) goes through the SAME async writer - the field's
+    own content-type/filename drive the re-encode and no HTTP round trip
+    happens. This branch moved untouched through the requests -> aiohttp
+    refactor but had no test pinning it."""
+    import os
+
+    utils = import_ext("utils")
+    checkpoints = str(model_lib / "checkpoints")
+    model_path = os.path.join(checkpoints, "m.safetensors")
+    with open(model_path, "wb") as f:
+        f.write(b"x")
+    png_buf = io.BytesIO()
+    from PIL import Image
+
+    Image.new("RGB", (7, 5), (1, 2, 3)).save(png_buf, "PNG")
+    png = png_buf.getvalue()
+
+    await utils.save_model_preview(model_path, _file_field("up.png", png, "image/png"))
+    out = os.path.join(checkpoints, "m.webp")
+    assert os.path.isfile(out)
+    with Image.open(out) as back:
+        assert back.format == "WEBP" and back.size == (7, 5)
+
+    # a non-FileField, non-str entry keeps the historical "Invalid file" error
+    with pytest.raises(RuntimeError, match="Invalid file"):
+        await utils.save_model_preview(model_path, 12345)
+
+
+@pytest.mark.asyncio
+async def test_resolve_preview_sources_stages_uploaded_file_fields():
+    """T8 junction: the editor gallery may mix uploaded multipart files with
+    URL strings - a FileField stages its bytes under the field's filename and
+    content-type, and a non-FileField object becomes the historical
+    ``Invalid file`` failure entry (not a crash)."""
+    utils = import_ext("utils")
+    payload = b"raw-upload-bytes"
+    staged, failures = await utils.resolve_preview_sources([_file_field("shot.png", payload, "image/png"), 42])
+    assert len(staged) == 1
+    name, content_type, content = staged[0]
+    assert name == "shot.png"
+    assert content_type == "image/png"
+    assert content == payload
+    assert len(failures) == 1 and "Invalid file" in failures[0]

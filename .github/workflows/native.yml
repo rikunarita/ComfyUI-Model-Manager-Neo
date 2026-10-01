@@ -58,6 +58,7 @@ jobs:
     # PR-triggered run). Push runs are unaffected; downstream jobs
     # (abi3-import / size-budget / integration) skip via `needs`.
     if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -86,6 +87,12 @@ jobs:
       # keep their platform linkers. The symlink makes `-fuse-ld=mold`
       # resolvable by clang regardless of how the distro packages mold.
       - name: Install mold + clang (Linux only)
+        # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
+        # got the whole push run cancelled (2026-09-30, run #80, native-test
+        # ubuntu: the step ran 14:36 -> 20:37 without output). A 10 min step
+        # budget fails fast instead - the job goes red in minutes and a re-run
+        # picks a healthy mirror (the same step took <20 s in runs #79/#81).
+        timeout-minutes: 10
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -152,6 +159,7 @@ jobs:
   native-build-linux:
     # Ghost-run guard — see native-test.
     if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -219,6 +227,7 @@ jobs:
   native-build-macos:
     # Ghost-run guard — see native-test.
     if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
+    timeout-minutes: 60
     runs-on: macos-latest # arm64; universal2 covers x86_64 as well
     steps:
       - uses: actions/checkout@v7
@@ -261,6 +270,7 @@ jobs:
   native-build-windows:
     # Ghost-run guard — see native-test.
     if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
+    timeout-minutes: 60
     runs-on: windows-latest
     defaults:
       run:
@@ -299,6 +309,7 @@ jobs:
           path: native/native-bin/windows-x86_64/mm_core.pyd
 
   abi3-import:
+    timeout-minutes: 60
     # One binary, every CPython >= 3.10: prove it on the oldest and a current
     # interpreter (Plan §3.2 abi3-py310 claim).
     runs-on: ubuntu-latest
@@ -333,6 +344,7 @@ jobs:
           PY
 
   size-budget:
+    timeout-minutes: 60
     # Plan §3.3 / R6: <= 5 MB per binary, <= 20 MB for the whole native-bin.
     # The macOS universal2 artifact is a FAT binary (x86_64 + arm64 = two
     # architecture slices), so its per-file budget is doubled — each slice is
@@ -388,6 +400,7 @@ jobs:
     # under scripts/l2/results/).
     # Ghost-run guard — see native-test.
     if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -406,6 +419,12 @@ jobs:
           python-version: "3.11" # matches the pinned cpython-311 .so ABI
 
       - name: Install mold + clang (Linux)
+        # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
+        # got the whole push run cancelled (2026-09-30, run #80, native-test
+        # ubuntu: the step ran 14:36 -> 20:37 without output). A 10 min step
+        # budget fails fast instead - the job goes red in minutes and a re-run
+        # picks a healthy mirror (the same step took <20 s in runs #79/#81).
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y clang mold
@@ -428,6 +447,7 @@ jobs:
           PY
 
   integration:
+    timeout-minutes: 60
     # L4/L5 integration (Plan §5.3 "integration" job, §6.2 Phase 2): the FULL
     # pytest suite — route/ws golden contracts on BOTH code paths, the L4
     # corpus round-trips, cancellation, corruption retreat, cleanup — runs
@@ -527,6 +547,7 @@ jobs:
     # PR path (Plan: long runs are not PR gates).
     # Ghost-run guard — see native-test.
     if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -543,6 +564,12 @@ jobs:
           workspaces: native/crates/znn-codec/fuzz
 
       - name: Install mold + clang (sanitizer linking)
+        # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
+        # got the whole push run cancelled (2026-09-30, run #80, native-test
+        # ubuntu: the step ran 14:36 -> 20:37 without output). A 10 min step
+        # budget fails fast instead - the job goes red in minutes and a re-run
+        # picks a healthy mirror (the same step took <20 s in runs #79/#81).
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y clang mold
