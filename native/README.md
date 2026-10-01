@@ -234,8 +234,9 @@ scripts/build-native.sh --target macos-universal2 --size-gate --pgo-train  # mat
 
 ## PGO（プロファイル誘導最適化 — NEO‑PLAN‑2026‑002）
 
-配布バイナリのさらなる実行時最適化として、計装ベースの PGO パイプラインを
-用意しています（計画・ゲート・不採用技術の根拠は
+配布バイナリの実行時最適化として、計装ベースの PGO が **linux-x86_64 /
+macOS / Windows の出荷ビルドに組み込み済み**です（linux-aarch64 は対象外 —
+下記。計画・ゲート・不採用技術の根拠は
 [`../Agent/Plan-2.md`](../Agent/Plan-2.md)）。
 
 - **トレーナ**: [`scripts/pgo/train.py`](../scripts/pgo/train.py) —
@@ -243,20 +244,27 @@ scripts/build-native.sh --target macos-universal2 --size-gate --pgo-train  # mat
   （圧縮/解凍/デルタ/スキャン/ハッシュ/ヘッダ/テンソルツリー/WebP の
   全 API 表面）。計装ビルドに対して実行すると `.profraw` を生成します。
   使い方とローカル再現手順は [`scripts/pgo/README.md`](../scripts/pgo/README.md)。
-- **Linux x86_64**: 計装ビルド（ホスト native）→ train →
-  `llvm-profdata merge`（`rustup component add llvm-tools-preview`）→
-  `build-native.sh --pgo <profdata>`（zigbuild + `-Cprofile-use` +
-  `-Cllvm-args=-pgo-warn-missing-function`）。CI では `pgo-measure` ジョブ
+- **Linux x86_64**: `native-build-linux` ジョブが出荷ビルド毎に
+  計装ビルド（ホスト native）→ train → `llvm-profdata merge`
+  （`llvm-tools-preview` component）→ `build-native.sh --pgo <profdata>`
+  （zigbuild + `-Cprofile-use` + `-Cllvm-args=-pgo-warn-missing-function`）
+  の三段階を実行し、**恒久 G2 ゲート**（`scripts/pgo/g2_check.py`）で
+  プロファイルの no-op 化を機械検出します。G2 のしきい値は run #106 の
+  実測で再校正済み: fat-LTO + PGO インライナの良性乖離（計測値 13.81 % =
+  ジェネリック実体化 518 + クロージャ 254 + 計装時完全インライン関数の
+  アウトオブライン復元 485）は通過し、真の no-op（~100 %）・空プロファイル・
+  別ワークスペース由来は失敗します。別途 `pgo-measure` ジョブ
   （workflow_dispatch / `[pgo-measure]` コミットマーカーで起動）が
-  baseline との A/B 計測（steal ゲート・側別最小値）まで一括実行し、
-  **G2（プロファイル適用率: missing-function 警告 < 1 %）をハードゲート**、
-  G1（compress/decompress +3 %）を job summary 判定としてレポートします。
+  baseline との A/B 計測（steal ゲート・側別最小値）で
+  G1（compress/decompress +3 %）を job summary へレポートします。
 - **macOS / Windows**: ピン留めの maturin 1.15.0 が `--pgo` をネイティブ
   サポート（計装 wheel → 一時 venv で `pgo-command` 実行 → 最適化リビルド
   の三段階）。`pyproject.toml` の `pgo-command` が train.py を呼び、
   `build-native.sh --pgo-train` が `--pgo` を透過します。
   universal2 の x86_64 スライスはプロファイル不一致（トレーニングは
-  arm64 ホスト）の可能性があるため、Step 4 実施時に一次検証します。
+  arm64 ホスト）の可能性があるため、初回 CI 実走で一次検証します
+  （maturin が universal2+PGO を拒否した場合の退避先は非 PGO ビルド —
+  Plan‑2 §4.4 の 3 択判断）。
 - **linux-aarch64 は PGO 対象外**: クロスコンパイルかつ ARM ランナーが
   無く、x86_64 プロファイルの流用は arch 非互換のため禁止（Plan‑2 §4.5）。
 - **プロファイルはコミットしません**: ビルド毎生成（ドリフトゼロ・

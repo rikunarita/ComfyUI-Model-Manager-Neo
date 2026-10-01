@@ -172,6 +172,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
+          # llvm-profdata for the PGO merge below (NEO-PLAN-2026-002 Step 4).
+          components: llvm-tools-preview
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -190,9 +192,47 @@ jobs:
       - name: Install cross toolchain (pinned, Plan §3.3)
         run: uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0 maturin==1.15.0
 
-      - name: Build linux-x86_64 (glibc 2.28 floor)
-        run: ./scripts/build-native.sh --target linux-x86_64 --size-gate
+      # NEO-PLAN-2026-002 Step 4: the linux-x86_64 artifact is PGO-optimized.
+      # Three phases in one job (profile generated per build, never committed —
+      # Plan-2 §4.6): instrumented HOST build (training must run on this
+      # runner's arch) -> deterministic workload -> llvm-profdata merge. The
+      # commit stamp matches build-native.sh so the version constant is
+      # identical between the instrumented and the shipping build.
+      - name: PGO training (instrumented host build -> workload -> merged profile)
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/pgo-prof" && mkdir -p "$RUNNER_TEMP/pgo-prof" "$RUNNER_TEMP/pgo-inst"
+          cd native
+          MM_CORE_COMMIT="$(git rev-parse --short=9 HEAD 2>/dev/null || echo dev)" \
+          RUSTFLAGS="-Cprofile-generate=$RUNNER_TEMP/pgo-prof" \
+            cargo build --release -p mm-core --target x86_64-unknown-linux-gnu
+          cp target/x86_64-unknown-linux-gnu/release/libmm_core.so "$RUNNER_TEMP/pgo-inst/mm_core.abi3.so"
+          cd ..
+          LLVM_PROFILE_FILE="$RUNNER_TEMP/pgo-prof/default_%m.profraw" \
+            python scripts/pgo/train.py --lib-dir "$RUNNER_TEMP/pgo-inst" --workdir "$RUNNER_TEMP/pgo-work"
+          LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin"
+          "$LLVM_BIN/llvm-profdata" merge -o "$RUNNER_TEMP/pgo-prof/merged.profdata" "$RUNNER_TEMP/pgo-prof"
+          "$LLVM_BIN/llvm-profdata" show "$RUNNER_TEMP/pgo-prof/merged.profdata" | tee "$RUNNER_TEMP/pgo-prof/show.txt"
+          "$LLVM_BIN/llvm-profdata" show --all-functions "$RUNNER_TEMP/pgo-prof/merged.profdata" > "$RUNNER_TEMP/pgo-prof/allfuncs.txt"
 
+      - name: Build linux-x86_64 (glibc 2.28 floor, PGO)
+        shell: bash
+        run: ./scripts/build-native.sh --target linux-x86_64 --size-gate --pgo "$RUNNER_TEMP/pgo-prof/merged.profdata" 2>&1 | tee "$RUNNER_TEMP/pgo-build.log"
+
+      # Permanent G2 (Plan-2 §6.2 Step 4): a stale/mismatched profile degrades
+      # to a silent no-op with no other symptom — detect it on every build.
+      - name: G2 gate (the PGO profile applied to the shipping artifact)
+        run: |
+          set -euo pipefail
+          python scripts/pgo/g2_check.py \
+            "$RUNNER_TEMP/pgo-prof/show.txt" \
+            "$RUNNER_TEMP/pgo-build.log" \
+            --all-functions-txt "$RUNNER_TEMP/pgo-prof/allfuncs.txt"
+
+      # linux-aarch64 stays NON-PGO on purpose: the profile above was
+      # collected on x86_64 and cross-arch reuse is forbidden (Plan-2 §4.5 —
+      # a silent partial match would be worse than no profile at all).
+      # Revisit when an ARM hosted runner is warranted.
       - name: Build linux-aarch64 (glibc 2.28 floor)
         run: ./scripts/build-native.sh --target linux-aarch64 --size-gate
 
@@ -240,6 +280,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
+          # llvm-profdata for maturin --pgo (resolved from the rustc sysroot).
+          components: llvm-tools-preview
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -257,8 +299,17 @@ jobs:
       - name: Install maturin (pinned, Plan §3.3)
         run: uv pip install --system maturin==1.15.0
 
-      - name: Build macos-universal2 (maturin = both archs + lipo)
-        run: ./scripts/build-native.sh --target macos-universal2 --size-gate
+      # NEO-PLAN-2026-002 Step 4: maturin --pgo runs its own three-phase flow
+      # (instrumented wheel -> temporary venv -> [tool.maturin] pgo-command =
+      # scripts/pgo/train.py -> optimized rebuild; llvm-profdata is resolved
+      # from the rustc sysroot). NOTE (Plan-2 §4.4): training happens on the
+      # arm64 host; the x86_64 slice consumes the profile by function hash
+      # (arch-independent IR keys). If the rebuild shows this degrades or
+      # maturin rejects universal2+PGO, macOS drops back to non-PGO (the
+      # documented 3-way decision) — the per-slice size gate and the import
+      # smoke below apply either way.
+      - name: Build macos-universal2 (maturin = both archs + lipo, PGO)
+        run: ./scripts/build-native.sh --target macos-universal2 --size-gate --pgo-train
 
       - name: Verify universal2 fat binary
         run: lipo -info native/native-bin/macos-universal2/mm_core.abi3.so
@@ -284,6 +335,9 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          # llvm-profdata for maturin --pgo (resolved from the rustc sysroot).
+          components: llvm-tools-preview
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -301,8 +355,11 @@ jobs:
       - name: Install maturin (pinned, Plan §3.3)
         run: uv pip install --system maturin==1.15.0
 
-      - name: Build windows-x86_64 (MSVC)
-        run: ./scripts/build-native.sh --target windows-x86_64 --size-gate
+      # NEO-PLAN-2026-002 Step 4: maturin --pgo (three-phase flow; the
+      # pgo-command runs through `cmd /C` in a temporary venv with the
+      # instrumented wheel installed — train.py is stdlib-only by design).
+      - name: Build windows-x86_64 (MSVC, PGO)
+        run: ./scripts/build-native.sh --target windows-x86_64 --size-gate --pgo-train
 
       - name: Import smoke (CPython 3.11)
         run: |

@@ -64,10 +64,15 @@ python3 scripts/pgo/train.py --measure \
   --rounds 3 --json-out /tmp/pgo-measure.json
 ```
 
-CI では `native.yml` の **`pgo-measure`** ジョブ（workflow_dispatch または
-HEAD コミットメッセージの `[pgo-measure]` マーカーで起動）が上記 1–5 を
-一括実行し、G2（プロファイル適用率）をハードゲート、G1（compress /
-decompress +3 %）を job summary の判定としてレポートします。
+CI では **出荷ビルド自体が PGO 化されています**（`native-build-linux` の
+三段階 + `--pgo-train` の macOS/Windows。linux-aarch64 は対象外）。
+プロファイルの no-op 化は **`g2_check.py`（恒久 G2 ゲート）**が毎ビルドで
+機械検出します（しきい値は run #106 の実測で再校正 — fat-LTO + PGO
+インライナの良性乖離 13.81 % は通過、真の no-op ~100 % は失敗。
+判定根拠は同スクリプトの docstring）。A/B 効果レポートは
+**`pgo-measure`** ジョブ（workflow_dispatch または HEAD コミットメッセージの
+`[pgo-measure]` マーカーで起動）が上記 1–5 を一括実行し、G1（compress /
+decompress +3 %）を job summary へ出力します。
 
 ## プロファイルの方針
 
