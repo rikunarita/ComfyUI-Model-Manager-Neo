@@ -280,8 +280,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-          # llvm-profdata for maturin --pgo (resolved from the rustc sysroot).
-          components: llvm-tools-preview
+          # llvm-tools-preview removed with the macOS non-PGO decision
+          # (run #107 evidence — see the build step comment below).
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -299,17 +299,23 @@ jobs:
       - name: Install maturin (pinned, Plan §3.3)
         run: uv pip install --system maturin==1.15.0
 
-      # NEO-PLAN-2026-002 Step 4: maturin --pgo runs its own three-phase flow
-      # (instrumented wheel -> temporary venv -> [tool.maturin] pgo-command =
-      # scripts/pgo/train.py -> optimized rebuild; llvm-profdata is resolved
-      # from the rustc sysroot). NOTE (Plan-2 §4.4): training happens on the
-      # arm64 host; the x86_64 slice consumes the profile by function hash
-      # (arch-independent IR keys). If the rebuild shows this degrades or
-      # maturin rejects universal2+PGO, macOS drops back to non-PGO (the
-      # documented 3-way decision) — the per-slice size gate and the import
-      # smoke below apply either way.
-      - name: Build macos-universal2 (maturin = both archs + lipo, PGO)
-        run: ./scripts/build-native.sh --target macos-universal2 --size-gate --pgo-train
+      # macOS ships NON-PGO — Plan-2 §4.4 decision (c), executed on the
+      # run #107 evidence: maturin --pgo built the instrumented universal2
+      # wheel and train.py completed the FULL workload successfully
+      # ("[train] done in 5.612 s", all 30 sections, arm64 slice under
+      # Python 3.11.9), but the process then died with SIGSEGV during
+      # interpreter teardown — i.e. in the LLVM profile runtime's
+      # exit-time flush of the instrumented FAT dylib. The optimized
+      # rebuild was never reached; no profraw could be merged. Windows
+      # (single-arch PE) and Linux (single-arch ELF, own three-phase flow)
+      # both PGO fine, so this is specific to the instrumented universal2
+      # image and is not debuggable without a macOS host (no guessing —
+      # documented in Plan-2 v1.3 / MEMO session 23). Revisit option:
+      # single-arch arm64-only PGO if the fat-binary exit crash is ever
+      # fixed upstream. The per-slice size gate and the import smoke below
+      # are unchanged.
+      - name: Build macos-universal2 (maturin = both archs + lipo)
+        run: ./scripts/build-native.sh --target macos-universal2 --size-gate
 
       - name: Verify universal2 fat binary
         run: lipo -info native/native-bin/macos-universal2/mm_core.abi3.so
@@ -795,7 +801,7 @@ jobs:
           set -euo pipefail
           python scripts/pgo/train.py --measure \
             --a "$RUNNER_TEMP/ab/baseline" --b "$RUNNER_TEMP/ab/pgo" \
-            --rounds 3 --workdir "$RUNNER_TEMP/pgo-measure-work" \
+            --rounds 5 --workdir "$RUNNER_TEMP/pgo-measure-work" \
             --json-out "$RUNNER_TEMP/pgo-measure.json" | tee "$RUNNER_TEMP/pgo-measure.log"
           python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import json, os
@@ -806,11 +812,36 @@ jobs:
               rows.append(f"| {name} | {row['baselineMin']} | {row['pgoMin']} | {row['ratio']} |")
           print("## pgo-measure (linux-x86_64)\n")
           print("\n".join(rows))
+          # Per-round samples (run #107 lesson): min-ratios alone hid that
+          # round 0 is cold on BOTH sides (so the min-protocol compares
+          # cold-vs-cold) and that short workloads (scan: 15-95 ms windows)
+          # have same-binary between-round variance larger than the effect.
+          names = list(wl)
+          hdr = "| round | side | " + " | ".join(names) + " |"
+          sep = "| --- | --- | " + " | ".join("---" for _ in names) + " |"
+          per = [hdr, sep]
+          for r in range(data["rounds"]):
+              for side, key in (("a baseline", "roundsA"), ("b pgo", "roundsB")):
+                  cells = []
+                  for name in names:
+                      arr = wl[name].get(key) or []
+                      cells.append(str(arr[r]) if r < len(arr) else "-")
+                  per.append(f"| {r} | {side} | " + " | ".join(cells) + " |")
+          print("\n### per-round samples (round 0 = cold first run on both sides)\n")
+          print("\n".join(per))
           c, d = wl["compress"]["ratio"], wl["decompress"]["ratio"]
           ok = c is not None and d is not None and c >= 1.03 and d >= 1.03
           print(f"\n**G1 (+3 % on compress AND decompress): {'PASS' if ok else 'NOT MET'}**"
                 f" (compress x{c}, decompress x{d}; discarded steal windows:"
                 f" {data['discardedStealWindows']}, contaminated samples: {data['contaminatedSamples']})")
+          # Regression watch (informational): any workload materially slower
+          # under PGO is surfaced, not hidden behind the G1 headline.
+          # run #107 precedent: scan min-ratio x0.349 was a round-selection
+          # artifact (see the per-round table above; steady-state round 2
+          # was x0.99) — always cross-check the watch line against it.
+          slow = {k: v["ratio"] for k, v in wl.items() if v["ratio"] is not None and v["ratio"] < 0.95}
+          if slow:
+              print(f"\n**REGRESSION WATCH**: slower under PGO: {slow} — see Plan-2 R7 (train weighting) / BENCH §13")
           print(f"\nenv: {data['env']}")
           PY
           base_size=$(stat -c %s "$RUNNER_TEMP/ab/baseline/mm_core.abi3.so")

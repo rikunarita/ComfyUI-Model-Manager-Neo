@@ -262,7 +262,14 @@ def train(mm, fx: dict[str, Path], root: Path, rounds: int) -> dict:
     )
     assert harness.sha256_file(restored) == ft_sha, "delta restore mismatch"
 
-    # 3. scan: cold (fresh index dir) + warm (persistent index hit)
+    # 3. scan — WEIGHTED (run #107 evidence): with a single cold+warm pass the
+    # profile is dominated by codec work and scan ended up x0.349 under PGO
+    # (its rayon plumbing closures landed in the missing-profile population —
+    # Plan-2 R7 workload skew). PGO weight is proportional to execution
+    # counts, so iterate: 5 cold scans (fresh index dir each time — the
+    # production first-scan-after-startup path) + 20 warm scans (persistent
+    # index hit — the refresh path). timings[] keeps the last iteration; the
+    # repetition is for profile weight, not for reporting.
     scan_opts = {
         "includeHidden": False,
         "extensions": SUPPORTED_EXTENSIONS,
@@ -271,13 +278,25 @@ def train(mm, fx: dict[str, Path], root: Path, rounds: int) -> dict:
         "indexDir": str(root / "idx"),
     }
     roots = [str(fx["scan_root"]).replace(os.sep, "/")]
-    cold = timed("scan.cold", lambda: json.loads(mm.scan_models("checkpoints", roots, scan_opts)))
-    warm = timed("scan.warm", lambda: json.loads(mm.scan_models("checkpoints", roots, scan_opts)))
+    idx_dir = root / "idx"
+
+    def _scan():
+        return json.loads(mm.scan_models("checkpoints", roots, scan_opts))
+
+    cold = warm = None
+    for _ in range(5):
+        shutil.rmtree(idx_dir, ignore_errors=True)
+        cold = timed("scan.cold", _scan)
+    for _ in range(20):
+        warm = timed("scan.warm", _scan)
+    assert cold is not None and warm is not None, "scan did not run"
     assert len(cold) == len(warm) > 0, "scan produced no entries"
 
-    # 4. hygiene sweep (orphans / empty dirs over the same tree)
+    # 4. hygiene sweep (orphans / empty dirs over the same tree) — x5 for the
+    # same weighting reason as scan.
     base_paths = {"checkpoints": roots}
-    timed("hygiene", lambda: json.loads(mm.scan_hygiene(base_paths, SUPPORTED_EXTENSIONS)))
+    for _ in range(5):
+        timed("hygiene", lambda: json.loads(mm.scan_hygiene(base_paths, SUPPORTED_EXTENSIONS)))
 
     # 5. walk + move-with-sidecars (batch primitives)
     walk_opts = {
@@ -286,8 +305,10 @@ def train(mm, fx: dict[str, Path], root: Path, rounds: int) -> dict:
         "deltaFolderSuffix": DELTA_FOLDER_SUFFIX,
         "skipBundles": True,
     }
-    walked = timed("walk", lambda: json.loads(mm.walk_models(str(fx["scan_root"]), walk_opts)))
-    assert len(walked) > 0
+    walked = None
+    for _ in range(5):  # x5 — same weighting reason as scan/hygiene
+        walked = timed("walk", lambda: json.loads(mm.walk_models(str(fx["scan_root"]), walk_opts)))
+    assert walked is not None and len(walked) > 0
     # move_with_sidecars moves ONLY the sidecars (previews + .md/.txt notes)
     # onto the destination's base name — the model file itself is written by
     # the compression pipeline (production: py/compress.py batch flow). Mirror
@@ -491,6 +512,13 @@ def measure(a_dir: str, b_dir: str, rounds: int, json_out: str | None, workdir: 
             "ratio": round(b_min / a_min, 4) if a_min and b_min else None,
             "samplesA": len(samples[("a", wl)]),
             "samplesB": len(samples[("b", wl)]),
+            # Raw per-round rates (run #107 lesson: min-ratios of short
+            # workloads can be round-selection artifacts — same-binary
+            # between-round variance reached 2.1x on scan, and round 0 is
+            # systematically cold on BOTH sides. The per-round data must be
+            # part of the report, not only the raw log).
+            "roundsA": samples[("a", wl)],
+            "roundsB": samples[("b", wl)],
         }
     out = {
         "rounds": rounds,
