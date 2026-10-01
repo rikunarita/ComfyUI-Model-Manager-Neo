@@ -60,19 +60,23 @@ the experience from the ground up:
 - <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Upload to Hugging Face / ModelScope** — publish any local model straight to a
   HF repo or a ModelScope model repo (creates the repo if needed, private
   option, live progress).
+- <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Rust native core** — scanning, hashing, safetensors header parsing, the
+  tensor tree, the library watcher and the entire ZipNN engine run in a
+  **prebuilt Rust extension** that ships in the repository (four platforms,
+  CPython 3.10+ through the Stable ABI — no compiler, no pip, no network).
+  Measured against the pure-Python original: a 5,000-model scan ~7.5× faster,
+  five hash notations in one pass, MoE tensor-tree rendering ~28× faster,
+  ZipNN compression under 1 GB of RAM regardless of model size
+  ([`docs/BENCH.md`](docs/BENCH.md)).
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN lossless compression** — compress / decompress safetensors models in
-  place (`.znn.safetensors`) with confirmation, progress and an inverted icon on
-  compressed models; whole folders batch-compress into sealed
-  `<name>_DeltaZNN` bundles, and fine-tunes shrink to tiny **delta files**
-  against their base.
-- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Multi-select** — tick cards to add several models to the workflow or
-  delete them in one go. Folders can be ticked too: "Add to
-  workflow" expands them recursively, "Delete" removes them wholesale.
-- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **Stars** — every model and folder card carries a star toggle at its top-right
-  (also in the model-detail action row and the selection bar); starred entries
-  show a filled yellow star and always sort first.
-- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **Create folders** — the folder view offers an "Add Folder" button that
-  creates arbitrarily named (sub-)folders inside the open directory.
+  place (`.znn.safetensors`), batch whole folders into sealed
+  `<name>_DeltaZNN` bundles, and shrink fine-tunes to tiny **delta files**
+  against their base — all through the Rust core, with SHA-256-verified
+  restore.
+- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Multi-select** — tick model and folder cards to add them to the workflow or
+  delete them in one go.
+- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **Stars** — a star toggle on every card; starred entries always sort first.
+- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **Create folders** — an "Add Folder" button in the folder view.
 - <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Direct‑link downloads** — paste a raw `.safetensors`/`.ckpt`/`.gguf` URL,
   pick the target folder, optionally choose a custom sub‑folder.
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` acceleration** — Hugging Face transfers use the chunked,
@@ -136,12 +140,9 @@ up only as the path gets deeper) and the animated glass folder cards.
 | ![Multi-platform search](demo-assets/search-columns.png)                                                           | ![Tensor tree](demo-assets/tensor-tree.png)                                                                    |
 | _One query, three hubs: Hugging Face / ModelScope / Civitai columns with avatars, download counts and deep links._ | _The Information tab renders the safetensors header as a collapsible folder tree (Hugging Face‑viewer style)._ |
 
-A 10‑second tour (open → folder view → hover a folder → back → open a model) is
-[`demo-assets/hero.gif`](demo-assets/hero.gif); the lossless source
-recording the GIF is derived from ships beside it as
-[`demo-assets/hero.webm`](demo-assets/hero.webm). Dragging a card onto a
-live canvas is best captured from a real ComfyUI window — see
-[`demo-assets/README.md`](demo-assets/README.md).
+A 10‑second tour is [`demo-assets/hero.gif`](demo-assets/hero.gif) (its lossless
+source ships beside it as `hero.webm`); capturing drag‑to‑canvas needs a live
+ComfyUI window — the manifest above explains how.
 
 ---
 
@@ -172,7 +173,10 @@ If the fork is published to the registry, search for
 
 Then **restart ComfyUI**. Python dependencies (`huggingface_hub`, `hf_xet`,
 `modelscope_hub`, `markdownify`) are installed automatically on first launch. The prebuilt web
-bundle ships in [`web/`](web), so no Node.js is required to _run_ the extension.
+bundle ships in [`web/`](web) and the prebuilt Rust core in
+[`native/native-bin/`](native/native-bin), so neither Node.js nor a compiler is
+required to _run_ the extension (platform coverage: see
+[the engine table](#the-engine-a-prebuilt-pure-rust-core)).
 
 Open it from the top‑bar **“Model Manager Neo”** button, the sidebar, or the
 `Extensions → Model Manager Neo` menu command.
@@ -411,10 +415,11 @@ matching model version was found.
 ## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> ZipNN lossless compression
 
 Large `.safetensors` checkpoints eat disk space fast.
-Neo can compress and decompress them **in place, losslessly**, using the
+Neo can compress and decompress them **in place, losslessly**, in the
 [ZipNN](https://github.com/zipnn/zipnn) format — the same tensor-aware scheme the
-official ZipNN project uses, so the results stay interchangeable with the wider
-ZipNN ecosystem.
+official ZipNN project uses, executed by Neo's **pure-Rust core** and verified
+against the official `zipnn` 0.5.4 package in CI on every push, so the results
+stay interchangeable with the wider ZipNN ecosystem.
 
 ### How it works
 
@@ -446,9 +451,8 @@ low-entropy weights compress much more).
 
 ### dtype coverage & the interoperability matrix
 
-The Rust core (the default engine whenever it is present) compresses **every
-dtype safetensors 0.8 defines** — 22 of them — in two interoperability bands
-(Plan §4.6.3). The band of a compressed file is recorded in its metadata
+The Rust core compresses **every dtype safetensors 0.8 defines** — 22 of
+them — in two interoperability bands. The band of a compressed file is recorded in its metadata
 (`znn_neo_extended="1"` for the extension band) and shown in the UI: a
 **Neo Extended** badge on the Information tab, the dtype breakdown row
 (`bfloat16×412, uint8×3, …`), and an explicit note in the compress
@@ -475,10 +479,7 @@ Details worth knowing:
   construction, since the compressor only drops planes it verified to be
   zero across the whole tensor;
 - `complex128`/`bcomplex32` exist at the codec level (codes 129/131) but have
-  no safetensors representation — no `.safetensors` file can carry them;
-- the legacy vendored engine (the fallback when the Rust core is absent)
-  keeps its historical behaviour: it compresses `f32/f16/bf16/fp8` only and
-  passes everything else through.
+  no safetensors representation — no `.safetensors` file can carry them.
 
 ### Using it
 
@@ -490,8 +491,9 @@ explains itself in a tooltip and to screen readers. Pressing it:
 1. asks for a confirmation that is deliberately _not_ styled as "Danger"
    (compression is reversible and never deletes the original until the
    compressed file is fully written and verified);
-2. replaces the button with a **live progress bar** while the work runs on the
-   CPU pool (tensor by tensor), so the rest of ComfyUI stays responsive;
+2. replaces the button with a **live progress bar** while the Rust core
+   streams through the file (memory-mapped, GIL released — the rest of
+   ComfyUI stays responsive);
 3. on success, swaps the original for `<name>.znn.safetensors` — previews and
    Markdown notes follow the rename, and the grid refreshes itself.
 
@@ -506,9 +508,9 @@ key, simply keep the plain _File Size_ row).
 
 The same artwork also sits on the **top-right corner of every model and folder
 card** (next to the star toggle): one click compresses (or decompresses,
-inverted) with the identical confirmation and progress behaviour, without
-opening the model at all. While any task runs - single, batch or delta - the
-button shows a **circular progress ring**.
+inverted) without opening the model at all, behind the identical confirmation.
+While any task runs — single, batch or delta — the button shows a **circular
+progress ring** (with the percentage for batches).
 
 ### Batch compression (whole folders)
 
@@ -536,9 +538,7 @@ follow their models) and **moved into the bundle folder
   manager; the direction is auto-detected: compress while plain models exist,
   decompress when only bundles remain;
 - bundles created by older versions (`<name>_ZNN`) are still recognised and
-  decompress back to their original name;
-- while a task runs the button becomes a circular ring with the **percentage
-  inside the circle**.
+  decompress back to their original name.
 
 Several folders run as a queue: one confirmation, sequential tasks, one
 progress state at a time.
@@ -558,38 +558,45 @@ fine-tuned model **byte-exactly** beside the base and retires the now-empty
 delta folder. Restoration needs the base model, and ZipNN verifies that both
 sides have the same byte length when the delta is created.
 
-### Bundled, so it just works
+### The engine: a prebuilt pure-Rust core
 
-<details>
-<summary><b>Why ZipNN is vendored</b></summary>
+The compressor is **not** the official Python package: `zipnn`'s C extension
+has no Linux wheels on PyPI, so a `pip install zipnn` compiles from source and
+dies on any machine without a C toolchain and the Python headers. Neo instead
+ports the format to Rust ([`native/crates/znn-codec`](native/crates/znn-codec),
+`unsafe`-free, fuzzed) and ships it as **prebuilt abi3 binaries** inside the
+repository — one per platform, loaded by `import` alone:
 
-ZipNN's Python side is trivial, but its compressor is a C extension
-(`zipnn_core`, built on FiniteStateEntropy). **PyPI ships no Linux wheels for
-it** — only a macOS-arm64 wheel and a source tarball — so a plain
-`pip install zipnn` compiles from source and dies on any machine without a C
-compiler and the Python headers (`Python.h`). That is a very common way to run
-ComfyUI, and the failure is cryptic (`error: [Errno 2] No such file or
-directory: 'x86_64-pc-linux-gnu-gcc'`).
+| Platform                      | Artifact                                      | Requirements                             |
+| ----------------------------- | --------------------------------------------- | ---------------------------------------- |
+| Linux x86_64                  | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+) |
+| Linux aarch64                 | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                             |
+| macOS (Intel & Apple Silicon) | `native-bin/macos-universal2/mm_core.abi3.so` | one fat binary, macOS 11+                |
+| Windows x86_64                | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC-built                               |
 
-Neo therefore **vendors the whole library** under [`third_party/`](third_party/)
-and ships **prebuilt `zipnn_core` binaries** for Linux x86_64 (CPython 3.10 –
-3.15). On those platforms the first compression simply puts the bundled package
-and the matching binary on `sys.path` — **no compiler, no pip, no network, no
-waiting**. Only where no prebuilt binary matches (macOS, Windows, an uncommon
-architecture, or a brand-new CPython) does Neo fall back to a **single** clean
-build from the bundled C sources — never a cascade of pip strategies.
+One binary serves **CPython 3.10 and newer** on each platform (the Stable ABI,
+`abi3-py310` — proven against 3.10 and 3.13 in CI), and each is gated at
+≤ 5 MB (≤ 20 MB total) by a CI size budget. Interoperability is a CI gate, not
+a promise: the `integration` workflow cross-validates every push against the
+**official pip `zipnn` 0.5.4** (Neo-compressed files decompress officially and
+vice versa, `scripts/l5`). Licences: the format port attributes ZipNN (MIT) and
+FiniteStateEntropy (BSD-2); the preview WebP codec uses zenwebp (AGPL-3.0) —
+full texts in [`native/NOTICE`](native/NOTICE).
 
-See [`third_party/README.md`](third_party/README.md) for the layout, the
-platform/glibc coverage, the licences (ZipNN is MIT; FiniteStateEntropy is
-BSD-2-Clause OR GPL-2.0), and how to rebuild or add binaries.
-
-</details>
+On a platform without a binary (other architectures, 32-bit, exotic libc), the
+extension still installs: browsing, downloading and hashing degrade to their
+pure-Python paths, while ZipNN operations and preview re-encoding report the
+loader's exact reason instead of failing silently.
 
 > [!NOTE]
-> Compression needs the model's tensors in memory, so it runs on the CPU pool
-> and is bounded by RAM, not VRAM. It is **lossless and reversible**: the plain
-> `.safetensors` is only removed after the `.znn.safetensors` file has been
-> written and closed, and a failed run cleans up its partial output.
+> Compression streams through the file with mmap — peak RAM is roughly the
+> largest single tensor, not the model (a 12 GB checkpoint compresses under
+> 1 GB). It is **lossless and verified**: the core records the source's
+> SHA-256 at compress time and re-checks it on restore (a mismatch keeps the
+> compressed file and retreats the output to `.corrupt` for inspection); the
+> plain `.safetensors` is only removed after the `.znn.safetensors` file has
+> been written and verified through an atomic rename, and a failed run cleans
+> up its partial output.
 
 ---
 
@@ -613,6 +620,31 @@ PrimeVue dependency itself, and the batch‑scan feature — see
 | Dialogs           | PrimeVue `Dialog`/`ContextMenu`                         | reka‑ui dialogs, per‑dialog size/position, drag‑to‑move, anchored context menus                                                                                                                                                                       |
 | Model detail tabs | Description + Metadata (raw safetensors `__metadata__`) | Description + **Information**: a read‑only table parsing the notes' YAML front‑matter (author, base model, hashes, format & precision, model platform, model‑page link, every preview URL, unknown keys verbatim), raw `__metadata__` as the fallback |
 
+### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="22" height="22" align="middle" alt=""> Backend & engine
+
+The deepest changes are below the UI. The original is pure Python; Neo moves
+every hot path into a prebuilt Rust extension (`native/`, PyO3 / Stable ABI —
+see [the engine table](#the-engine-a-prebuilt-pure-rust-core)) and keeps a
+Python fallback only where a degraded answer beats an error:
+
+| Area                  | Original                                       | **Neo**                                                                                                                                                                |
+| --------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model listing         | Python `os.walk` per request                   | Rust parallel walk + a persistent front-matter index (5,000-model scan ~7.5× faster cold, ~100 ms warm; entry-for-entry golden-tested)                                 |
+| Hashing               | one `hashlib` SHA-256 loop                     | five notations (`SHA256`/`AutoV1`/`AutoV2`/`CRC32`/`BLAKE3`) in **one** streaming pass                                                                                 |
+| Download verification | full re-read after completion                  | inline digest fed by the write loop — zero extra I/O — keeping the Civitai SHA-256 gate                                                                                |
+| safetensors headers   | `comfy.utils` + `json.loads`                   | Rust jiter parse behind one route (metadata + tensors + a pre-grouped display tree; ~28× faster on MoE headers, wire-format cross-checked against the JS)              |
+| ZipNN compression     | —                                              | the whole engine: compress / decompress / folder batches / fine-tune deltas, mmap-streamed (< 1 GB RAM on any model), SHA-256-verified restore, cooperative-cancel API |
+| Previews              | PIL re-encode; animations frozen to frame 1    | zenwebp (pure Rust) encode/decode; animated GIF/WebP stay **animated** (frames, durations, loop, ICC preserved)                                                        |
+| Hub HTTP              | blocking `requests` inside thread-pool workers | one shared `aiohttp` session on the event loop (a stalled CDN can no longer pin a worker for the 120 s read timeout)                                                   |
+| Folder watching       | —                                              | optional native `notify` watcher (default off): per-type refresh in ~1.5 s, network mounts skipped, inotify exhaustion degrades to the 30 s TTL                        |
+| Library hygiene       | —                                              | orphaned sidecar / empty-folder sweep with bulk cleanup                                                                                                                |
+
+Feature-level additions on top of the original (upload to HF/ModelScope,
+multi-hub search, hash identify, collections, stars, multi-select, folder
+creation, direct-link downloads, the free-space guard, the Civitai download
+safety net, gallery previews, the Japanese locale) are described in
+[Features](#features) — every one of them is Neo-side work.
+
 ### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="22" height="22" align="middle" alt=""> Packages
 
 - **Removed:** `primevue`, `@primevue/themes`, `lodash`, `dayjs`, `js-yaml`.
@@ -620,9 +652,14 @@ PrimeVue dependency itself, and the batch‑scan feature — see
   `date-fns` (← dayjs), `yaml` (← js-yaml), `vue-sonner` (toasts),
   `class-variance-authority`, `clsx`, `tailwind-merge`.
 - **Upgraded:** Vite 5 → **8** (Rolldown), TypeScript 5 → **6**, Vue i18n 9 →
-  **11**, markdown‑it 14 → **15**, `@vueuse/core` 11 → **14**.
-- **Python:** added `huggingface_hub` + `hf_xet` + `modelscope_hub`; asyncio
-  task pool replacing the old thread pool.
+  **11**, markdown‑it 14 → **15**, `@vueuse/core` 11 → **15**.
+- **Python:** added `huggingface_hub` + `hf_xet` + `modelscope_hub` (the
+  original required only `markdownify`); asyncio task pool replacing the old
+  thread pool; a shared aiohttp client replacing every blocking `requests`
+  call.
+- **Rust:** added the `native/` workspace (`znn-codec` format core + `mm-core`
+  PyO3 bindings) shipping as prebuilt abi3 binaries — the extension itself
+  installs no compiled Python package.
 
 ### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="22" height="22" align="middle" alt=""> Toolbar / button roles
 
@@ -662,7 +699,11 @@ The lint / format pipeline is a conventional, fully‑configured
 frontend and **Ruff** + **mypy** for the Python backend, complemented by
 **dependency‑cruiser** (import‑graph gate) and
 [Fallow](https://fallow.tools) for dead‑code and duplication analysis (see
-[Development](#development)).
+[Development](#development)). The Rust workspace is held to `clippy
+-D warnings` + `rustfmt`, with a five-level test pyramid: unit tests, golden
+differentials, **cargo-fuzz** targets (7 surfaces, weekly 3 h/target budget),
+the full pytest suite against the built artifact on three OSes, and the
+official-`zipnn` cross-validation (see [Development](#development)).
 
 ---
 
@@ -689,13 +730,11 @@ installation's saved setting.
 > [!NOTE]
 > **What this gives up:** the only way to _bulk backfill_ previews and
 > descriptions from Civitai by file hash. A model whose information was never
-> fetched keeps its placeholder preview until the preview/notes are set by hand
-> (the model editor's gallery strip: add local image files through its dashed
-> tile, or reorder / remove entries), or until it is re‑downloaded
-> through _Create Download Task_, which does carry a preview. Reading a model's
-> information is unaffected — that always comes from disk, on demand. Individual
-> models can still be identified against the Civitai catalog on demand with the
-> hash reverse-lookup button of the detail window.
+> fetched keeps its placeholder preview until previews/notes are set by hand
+> (the editor's gallery strip) or it is re‑downloaded through _Create Download
+> Task_. Reading a model's information is unaffected — it always comes from
+> disk, on demand — and individual models can still be identified against the
+> Civitai catalog with the detail window's hash reverse-lookup.
 
 <a id="documentation"></a>
 
@@ -721,18 +760,34 @@ a per‑file manifest in
 ## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Development
 
 You only need Node.js to **build** the web bundle; running the extension inside
-ComfyUI needs nothing but Python.
+ComfyUI needs nothing but Python (the core ships prebuilt).
 
 ```bash
-corepack enable          # uses the pinned pnpm version
+corepack enable          # uses the pinned pnpm version (Node 26)
 pnpm install
+uv sync --frozen         # Python dev/test environment (.venv)
 ```
 
 The Python backend's dev/test environment (pytest, ruff, mypy, the hub SDKs,
 torch‑CPU) is managed by **[uv]** — `uv sync --frozen` rebuilds it from
-`pyproject.toml`'s `[dependency-groups]` and the committed `uv.lock` in one shot
-(Plan Phase 7 T4). That is a dev/CI convenience only: the _runtime_ contract is
-unchanged, ComfyUI still installs `requirements.txt` itself on first launch.
+`pyproject.toml`'s `[dependency-groups]` and the committed `uv.lock` in one
+shot. That is a dev/CI convenience only: the _runtime_ contract is unchanged,
+ComfyUI still installs `requirements.txt` itself on first launch (the two lists
+are pinned equal by a test).
+
+To work on the Rust core, a stable toolchain is enough — a debug build is a
+valid `mm_core` (the API handshake and the whole pytest suite behave
+identically to release):
+
+```bash
+cd native && cargo build -p mm-core
+cp target/debug/libmm_core.so native-bin/linux-x86_64/mm_core.abi3.so   # this platform's tag
+```
+
+`scripts/build-native.sh --target <tag> --size-gate` reproduces the shipped
+release artifacts (zigbuild for the glibc ≥ 2.28 floor, maturin + lipo for
+macOS universal2); [`native/README.md`](native/README.md) documents the
+workspace, the test pyramid and the fuzzing setup.
 
 | Script                                | Purpose                                                                 |
 | ------------------------------------- | ----------------------------------------------------------------------- |
@@ -748,7 +803,11 @@ unchanged, ComfyUI still installs `requirements.txt` itself on first launch.
 | `pnpm format` / `pnpm format:check`   | Prettier (with the Tailwind plugin)                                     |
 | `pnpm py:lint` (`:fix`)               | Ruff lint for the backend (`py/`, `__init__.py`)                        |
 | `pnpm py:format` (`:check`)           | Ruff format for the backend                                             |
-| `python -m mypy`                      | Backend static types, clean                                             |
+| `pnpm py:test`                        | pytest suite (skips native-path tests when no `mm_core` is built)       |
+| `python -m mypy`                      | Backend static types (`[tool.mypy]` in pyproject), clean                |
+| `pnpm rs:fmt` (`:check`) / `rs:lint`  | rustfmt / clippy `-D warnings` for `native/`                            |
+| `pnpm rs:test`                        | Rust unit + integration tests (mm-core without the extension-module)    |
+| `pnpm rs:build`                       | release build of `mm-core`                                              |
 | `pnpm fallow`                         | Fallow full pipeline: dead code + duplication + health                  |
 | `pnpm fallow:dead` (`:type-aware`)    | unused files/exports/types/deps, cycles — optional TS semantic pass     |
 | `pnpm fallow:dupes`                   | AST clone detection (`mild` mode, see `.fallowrc.json`)                 |
@@ -773,13 +832,10 @@ Stylelint + Prettier for the frontend, Ruff (lint + format) for the backend.
 linters: it reads the repository as one dependency graph and reports unused
 files/exports/types/dependencies, circular imports, clone groups and
 complexity hotspots. `.fallowrc.json` pins the entry point (`src/main.ts`),
-keeps the committed `web/` bundle, vendored `third_party/`, docs and assets out
-of the graph, and turns the private-type-leak and unresolved-import checks on.
-The tree is kept at **zero unused exports, zero duplication**; the single
-remaining finding is the deliberate `pnpm-workspace.yaml` override pinning
-`@comfyorg/comfyui-desktop-bridge-types` (a transitive type package of
-`@comfyorg/comfyui-frontend-types`). `pnpm fallow:fix:dry` previews every
-automatic removal before `pnpm fallow:fix` applies it. CI enforces the
+keeps the committed `web/` bundle, docs and assets out of the graph, and turns
+the private-type-leak and unresolved-import checks on. The tree is kept at
+**zero unused exports, zero duplication** (`pnpm fallow:fix:dry` previews
+every automatic removal before `pnpm fallow:fix` applies it). CI enforces the
 invariant: the `Dead code & duplication (fallow)` step of `ci.yml` runs
 `pnpm fallow:dead` + `pnpm fallow:dupes`, whose ERROR-level rules
 (`unused-exports` / `unused-files` / `unresolved-imports`) fail the build.
@@ -817,24 +873,32 @@ semantic and defensive `try/except: pass` guards read clearer than
 
 ```
 ├─ __init__.py            # ComfyUI entry: installs deps, registers routes
-├─ py/                    # Python backend (aiohttp routes, HF/Civitai, tasks)
-│  ├─ manager.py          #   model CRUD + folder listing
+├─ py/                    # Python backend (aiohttp routes, tasks, hub clients)
+│  ├─ manager.py          #   model CRUD + native-accelerated listing/hygiene
 │  ├─ download.py         #   download tasks (http + huggingface_hub + modelscope_hub)
 │  ├─ upload.py           #   local file upload (path-validated)
 │  ├─ upload_hf.py        #   upload to Hugging Face (shared hub pipeline)
 │  ├─ upload_modelscope.py#   upload to ModelScope
-│  ├─ compress.py         #   ZipNN compress / decompress (vendored core)
+│  ├─ compress.py         #   ZipNN routes driving the native job API
 │  ├─ information.py      #   Civitai/HF/ModelScope page resolution, preview serving
 │  ├─ search.py           #   multi-platform model-name search + avatar proxy
 │  ├─ identify.py         #   Civitai hash reverse-lookup
+│  ├─ native.py           #   prebuilt-core loader (platform tag, API handshake)
+│  ├─ http_client.py      #   shared aiohttp session for every hub round trip
+│  ├─ watcher.py          #   optional library watcher (native notify, default off)
 │  ├─ auth.py · config.py · thread.py · utils.py
-├─ third_party/           # vendored ZipNN (Python pkg + prebuilt zipnn_core + C src)
+├─ native/                # Rust workspace (GPL-3.0; attributions in native/NOTICE)
+│  ├─ crates/znn-codec/   #   ZipNN format core + scan/hash/header/webp (+ fuzz/)
+│  ├─ crates/mm-core/     #   PyO3 abi3 bindings (the mm_core module)
+│  └─ native-bin/         #   prebuilt binaries per platform tag (committed on main)
 ├─ src/                   # Vue 3 frontend
 │  ├─ components/         #   app components + ui/ (reka-ui wrappers)
-│  ├─ hooks/              #   store, models, download, config, dialog, …
+│  ├─ hooks/              #   store, models, download, zipnn, upload, config, …
 │  ├─ utils/ · types/ · locales/
 │  ├─ style.css           #   Tailwind v4 entry + design tokens
 │  └─ main.ts             #   registers the ComfyUI extension
+├─ scripts/               # KPI benches (evidence in docs/BENCH.md) + L5 cross-validation
+├─ tests/                 # pytest suite: golden contracts, parity, junctions
 └─ web/                   # prebuilt bundle served to ComfyUI (committed)
 ```
 
@@ -858,24 +922,23 @@ attribution for the architecture is: **theirs**.
 
 This fork is a derivative work used and modified in accordance with the
 **GNU General Public License v3.0**. Modifications in Neo (the UI rebuild,
-PrimeVue removal, Hugging Face upload, ZipNN compression, package
-modernisation, toolchain, the reliability and security hardening, the
-batch‑scan removal and the Japanese localisation) are provided under the same
+PrimeVue removal, the Rust native core, ZipNN compression, HF/ModelScope
+upload, multi-hub search and hash identify, package modernisation, toolchain,
+the reliability and security hardening, the batch‑scan removal and the
+Japanese localisation — itemised in
+[What changed from the original](#what-changed)) are provided under the same
 GPL‑3.0 license. Per the license, the original copyright notice and the full
 license text are preserved in [`LICENSE`](LICENSE).
 
 ### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="22" height="22" align="middle" alt=""> Built with Qwen Studio
 
-A large part of this fork was built with **[Qwen Studio]**. The ZipNN
-integration — vendoring the library, producing the prebuilt `zipnn_core`
-binaries, and the tensor-by-tensor compress/decompress port — the glassmorphism
-UI rebuild, the Hugging Face upload flow, the reliability and security passes,
-and much of the debugging were all developed in close collaboration with Qwen
-Studio. Its careful, iterative engineering is a big reason Neo is as robust as
-it is, and this project is grateful for that contribution.
+A large part of this fork was built with **[Qwen Studio]**: the ZipNN engine
+(the `unsafe`-free Rust port of the format, its fuzz suites and the prebuilt
+abi3 distribution), the glassmorphism UI rebuild, the hub upload flows, the
+reliability and security passes, and much of the debugging were developed in
+close collaboration with it.
 
-If this fork is useful to you, the upstream repository deserves the star: the
-work standing on its shoulders is what makes any of the above possible.
+If this fork is useful to you, the upstream repository deserves the star.
 
 Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 [VueUse], [es-toolkit], [vue-sonner], [huggingface_hub], [hf_xet],
@@ -891,7 +954,7 @@ Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 
 The Rust native core ([`native/`](native/)) additionally links **[zenwebp]** — a
 pure‑Rust WebP codec, **AGPL‑3.0‑only** OR Imazen‑commercial — for the preview
-WebP pipeline (Phase 7 / T7). Neo is GPL‑3.0‑only and uses zenwebp under the
+WebP pipeline. Neo is GPL‑3.0‑only and uses zenwebp under the
 **AGPL‑3.0** terms; AGPLv3 §13 explicitly permits combining an AGPL work with a
 GPLv3 work (the AGPL part stays AGPL). ComfyUI is a **local** application, not a
 network service, so the AGPL network clause is effectively inoperative here, and
