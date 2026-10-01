@@ -724,7 +724,10 @@ async def test_batch_folder_native_roundtrip(prompt_server, model_lib, monkeypat
     assert await _wait_task(compress, task_id) == "complete", _events(prompt_server)
     complete = _events(prompt_server)[-1][1]
     assert complete["kind"] == "folder" and complete["mode"] == "compress"
-    assert complete["stats"] == {"files": 3, "folder": str(ck / "checkpoints_DeltaZNN")}
+    # The backend reports slash-normalized paths on every platform
+    # (utils.normalize_path); str(Path) only agrees with that on POSIX, so
+    # normalize the expectation the same way the tree-state helper above does.
+    assert complete["stats"] == {"files": 3, "folder": str(ck / "checkpoints_DeltaZNN").replace(os.sep, "/")}
 
     bundle = ck / "checkpoints_DeltaZNN"
     assert (bundle / "n-m1.znn.safetensors").is_file()
