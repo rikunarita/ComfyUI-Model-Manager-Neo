@@ -1,7 +1,9 @@
 # Native core CI (Agent/Plan.md §5.3) — Phase 0 scope:
 #
 #   native-test    cargo fmt / clippy -D warnings / tests on the three OSes
-#                  (mold installed on Linux, Plan §3.4.1)
+#                  (Linux links with rustc's bundled rust-lld — the default
+#                  since Rust 1.90; no apt toolchain is installed any more,
+#                  NEO-PLAN-2026-002 Step 1)
 #   native-build-* abi3 artifacts for every platform tag (5 rust targets:
 #                  linux x86_64 + aarch64 via cargo-zigbuild glibc 2.28,
 #                  windows x86_64 MSVC, macOS universal2 = both darwin archs),
@@ -91,21 +93,13 @@ jobs:
         with:
           python-version: "3.11"
 
-      # Plan §3.4.1: mold for Linux native (ELF) builds only; macOS/Windows
-      # keep their platform linkers. The symlink makes `-fuse-ld=mold`
-      # resolvable by clang regardless of how the distro packages mold.
-      - name: Install mold + clang (Linux only)
-        # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
-        # got the whole push run cancelled (2026-09-30, run #80, native-test
-        # ubuntu: the step ran 14:36 -> 20:37 without output). A 10 min step
-        # budget fails fast instead - the job goes red in minutes and a re-run
-        # picks a healthy mirror (the same step took <20 s in runs #79/#81).
-        timeout-minutes: 10
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang mold
-          sudo ln -sf "$(command -v mold)" /usr/local/bin/ld.mold
+      # No linker toolchain is installed here on purpose (NEO-PLAN-2026-002
+      # Step 1): Linux builds link with rustc's bundled rust-lld, the default
+      # for x86_64-unknown-linux-gnu since Rust 1.90. The former
+      # `apt-get install clang mold` step is gone — it once hung for 6 h on a
+      # stalled mirror and got the whole push run cancelled (2026-09-30,
+      # run #80), and removing the external dependency removes that failure
+      # surface entirely.
 
       - name: cargo fmt --check
         run: cargo fmt --all -- --check

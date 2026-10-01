@@ -1,14 +1,20 @@
-# Linux ネイティブビルドのみ mold を使用する（Agent/Plan.md §3.4.1）。
-# クロスビルド（zig 経由）では zig 側リンカー（LLD）が使用され、本設定は影響しない
-# （cargo-zigbuild が CARGO_TARGET_*_LINKER 環境変数でこの設定を上書きする）。
+# リンカー方針（NEO-PLAN-2026-002 Step 1・2026-10-01 決定）:
 #
-# 導入手順は native/README.md を参照（clang が無い環境では
-# `-C link-arg=-B<mold>/lib/mold` 方式にフォールバック）。
-
-[target.x86_64-unknown-linux-gnu]
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
-
-[target.aarch64-unknown-linux-gnu]
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+# Linux ネイティブビルドは **rustc 同梱の rust-lld（既定）** を使用する。
+# Rust 1.90 以降、x86_64-unknown-linux-gnu は rust-lld が既定リンカーであり、
+# このファイルで明示指定していた旧 mold 設定（linker = "clang" +
+# -C link-arg=-fuse-ld=mold）は撤去した — 成果物のリンク速度に実差はなく
+# （4 MB 級 cdylib のリンクは fat-LTO のコード生成に埋没する）、代わりに
+# CI とローカル双方から clang/mold の外部依存が消える（native.yml の
+# apt ステップは 2026-09-30 にミラーストールで 6 時間ハングし run 全体を
+# cancelled にした前例がある = 障害面の削減が主目的）。
+#
+# - aarch64-unknown-linux-gnu は rust-lld が既定化されていないため、
+#   ネイティブ開発ビルドはシステム既定リンカーに任せる（必要なら各自
+#   `-C linker-features=+lld`）。配布成果物は zigbuild 経路なので影響なし。
+# - クロスビルド（cargo-zigbuild）は zig 側リンカー（LLD）が使用され、
+#   CARGO_TARGET_*_LINKER 環境変数でこの種の設定を上書きする（glibc 2.28
+#   の床も zig が決定する）。macOS は ld-prime、Windows は link.exe（MSVC）。
+# - fuzz（nightly・別ワークスペース）も cargo の config 探索でこのディレクトリ
+#   を拾うが、target 節が無いため nightly 既定の rust-lld が使われる
+#   （ASan ランタイムは rustc が compiler-rt を同梱するためリンカー非依存）。
