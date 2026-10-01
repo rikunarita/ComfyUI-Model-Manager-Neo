@@ -1,7 +1,7 @@
 """ComfyUI singleton stubs (folder_paths / server.PromptServer / comfy.utils).
 
-Imported by tests/conftest.py (pytest) and by scripts/bench (bench harnesses)
-BEFORE any extension module is loaded. The stubbed semantics mirror
+Imported by tests/conftest.py (pytest) BEFORE any extension module is
+loaded. The stubbed semantics mirror
 comfyanonymous/ComfyUI master — re-verified against the upstream sources on
 2026-09-23 (no guessing):
 

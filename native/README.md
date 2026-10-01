@@ -14,9 +14,8 @@ codec を純 Rust で提供し、vendored C コアと**バイト同一の圧縮�
 完全性検証・進捗・キャンセル・paranoid モード）と、`mm_core` の
 ポーリング型ジョブ API（`zipnn_compress` / `zipnn_decompress` /
 `job_progress` / `job_cancel` / `job_result` / `job_error`）。
-`py/compress.py` の単体圧縮/解凍ルートが `MM_NATIVE=0/1/auto` でこの経路に
-切り替わります（ws イベント・stats 形状はレガシーと完全互換 — ゴールデン
-テスト済み）。
+`py/compress.py` の単体圧縮/解凍ルートがこの経路を駆動します（ws イベント・
+stats 形状はゴールデンテストで機械固定。Phase 8 以降、これが唯一の経路です）。
 
 **Phase 3（デルタ圧縮 + バッチプリミティブ）実装済み**（api_version=**3**）:
 `delta`（両側 mmap → ヘッダー等長化パディング → 1 MiB ストリーミング XOR →
@@ -27,10 +26,10 @@ codec を純 Rust で提供し、vendored C コアと**バイト同一の圧縮�
 `move_with_sidecars` = 20 スロット プレビュー/ノート規則の移植。バンドル
 意味論は Python 側維持）。`mm_core` 追加 API: `zipnn_delta_compress` /
 `zipnn_delta_decompress`（ジョブ）+ `walk_models` / `move_with_sidecars`
-（同期）。デルタ/バッチフォルダ ルートが `MM_NATIVE` で切り替わります
+（同期）。デルタ/バッチフォルダ ルートもこの経路を駆動します
 （付録 C の SEGFAULT クラスはデルタ端到端テストで「正常完了 + byte‑exact」
-に固定化 — docs/BENCH.md §8）。L3 ファズは 6 ターゲット
-（`delta_decompress` 追加）。
+に固定化 — docs/BENCH.md §8）。L3 ファズに `delta_decompress` を追加
+（現行 7 ターゲット — 下記 L3 節）。
 
 **Phase 4（dtype 大幅拡張 — Neo 拡張帯）実装済み**（api_version は **3 の
 まま** — 新規 Python API なし、dtype 対応はコーデック内部）:
@@ -131,12 +130,9 @@ native/
 ├─ rustfmt.toml               # 安定オプションのみ（stable ツールチェーンが正）
 ├─ clippy.toml                # msrv + doc-valid-idents
 ├─ crates/
-│  ├─ znn-codec/              # 純 Rust ZipNN コーデック（Python 非依存、Phase 1〜。
+│  ├─ znn-codec/              # 純 Rust ZipNN コーデック（Python 非依存。
 │  │                          #   src/ インライン単体 + tests/ 統合 + fuzz/ L3）
-│  ├─ mm-core/                # PyO3 拡張モジュール `mm_core`（abi3-py310）
-│  └─ znn-cli/                # 検証用 CLI（配布しない）
-├─ benches/
-│  └─ json-bench/             # JSON パーサ選定ベンチ（配布しない、Phase 0）
+│  └─ mm-core/                # PyO3 拡張モジュール `mm_core`（abi3-py310）
 └─ native-bin/                # 配布用プリビルド成果物（native-bin/README.md 参照）
 ```
 
@@ -289,32 +285,14 @@ cargo-zigbuild 0.23.4 で確認）。Plan §3.3 の通り macOS 成果物は mac
 撤去。git 履歴で参照可）と safetensors 0.8.0 Rust 実装（一次ソース精読、
 2026‑09‑24）の逐条移植で、出力バイトは移行期の L2 ゴールデン差分が C プリビルド
 .so と**バイト単位で一致**することを実証済みです（9,880/9,880 — 証跡は
-`scripts/l2/results/` にコミット。Phase 8 以降の公式互換の機械証明は L5
-クロス検証〔native.yml integration・pip zipnn 0.5.4〕が担います）。
+`scripts/bench/results/l2_golden_diff.json` にコミット。Phase 8 以降の公式互換の
+機械証明は L5 クロス検証〔native.yml integration・pip zipnn 0.5.4〕が担います）。
 **unsafe はフォーマット中核（Phase 1 範囲）でゼロ**。Phase 2 の追加は
 `safetensors_io::StContainer::open` の **read-only mmap 1 箇所のみ**
 （memmap2 の安全境界。SAFETY コメント付きでレビュー済み — Plan §3.7 が
 選定したゼロコピー設計そのもので、置き換え対象の Python `safe_open` も
 同一の mmap 方式。crate の `#![deny(unsafe_code)]` は維持し、当該関数に
 局所 `#[allow]` + SAFETY ブロックを付す形）。
-
-### znn-cli（配布しない開発ツール）
-
-```bash
-cargo build --release -p znn-cli
-znn-cli identity                       # 定数レポート
-znn-cli core-compress  IN OUT --num-buf 4 --bits 1 --mode 220 --chunk 262144
-znn-cli core-decompress PAYLOAD OUT --orig-len N [--max-output CAP] ...
-znn-cli bench IN --op both --runs 5    # steal ゲート付き in-process 計測
-znn-cli batch MANIFEST.jsonl RESULTS.jsonl   # バッチ実行（旧 L2 ハーネス用・証跡再生成用）
-# Phase 2: Python を介さない safetensors パイプライン（手動 QA / bench）
-znn-cli st-compress  model.safetensors model.znn.safetensors [--paranoid] [--json-out R.json]
-znn-cli st-decompress model.znn.safetensors restored.safetensors [--json-out R.json]
-```
-
-`core-*` は C ABI（`zipnn_core` / `combine_dtype`）の完全ミラーです
-（`is_review` / `check_th_after_percent` は C 側でも出力に影響しないため
-受け入れ・無視。ヘッダー [24:32] への resBufSize 書き込みも C 準拠）。
 
 ### L2 ゴールデン差分テスト（移行期ゲート — Phase 8 で退役）
 
@@ -324,9 +302,11 @@ znn-cli st-decompress model.znn.safetensors restored.safetensors [--json-out R.j
 fuzz-long の l2-full コンパニオン）で常設していました。Phase 8 の
 `third_party/` 撤去とともに**退役**済みです:
 
-- 証跡 JSON は `scripts/l2/results/` にコミット済み（フル 10,500 ケース GATE
-  PASS・圧縮出力 C とバイト同一 9,880/9,880・付録 C クラス 495/495 安全処理）。
-  スクリプト本体は git 履歴（Phase 7 tip 以前）から復元できます。
+- 証跡 JSON は `scripts/bench/results/l2_golden_diff.json` / `l2_speed.json` に
+  コミット済み（フル 10,500 ケース GATE PASS・圧縮出力 C とバイト同一
+  9,880/9,880・付録 C クラス 495/495 安全処理）。スクリプト本体
+  （`golden_diff.py`）と駆動用の `znn-cli batch` は git 履歴から復元できます
+  （`znn-cli` クレート自体も計画完了後の整理でワークスペースから削除済み）。
 - 退役後の公式 ZipNN 互換の機械証明は **L5 クロス検証**（native.yml
   integration・ubuntu セル）: pip の**公式 zipnn 0.5.4** をランナーで
   ソースビルドし、「Neo(Rust) 圧縮 → 公式解凍」「公式圧縮 → Neo 解凍」+

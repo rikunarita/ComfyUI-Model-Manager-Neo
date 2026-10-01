@@ -6,8 +6,14 @@
 | 計測日   | 2026‑09‑23                                                                                                                                                          |
 | 対象     | `rikunarita/ComfyUI-Model-Manager-Neo` @ dev（Phase 0 着手時）                                                                                                      |
 | 目的     | `Agent/Plan.md` §2.2 KPI 表の「現行」列を**実測**で確定し、以降のフェーズ完了判定の比較原点とする（§5.2「Phase 0 で全 KPI のベースラインを docs/BENCH.md に記録」） |
-| 生データ | [`scripts/bench/results/`](../scripts/bench/results/)（本実行の JSON 一式）                                                                                         |
-| 再実行   | [`scripts/bench/README.md`](../scripts/bench/README.md)（参照機での再計測手順を含む）                                                                               |
+| 生データ | [`scripts/bench/results/`](../scripts/bench/results/)（本実行の JSON 一式。旧 `scripts/l2/results/` の L2 証跡も `l2_*.json` として同ディレクトリへ統合済み）       |
+| 再実行   | 計測ハーネス（`scripts/bench/*.py`・`scripts/l2/golden_diff.py`・`znn-cli`）は計画完了後にツリーから削除済み — git 履歴に完全な形で保存されている（下記 §12 参照）  |
+
+> **計測ハーネスの保存場所について**: 本書が引用する計測スクリプトは、刷新計画
+> （`Agent/Plan.md`）の完了に伴いリポジトリから削除されました。原文は git 履歴から
+> 復元できます（例: `git show <計画完了時のコミット>:scripts/bench/bench_scan.py`）。
+> **結果 JSON（`scripts/bench/results/`）はコミットされた証跡として残っており、
+> 本書の数値の一次ソースです**（再生成しない規程 — MEMO §1.2）。
 
 > **読み方の注意**: 本計測は Plan §2.2 の検証環境（「8C/16T デスクトップ（NVMe）」）ではなく、
 > **2 vCPU / 1 GiB RAM のコンテナ**で実行した（下記環境表）。絶対値の比較には注意が必要だが、
@@ -278,7 +284,8 @@ hello‑world abi3 バイナリ（予算: ≤4 MB/本、計 ≤20 MB）。
 
 Rust 実装（`native/crates/znn-codec`）を vendored C プリビルド .so と同一
 マシン・同一セッションで比較した記録。実行は `scripts/l2/golden_diff.py`
-（結果 JSON は `scripts/l2/results/golden_diff.json` / `speed.json` にコミット）。
+（結果 JSON は `scripts/bench/results/l2_golden_diff.json` / `l2_speed.json`
+にコミット。スクリプト本体は git 履歴に保存済み）。
 
 ### 6.1 正確性（L2、フル 10,500 ケース）
 
@@ -942,6 +949,12 @@ Plan の「念のため Phase 5 のバグを精査せよ」に対する結果。
 | 7   | ModelScope の owner ツールチップ（プロフィール説明）が**常に空** | `_ms_plain_description` の leaf 判定が `node[-2] == "leaf"` のみで、実 API / 同関数 docstring 記載の属性 dict 形 `["span",{"data-type":"leaf"},"…"]` を一度も拾わなかった | 両形を受理（`is_leaf_marker`） | `test_modelscope_owner_info_is_parsed_and_cached` |
 
 ## 12. 再現手順
+
+> **注記（計画完了後のアーカイブ）**: 以下のコマンドは計測当時（Phase 0–6）の
+> ハーネスをそのまま記録したものです。スクリプト本体は計画完了に伴いツリーから
+> 削除され git 履歴に保存されています（`MM_NATIVE` 環境変数も Phase 8 で撤去
+> 済み）。現役の計測器は `scripts/bench/front/k15.mjs`（CI ゲート）と
+> `scripts/l5/official_cross.py`（L5 相互運用ゲート）のみです。
 
 ```bash
 pip install numpy safetensors torch blake3
