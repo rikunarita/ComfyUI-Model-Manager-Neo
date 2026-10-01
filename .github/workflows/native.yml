@@ -413,10 +413,13 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact: native-bin-linux
+            tag: linux-x86_64
           - os: windows-latest
             artifact: native-bin-windows
+            tag: windows-x86_64
           - os: macos-latest
             artifact: native-bin-macos
+            tag: macos-universal2
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -432,11 +435,49 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Fetch the built native artifact into native-bin/
+      - name: Fetch the built native artifact
         uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.artifact }}
-          path: native/native-bin
+          path: native/native-bin/_staging
+
+      # upload-artifact stores files relative to the least-common ancestor of
+      # the uploaded paths: the linux artifact (two tag dirs) keeps its <tag>/
+      # nesting, while the single-file windows/macos artifacts land BARE. The
+      # loader only accepts native-bin/<tag>/mm_core.*, so those two cells
+      # used to silently skip every native-path test (81 passed / 132 skipped
+      # looked green) until a main checkout carried committed binaries and the
+      # suite finally ran there (native run #94). Normalize both shapes into
+      # <tag>/ here — the publish-native-bin job solves the same LCA problem
+      # by classifying content instead.
+      - name: Stage the artifact under its platform tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd native/native-bin/_staging
+          shopt -s nullglob dotglob
+          for entry in *; do
+            if [ -d "$entry" ]; then
+              mv "$entry" ../
+            else
+              mkdir -p "../${{ matrix.tag }}"
+              mv "$entry" "../${{ matrix.tag }}/"
+            fi
+          done
+          cd ..
+          rmdir _staging
+          [ -d "${{ matrix.tag }}" ] || { echo "staging failed: ${{ matrix.tag }} missing"; exit 1; }
+          ls -l "${{ matrix.tag }}"
+
+      # Loud guard: an integration cell must NEVER run without a loadable
+      # core (that is how the skip-storm above stayed invisible). If the
+      # staging above regresses, this fails the job instead of pytest
+      # quietly skipping 132 tests.
+      - name: Import smoke (the staged artifact must load in this cell)
+        shell: bash
+        run: |
+          PYTHONPATH="native/native-bin/${{ matrix.tag }}" \
+            python -c "import mm_core; print('integration import OK:', mm_core.api_version(), mm_core.core_version())"
 
       - name: Python test dependencies
         run: # markdownify + pillow are module-level imports of py/information.py, which
