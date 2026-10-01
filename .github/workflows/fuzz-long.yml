@@ -7,7 +7,7 @@
 # (incl. the Phase-1 regression seeds found by the fuzzer) replays every run.
 # The former l2-full companion (the >=10,000-case golden differential against
 # the bundled C core) was retired in Phase 8 together with third_party/; its
-# committed evidence stays under scripts/l2/results/ (see its README).
+# committed evidence stays under scripts/bench/results/ (l2_*.json).
 #
 # NOT a PR gate — scheduled (weekly) + manual dispatch only.
 name: fuzz-long

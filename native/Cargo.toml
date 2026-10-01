@@ -1,11 +1,8 @@
 # Rust native core workspace (Agent/Plan.md §4.2.1).
 #
 # Layout:
-#   crates/znn-codec   pure-Rust ZipNN codec (no Python dependency, Phase 1)
+#   crates/znn-codec   pure-Rust ZipNN codec (no Python dependency)
 #   crates/mm-core     PyO3 extension module `mm_core` (abi3-py310)
-#   crates/znn-cli     validation CLI (never distributed)
-#   benches/json-bench JSON parser decision bench (jiter vs simd-json, Phase 0;
-#                      never distributed)
 #
 # Release profile: `panic = "unwind"` is REQUIRED (PyO3 catches panics at the
 # boundary and turns them into Python exceptions; `abort` would kill the whole
@@ -14,7 +11,7 @@
 
 [workspace]
 resolver = "2"
-members = ["crates/mm-core", "crates/znn-cli", "crates/znn-codec", "benches/json-bench"]
+members = ["crates/mm-core", "crates/znn-codec"]
 # The cargo-fuzz crate is its own (nightly) workspace — keep it out of the
 # stable workspace (different toolchain + sanitizer flags).
 exclude = ["crates/znn-codec/fuzz"]
@@ -40,7 +37,6 @@ pyo3 = { version = "0.29.2", features = ["abi3-py310"] }
 # crates.io API on 2026-09-23 (Plan §3.7 catalog):
 rayon = "1.12.0"
 thiserror = "2.0.20"
-clap = { version = "4.5.70", features = ["derive"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 

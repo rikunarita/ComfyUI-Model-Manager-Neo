@@ -1,73 +1,42 @@
-# `scripts/bench/` — KPI ベースライン計測スイート（Phase 0）
+# `scripts/bench/` — 計測証跡アーカイブ + フロントエンド計測器（CI ゲート）
 
-`Agent/Plan.md` §2.2 の KPI に対する**現行実装（vendored ZipNN C コア + Python バックエンド）の
-ベースライン**を計測するためのスクリプト群です。結果は [`docs/BENCH.md`](../../docs/BENCH.md)
-に記録され、以降のフェーズの達成判定（「KPI 未達のフェーズは完了としない」）の比較原点になります。
+刷新計画（`Agent/Plan.md`）の KPI 計測に使われた Python ハーネス
+（`bench_*.py`・`gen_synthetic.py`・`common.py`・`run_all.sh`）と L2 ゴールデン
+差分（旧 `scripts/l2/`）は、計画の完了に伴いツリーから削除されました。
+原文は git 履歴から復元できます。このディレクトリに残るのは次の 2 つです。
 
-## 設計原則
+## `results/` — コミットされた計測証跡（再生成しない）
 
-- **実コードを計測する**: `py/compress.py`・`py/manager.py`・`py/utils.py`・`py/identify.py`・
-  `py/download.py` の本物の関数を、ComfyUI 側モジュール（`folder_paths` / `comfy.utils` /
-  `server`）の忠実なスタブ（`common.py`）経由で呼ぶ。計測対象を書き換えない。
-  `comfy.utils.safetensors_header` のスタブは ComfyUI 本体 master からの逐語移植。
-- **ピーク RAM はプロセスごとに隔離**: 各計測は fork されたサブプロセスで実行し、
-  カーネル記録の `VmHWM`（/proc/self/status）を報告する。OOM や SEGFAULT（K5 の再現は
-  **クラッシュが期待値**）は親を道連れにしない。
-- **再現可能**: フィクスチャはすべてシード固定の合成生成（`gen_synthetic.py`）。
-  1 GiB RAM のコンテナでも回るサイズ設計で、参照機（8C/16T NVMe）では環境変数で
-  サイズを上げて再実行できる。
-- **ネットワーク不使用**: 実モデルは各自ローカルに用意（`REAL_MODEL=/path/...`）。
-  2026‑09‑23 の初回実行では ModelScope の `unsloth/all-MiniLM-L6-v2`
-  （model.safetensors、90,868,376 B、f32×104 テンソル）を使用した。
+[`docs/BENCH.md`](../../docs/BENCH.md) が数値を逐語引用する一次ソースの
+JSON 一式です。各 JSON の `env` ブロックに計測環境（CPU・RAM・スレッド数）が
+記録されています。**再生成せず、決定的な欄のみ外科的に追記する**のが規程です
+（MEMO §1.2）。
 
-## 状態（Phase 8 以降）
+- `zipnn.json` / `delta.json` / `c_defects.json` / `scan.json` / `header.json` /
+  `hash.json` / `json-bench.txt` — Phase 0 ベースライン（2026‑09‑23）
+- `native_e2e.json` / `native_delta.json` — Phase 2/3 の native vs legacy 比較
+- `phase4_dtypes.json` / `phase5_*.json` — Phase 4/5 の KPI 証跡
+- `phase6_front.json` — Phase 6 フロントエンド計測（`front/k15.mjs` の出力）
+- `l2_golden_diff.json` / `l2_speed.json` — 移行期 L2 ゲート（フル 10,500 ケース
+  GATE PASS・圧縮出力 C バイト同一 9,880/9,880）の証跡。旧 `scripts/l2/results/`
+  から移設
 
-Phase 8 が `third_party/`（vendored C コア）を撤去したため、スクリプトは
-2 群に分かれます。**結果 JSON（`results/`）はすべて有効な証跡のまま**です
-（BENCH.md が引用する一次ソース — 再生成しない規程）:
+## `front/` — フロントエンド計測器（現役・CI ゲート）
 
-- **歴史的（退役）**: `bench_zipnn.py`・`bench_delta.py`・`bench_c_defects.py`・
-  `bench_native_e2e.py`・`bench_native_delta.py` — 旧 C コア/旧 Python 経路との
-  比較計測。再実行には Phase 7 以前のツリーが必要です（git 履歴から復元。
-  `common.vendored_zipnn_on_path()` が明確なエラーを返します）。
-  `run_all.sh` は `third_party/` の不在を検出してこれらをスキップします。
-- **現役**: `bench_scan.py`（K9/K10）・`bench_header.py`（K11/K12）・
-  `bench_hash.py`（K7/K8）・`bench_phase4_dtypes.py`（K14・native バイナリ必要）・
-  `gen_synthetic.py`・`front/k15.mjs`（K15）。
+[`front/k15.mjs`](front/k15.mjs)（詳細は [`front/README.md`](front/README.md)）は
+`src/utils` の実コードを tsc でコンパイルし、合成ライブラリ上で before/after を
+同一実行内に計測するヘッドレス計測器です。ゲートは同一実行内比率なので
+ランナー非依存です。
 
-## 実行
+- `ci.yml` が毎 push で実行（`node scripts/bench/front/k15.mjs`）
+- `native.yml` の integration（ubuntu）が `--cross-check` 付きで実行し、
+  Rust テンソルツリー符号 == TypeScript フォールバック エンコーダを
+  実ビルド成果物 against で検証（`front/cross_check.py` 経由）
 
-```bash
-pip install numpy safetensors torch blake3   # torch は CPU 版で可
-FIXTURES=/tmp/mm-bench REAL_MODEL=/path/model.safetensors ./scripts/bench/run_all.sh
-```
+## 関連する現役ゲート（このディレクトリ外）
 
-| スクリプト               | KPI             | 内容                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gen_synthetic.py`       | —               | フィクスチャ生成: 8 MB 級 MoE ヘッダー / Gaussian テンソルバイト / モデル / ペア / 5,000 モデルツリー                                                                                                                                                                                                                                 |
-| `bench_zipnn.py`         | K1/K2/K3/K5/K13 | C コア直呼び（dtype 別スループット・ピーク RAM）、Neo e2e（圧縮→解凍→SHA‑256 一致）、付録 C SEGFAULT 再現、起動系計測                                                                                                                                                                                                                 |
-| `bench_delta.py`         | K4/K5           | デルタ圧縮/解凍（ピーク RAM・byte‑exact 検証）+ **生産経路での SEGFAULT 到達性実証**                                                                                                                                                                                                                                                  |
-| `bench_c_defects.py`     | K5              | Plan 付録 C.3 の**全 22 ケース行列**（dtype32 クラッシュ 8・対照 9・dtype16 境界/奇数長 5）を一括再実行                                                                                                                                                                                                                               |
-| `bench_scan.py`          | K9/K10          | `scan_models` 冷間/暖間（現行は毎回全面走査）+ `scan_hygiene`                                                                                                                                                                                                                                                                         |
-| `bench_header.py`        | K11/K12         | `get_model_tensors` / `get_model_metadata`（8 MB MoE ヘッダー、内訳: read / json.loads / list 構築）                                                                                                                                                                                                                                  |
-| `bench_hash.py`          | K7/K8           | `compute_hashes` 5 算法 1 パス / `_sha256_of` フル再読込 / 素の sha256 参照（相互検証付き）                                                                                                                                                                                                                                           |
-| `native/…/json-bench`    | （選定）        | jiter vs simd-json vs serde_json（8 MB ヘッダー、ダイジェスト一致検証付き）                                                                                                                                                                                                                                                           |
-| `bench_native_e2e.py`    | K1/K2/K3/K13    | **Phase 2**: native パイプライン vs legacy e2e（同一セッション交互計測・側別ベスト・steal 記録 — docs/BENCH.md §7）                                                                                                                                                                                                                   |
-| `bench_native_delta.py`  | K4/K5           | **Phase 3**: native デルタ vs legacy デルタ（同一ペア・交互計測）+ SEGFAULT クラスの native 生存/byte‑exact 実証（§8）                                                                                                                                                                                                                |
-| `bench_phase4_dtypes.py` | K14             | **Phase 4**: 全 22 safetensors dtype の生産経路往復（圧縮率・ヘッダー実測 code/byte5・sha256 検証・byte‐exact）+ トランケーション自動選択の実証（§9）                                                                                                                                                                                 |
-| `front/k15.mjs`          | K15             | **Phase 6**: フロントエンド計測器（Node）。`src/utils` の実物を tsc でコンパイルし、5,050 モデル合成ライブラリ + 65,268 テンソル MoE ヘッダで C1/C2 の before-after とテンソルツリー Rust 事前グループ化を同一実行内で計測（`--cross-check` で Rust 符号 == TS エンコーダも検証）。詳細は [`front/README.md`](front/README.md)（§11） |
-
-結果 JSON は `scripts/bench/results/` に保存されます（コミット対象 = 初回実行の証跡。
-再実行時は上書きされるため、`docs/BENCH.md` の表が正）。`run_all.sh` は Phase 0
-ベースライン一式を実行します; `bench_native_e2e.py` / `bench_native_delta.py` /
-`bench_phase4_dtypes.py` は native バイナリ（`scripts/build-native.sh`）を
-前提とする個別実行です（コマンドは docs/BENCH.md §10）。再生成した JSON は prettier 安定形
-（indent=2 + 末尾改線）なので `pnpm format:check` をそのまま通過します。
-
-## 既知の環境依存
-
-- `drop_caches` はコンテナ内で Read‑only のことがあり、その場合「冷間」は
-  **データキャッシュのみ冷間**（dentry キャッシュは暖）。結果 JSON の `coldNote` に記録される。
-- スレッド数は vendored ZipNN と同じ `min(cpu_count, 16)`。2 vCPU 機と 16 スレッド機では
-  スループットが線形に異なる（結果 JSON の `threads` に記録）。
-- CPU に SHA 拡張がない場合 sha256 は AVX2 経路（`env` に CPU 情報を記録すること）。
+- `scripts/l5/official_cross.py` — L5 相互運用ゲート。公式 pip `zipnn` 0.5.4 との
+  双方向クロス検証（`native.yml` integration・ubuntu セルが毎 push 実行）
+- `scripts/build-native.sh` — 配布用プリビルド成果物のビルド（`native.yml`）
+- `scripts/verify_native_binary.py` — 成果物の arch / glibc 下限 / libpython
+  非依存の検査（純 Python・手動 QA 用）

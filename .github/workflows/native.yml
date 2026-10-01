@@ -20,7 +20,7 @@
 #                  cross-validation on ubuntu (Phase 2)
 # The transition-era L2 golden differential (native-diff, vs the bundled
 # prebuilt C core) was retired in Phase 8 together with third_party/; the
-# committed evidence stays under scripts/l2/results/ (see its README).
+# committed evidence stays under scripts/bench/results/ (l2_*.json).
 # Artifacts are verification only on PR/dev runs; on `main` the
 # publish-native-bin job commits the four platform binaries back into
 # `native/native-bin/` (Plan §5.3 / Phase 8 distribution: a fresh clone must
