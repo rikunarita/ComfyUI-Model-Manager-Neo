@@ -532,7 +532,7 @@ zenwebp（archmage SIMD）が既に行っている実行時 CPU 特徴検出**�
       「リンカーは rust‑lld 既定（2026‑10‑01、NEO‑PLAN‑2026‑002 Step 1）」
 - [ ] ローカル検証: 1.99.0 toolchain + zig cc 環境（MEMO §2.2 の再現手順）で
       `cargo build -p mm-core`（debug）疎通 + `cargo clippy --workspace
-  --all-targets --all-features -- -D warnings` + `cargo fmt --check` +
+--all-targets --all-features -- -D warnings` + `cargo fmt --check` +
       `cargo test --workspace --exclude mm-core`
 - [ ] 完了条件: **dev CI の native run 全緑**（native-test ubuntu が
       apt ステップなしで緑 = G5、integration/abi3/size-budget/fuzz-smoke
