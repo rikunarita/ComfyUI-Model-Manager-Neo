@@ -558,7 +558,15 @@ binaries** inside the repository — one per platform, loaded by `import` alone:
 
 One binary serves **CPython 3.10 and newer** on each platform (the Stable ABI,
 `abi3-py310` — proven against 3.10 and 3.13 in CI), and each is gated at
-≤ 5 MB (≤ 20 MB total) by a CI size budget. Interoperability is a CI gate, not
+≤ 5 MB (≤ 20 MB total) by a CI size budget.
+
+The port also addressed reliability at its root: during the rewrite work, a
+class of memory-safety defects was demonstrated in the C core's delta path
+(deterministic crashes at specific input lengths, out-of-bounds writes on
+fractional chunks). The Rust engine removes this defect class structurally —
+every plane split and chunk arithmetic is bounds-checked, and the single
+`unsafe` boundary (a read-only mmap) is safety-reviewed — and the inputs that
+once crashed are pinned as regression tests. Interoperability is a CI gate, not
 a promise: the `integration` workflow cross‑validates every push against the
 **official pip `zipnn` 0.5.4** in both directions. Licences: the
 format port attributes ZipNN (MIT) and FiniteStateEntropy (BSD‑2‑Clause); the
