@@ -444,29 +444,36 @@ jobs:
       # upload-artifact stores files relative to the least-common ancestor of
       # the uploaded paths: the linux artifact (two tag dirs) keeps its <tag>/
       # nesting, while the single-file windows/macos artifacts land BARE. The
-      # loader only accepts native-bin/<tag>/mm_core.*, so those two cells
-      # used to silently skip every native-path test (81 passed / 132 skipped
-      # looked green) until a main checkout carried committed binaries and the
-      # suite finally ran there (native run #94). Normalize both shapes into
-      # <tag>/ here — the publish-native-bin job solves the same LCA problem
-      # by classifying content instead.
+      # loader only accepts native-bin/<tag>/mm_core.*, so normalize both
+      # shapes here — the publish-native-bin job solves the same LCA problem
+      # by classifying content instead. On main/PR runs the checkout may
+      # ALREADY carry committed <tag>/ binaries (publish-native-bin), so merge
+      # FILES into the tag dirs and let the fresh artifact win (this cell must
+      # test what THIS run built, exactly like on dev): moving whole
+      # directories fails against the non-empty committed ones (run #98:
+      # "mv: cannot overwrite '../linux-aarch64': Directory not empty").
       - name: Stage the artifact under its platform tag
         shell: bash
         run: |
           set -euo pipefail
-          cd native/native-bin/_staging
+          cd native/native-bin
           shopt -s nullglob dotglob
-          for entry in *; do
+          for entry in _staging/*; do
             if [ -d "$entry" ]; then
-              mv "$entry" ../
+              tag="$(basename "$entry")"
+              mkdir -p "$tag"
+              find "$entry" -type f -exec mv -f {} "$tag"/ \;
             else
-              mkdir -p "../${{ matrix.tag }}"
-              mv "$entry" "../${{ matrix.tag }}/"
+              mkdir -p "${{ matrix.tag }}"
+              mv -f "$entry" "${{ matrix.tag }}/"
             fi
           done
-          cd ..
-          rmdir _staging
-          [ -d "${{ matrix.tag }}" ] || { echo "staging failed: ${{ matrix.tag }} missing"; exit 1; }
+          rm -rf _staging
+          case "${{ matrix.tag }}" in
+            windows-x86_64) need="mm_core.pyd" ;;
+            *) need="mm_core.abi3.so" ;;
+          esac
+          [ -f "${{ matrix.tag }}/$need" ] || { echo "staging failed: ${{ matrix.tag }}/$need missing"; exit 1; }
           ls -l "${{ matrix.tag }}"
 
       # Loud guard: an integration cell must NEVER run without a loadable
