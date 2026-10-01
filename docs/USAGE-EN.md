@@ -37,8 +37,11 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 ```
 
 Restart ComfyUI. The Python dependencies (`huggingface_hub`, `hf_xet`,
-`modelscope_hub`, `markdownify`) are installed automatically on first launch, and the prebuilt web
-bundle ships inside the repository, so **Node.js is not required to run it**.
+`modelscope_hub`, `markdownify`) are installed automatically on first launch;
+the prebuilt web bundle ships in `web/` and the prebuilt Rust core (the ZipNN
+engine and every accelerated path) ships in `native/native-bin/`, so **neither
+Node.js nor a C compiler is required to run it** — see
+[The engine](#the-engine) for the covered platforms.
 
 Manual install: download the repository archive, extract it into
 `ComfyUI/custom_nodes/` and make sure the folder is named
@@ -118,6 +121,8 @@ folders whose name starts with `.`).
 - **Preview** — image or looping video; models without a preview show the glass
   **NO PREVIEW** artwork.
 - **Chips** (top left) — model type and file size, scaled with the card.
+- **Sub-directory label** — a model filed below its type root shows the
+  sub-directory it lives in above the name (in both layouts).
 - **Star toggle** (top right, on every card) — an outline star when unstarred,
   a filled yellow star when starred; clicking toggles it, and starred
   models/folders always sort first.
@@ -478,8 +483,9 @@ in the gap between the preview and the info table: the shipped SVG draws its own
 glass plate (including a dark-mode variant), lifts and brightens on hover, and
 explains itself in a tooltip and to screen readers.
 Pressing it asks for a
-confirmation that is deliberately _not_ styled as Danger, then compresses
-tensor-by-tensor in the background:
+confirmation that is deliberately _not_ styled as Danger, then runs the whole
+compression as one Rust job in the background (memory-mapped streaming, GIL
+released — peak RAM is roughly the largest tensor, not the model):
 
 - the button is replaced by a **progress bar** while the task runs;
 - on success the original file is replaced by `<name>.znn.safetensors`;
@@ -498,15 +504,17 @@ Compressed files follow the official ZipNN layout (`znn_compressed_vectors`
 metadata, Huffman-compressed tensors — the Rust core covers **every**
 safetensors dtype, see _dtype coverage & interoperability_ below), so loaders
 patched with `zipnn_safetensors()` read the compatibility-band ones
-transparently. Compression is **lossless and
-reversible**: the plain `.safetensors` is only removed after the
-`.znn.safetensors` file has been fully written, and a failed run cleans up its
-partial output.
+transparently. Compression is **lossless and verified**: the core records the
+source's SHA-256 at compress time and re-checks it on restore (a mismatch
+keeps the compressed file and retreats the output to `.corrupt` for
+inspection); the plain `.safetensors` is only removed after the
+`.znn.safetensors` file has been written and verified through an atomic
+rename, and a failed run cleans up its partial output.
 
-#### dtype coverage & interoperability (native Rust core)
+#### dtype coverage & interoperability
 
-The Rust core — the default engine whenever it is present — compresses **every
-dtype safetensors 0.8 defines** (all 22), in two interoperability bands:
+The Rust core compresses **every dtype safetensors 0.8 defines** (all 22), in
+two interoperability bands:
 
 | Band                               | dtypes                                                                                                                          | Official ZipNN 0.5.4 tools                                                                            |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -521,25 +529,29 @@ up-front that the artifact will be Neo-extended. Integer tensors whose high
 bytes are all zero (small `int32` indices, masks, scale tables) additionally
 use the truncation modes — the all-zero byte planes are dropped from the
 payload, losslessly (the compressor only drops planes it verified to be zero
-across the whole tensor). The legacy vendored engine (the fallback when the
-Rust core is absent) keeps its historical behaviour: it compresses the float
-band only and copies every other dtype through.
+across the whole tensor).
 
-**No installation step.** ZipNN is _vendored_ inside the extension
-([`third_party/`](../third_party/)), together with **prebuilt `zipnn_core`
-binaries** for Linux x86_64 (CPython 3.10–3.15). On those platforms the first
-compression simply puts the bundled package and the matching binary on the
-import path — **no `pip install`, no C compiler, no network, no waiting**. Only
-where no prebuilt binary matches the platform/Python (macOS, Windows, an
-uncommon architecture, or a brand-new CPython) does Neo build the C core **once**
-from the bundled sources, which needs a C compiler and the Python headers
-(`Python.h`). If that fallback build fails, the error toast shows the first
-interesting line (the full output stays in the ComfyUI console), names the
-missing prerequisite together with the distro-specific command that fixes it,
-and offers a **retry** action. To choose the compiler yourself for that build,
-export `CC=/path/to/gcc` before starting ComfyUI. See
-[`third_party/README.md`](../third_party/README.md) for the platform/glibc
-coverage and how to add binaries for other systems.
+<a id="the-engine"></a>
+
+**No installation step.** The engine is Neo's own **pure-Rust core**, shipped
+as prebuilt binaries inside the repository (`native/native-bin/`) and loaded
+by a plain `import` — **no `pip install`, no C compiler, no network, no
+waiting**, on every covered platform:
+
+| Platform                      | Artifact                                      | Requirements                             |
+| ----------------------------- | --------------------------------------------- | ---------------------------------------- |
+| Linux x86_64                  | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+) |
+| Linux aarch64                 | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                             |
+| macOS (Intel & Apple Silicon) | `native-bin/macos-universal2/mm_core.abi3.so` | one fat binary, macOS 11+                |
+| Windows x86_64                | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC-built                               |
+
+One binary per platform serves **CPython 3.10 and newer** (the Python Stable
+ABI). Interoperability with the official format is a CI gate, not a promise:
+every push cross-validates against the official pip `zipnn` 0.5.4 (both
+directions). On a platform outside the table the extension still installs —
+browsing, downloading and hashing degrade to their pure-Python paths — while
+ZipNN operations and preview re-encoding report the loader's exact reason in
+the error toast instead of failing silently.
 
 ### ZipNN batch compression (folders)
 
@@ -605,21 +617,36 @@ ComfyUI **Settings → Model Manager Neo**:
   the watcher — armed roots, degrade state, event counters — is served read-only
   at `GET /model-manager/watch-status`.
 
+### Search
+
+- **Hide Hugging Face / ModelScope / Civitai results** — one toggle per
+  platform column of the model-name search (a hidden column is never queried).
+- **Sort order per platform** — every value the respective API accepts; the
+  defaults are Hugging Face _trending_, ModelScope _likes_ and Civitai
+  _highest rated_.
+
+### ZipNN
+
+- **Auto-compress unused days** — compress models untouched for N days
+  (0 = off).
+- **Auto-compress on download** — compress right after a download completes.
+
+### Download
+
+- **Pause during prompt** — hold transfers while ComfyUI executes a prompt and
+  resume them afterwards.
+
 ### UI
 
 - **Card Size** / **Card Size Map** — persistence for the size picker (hidden
   entries; edit them through the Custom Size dialog).
 - **Flat Layout** — default layout on open.
-- **ZipNN → Auto‑compress unused days** — compress models untouched for N days
-  (0 = off); **Auto‑compress on download** — compress right after a download
-  completes; **Download → Pause during prompt** — hold transfers while ComfyUI
-  executes a prompt and resume them afterwards.
 - **Record UI performance marks (K15)** — off by default. Instruments the grid
-  recompute/paint and the tensor-tree build with `performance.mark` and keeps the
-  samples in a ring buffer; read them in the browser console with
+  recompute/paint and the tensor-tree build with `performance.mark` and keeps
+  the samples in a ring buffer; read them in the browser console with
   `__mmNeoPerf.summary()` (P50/P95/P99 in ms), `__mmNeoPerf.enable()` /
-  `.disable()` / `.reset()`. The same numbers for a 5,000-model synthetic library
-  are produced headlessly by `scripts/bench/front/k15.mjs`
+  `.disable()` / `.reset()`. The same numbers for a 5,000-model synthetic
+  library are produced headlessly by `scripts/bench/front/k15.mjs`
   (`docs/BENCH.md` §11).
 
 ## 12. Languages
@@ -633,14 +660,16 @@ else falls back to English.
 
 ## 13. Troubleshooting
 
-| Symptom                               | Cause / fix                                                                                                                                       |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The manager button is missing         | the frontend did not register the extension — check the ComfyUI log for an import error, and that the folder is named `ComfyUI-Model-Manager-Neo` |
-| `Hugging Face token not set`          | set the token in Settings (or `HF_TOKEN`) and reopen the dialog                                                                                   |
-| A download never starts               | the URL may need authentication (Civitai gated models) — set the Civitai key; the task row shows the server’s error text                          |
-| “Failed to update model: PathIndex …” | the selected type has no folder on this machine — pick a type from the dropdown                                                                   |
-| The UI looks unstyled / grey boxes    | you are looking at a stale `web/` bundle; rebuild with `pnpm build` (only needed when developing)                                                 |
-| Preview shows NO PREVIEW              | the model has no preview file; set one in edit mode                                                                                               |
+| Symptom                                           | Cause / fix                                                                                                                                                                                                               |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The manager button is missing                     | the frontend did not register the extension — check the ComfyUI log for an import error, and that the folder is named `ComfyUI-Model-Manager-Neo`                                                                         |
+| `Hugging Face token not set`                      | set the token in Settings (or `HF_TOKEN`) and reopen the dialog                                                                                                                                                           |
+| A download never starts                           | the URL may need authentication (Civitai gated models) — set the Civitai key; the task row shows the server’s error text                                                                                                  |
+| “Failed to update model: PathIndex …”             | the selected type has no folder on this machine — pick a type from the dropdown                                                                                                                                           |
+| The UI looks unstyled / grey boxes                | you are looking at a stale `web/` bundle; rebuild with `pnpm build` (only needed when developing)                                                                                                                         |
+| Preview shows NO PREVIEW                          | the model has no preview file; set one in edit mode                                                                                                                                                                       |
+| ZipNN reports “the native core is unavailable: …” | the message carries the loader's exact reason: a platform outside the [engine table](#the-engine), or a missing/corrupt `native/native-bin/<tag>` binary (re-clone the repository). Browsing and downloading keep working |
+| An animated preview lost its animation            | previews saved by versions before the Rust core were frozen to their first frame; re-saving the preview (edit mode) re-encodes it as an animated WebP                                                                     |
 
 ## Screenshots
 

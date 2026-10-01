@@ -20,6 +20,21 @@
   2026‑09‑23 の初回実行では ModelScope の `unsloth/all-MiniLM-L6-v2`
   （model.safetensors、90,868,376 B、f32×104 テンソル）を使用した。
 
+## 状態（Phase 8 以降）
+
+Phase 8 が `third_party/`（vendored C コア）を撤去したため、スクリプトは
+2 群に分かれます。**結果 JSON（`results/`）はすべて有効な証跡のまま**です
+（BENCH.md が引用する一次ソース — 再生成しない規程）:
+
+- **歴史的（退役）**: `bench_zipnn.py`・`bench_delta.py`・`bench_c_defects.py`・
+  `bench_native_e2e.py`・`bench_native_delta.py` — 旧 C コア/旧 Python 経路との
+  比較計測。再実行には Phase 7 以前のツリーが必要です（git 履歴から復元。
+  `common.vendored_zipnn_on_path()` が明確なエラーを返します）。
+  `run_all.sh` は `third_party/` の不在を検出してこれらをスキップします。
+- **現役**: `bench_scan.py`（K9/K10）・`bench_header.py`（K11/K12）・
+  `bench_hash.py`（K7/K8）・`bench_phase4_dtypes.py`（K14・native バイナリ必要）・
+  `gen_synthetic.py`・`front/k15.mjs`（K15）。
+
 ## 実行
 
 ```bash

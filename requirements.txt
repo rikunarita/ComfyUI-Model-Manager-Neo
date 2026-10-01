@@ -1,3 +1,12 @@
+# Runtime contract - read by ComfyUI / ComfyUI-Manager for automatic
+# installation, and pip_install'ed by __init__.py inside the USER's ComfyUI
+# Python (where uv cannot be assumed). Keep in SYNC with pyproject.toml's
+# [project].dependencies (pyproject is the source of truth; the dev/CI layer
+# resolves through uv.lock). tests/test_phase8_distribution.py pins the
+# equality mechanically.
+#
+# The ZipNN engine needs no pip package: it is the prebuilt Rust core under
+# native/native-bin/ (Phase 8 - no compiler, no pip, no network).
 markdownify>=0.14.0
 huggingface_hub>=1.32.0
 hf_xet>=1.5.2,<2.0.0

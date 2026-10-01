@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import io
 import json
 import os
@@ -256,25 +255,20 @@ class HubUploadBackend:
 def _sha256_of_file(path: str) -> str:
     """Lower-case SHA-256 hex of a whole file (upload duplicate preflight).
 
-    Plan Phase 7 T1: uses the EXISTING native ``mm_core.hash_file`` (one pass,
-    GIL released, SHA-NI/AVX2 runtime-detected — BENCH §10.2) when present, and
-    falls back to the Python ``hashlib`` 1 MiB loop when the native core is
-    unavailable (until Phase 8 removes ``MM_NATIVE``). The native notation is
-    upper-case (matching ``py/identify.py``); Hugging Face's LFS ``sha256`` is
-    lower-case, so the result is lower-cased — identical to the pre-T1
-    ``hashlib.sha256().hexdigest()``. No new native API (``api_version`` stays).
+    Plan Phase 7 T1 / Phase 8: the native ``mm_core.hash_file`` (one pass, GIL
+    released, SHA-NI/AVX2 runtime-detected — BENCH §10.2) is the SINGLE path —
+    the transitional Python ``hashlib`` loop was retired together with the
+    ``MM_NATIVE`` switch. The native notation is upper-case (matching
+    ``py/identify.py``); Hugging Face's LFS ``sha256`` is lower-case, so the
+    result is lower-cased — identical to the pre-T1 ``hashlib`` digest. An
+    unavailable core raises; the preflight junction in ``run_hub_upload``
+    degrades that to "go" (duplicate detection off, the upload proceeds), and
+    the ModelScope progress-hash caller treats it as best effort.
     """
     mm = native.core_if_enabled()
-    if mm is not None:
-        try:
-            return json.loads(mm.hash_file(path, ["SHA256"]))["SHA256"].lower()
-        except Exception as e:  # fall back to the Python hasher
-            utils.print_warning(f"native hash_file failed ({e}); using the Python hasher")
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    if mm is None:
+        raise RuntimeError(f"the native core is unavailable: {native.reason()}")
+    return json.loads(mm.hash_file(path, ["SHA256"]))["SHA256"].lower()
 
 
 async def run_hub_upload(
@@ -400,9 +394,14 @@ async def run_hub_upload(
         # per-chunk upload callbacks; run the hashing pass explicitly so the
         # bar shows real activity, and let the UI render the transfer itself
         # as indeterminate (see `streams_upload_progress`). Plan T1: hashing is
-        # CPU work → the cpu pool (was the io pool).
+        # CPU work → the cpu pool (was the io pool). PURELY cosmetic — the
+        # transfer itself is the hub SDK's; a failure (e.g. no native core)
+        # must never fail the upload.
         if not backend.streams_upload_progress:
-            await loop.run_in_executor(utils.cpu_executor(), hash_local_file)
+            try:
+                await loop.run_in_executor(utils.cpu_executor(), hash_local_file)
+            except Exception as e:
+                utils.print_warning(f"upload progress hashing skipped: {e}")
 
         def _transfer(local_path: str = local_path, in_repo: str = in_repo):
             api = ensure()

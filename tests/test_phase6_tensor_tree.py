@@ -55,7 +55,22 @@ def _require_native():
 
 
 def _set_engine(monkeypatch, mode: str):
-    monkeypatch.setenv("MM_NATIVE", mode)
+    """Engine selection by injection (the MM_NATIVE env switch is gone, Phase 8).
+
+    ``"0"`` forces ``native.core_if_enabled`` to None — the resilience
+    degradation the header path takes without a core (metadata/tensors from
+    the Python parse, no Rust tree); ``"1"``/``"auto"`` restore the loader's
+    real function so the prebuilt core serves all three fields.
+    """
+    native = import_ext("native")
+    original = getattr(native, "_orig_core_if_enabled", None)
+    if original is None:
+        original = native.core_if_enabled
+        native._orig_core_if_enabled = original
+    if mode == "0":
+        monkeypatch.setattr(native, "core_if_enabled", lambda: None)
+    else:
+        monkeypatch.setattr(native, "core_if_enabled", original)
     _reset_native_loader()
 
 

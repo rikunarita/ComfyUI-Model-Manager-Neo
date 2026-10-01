@@ -321,7 +321,7 @@ class ModelWatcher:
         #: network root is logged ONCE instead of once per second.
         self._logged_skipped: set[str] = set()
         # The native module that armed the current session: the session is
-        # stopped by the SAME module even if MM_NATIVE flips in between
+        # stopped by the SAME module even if the loader state changes in between
         # (a leaked notify thread would keep holding inotify watches).
         self._mm: Any = None
         self._last_type_broadcast: dict[str, float] = {}
@@ -374,14 +374,13 @@ class ModelWatcher:
     def _core(self):
         """The native core when it exposes the watch surface, else None.
 
-        ``core_if_enabled`` RAISES under ``MM_NATIVE=1`` when the binary is
-        missing (by design - an installation that requires the native core must
-        not silently fall back); the watcher is optional, so it degrades
-        instead.
+        The watcher is an OPTIONAL feature: an unavailable core (missing
+        binary, unsupported platform, failed handshake) simply degrades it to
+        OFF with the loader's reason in the diagnostics — nothing raises.
         """
         try:
             mm = native.core_if_enabled()
-        except Exception as e:
+        except Exception as e:  # defensive: a broken loader must not kill the poll
             utils.print_debug(f"watcher: native core unavailable ({e})")
             return None
         if mm is None:
@@ -533,7 +532,13 @@ class ModelWatcher:
             # rescan (a persistently overflowing queue) must not trigger a full
             # library sweep once a second.
             now = time.monotonic()
-            if now - self._last_type_broadcast.get(RESCAN_KEY, 0.0) >= TYPE_COOLDOWN:
+            # None-sentinel (NOT a 0.0 dict default) for "never broadcast":
+            # time.monotonic() is UPTIME-based, so on a freshly booted machine
+            # `now - 0.0` can be smaller than TYPE_COOLDOWN and the FIRST
+            # legitimate rescan would be silently swallowed (observed on a
+            # GitHub runner booted <60 s earlier — main native run #85).
+            last = self._last_type_broadcast.get(RESCAN_KEY)
+            if last is None or now - last >= TYPE_COOLDOWN:
                 self._last_type_broadcast[RESCAN_KEY] = now
                 await self._broadcast(None, "fs-watch-rescan")
             return
@@ -549,8 +554,10 @@ class ModelWatcher:
             return
         now = time.monotonic()
         for model_type in types:
-            last = self._last_type_broadcast.get(model_type, 0.0)
-            if now - last < TYPE_COOLDOWN:
+            # None-sentinel for "never broadcast" — same fresh-boot clock
+            # reasoning as the rescan leg above.
+            last = self._last_type_broadcast.get(model_type)
+            if last is not None and now - last < TYPE_COOLDOWN:
                 continue
             self._last_type_broadcast[model_type] = now
             await self._broadcast(model_type, "fs-watch")

@@ -6,17 +6,15 @@ heavy ZipNN/scan/hash work moves into a Rust extension module that ships as
 deliberately dumb and side-effect free — platform detection, one ``sys.path``
 entry, one ``import``, one version check. **No compilation, no pip, no
 network** (Plan §2.1-5); when anything does not line up, the module simply
-reports ``available() is False`` plus a human-readable ``reason()``, and the
-caller keeps using the vendored ``third_party`` path (until Phase 8 removes it).
+reports ``available() is False`` plus a human-readable ``reason()``.
 
-The ``MM_NATIVE`` environment variable switches the code path (Plan §5.4):
-
-* ``0`` — never load the native core (legacy path forced);
-* ``1`` — the native core is *required*: ``load()`` raises when unavailable;
-* anything else / unset — ``auto``: use the native core when it loads.
-
-Nothing imports this module at extension start-up yet; ``py/compress.py`` and
-friends wire into it in Phase 2+ (``MM_NATIVE=0/1/auto`` transition period).
+Phase 8 removed the ``MM_NATIVE`` transition switch: the prebuilt core under
+``native-bin/`` is the SINGLE native path (the vendored C core and its Python
+frontends are gone). ``load()`` never raises — when the binary is missing or
+the handshake fails it reports ``available() is False`` plus a human-readable
+``reason()``, and each feature decides its own degradation: the ZipNN routes
+fail with that reason (there is no other engine), while resilient read paths
+(scan / header / hashes) keep their pure-Python fallbacks.
 """
 
 import importlib
@@ -93,56 +91,40 @@ def platform_tag() -> str | None:
     return None
 
 
-def native_mode() -> str:
-    """Normalized ``MM_NATIVE`` value: ``"0"``, ``"1"`` or ``"auto"``."""
-    raw = os.environ.get("MM_NATIVE", "auto").strip().lower()
-    if raw in ("0", "off", "false", "no"):
-        return "0"
-    if raw in ("1", "on", "true", "yes"):
-        return "1"
-    return "auto"
-
-
 def load() -> bool:
     """Try to make ``mm_core`` importable (idempotent).
 
     Returns True when the native core is loaded and its API version is in the
-    supported range. With ``MM_NATIVE=1`` a failure raises instead — an
-    installation that *requires* the native core must not silently fall back
-    to the legacy path (Plan §5.4).
+    supported range; False (with ``reason()`` set) when it is not. Never
+    raises — callers decide what an unavailable core means for them.
     """
     global _module, _reason, _attempted
     if _attempted:
         return _module is not None
     _attempted = True
 
-    mode = native_mode()
-    if mode == "0":
-        _reason = "disabled via MM_NATIVE=0"
-        return False
-
     tag = platform_tag()
     if tag is None:
         _reason = f"no prebuilt native core for {platform.system()}/{platform.machine()}"
-        return _fail(mode)
+        return False
 
     bin_dir = utils.join_path(config.extension_uri, _NATIVE_DIR, _NATIVE_BIN_DIR, tag)
     if not os.path.isdir(bin_dir):
         _reason = f"native-bin directory missing for {tag}: {bin_dir}"
-        return _fail(mode)
+        return False
 
     if bin_dir not in sys.path:
-        # Appended, not prepended (unlike ensure_zipnn's insert(0) for the
-        # vendored core): `mm_core` is a unique name, and appending keeps a
+        # Appended, not prepended (the legacy vendored-core loader used to
+        # insert(0)): `mm_core` is a unique name, and appending keeps a
         # user-installed mm_core of higher precedence impossible to shadow by
         # accident in the other direction.
         sys.path.append(bin_dir)
     importlib.invalidate_caches()
     try:
         module = importlib.import_module(_MODULE_NAME)
-    except Exception as exc:  # reported via reason(), never fatal in auto mode
+    except Exception as exc:  # reported via reason(), never fatal
         _reason = f"import {_MODULE_NAME} failed: {exc}"
-        return _fail(mode)
+        return False
 
     # Origin guard: `import_module` short-circuits on `sys.modules` — an
     # already-imported same-named module (another extension's bundle, a stray
@@ -156,7 +138,7 @@ def load() -> bool:
     bin_prefix = os.path.normcase(os.path.realpath(bin_dir)) + os.sep
     if not origin or not os.path.normcase(os.path.realpath(origin)).startswith(bin_prefix):
         _reason = f"imported {_MODULE_NAME} does not originate from {bin_dir} (got {origin!r})"
-        return _fail(mode)
+        return False
 
     api_version = getattr(module, "api_version", None)
     version = api_version() if callable(api_version) else None
@@ -169,7 +151,7 @@ def load() -> bool:
         # against a fixed native-bin) would silently pick the rejected module
         # back up instead of failing/reporting cleanly.
         sys.modules.pop(_MODULE_NAME, None)
-        return _fail(mode)
+        return False
 
     _module = module
     _reason = None
@@ -177,13 +159,6 @@ def load() -> bool:
         f"native core ready: {_MODULE_NAME} api_version={version} core_version={core_version() or '?'} ({tag})"
     )
     return True
-
-
-def _fail(mode: str) -> bool:
-    """Record unavailability; raise only in MM_NATIVE=1 mode."""
-    if mode == "1":
-        raise RuntimeError(f"MM_NATIVE=1 but the native core is unavailable: {_reason}")
-    return False
 
 
 def available() -> bool:
@@ -197,17 +172,15 @@ def core() -> ModuleType | None:
 
 
 def core_if_enabled() -> ModuleType | None:
-    """The loaded ``mm_core`` when the native path should run, else None.
+    """The loaded ``mm_core``, or None when this machine cannot run it.
 
-    The shared entry point for the Phase 5 route/worker switch-overs
-    (``py/manager.py`` scan, ``py/utils.py`` header, ``py/identify.py`` hashing,
-    ``py/download.py`` inline verification). Honours ``MM_NATIVE`` (Plan §5.4):
-    ``0`` forces the legacy path (returns None without loading), ``1`` REQUIRES
-    the native core (``load()`` raises when unavailable), ``auto`` (default)
-    returns the core when the prebuilt binary loads and passes the handshake.
+    The shared entry point of every native consumer (``py/compress.py`` jobs,
+    ``py/manager.py`` scan, ``py/utils.py`` header/preview, ``py/identify.py``
+    hashing, ``py/download.py`` inline verification, ``py/watcher.py``).
+    Phase 8 removed the ``MM_NATIVE`` switch: this simply returns the core
+    when the prebuilt binary loads and passes the handshake, else None (with
+    ``reason()`` explaining why).
     """
-    if native_mode() == "0":
-        return None
     if load():
         return _module
     return None
@@ -234,7 +207,6 @@ def core_version() -> str | None:
 def diagnostics() -> dict[str, object]:
     """JSON-safe snapshot for the settings/about surface and bug reports."""
     return {
-        "mode": native_mode(),
         "platformTag": platform_tag(),
         "available": available(),
         "reason": reason(),

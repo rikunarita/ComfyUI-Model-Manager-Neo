@@ -1,13 +1,19 @@
 """Phase 5 golden tests — the native Rust scan / hygiene / header / hash paths
-must be byte-for-byte interchangeable with the legacy Python paths they replace
+must be byte-for-byte interchangeable with the pure-Python paths they replaced
 (Plan §6.2 Phase 5 "現行 JSON 形状 golden テスト", §4.7.3 header, §4.8-B2 hash).
 
-Every test runs the SAME fixture through BOTH engines (``MM_NATIVE=0`` legacy,
-``MM_NATIVE=1`` native) and asserts identical output, so a drift in the Rust
-port (order, preview shape, front-matter parse, hash notation, timestamp
-rounding) fails loudly. Tests that need the built ``mm_core`` binary skip when
-it is absent (CI's verify job); the native workflow's integration job runs them
-against the real artifact on all three OSes.
+Every test runs the SAME fixture through BOTH engines and asserts identical
+output, so a drift in the Rust port (order, preview shape, front-matter parse,
+hash notation, timestamp rounding) fails loudly. Phase 8 removed the
+``MM_NATIVE`` switch; the Python implementations survive as the RESILIENCE
+FALLBACK of the read paths (a native runtime failure degrades to them rather
+than breaking the grid), so the engine selection here is injection-based
+(``_set_engine``): the Python side forces ``native.core_if_enabled`` to None,
+the native side runs the real prebuilt core — and the Python side doubles as
+the executable reference the Rust port is golden-tested against. Tests that
+need the built ``mm_core`` binary skip when it is absent (CI's verify job);
+the native workflow's integration job runs them against the real artifact on
+all three OSes.
 """
 
 from __future__ import annotations
@@ -20,7 +26,7 @@ import pytest
 from harness import REPO_ROOT, import_ext, write_safetensors
 
 # ---------------------------------------------------------------------------
-# engine switching helpers (same conventions as test_phase3_delta.py)
+# engine switching helpers (injection-based since Phase 8)
 # ---------------------------------------------------------------------------
 
 
@@ -56,7 +62,23 @@ def _require_native():
 
 
 def _set_engine(monkeypatch, mode: str):
-    monkeypatch.setenv("MM_NATIVE", mode)
+    """Select the engine under test (the MM_NATIVE env switch is gone).
+
+    ``"0"`` runs the pure-Python reference: ``native.core_if_enabled`` is
+    forced to None, exactly the runtime degradation the read paths take when
+    the core is unavailable. ``"1"`` restores the loader's real function and
+    resets its attempt state so the prebuilt binary is (re-)loaded. Both
+    setattr calls go through monkeypatch, so teardown restores the module.
+    """
+    native = import_ext("native")
+    original = getattr(native, "_orig_core_if_enabled", None)
+    if original is None:
+        original = native.core_if_enabled
+        native._orig_core_if_enabled = original
+    if mode == "0":
+        monkeypatch.setattr(native, "core_if_enabled", lambda: None)
+    else:
+        monkeypatch.setattr(native, "core_if_enabled", original)
     _reset_native_loader()
 
 

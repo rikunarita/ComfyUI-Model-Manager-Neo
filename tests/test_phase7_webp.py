@@ -10,9 +10,14 @@ failure (or `MM_NATIVE=0`) falls back to the exact pre-T7 PIL path.
 
 The Plan's parity gate is a BEHAVIOUR contract, not byte-identity (the encoders
 differ): "same dimensions, decodable, size within a tolerance band". These
-tests pin that, the animation preservation, the native WebP decode, and the PIL
-fallback. They skip cleanly where no native artifact is built (ci.yml), which
-is exactly the fallback path.
+tests pin that, the animation preservation (frames, per-frame durations, the
+loop count and the ICC profile at the container-byte level) and the native
+WebP decode. Phase 8 retired the PIL re-encode fallback together with the
+MM_NATIVE switch: the zenwebp pipeline is the SINGLE image path, so a missing
+core or an undecodable input surfaces the historical RuntimeError instead of
+silently re-encoding through PIL. Every test here skips cleanly where no
+native artifact is built (ci.yml on dev); on main and in the native
+workflow's integration job the committed/built binary runs them for real.
 """
 
 from __future__ import annotations
@@ -36,9 +41,8 @@ def _reset_native_loader():
     return native
 
 
-def _require_native(monkeypatch):
-    """Load the native core (skip when absent) and force the native path."""
-    monkeypatch.delenv("MM_NATIVE", raising=False)
+def _require_native():
+    """Load the native core (skip when absent) — the only path since Phase 8."""
     native = _reset_native_loader()
     if native.core_if_enabled() is None:
         pytest.skip(f"native core unavailable: {native.reason()}")
@@ -118,10 +122,10 @@ def _webp_iccp(data: bytes) -> bytes | None:
 # ---------------------------------------------------------------------------
 # still parity: native vs the PIL reference (same dims, decodable, size band)
 # ---------------------------------------------------------------------------
-def test_native_still_webp_parity_with_pil(tmp_path, monkeypatch):
+def test_native_still_webp_parity_with_pil(tmp_path):
     """The native encode produces a WebP of the SAME dimensions as PIL's, that
     decodes, and whose size is in the same band (the T7 parity contract)."""
-    _require_native(monkeypatch)
+    _require_native()
     utils = import_ext("utils")
     from PIL import Image
 
@@ -147,10 +151,10 @@ def test_native_still_webp_parity_with_pil(tmp_path, monkeypatch):
     assert 0.4 < ratio < 2.5, f"native/PIL size ratio {ratio:.2f} outside the tolerance band"
 
 
-def test_native_webp_input_is_decoded_natively(tmp_path, monkeypatch):
+def test_native_webp_input_is_decoded_natively(tmp_path):
     """A WebP INPUT is decoded by zenwebp (not PIL) and re-encoded - the round
     trip keeps dimensions and stays decodable."""
-    native = _require_native(monkeypatch)
+    native = _require_native()
     utils = import_ext("utils")
     from PIL import Image
 
@@ -176,10 +180,10 @@ def test_native_webp_input_is_decoded_natively(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # animation preservation (the real Civitai-preview regression T7 removes)
 # ---------------------------------------------------------------------------
-def test_animated_gif_becomes_an_animated_webp(tmp_path, monkeypatch):
+def test_animated_gif_becomes_an_animated_webp(tmp_path):
     """An animated GIF preview keeps its frame count and per-frame durations
     (the pre-T7 PIL path froze it to frame 0)."""
-    _require_native(monkeypatch)
+    _require_native()
     utils = import_ext("utils")
     from PIL import Image
 
@@ -206,9 +210,9 @@ def test_animated_gif_becomes_an_animated_webp(tmp_path, monkeypatch):
     assert _webp_anmf_durations(out) == [100, 200, 300]
 
 
-def test_animated_webp_input_stays_animated(tmp_path, monkeypatch):
+def test_animated_webp_input_stays_animated(tmp_path):
     """An animated WebP input is re-muxed to an animated WebP (not flattened)."""
-    _require_native(monkeypatch)
+    _require_native()
     utils = import_ext("utils")
     from PIL import Image
 
@@ -226,7 +230,7 @@ def test_animated_webp_input_stays_animated(tmp_path, monkeypatch):
     assert _webp_anmf_durations(out) == [150, 250], "animated WebP durations preserved"
 
 
-def test_animation_loop_count_is_preserved(tmp_path, monkeypatch):
+def test_animation_loop_count_is_preserved(tmp_path):
     """The source loop count survives the re-mux (ANIM chunk, byte level).
 
     Both animation legs must carry it: an animated GIF's Netscape loop
@@ -235,7 +239,7 @@ def test_animation_loop_count_is_preserved(tmp_path, monkeypatch):
     A regression that hardcoded ``loop = 0`` would silently turn every
     finite-loop preview into an infinite one and pass every other test here.
     """
-    _require_native(monkeypatch)
+    _require_native()
     utils = import_ext("utils")
     from PIL import Image
 
@@ -266,14 +270,14 @@ def test_animation_loop_count_is_preserved(tmp_path, monkeypatch):
     assert _webp_anim_loop_count(remux(buf.getvalue(), "image/webp", "a.webp")) == 3
 
 
-def test_animation_icc_profile_is_preserved(tmp_path, monkeypatch):
+def test_animation_icc_profile_is_preserved(tmp_path):
     """An animated WebP's ICC profile survives the native decode -> re-mux
     (ICCP chunk, byte level). ``decode_animation`` surfaces the profile and
     ``_encode_preview_webp_native`` must hand it to ``webp_encode_animation``;
     dropping it there would shift colours on wide-gamut previews and pass
     every dimension/duration assertion above.
     """
-    _require_native(monkeypatch)
+    _require_native()
     utils = import_ext("utils")
     from PIL import Image
 
@@ -301,31 +305,31 @@ def test_animation_icc_profile_is_preserved(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# PIL fallback (the native rollback unit)
+# Phase 8: the native pipeline is the SINGLE path (no PIL re-encode fallback)
 # ---------------------------------------------------------------------------
-def test_pil_fallback_when_native_disabled(tmp_path, monkeypatch):
-    """With MM_NATIVE=0 the exact pre-T7 PIL path runs (still writes a WebP) -
-    the fallback that keeps previews working with no native artifact."""
-    monkeypatch.setenv("MM_NATIVE", "0")
-    _reset_native_loader()
+def test_preview_image_requires_the_native_core(tmp_path, monkeypatch):
+    """With no loadable core the image branch raises the actionable
+    "native core is unavailable" RuntimeError instead of silently re-encoding
+    through PIL (the pre-Phase-8 fallback is gone with the MM_NATIVE switch).
+    The tolerant download path turns this into a warning+skip, the editor
+    path surfaces it - both are pinned in test_phase6_http.py."""
+    native = _reset_native_loader()
+    monkeypatch.setattr(native, "core_if_enabled", lambda: None)
     utils = import_ext("utils")
-    from PIL import Image
-
-    content = _gradient_png(40, 30)
     model = tmp_path / "m.safetensors"
     model.write_bytes(b"x")
-    utils._write_preview_content(str(model), content, "image/png", "src.png", "")
-    out = (tmp_path / "m.webp").read_bytes()
-    with Image.open(io.BytesIO(out)) as img:
-        assert img.format == "WEBP" and img.size == (40, 30)
+    with pytest.raises(RuntimeError, match="native core is unavailable"):
+        utils._write_preview_content(str(model), _gradient_png(16, 12), "image/png", "src.png", "")
+    assert not (tmp_path / "m.webp").exists(), "nothing may be written without the core"
 
 
-def test_pil_fallback_when_native_encode_raises(tmp_path, monkeypatch):
-    """A native encode failure degrades to PIL instead of failing the preview
-    (the caller catches and retries through the PIL path)."""
-    native = _require_native(monkeypatch)
+def test_native_encode_failure_raises_without_a_pil_retry(tmp_path, monkeypatch):
+    """A native encode failure surfaces the historical "Unsupported or corrupt
+    preview image" RuntimeError - there is NO PIL second attempt any more (a
+    mutation that silently swallowed the native error and re-encoded through
+    PIL would pass the pre-Phase-8 suite; this pins the single path)."""
+    native = _require_native()
     utils = import_ext("utils")
-    from PIL import Image
 
     mm = native.core_if_enabled()
 
@@ -335,20 +339,20 @@ def test_pil_fallback_when_native_encode_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(mm, "webp_encode", boom)
     monkeypatch.setattr(mm, "webp_encode_animation", boom)
 
-    content = _gradient_png(32, 32)
     model = tmp_path / "m.safetensors"
     model.write_bytes(b"x")
-    utils._write_preview_content(str(model), content, "image/png", "src.png", "")
-    out = (tmp_path / "m.webp").read_bytes()  # written by the PIL fallback
-    with Image.open(io.BytesIO(out)) as img:
-        assert img.format == "WEBP" and img.size == (32, 32)
+    content = _gradient_png(32, 32)
+    with pytest.raises(RuntimeError, match="Unsupported or corrupt preview image"):
+        utils._write_preview_content(str(model), content, "image/png", "src.png", "")
+    assert not (tmp_path / "m.webp").exists(), "a failed encode must not leave a preview behind"
 
 
-def test_corrupt_image_still_raises_after_native_fallback(tmp_path, monkeypatch):
-    """A corrupt image raises the SAME RuntimeError whether or not the native
-    core is present (native fails -> PIL fails -> RuntimeError), so the tolerant
-    download path still skips it and the editor path still surfaces it."""
-    _require_native(monkeypatch)
+def test_corrupt_image_raises_the_historical_wording(tmp_path):
+    """A corrupt image raises the SAME RuntimeError wording the PIL path used
+    (the native pipeline fails inside PIL's decode of the non-WebP input), so
+    the tolerant download path still skips it and the editor path still
+    surfaces the identical message."""
+    _require_native()
     utils = import_ext("utils")
     model = tmp_path / "m.safetensors"
     model.write_bytes(b"x")
@@ -359,11 +363,11 @@ def test_corrupt_image_still_raises_after_native_fallback(tmp_path, monkeypatch)
 # ---------------------------------------------------------------------------
 # the native decode surface is exposed and rejects garbage cleanly
 # ---------------------------------------------------------------------------
-def test_webp_decode_parity_with_pil(monkeypatch):
+def test_webp_decode_parity_with_pil():
     """Decode parity (T7 security gate ii): zenwebp's decode matches PIL's on a
     real WebP. A lossless (VP8L) bitstream decodes deterministically, so the
     native RGBA must be byte-identical to both the original and PIL's decode."""
-    native = _require_native(monkeypatch)
+    native = _require_native()
     from PIL import Image
 
     mm = native.core_if_enabled()
@@ -385,7 +389,7 @@ def test_webp_decode_parity_with_pil(monkeypatch):
     assert rgba_n == rgba_pil, "zenwebp decode == PIL/libwebp decode"
 
 
-def test_webp_decode_rejects_garbage(monkeypatch):
+def test_webp_decode_rejects_garbage():
     """mm_core.webp_decode maps a corrupt input to a RuntimeError (never a
     panic / hang) - the production face of the L3 webp_decode fuzz target.
 
@@ -394,7 +398,7 @@ def test_webp_decode_rejects_garbage(monkeypatch):
     random bytes only must not crash the interpreter (they cannot be a
     *guaranteed* error - randomness is not assertable).
     """
-    native = _require_native(monkeypatch)
+    native = _require_native()
     mm = native.core_if_enabled()
     for bad in [b"", b"garbage", b"RIFF\x00\x00\x00\x00WEBP", b"RIFF\x24\x00\x00\x00WEBPVP8X" + b"\x00" * 28]:
         with pytest.raises(RuntimeError):

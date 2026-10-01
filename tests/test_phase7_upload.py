@@ -8,18 +8,21 @@ to match the Hub's LFS ``sha256`` - and SPLITS the preflight into a network
 stage (``preflight_remote`` on the io pool) and a CPU hash stage (on the cpu
 pool). These tests pin:
 
-* the golden contract ``_sha256_of_file == hashlib.sha256(...).hexdigest()`` on
-  BOTH the native path and the Python fallback (a missing native core must not
-  change the digest);
+* the golden contract ``_sha256_of_file == hashlib.sha256(...).hexdigest()``
+  and the Phase-8 single path: no native core -> a RuntimeError with the
+  loader's reason (the transitional Python ``hashlib`` loop was retired
+  together with the MM_NATIVE switch);
 * ``HfBackend.preflight_remote``'s branches (same-size LFS object -> needs_hash,
   size mismatch / missing target / missing LFS / API error -> None = go);
 * the JUNCTION (MEMO §4.5): ``run_hub_upload`` wires preflight_remote ->
   _sha256_of_file -> compare, so a remote sha equal to the local file's sha256
-  dedupes the file (``upload_one`` never runs).
+  dedupes the file (``upload_one`` never runs) — and a FAILING hash stage
+  degrades to "go" (duplicate detection off, the upload proceeds) instead of
+  aborting the task.
 
-No native API was added (``api_version`` is unchanged); the native path skips
-to the fallback where no artifact is present (ci.yml), so every test here runs
-with OR without a built ``mm_core``.
+No native API was added (``api_version`` is unchanged). The hash-computing
+tests skip where no artifact is present (ci.yml on dev); the junction and
+branch tests run everywhere (the degradation test injects the failure).
 """
 
 from __future__ import annotations
@@ -50,7 +53,9 @@ def _reset_native_loader():
 def test_sha256_of_file_matches_hashlib(tmp_path):
     """The native single-pass hash, lower-cased, is byte-identical to the
     Python ``hashlib`` digest it replaced (the T1 golden gate)."""
-    _reset_native_loader()
+    native = _reset_native_loader()
+    if native.core_if_enabled() is None:
+        pytest.skip(f"native core unavailable: {native.reason()}")
     upload_hf = import_ext("upload_hf")
     data = os.urandom(3 * 1024 * 1024 + 17)  # spans several 1 MiB chunks
     path = tmp_path / "blob.bin"
@@ -59,16 +64,20 @@ def test_sha256_of_file_matches_hashlib(tmp_path):
     assert upload_hf._sha256_of_file(str(path)) == expected
 
 
-def test_sha256_of_file_falls_back_to_python_without_native(tmp_path, monkeypatch):
-    """With no native core the digest is unchanged (the Python hashlib loop),
-    so the preflight answer never depends on which engine ran."""
+def test_sha256_of_file_raises_without_native(tmp_path, monkeypatch):
+    """Phase 8 single path: with no native core the hasher RAISES (the
+    transitional Python hashlib loop is gone). The preflight junction degrades
+    that to "go" — pinned by
+    ``test_run_hub_upload_degrades_to_go_when_the_hash_stage_fails`` — and the
+    ModelScope progress-hash caller treats it as best effort."""
     native = _reset_native_loader()
     upload_hf = import_ext("upload_hf")
     monkeypatch.setattr(native, "core_if_enabled", lambda: None)
     data = os.urandom(1024 * 1024 + 3)
     path = tmp_path / "blob.bin"
     path.write_bytes(data)
-    assert upload_hf._sha256_of_file(str(path)) == hashlib.sha256(data).hexdigest()
+    with pytest.raises(RuntimeError, match="native core is unavailable"):
+        upload_hf._sha256_of_file(str(path))
 
 
 def test_sha256_of_file_is_lower_case_native_path(tmp_path):
@@ -146,7 +155,9 @@ async def test_run_hub_upload_dedupes_via_the_split_preflight(tmp_path, monkeypa
     (network, io pool) -> _sha256_of_file (hash, cpu pool) -> compare. A remote
     LFS sha equal to the local file's sha256 dedupes the file, so upload_one is
     never called and the task completes as 'skipped'/'deduplicated'."""
-    _reset_native_loader()
+    native = _reset_native_loader()
+    if native.core_if_enabled() is None:
+        pytest.skip(f"native core unavailable: {native.reason()}")
     upload_hf = import_ext("upload_hf")
     utils = import_ext("utils")
 
@@ -203,7 +214,9 @@ async def test_run_hub_upload_dedupes_via_the_split_preflight(tmp_path, monkeypa
 async def test_run_hub_upload_transfers_when_the_hash_differs(tmp_path, monkeypatch):
     """Complement of the dedup junction: a same-SIZE remote object whose sha
     differs must NOT dedupe - the hash stage runs and the transfer proceeds."""
-    _reset_native_loader()
+    native = _reset_native_loader()
+    if native.core_if_enabled() is None:
+        pytest.skip(f"native core unavailable: {native.reason()}")
     upload_hf = import_ext("upload_hf")
     utils = import_ext("utils")
 

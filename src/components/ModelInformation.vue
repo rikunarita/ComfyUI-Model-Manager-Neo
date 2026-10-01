@@ -417,10 +417,10 @@ interface TensorRow {
  * ships the compact pre-order table; `createTensorTreeIndex` validates it and
  * answers children/leaves queries WITHOUT materialising the ~87k node objects a
  * big MoE header used to cost (measured 1,190 ms of main-thread JS per dialog
- * open on the 2 vCPU dev container -> 13 ms; BENCH §11.3). A backend that
- * cannot provide the tree (legacy engine,
- * `MM_NATIVE=0`) falls back to the same fold in JS, so there is exactly ONE
- * rendering path.
+ * open on the 2 vCPU dev container -> 13 ms; BENCH §11.3). A response that
+ * carries no tree (a non-safetensors model, a tree dropped by the backend's
+ * file-changed guard, or an unavailable native core) falls back to the same
+ * fold in JS, so there is exactly ONE rendering path.
  */
 const tensorIndex = computed(() => {
   const list = tensors.value

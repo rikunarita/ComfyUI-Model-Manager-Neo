@@ -36,7 +36,7 @@ def import_ext(name: str):
 
     ``config.extension_uri`` is pointed at the repository root (idempotent):
     modules like ``py.native`` / ``py.compress`` resolve on-disk locations
-    (``native/native-bin``, ``third_party``) through it.
+    (``native/native-bin``) through it.
     """
     pkg_name = "mmneo_py"
     if pkg_name not in sys.modules:

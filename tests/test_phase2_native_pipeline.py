@@ -43,7 +43,6 @@ def corpus(tmp_path_factory) -> dict[str, Path]:
 @pytest.fixture
 def mm(tmp_path, monkeypatch):
     """The real ``mm_core`` through the production loader (or skip)."""
-    monkeypatch.delenv("MM_NATIVE", raising=False)
     sys.modules.pop("mm_core", None)
     native = import_ext("native")
     config = import_ext("config")

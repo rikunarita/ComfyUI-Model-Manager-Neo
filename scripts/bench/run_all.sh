@@ -51,10 +51,19 @@ else
   echo "note: REAL_MODEL not set/missing — e2e runs on the synthetic model only"
 fi
 
-echo "== bench_zipnn (K1/K2/K3/K5/K13) =="
-python3 "$HERE/bench_zipnn.py" --fixtures "$FIXTURES" \
-  --sizes-mb "${SIZES[@]}" --neo-synthetic-mb "$NEO_SYNTH_MB" \
-  "${MODEL_ARGS[@]}" --json-out "$RESULTS/zipnn.json"
+# Phase 8 retired third_party/ (the vendored C core): the legacy baseline
+# benches (bench_zipnn = K1/K2/K3/K5/K13 of the C path, bench_delta = K4 of
+# the legacy delta, bench_c_defects = Appendix C) are HISTORICAL tools. Their
+# committed result JSONs stay the evidence baseline; re-running them needs the
+# pre-Phase-8 tree from git history. Guarded so run_all still works.
+if [[ -d "$REPO_ROOT/third_party" ]]; then
+  echo "== bench_zipnn (K1/K2/K3/K5/K13) =="
+  python3 "$HERE/bench_zipnn.py" --fixtures "$FIXTURES" \
+    --sizes-mb "${SIZES[@]}" --neo-synthetic-mb "$NEO_SYNTH_MB" \
+    "${MODEL_ARGS[@]}" --json-out "$RESULTS/zipnn.json"
+else
+  echo "== bench_zipnn skipped (third_party retired in Phase 8 - historical baseline) =="
+fi
 
 echo "== bench_native_e2e (Phase 2 K1/K2/K3/K13 — native vs legacy, same session) =="
 if [[ -f "$REPO_ROOT/native/native-bin/linux-x86_64/mm_core.abi3.so" ]] \
@@ -68,9 +77,13 @@ else
   echo "native binary not built — skipping bench_native_e2e (scripts/build-native.sh)"
 fi
 
-echo "== bench_delta (K4 + K5 production-path reachability) =="
-python3 "$HERE/bench_delta.py" --fixtures "$FIXTURES" --pair-mb "$PAIR_MB" \
-  --json-out "$RESULTS/delta.json"
+if [[ -d "$REPO_ROOT/third_party" ]]; then
+  echo "== bench_delta (K4 + K5 production-path reachability) =="
+  python3 "$HERE/bench_delta.py" --fixtures "$FIXTURES" --pair-mb "$PAIR_MB" \
+    --json-out "$RESULTS/delta.json"
+else
+  echo "== bench_delta skipped (legacy delta baseline - historical; see bench_native_delta) =="
+fi
 
 echo "== bench_scan (K9/K10) =="
 python3 "$HERE/bench_scan.py" --library "$FIXTURES/library" --repeat 3 \
