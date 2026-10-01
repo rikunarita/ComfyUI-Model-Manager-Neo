@@ -406,7 +406,8 @@ mod tests {
         let version = super::core_version_string();
         assert!(version.starts_with(env!("CARGO_PKG_VERSION")));
         let (_, commit) = version.split_once('+').expect("x.y.z+commit");
-        assert!(!commit.is_empty());
+        // clippy 1.99's assert_is_empty: assert_ne! prints the offending value on failure.
+        assert_ne!(commit, "");
     }
 
     #[test]
