@@ -447,11 +447,17 @@ jobs:
       # cross-check (test_torch_saved_dtypes_roundtrip writes with the real
       # safetensors.torch and round-trips through the native core); blake3
       # enables the optional BLAKE3 leg of the identify hash-parity golden.
+      # numpy is a RUNTIME requirement of that cross-check: safetensors.torch's
+      # save path imports it while saving (native run #87 failed with
+      # ModuleNotFoundError when Phase 8 prematurely dropped it - the test's
+      # importorskip guards torch/safetensors.torch but the numpy import
+      # happens deeper, at save_file time; the same class as the markdownify
+      # incident, so this line must only ever change together with the suite).
       # The CPU wheel index keeps the install small (no CUDA payload).
       - name: Torch cross-check dependencies (ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          uv pip install --system safetensors blake3
+          uv pip install --system numpy safetensors blake3
           uv pip install --system torch --default-index https://download.pytorch.org/whl/cpu
 
       - name: Integration tests (pytest)

@@ -386,6 +386,10 @@ def test_inspect_helper_survives_broken_files(tmp_path):
 
 
 def test_torch_saved_dtypes_roundtrip(mm, tmp_path):
+    # numpy FIRST: safetensors.torch's save path imports it at save_file time
+    # (native run #87: a cell without numpy got a ModuleNotFoundError instead
+    # of a clean skip, because the guards below do not cover the deeper import).
+    pytest.importorskip("numpy")
     torch = pytest.importorskip("torch")
     safetensors_torch = pytest.importorskip("safetensors.torch")
 
