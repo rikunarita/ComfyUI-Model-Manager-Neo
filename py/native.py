@@ -114,8 +114,8 @@ def load() -> bool:
         return False
 
     if bin_dir not in sys.path:
-        # Appended, not prepended (unlike ensure_zipnn's insert(0) for the
-        # vendored core): `mm_core` is a unique name, and appending keeps a
+        # Appended, not prepended (the legacy vendored-core loader used to
+        # insert(0)): `mm_core` is a unique name, and appending keeps a
         # user-installed mm_core of higher precedence impossible to shadow by
         # accident in the other direction.
         sys.path.append(bin_dir)
