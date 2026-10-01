@@ -229,14 +229,15 @@ scripts/build-native.sh --target windows-x86_64 --size-gate     # Windows ホス
 
 # PGO 版（NEO-PLAN-2026-002 — 下記「PGO」節参照）:
 scripts/build-native.sh --target linux-x86_64 --size-gate --pgo /path/merged.profdata
-scripts/build-native.sh --target macos-universal2 --size-gate --pgo-train  # maturin --pgo
+scripts/build-native.sh --target windows-x86_64 --size-gate --pgo-train  # maturin --pgo（Windows）
+# macOS universal2 は非 PGO 出荷（run #107 実証による §4.4 判断(c) — 下記 PGO 節）
 ```
 
 ## PGO（プロファイル誘導最適化 — NEO‑PLAN‑2026‑002）
 
 配布バイナリの実行時最適化として、計装ベースの PGO が **linux-x86_64 /
-macOS / Windows の出荷ビルドに組み込み済み**です（linux-aarch64 は対象外 —
-下記。計画・ゲート・不採用技術の根拠は
+Windows の出荷ビルドに組み込み済み**です（macOS universal2 と
+linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の根拠は
 [`../Agent/Plan-2.md`](../Agent/Plan-2.md)）。
 
 - **トレーナ**: [`scripts/pgo/train.py`](../scripts/pgo/train.py) —
@@ -257,14 +258,20 @@ macOS / Windows の出荷ビルドに組み込み済み**です（linux-aarch64 
   （workflow_dispatch / `[pgo-measure]` コミットマーカーで起動）が
   baseline との A/B 計測（steal ゲート・側別最小値）で
   G1（compress/decompress +3 %）を job summary へレポートします。
-- **macOS / Windows**: ピン留めの maturin 1.15.0 が `--pgo` をネイティブ
+- **Windows**: ピン留めの maturin 1.15.0 が `--pgo` をネイティブ
   サポート（計装 wheel → 一時 venv で `pgo-command` 実行 → 最適化リビルド
   の三段階）。`pyproject.toml` の `pgo-command` が train.py を呼び、
-  `build-native.sh --pgo-train` が `--pgo` を透過します。
-  universal2 の x86_64 スライスはプロファイル不一致（トレーニングは
-  arm64 ホスト）の可能性があるため、初回 CI 実走で一次検証します
-  （maturin が universal2+PGO を拒否した場合の退避先は非 PGO ビルド —
-  Plan‑2 §4.4 の 3 択判断）。
+  `build-native.sh --pgo-train` が `--pgo` を透過します。run #107 で
+  MSVC 経路の三段階が完走することを実走確認済みです。
+- **macOS universal2 = 非 PGO（Plan-2 §4.4 判断 (c)、run #107 で実証）**:
+  maturin `--pgo` は計装 universal2 wheel のビルドとトレーニング実行には
+  成功しましたが（train.py が全 30 セクション完走・"done in 5.612 s"）、
+  **プロセス終了時のプロファイルランタイム書き出し段階で SIGSEGV** し、
+  最適化リビルドに到達できませんでした。計装済み FAT dylib 特有の
+  障害で、Windows（単一 arch PE）と Linux（単一 arch ELF・自前三段階）
+  では再現しません。macOS ホスト無しではデバッグ不能（推測での修正は
+  しない — Plan-2 の原則）のため、macOS は非 PGO 出荷とします。
+  将来的な選択肢は arm64 単一 arch の PGO ビルド（要 upstream 修正待ち）。
 - **linux-aarch64 は PGO 対象外**: クロスコンパイルかつ ARM ランナーが
   無く、x86_64 プロファイルの流用は arch 非互換のため禁止（Plan‑2 §4.5）。
 - **プロファイルはコミットしません**: ビルド毎生成（ドリフトゼロ・

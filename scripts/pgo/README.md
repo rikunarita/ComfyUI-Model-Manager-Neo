@@ -6,11 +6,11 @@
 
 ## `train.py` — 3 モード
 
-| モード        | 用途                                                                                                                                         |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| （既定）train | 計装ビルド（`-Cprofile-generate`）された `mm_core` を決定論的合成フィクスチャで全 API 表面にわたり駆動し、`.profraw` を生成する              |
-| `--bench-one` | 1 ワークロードのタイム計測（`--measure` のサブプロセス。単独実行も可）                                                                       |
-| `--measure`   | A/B スループット計測: 2 つのコア（`--a` = baseline、`--b` = PGO）を交互にサブプロセス実行（steal ゲート + 再計測 + 側別最小値 = BENCH 準拠） |
+| モード        | 用途                                                                                                                                                                                                                                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| （既定）train | 計装ビルド（`-Cprofile-generate`）された `mm_core` を決定論的合成フィクスチャで全 API 表面にわたり駆動し、`.profraw` を生成する                                                                                                                                                                                           |
+| `--bench-one` | 1 ワークロードのタイム計測（`--measure` のサブプロセス。単独実行も可）                                                                                                                                                                                                                                                    |
+| `--measure`   | A/B スループット計測: 2 つのコア（`--a` = baseline、`--b` = PGO）を交互にサブプロセス実行（steal ゲート + 再計測 + 側別最小値 = BENCH 準拠）。JSON には **ラウンド別生サンプル（`roundsA`/`roundsB`）**も含まれる — min 比だけの解釈は round 0 冷間効果と短時間窓の二峰分散で誤導するため（run #107 の教訓・BENCH §13.1） |
 
 **依存は stdlib + `mm_core` + `tests/harness`（字节級 safetensors ライタ）のみ** —
 pip 依存ゼロなので、maturin `--pgo` の一時 venv でも任意のランナーでもそのまま
@@ -25,6 +25,12 @@ scan_models 冷/暖（永続インデックス）・scan_hygiene・walk_models�
 move_with_sidecars・hash_file 5 表記・インクリメンタル hasher・
 safetensors_header + tensor_tree（MoE 形 1,200 テンソル ×20）・
 WebP 静止 + アニメの encode/decode ×10。
+
+**重み付け（run #107 の G1 実測後に改訂）**: PGO の重みは実行カウントに
+比例するため、codec 秒級に対して 2 パスしかなかった scan 系を
+冷×5（毎回インデックス削除 = 本番の初回スキャン経路）+ 暖×20
+（インデックスヒット = リフレッシュ経路）、hygiene/walk を ×5 へ
+増量した（Plan‑2 R7 緩和）。
 
 ### 環境変数（サイズノブ）
 
@@ -54,18 +60,21 @@ LLVM_PROFILE_FILE="/tmp/pgo-prof/default_%m.profraw" \
 LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin"
 "$LLVM_BIN/llvm-profdata" merge -o /tmp/pgo-prof/merged.profdata /tmp/pgo-prof
 
-# 4. 出荷ビルド（zigbuild 経路。G2 = warn-missing-function の比率 < 1 %）
+# 4. 出荷ビルド（zigbuild 経路。G2 = scripts/pgo/g2_check.py の 4 条件 —
+#    missing 比率 < 50 % + Total count > 0 + 関数数/znn_codec プローブ）
 scripts/build-native.sh --target linux-x86_64 --size-gate --pgo /tmp/pgo-prof/merged.profdata
 
 # 5. 効果計測（A/B 交互・steal ゲート・側別最小値）
 python3 scripts/pgo/train.py --measure \
   --a <baseline の mm_core があるディレクトリ> \
   --b native/native-bin/linux-x86_64 \
-  --rounds 3 --json-out /tmp/pgo-measure.json
+  --rounds 5 --json-out /tmp/pgo-measure.json
 ```
 
 CI では **出荷ビルド自体が PGO 化されています**（`native-build-linux` の
-三段階 + `--pgo-train` の macOS/Windows。linux-aarch64 は対象外）。
+三段階 + `--pgo-train` の Windows。macOS universal2 は計装 fat dylib の
+終了時 SIGSEGV 実証により非 PGO〔Plan‑2 §4.4 判断 (c)〕、linux-aarch64 は
+クロスコンパイルのため対象外〔§4.5〕）。
 プロファイルの no-op 化は **`g2_check.py`（恒久 G2 ゲート）**が毎ビルドで
 機械検出します（しきい値は run #106 の実測で再校正 — fat-LTO + PGO
 インライナの良性乖離 13.81 % は通過、真の no-op ~100 % は失敗。
