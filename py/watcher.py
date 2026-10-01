@@ -532,7 +532,13 @@ class ModelWatcher:
             # rescan (a persistently overflowing queue) must not trigger a full
             # library sweep once a second.
             now = time.monotonic()
-            if now - self._last_type_broadcast.get(RESCAN_KEY, 0.0) >= TYPE_COOLDOWN:
+            # None-sentinel (NOT a 0.0 dict default) for "never broadcast":
+            # time.monotonic() is UPTIME-based, so on a freshly booted machine
+            # `now - 0.0` can be smaller than TYPE_COOLDOWN and the FIRST
+            # legitimate rescan would be silently swallowed (observed on a
+            # GitHub runner booted <60 s earlier — main native run #85).
+            last = self._last_type_broadcast.get(RESCAN_KEY)
+            if last is None or now - last >= TYPE_COOLDOWN:
                 self._last_type_broadcast[RESCAN_KEY] = now
                 await self._broadcast(None, "fs-watch-rescan")
             return
@@ -548,8 +554,10 @@ class ModelWatcher:
             return
         now = time.monotonic()
         for model_type in types:
-            last = self._last_type_broadcast.get(model_type, 0.0)
-            if now - last < TYPE_COOLDOWN:
+            # None-sentinel for "never broadcast" — same fresh-boot clock
+            # reasoning as the rescan leg above.
+            last = self._last_type_broadcast.get(model_type)
+            if last is not None and now - last < TYPE_COOLDOWN:
                 continue
             self._last_type_broadcast[model_type] = now
             await self._broadcast(model_type, "fs-watch")

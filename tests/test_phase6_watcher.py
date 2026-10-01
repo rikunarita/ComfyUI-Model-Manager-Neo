@@ -309,6 +309,75 @@ async def test_rescan_flag_invalidates_everything(prompt_server, tmp_path, monke
     assert events == [("models_changed", {"type": None, "reason": "fs-watch-rescan"})]
 
 
+class _FreshBootClock:
+    """time.monotonic() pinned to 5 s of uptime — a freshly booted CI runner
+    (monotonic is UPTIME-based, so a 0.0 dict default for "never broadcast"
+    reads as "broadcast 5 s ago" and a cooldown >5 s swallows the first
+    event; main native run #85 failed exactly this way)."""
+
+    @staticmethod
+    def monotonic() -> float:
+        return 5.0
+
+
+@pytest.mark.asyncio
+async def test_first_rescan_survives_a_fresh_boot_clock(prompt_server, tmp_path, monkeypatch):
+    """Regression (main native run #85): with TYPE_COOLDOWN=60 and the clock
+    at 5 s uptime, the FIRST rescan report must still broadcast — the
+    "never broadcast" state must not be encoded as monotonic 0.0."""
+    watcher_mod, service, _root = _make_watcher(monkeypatch, tmp_path)
+
+    class AlwaysRescan:
+        def watch_start(self, roots, opts=None):
+            return 3
+
+        def watch_poll(self, handle):
+            return json.dumps({"paths": [], "rescan": True, "degraded": None})
+
+        def watch_stop(self, handle):
+            pass
+
+    monkeypatch.setattr(service, "_core", lambda: AlwaysRescan())
+    monkeypatch.setattr(watcher_mod, "TYPE_COOLDOWN", 60.0)
+    monkeypatch.setattr(watcher_mod, "time", _FreshBootClock())
+    for _ in range(3):
+        await service._tick()
+    events = [data for event, data, _sid in prompt_server.sent if event == "models_changed"]
+    assert len(events) == 1, f"the first rescan must broadcast exactly once, got {events}"
+    assert events[0] == {"type": None, "reason": "fs-watch-rescan"}
+
+
+@pytest.mark.asyncio
+async def test_first_type_broadcast_survives_a_fresh_boot_clock(prompt_server, tmp_path, monkeypatch):
+    """The per-type leg of the same regression: the first event for a type
+    must broadcast even when monotonic() < TYPE_COOLDOWN."""
+    watcher_mod, service, root = _make_watcher(monkeypatch, tmp_path)
+    payloads = [
+        json.dumps({"paths": [str(root / "a.safetensors")], "rescan": False, "degraded": None}),
+        json.dumps({"paths": [str(root / "b.safetensors")], "rescan": False, "degraded": None}),
+    ]
+
+    class BurstCore:
+        def watch_start(self, roots, opts=None):
+            return 9
+
+        def watch_poll(self, handle):
+            return payloads.pop(0) if payloads else json.dumps({"paths": [], "rescan": False, "degraded": None})
+
+        def watch_stop(self, handle):
+            return None
+
+    monkeypatch.setattr(service, "_core", lambda: BurstCore())
+    monkeypatch.setattr(watcher_mod, "TYPE_COOLDOWN", 60.0)
+    monkeypatch.setattr(watcher_mod, "time", _FreshBootClock())
+    await service._tick()
+    await service._tick()  # a
+    await service._tick()  # b (inside the cooldown)
+    events = [data for event, data, _sid in prompt_server.sent if event == "models_changed"]
+    assert len(events) == 1, events
+    assert events[0]["type"] == "checkpoints"
+
+
 @pytest.mark.asyncio
 async def test_type_cooldown_collapses_a_bulk_copy(prompt_server, tmp_path, monkeypatch):
     """A burst of changes for one type broadcasts once per cooldown window."""
