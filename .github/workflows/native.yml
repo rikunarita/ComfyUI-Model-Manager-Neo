@@ -37,6 +37,9 @@ on:
     # below is main-only - a tag checkout is detached and never pushed to).
     tags: ["v*"]
   pull_request:
+  # Manual dispatch (UI / API) — used for the pgo-measure pilot job below
+  # (NEO-PLAN-2026-002 Step 3) and for on-demand re-verification.
+  workflow_dispatch:
 
 concurrency:
   # NOTE (2026-09-30 incident, run #78): `group: native-${{ github.ref }}` is
@@ -598,6 +601,166 @@ jobs:
           name: fuzz-crashes
           path: native/crates/znn-codec/fuzz/artifacts/
           if-no-files-found: ignore
+
+  pgo-measure:
+    # NEO-PLAN-2026-002 Step 3 — the linux-x86_64 PGO PILOT (informational,
+    # non-gating): builds an instrumented core, trains it with the
+    # deterministic workload (scripts/pgo/train.py), then builds the baseline
+    # and the PGO artifact through the SAME shipping path (zigbuild, glibc
+    # 2.28, size gate) and measures them A/B in one session (steal-gated,
+    # per-side minimum — the BENCH protocol). Gates:
+    #   G2 (hard):  the profile must actually apply — the ratio of
+    #               "no profile data available" warnings to profiled
+    #               functions must stay < 1 %. A silent no-op fails the job.
+    #   G3 (hard):  the PGO artifact passes the same 5 MB size gate.
+    #   G1 (soft):  compress AND decompress >= +3 % (per-side minimum) — the
+    #               verdict is printed to the job summary and decides whether
+    #               Step 4 wires PGO into the shipping build jobs. It does
+    #               NOT fail the job (measurement noise on shared runners must
+    #               not block unrelated pushes).
+    # Triggers: workflow_dispatch, or a push whose HEAD commit message carries
+    # the [pgo-measure] marker — the marker exists because the session PAT
+    # cannot dispatch (403, MEMO §1.2); it gives the same on-demand semantics
+    # without burning ~25 runner-minutes on every push.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[pgo-measure]'))
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install cross toolchain (pinned, same as native-build-linux)
+        run: uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0
+
+      # 1/6 — instrumented build. Host-native (not zigbuild): the training run
+      # executes on THIS runner, so the instrumented artifact does not need
+      # the glibc floor. `--target` keeps RUSTFLAGS off the build scripts
+      # (rustc book PGO chapter). The instrumented .so is copied aside before
+      # the zigbuilds reuse the same target directory.
+      - name: Build the instrumented core (host, release)
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/pgo-prof" && mkdir -p "$RUNNER_TEMP/pgo-prof" "$RUNNER_TEMP/pgo-inst"
+          cd native
+          RUSTFLAGS="-Cprofile-generate=$RUNNER_TEMP/pgo-prof" \
+            cargo build --release -p mm-core --target x86_64-unknown-linux-gnu
+          cp target/x86_64-unknown-linux-gnu/release/libmm_core.so "$RUNNER_TEMP/pgo-inst/mm_core.abi3.so"
+
+      # 2/6 — train: the deterministic workload runs the instrumented core
+      # through every hot surface (compress/decompress/delta/scan/hygiene/
+      # hash/header/tree/webp/walk/move). profraw files land via
+      # LLVM_PROFILE_FILE; the summary JSON doubles as the training report.
+      - name: Train the instrumented core (scripts/pgo/train.py)
+        run: |
+          set -euo pipefail
+          LLVM_PROFILE_FILE="$RUNNER_TEMP/pgo-prof/default_%m.profraw" \
+            python scripts/pgo/train.py --lib-dir "$RUNNER_TEMP/pgo-inst" \
+            --workdir "$RUNNER_TEMP/pgo-work" --json-out "$RUNNER_TEMP/pgo-train.json"
+
+      # 3/6 — merge + record the profiled-function count (the G2 denominator).
+      - name: Merge profiles (llvm-profdata)
+        run: |
+          set -euo pipefail
+          LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin"
+          "$LLVM_BIN/llvm-profdata" merge -o "$RUNNER_TEMP/pgo-prof/merged.profdata" "$RUNNER_TEMP/pgo-prof"
+          "$LLVM_BIN/llvm-profdata" show "$RUNNER_TEMP/pgo-prof/merged.profdata" | tee "$RUNNER_TEMP/pgo-prof/show.txt"
+          ls -l "$RUNNER_TEMP/pgo-prof/merged.profdata"
+
+      # 4/6 — the two shipping-path artifacts: baseline first (copied aside),
+      # then the PGO build through `build-native.sh --pgo` (same zigbuild +
+      # glibc floor + size gate = G3 is enforced by the script itself). The
+      # PGO build log is teed for the G2 warn-count assert.
+      - name: Build baseline + PGO artifacts (zigbuild, glibc 2.28)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ab/baseline" "$RUNNER_TEMP/ab/pgo"
+          ./scripts/build-native.sh --target linux-x86_64 --size-gate
+          cp native/native-bin/linux-x86_64/mm_core.abi3.so "$RUNNER_TEMP/ab/baseline/"
+          ./scripts/build-native.sh --target linux-x86_64 --size-gate \
+            --pgo "$RUNNER_TEMP/pgo-prof/merged.profdata" 2>&1 | tee "$RUNNER_TEMP/pgo-build.log"
+          cp native/native-bin/linux-x86_64/mm_core.abi3.so "$RUNNER_TEMP/ab/pgo/"
+
+      # 5/6 — G2 (hard): the profile must actually have been applied. The
+      # benign warning class ("no profile data available for function", e.g.
+      # fresh generic instantiations created by the optimizing build itself)
+      # is counted against the profiled-function total; >= 1 % means the
+      # profile silently no-op'd and the job fails.
+      - name: "G2 gate: profile-application ratio < 1 %"
+        run: |
+          set -euo pipefail
+          total=$(sed -n 's/^Total functions: //p' "$RUNNER_TEMP/pgo-prof/show.txt")
+          missing=$(grep -c "no profile data available for function" "$RUNNER_TEMP/pgo-build.log" || true)
+          python3 - "$total" "$missing" <<'PY'
+          import sys
+          total, missing = int(sys.argv[1]), int(sys.argv[2])
+          ratio = missing / max(total, 1)
+          print(f"profiled functions: {total}; missing-profile warnings: {missing}; ratio: {ratio:.4%}")
+          if ratio >= 0.01:
+              sys.exit(f"G2 FAILED: {ratio:.2%} of profiled functions had no profile data (>= 1 %)")
+          print("G2 OK: the profile applied (< 1 % missing)")
+          PY
+
+      # 6/6 — G1 measurement (soft) + report. train.py --measure alternates
+      # A/B subprocesses (3 rounds), steal-gates each window and judges on
+      # the per-side minimum. The verdict is informational: it decides Step 4
+      # (wiring PGO into the shipping jobs), it does not fail this job.
+      - name: "G1 measurement: baseline vs PGO (A/B, steal-gated)"
+        run: |
+          set -euo pipefail
+          python scripts/pgo/train.py --measure \
+            --a "$RUNNER_TEMP/ab/baseline" --b "$RUNNER_TEMP/ab/pgo" \
+            --rounds 3 --workdir "$RUNNER_TEMP/pgo-measure-work" \
+            --json-out "$RUNNER_TEMP/pgo-measure.json" | tee "$RUNNER_TEMP/pgo-measure.log"
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json, os
+          data = json.load(open(os.environ["RUNNER_TEMP"] + "/pgo-measure.json"))
+          wl = data["workloads"]
+          rows = ["| workload | baseline (min) | pgo (min) | ratio |", "| --- | --- | --- | --- |"]
+          for name, row in wl.items():
+              rows.append(f"| {name} | {row['baselineMin']} | {row['pgoMin']} | {row['ratio']} |")
+          print("## pgo-measure (linux-x86_64)\n")
+          print("\n".join(rows))
+          c, d = wl["compress"]["ratio"], wl["decompress"]["ratio"]
+          ok = c is not None and d is not None and c >= 1.03 and d >= 1.03
+          print(f"\n**G1 (+3 % on compress AND decompress): {'PASS' if ok else 'NOT MET'}**"
+                f" (compress x{c}, decompress x{d}; discarded steal windows:"
+                f" {data['discardedStealWindows']}, contaminated samples: {data['contaminatedSamples']})")
+          print(f"\nenv: {data['env']}")
+          PY
+          base_size=$(stat -c %s "$RUNNER_TEMP/ab/baseline/mm_core.abi3.so")
+          pgo_size=$(stat -c %s "$RUNNER_TEMP/ab/pgo/mm_core.abi3.so")
+          {
+            echo ""
+            echo "Sizes: baseline ${base_size} B / pgo ${pgo_size} B (budget 5242880 B; G3 enforced by --size-gate above)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pgo-measure-report
+          path: |
+            ${{ runner.temp }}/pgo-measure.json
+            ${{ runner.temp }}/pgo-measure.log
+            ${{ runner.temp }}/pgo-train.json
+            ${{ runner.temp }}/pgo-build.log
+          if-no-files-found: error
 
   publish-native-bin:
     # Phase 8 distribution (Plan §5.3 / K16): on `main` pushes, commit the

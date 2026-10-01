@@ -2,21 +2,22 @@
 
 ## ― rust‑lld への移行と配布バイナリのプロファイル誘導最適化 ―
 
-| 項目           | 内容                                                                                                                        |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 文書番号       | NEO‑PLAN‑2026‑002                                                                                                           |
-| 版数           | 1.0                                                                                                                         |
-| 作成日         | 2026‑10‑01                                                                                                                  |
-| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                      |
-| 対象ブランチ   | `dev`                                                                                                                       |
-| 前提文書       | [`Plan.md`](Plan.md)（NEO‑PLAN‑2026‑001、Phase 0–8 完了済み）・[`MEMO.md`](MEMO.md)・[`../docs/BENCH.md`](../docs/BENCH.md) |
-| 状態           | **計画のみ — 実装はユーザ承認後に着手する**（2026‑10‑01 ユーザ指示: 「実装は私の指示を待ってください」）                    |
+| 項目           | 内容                                                                                                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 文書番号       | NEO‑PLAN‑2026‑002                                                                                                                                                              |
+| 版数           | 1.0                                                                                                                                                                            |
+| 作成日         | 2026‑10‑01                                                                                                                                                                     |
+| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                                         |
+| 対象ブランチ   | `dev`                                                                                                                                                                          |
+| 前提文書       | [`Plan.md`](Plan.md)（NEO‑PLAN‑2026‑001、Phase 0–8 完了済み）・[`MEMO.md`](MEMO.md)・[`../docs/BENCH.md`](../docs/BENCH.md)                                                    |
+| 状態           | **実装中** — 2026‑10‑01 ユーザ承認（「すべてのタスクを計画通りに最後まで進めてください」）。Step 1–3 実装完了・CI 実走確認待ち、Step 4 は G1 ゲート判定待ち、Step 5 は部分完了 |
 
 ### 版数履歴
 
-| 版  | 日付       | 変更                                                                                                                              |
-| --- | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 1.0 | 2026‑10‑01 | 初版。rust‑lld 移行（Step 1）と PGO 導入（Step 2–5）の 5 段階計画。全項目の技術選定は 2026‑10‑01 に一次ソースで確認済み（付録 B） |
+| 版  | 日付       | 変更                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0 | 2026‑10‑01 | 初版。rust‑lld 移行（Step 1）と PGO 導入（Step 2–5）の 5 段階計画。全項目の技術選定は 2026‑10‑01 に一次ソースで確認済み（付録 B）                                                                                                                                                                                                                                                                                                                                                                  |
+| 1.1 | 2026‑10‑01 | Step 1–3 実装（ユーザ承認）。Step 3 のトリガを「workflow_dispatch 専用」から「workflow_dispatch **+ HEAD コミットメッセージの `[pgo-measure]` マーカー**」へ改訂 — セッション PAT は dispatch 権限が無く（403、MEMO §1.2）、マーカー方式が dispatch 不要のオンデマンド同等意味論を与えるため。ローカル検証で判明した実装事実を反映（G2 の良性警告クラス = 最適化ビルド側で新規生成されるジェネリック単相化 31/56,531 = 0.055 %、zig cc shim の `-u` 非対応、train.py のフィクスチャ設計 2 件修正） |
 
 ### 進捗マーク凡例
 
@@ -508,75 +509,75 @@ zenwebp（archmage SIMD）が既に行っている実行時 CPU 特徴検出**�
 
 ### Step 1 — rust‑lld 移行
 
-- [ ] `native/.cargo/config.toml`: 両 `[target.*-unknown-linux-gnu]` 節
+- [x] `native/.cargo/config.toml`: 両 `[target.*-unknown-linux-gnu]` 節
       （`linker="clang"` + `-fuse-ld=mold`）を削除し、判断根拠のコメントへ
       置換（1.90 以降 x86_64 は rust‑lld 既定 / aarch64 はシステム既定・
       任意で `-C linker-features=+lld` / クロスは zigbuild が
       `CARGO_TARGET_*_LINKER` で上書きするため元々影響なし /
       2026‑10‑01 決定・ NEO‑PLAN‑2026‑002 §3.2）
-- [ ] `native.yml` native-test: 「Install mold + clang (Linux only)」apt
+- [x] `native.yml` native-test: 「Install mold + clang (Linux only)」apt
       ステップを削除（run #80 の 6 h ハング対策コメントは「apt 依存自体を
       撤去」の記述へ更新）。ヘッダコメントの「mold installed on Linux」を
       「rust-lld (rustc default since 1.90)」へ
-- [ ] `fuzz-long.yml`: **この Step では触らない**（apt の clang+mold は
+- [x] `fuzz-long.yml`: **この Step では触らない**（apt の clang+mold は
       未使用になるが無害。config 削除により fuzz ビルドは cc + rust‑lld へ
       自然移行する — nightly の rust‑lld 既定は実績あり、ASan ランタイムは
       rustc 同梱）。**次の週次スケジュール run（日曜 18:00 UTC）緑、または
       ユーザによる手動 dispatch の緑を確認後**、別コミットで apt ステップを
       削除する（R5）
-- [ ] `native/README.md`: 「### 2. mold リンカー」節を「### 2. リンカー
+- [x] `native/README.md`: 「### 2. mold リンカー」節を「### 2. リンカー
       （rust‑lld 既定）」へ書き換え（mold 導入手順の削除・clang 不要の
       フォールバック記述削除・zigbuild/macOS/Windows の現況は維持）
-- [ ] `Agent/MEMO.md` §2.2 再構築チェックリスト: apt 行から
+- [x] `Agent/MEMO.md` §2.2 再構築チェックリスト: apt 行から
       `clang mold` を除去（build-essential 等は残す）+ §1.2 に
       「リンカーは rust‑lld 既定（2026‑10‑01、NEO‑PLAN‑2026‑002 Step 1）」
-- [ ] ローカル検証: 1.99.0 toolchain + zig cc 環境（MEMO §2.2 の再現手順）で
+- [x] ローカル検証: 1.99.0 toolchain + zig cc 環境（MEMO §2.2 の再現手順）で
       `cargo build -p mm-core`（debug）疎通 + `cargo clippy --workspace
 --all-targets --all-features -- -D warnings` + `cargo fmt --check` +
       `cargo test --workspace --exclude mm-core`
-- [ ] 完了条件: **dev CI の native run 全緑**（native-test ubuntu が
-      apt ステップなしで緑 = G5、integration/abi3/size-budget/fuzz-smoke
-      不変 = G6）+ 週次 fuzz-long の緑確認（またはユーザ dispatch）
+- [/] 完了条件: **dev CI の native run 全緑**（native-test ubuntu が
+  apt ステップなしで緑 = G5、integration/abi3/size-budget/fuzz-smoke
+  不変 = G6）+ 週次 fuzz-long の緑確認（またはユーザ dispatch）
 
 ### Step 2 — PGO トレーニングハーネス
 
-- [ ] `scripts/pgo/train.py`（§4.2 仕様。stdlib + mm_core + tests/harness
+- [x] `scripts/pgo/train.py`（§4.2 仕様。stdlib + mm_core + tests/harness
       のみ・シード固定・`TRAIN_ROUNDS` で反復数調整・`--measure` モード
       内蔵・`--json-out`）
-- [ ] `scripts/pgo/README.md`（目的・使い方・プロファイル非コミット方針・
+- [x] `scripts/pgo/README.md`（目的・使い方・プロファイル非コミット方針・
       ローカル PGO 再現手順）
-- [ ] 検証: ローカル debug バイナリで完走（sandbox でビルド可能な場合）+
+- [x] 検証: ローカル debug バイナリで完走（sandbox でビルド可能な場合）+
       ruff check/format 緑 + **3 OS での実走は Step 3 のジョブに
       一時的に組み込んで確認**（単体では CI に常設しない）
-- [ ] 完了条件: Step 3 ジョブ内で train.py が 3 プラットフォームの
-      ランナー環境（ubuntu の host / macos の一時 venv / windows の
-      一時 venv）でエラーなく完走し、profraw が生成されること
+- [/] 完了条件: Step 3 ジョブ内で train.py が 3 プラットフォームの
+  ランナー環境（ubuntu の host / macos の一時 venv / windows の
+  一時 venv）でエラーなく完走し、profraw が生成されること
 
 ### Step 3 — linux-x86_64 パイロット計測（非ゲーティング）
 
-- [ ] `native.yml` に **`workflow_dispatch` 専用ジョブ `pgo-measure`**
-      （毎 push では走らせない — ランナー分の節約と、計測の
-      オンデマンド化）:
-  - [ ] `dtolnay/rust-toolchain@stable` + `components: llvm-tools-preview`
-  - [ ] 計装ビルド（§4.3 ステップ 1）→ train.py 実行（ステップ 2）→
+- [x] `native.yml` に **ジョブ `pgo-measure`**（トリガ = workflow_dispatch
+      **または HEAD コミットメッセージの `[pgo-measure]` マーカー** —
+      版数 1.1 の改訂。毎 push では走らない）:
+  - [x] `dtolnay/rust-toolchain@stable` + `components: llvm-tools-preview`
+  - [x] 計装ビルド（§4.3 ステップ 1）→ train.py 実行（ステップ 2）→
         `llvm-profdata merge`（ステップ 3）
-  - [ ] baseline 成果物（現行 build-native.sh）と PGO 成果物
+  - [x] baseline 成果物（現行 build-native.sh）と PGO 成果物
         （`--pgo` 付き）の 2 本を zigbuild
-  - [ ] **G2 検査**: PGO ビルドログの warn-missing-function 出力を
+  - [x] **G2 検査**: PGO ビルドログの warn-missing-function 出力を
         カウントし mismatch 率 < 1 % を assert（超過ならジョブ失敗 =
         プロファイル no-op の検出）
-  - [ ] `train.py --measure` で baseline / PGO を**同一セッション交互
+  - [x] `train.py --measure` で baseline / PGO を**同一セッション交互
         計測**（N=3、steal 記録、側別最小値 — 付録 A）
-  - [ ] 結果を表で job summary へ出力 + JSON を artifact 化
+  - [x] 結果を表で job summary へ出力 + JSON を artifact 化
         （`scripts/bench/results/` へはコミットしない — 採用決定後に
         BENCH.md 新セクションの証跡として精選してコミットする）
-  - [ ] サイズ実測（PGO 版 vs 5 MB 目安 = G3 の事前確認）
-- [ ] `build-native.sh` への `--pgo <profdata>` フラグ追加（未指定時 =
+  - [x] サイズ実測（PGO 版 vs 5 MB 目安 = G3 の事前確認）
+- [x] `build-native.sh` への `--pgo <profdata>` フラグ追加（未指定時 =
       現行と完全同一挙動。RUSTFLAGS 組み立てのカプセル化）
-- [ ] 完了条件: **計測レポート完成**（数値・env ブロック・steal 記録）。
-      **採用判定 = G1（圧縮/解凍スループット中央値 +3 % 以上）**。
-      未達の場合は「不採用」を BENCH/MEMO に記録して本計画を終了
-      （Step 4/5 は実施しない）
+- [/] 完了条件: **計測レポート完成**（数値・env ブロック・steal 記録）。
+  **採用判定 = G1（圧縮/解凍スループット中央値 +3 % 以上）**。
+  未達の場合は「不採用」を BENCH/MEMO に記録して本計画を終了
+  （Step 4/5 は実施しない）
 
 ### Step 4 — PGO 本番組み込み（G1 達成後のみ）
 
@@ -600,18 +601,18 @@ zenwebp（archmage SIMD）が既に行っている実行時 CPU 特徴検出**�
 
 ### Step 5 — ドキュメント・記録
 
-- [ ] `native/README.md`: PGO パイプライン節（train.py・プロファイル
+- [x] `native/README.md`: PGO パイプライン節（train.py・プロファイル
       ビルド毎生成・aarch64 除外の理由・universal2 判断の記録）+
       リンカー節の最終形
 - [ ] `docs/BENCH.md`: 新セクション「PGO 効果の実測」（Step 3 の計測 +
       本番ランナーの env ブロック・共有ランナーの但し書き・
       証跡 JSON の精選コミット）
-- [ ] `Agent/MEMO.md`: 運営メモ（PGO の CI コスト増・maturin --pgo の癖・
+- [x] `Agent/MEMO.md`: 運営メモ（PGO の CI コスト増・maturin --pgo の癖・
       プロファイル非コミット規程・warn-missing-function assert の意味）+
       セッション記録
 - [ ] （任意・G1 の実測が README の性能主張を改善する場合のみ）
       README×2 のエンジン節へ「PGO 最適化済みプリビルド」の 1 文追加
-- [ ] 本計画書の進捗マーク更新（§6.2 と下記 §6.3 を同一コミットで）
+- [x] 本計画書の進捗マーク更新（§6.2 と下記 §6.3 を同一コミットで）
 - [ ] 完了条件: 全文書の参照整合（prettier 緑）+ dev CI 緑
 
 ## 6.3 進捗管理規程

@@ -226,7 +226,41 @@ scripts/build-native.sh --target linux-x86_64 --size-gate
 scripts/build-native.sh --target linux-aarch64 --size-gate
 scripts/build-native.sh --target macos-universal2 --size-gate   # macOS ホスト
 scripts/build-native.sh --target windows-x86_64 --size-gate     # Windows ホスト
+
+# PGO 版（NEO-PLAN-2026-002 — 下記「PGO」節参照）:
+scripts/build-native.sh --target linux-x86_64 --size-gate --pgo /path/merged.profdata
+scripts/build-native.sh --target macos-universal2 --size-gate --pgo-train  # maturin --pgo
 ```
+
+## PGO（プロファイル誘導最適化 — NEO‑PLAN‑2026‑002）
+
+配布バイナリのさらなる実行時最適化として、計装ベースの PGO パイプラインを
+用意しています（計画・ゲート・不採用技術の根拠は
+[`../Agent/Plan-2.md`](../Agent/Plan-2.md)）。
+
+- **トレーナ**: [`scripts/pgo/train.py`](../scripts/pgo/train.py) —
+  stdlib + mm_core + tests/harness のみの決定論的ワークロード
+  （圧縮/解凍/デルタ/スキャン/ハッシュ/ヘッダ/テンソルツリー/WebP の
+  全 API 表面）。計装ビルドに対して実行すると `.profraw` を生成します。
+  使い方とローカル再現手順は [`scripts/pgo/README.md`](../scripts/pgo/README.md)。
+- **Linux x86_64**: 計装ビルド（ホスト native）→ train →
+  `llvm-profdata merge`（`rustup component add llvm-tools-preview`）→
+  `build-native.sh --pgo <profdata>`（zigbuild + `-Cprofile-use` +
+  `-Cllvm-args=-pgo-warn-missing-function`）。CI では `pgo-measure` ジョブ
+  （workflow_dispatch / `[pgo-measure]` コミットマーカーで起動）が
+  baseline との A/B 計測（steal ゲート・側別最小値）まで一括実行し、
+  **G2（プロファイル適用率: missing-function 警告 < 1 %）をハードゲート**、
+  G1（compress/decompress +3 %）を job summary 判定としてレポートします。
+- **macOS / Windows**: ピン留めの maturin 1.15.0 が `--pgo` をネイティブ
+  サポート（計装 wheel → 一時 venv で `pgo-command` 実行 → 最適化リビルド
+  の三段階）。`pyproject.toml` の `pgo-command` が train.py を呼び、
+  `build-native.sh --pgo-train` が `--pgo` を透過します。
+  universal2 の x86_64 スライスはプロファイル不一致（トレーニングは
+  arm64 ホスト）の可能性があるため、Step 4 実施時に一次検証します。
+- **linux-aarch64 は PGO 対象外**: クロスコンパイルかつ ARM ランナーが
+  無く、x86_64 プロファイルの流用は arch 非互換のため禁止（Plan‑2 §4.5）。
+- **プロファイルはコミットしません**: ビルド毎生成（ドリフトゼロ・
+  肥大ゼロ。Plan‑2 §4.6）。
 
 ビルド成果物の検査（arch / glibc 下限 / libpython 非依存 / Mach‑O fat / PE）は、
 readelf・lipo 等の無い環境でも

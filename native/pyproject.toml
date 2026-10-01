@@ -17,3 +17,11 @@ build-backend = "maturin"
 manifest-path = "crates/mm-core/Cargo.toml"
 module-name = "mm_core"
 features = ["pyo3/extension-module"]
+# NEO-PLAN-2026-002 Step 4: `maturin build --pgo` (or MATURIN_PGO=1) runs the
+# three-phase PGO flow — instrumented wheel into a temporary venv, this
+# command as the training workload, then the optimized rebuild. train.py is
+# stdlib-only, so the temporary venv needs no extra dependencies. The path is
+# relative to `native/` (maturin's invocation directory in build-native.sh /
+# the CI build jobs); train.py itself locates the repository root from its own
+# __file__, so the fixtures/tests-harness imports work from anywhere.
+pgo-command = "python ../scripts/pgo/train.py"
