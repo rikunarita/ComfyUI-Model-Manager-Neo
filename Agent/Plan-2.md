@@ -1,0 +1,702 @@
+# ComfyUI‑Model‑Manager‑Neo リンカー移行と PGO 導入計画書
+
+## ― rust‑lld への移行と配布バイナリのプロファイル誘導最適化 ―
+
+| 項目           | 内容                                                                                                                        |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 文書番号       | NEO‑PLAN‑2026‑002                                                                                                           |
+| 版数           | 1.0                                                                                                                         |
+| 作成日         | 2026‑10‑01                                                                                                                  |
+| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                      |
+| 対象ブランチ   | `dev`                                                                                                                       |
+| 前提文書       | [`Plan.md`](Plan.md)（NEO‑PLAN‑2026‑001、Phase 0–8 完了済み）・[`MEMO.md`](MEMO.md)・[`../docs/BENCH.md`](../docs/BENCH.md) |
+| 状態           | **計画のみ — 実装はユーザ承認後に着手する**（2026‑10‑01 ユーザ指示: 「実装は私の指示を待ってください」）                    |
+
+### 版数履歴
+
+| 版  | 日付       | 変更                                                                                                                              |
+| --- | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0 | 2026‑10‑01 | 初版。rust‑lld 移行（Step 1）と PGO 導入（Step 2–5）の 5 段階計画。全項目の技術選定は 2026‑10‑01 に一次ソースで確認済み（付録 B） |
+
+### 進捗マーク凡例
+
+| マーク  | 意味   |
+| ------- | ------ |
+| `- [x]` | 完了   |
+| `- [/]` | 進行中 |
+| `- [ ]` | 未着手 |
+
+---
+
+## エグゼクティブサマリー
+
+本計画は、Phase 0–8（Plan.md）で確立した Rust ネイティブコアのビルド構成に
+対し、次の 2 柱の最適化を**段階的かつ実測ゲーテッド**で導入するものである。
+
+1. **リンカーの rust‑lld 移行（保守性・障害面の削減）**
+   現行の `mold`（Linux ネイティブビルド、`.cargo/config.toml` で
+   `linker="clang"` + `-fuse-ld=mold`）を撤去し、**Rust 1.90 以降の
+   `x86_64-unknown-linux-gnu` 既定リンカーである rust‑lld** へ移行する。
+   実行時性能のトレードオフはゼロ（成果物のリンクは元々 zigbuild = zig 内蔵
+   LLD、native-test のリンクは 4 MB 級 cdylib で差が誤差）、代わりに
+   **CI の `apt-get install clang mold` ステップが消える** — このステップは
+   2026‑09‑30（native run #80）にミラーストールで 6 時間ハングし run 全体を
+   cancelled にした実績があり、障害面の削減が主目的である。
+2. **PGO（プロファイル誘導最適化）の配布バイナリへの導入（実行時性能）**
+   現行 release プロファイル（`lto="fat"` + `codegen-units=1` + `opt-level=3` +
+   `strip=true`、実測 4,110,752 B = 5 MiB 目安の 78.4 %）は「設定上の
+   オプティマイズ余地なし」の状態であり、**実行時性能をさらに上げる残された
+   本丸は PGO** である。huff0 符号化/復号・平面分割・スキャンといった
+   分岐密集ループに +5〜15 % が典型レンジ。macOS / Windows はピン留め済み
+   **maturin 1.15.0 の `--pgo` ネイティブサポート**（三段階フロー +
+   `pgo-command`）を使い、Linux x86_64 は計装 → トレーニング →
+   `llvm-profdata merge` → zigbuild + `-Cprofile-use` の手動 4 ステップを
+   `native-build-linux` へ統合する。**プロファイルはビルド毎生成・
+   コミットしない**（ドリフトゼロ・リポジトリ非肥大）。
+
+**BOLT・Intel BOT（IBOT）・Propeller・リンカー ICF・LLVM CAS・成果物への
+ThinLTO・アロケータ差し替え・target‑cpu 多変種配布は、いずれも一次調査に
+基づき「不採用 / 保留 / 監視」と判定した**（§5 に根拠と再評価条件）。
+
+実施は **Step 1–5 の 5 段階**（§6）で進め、各 Step は独立コミット・独立
+revert 可能とし、**Step 4（本番組み込み）は Step 3（パイロット計測）の
+実測ゲート（中央値 ≥ +3 %）通過を前提**とする。
+
+**主要数値サマリー**
+
+| 指標                                      | 現行                                              | 目標                                                |
+| ----------------------------------------- | ------------------------------------------------- | --------------------------------------------------- |
+| CI の apt 外部依存（native-test）         | clang + mold（6 h ハング前例あり）                | **ゼロ**（rustc 同梱 rust‑lld）                     |
+| 圧縮/解凍スループット（K2/K3）            | ×1.3–2.0 / ×1.2–2.1（境界、BENCH §7.1）           | **PGO でさらに +3 % 以上**（Step 3 で実測判定）     |
+| バイナリサイズ                            | 4,110,752 B（目安の 78.4 %）                      | 目安 5 MB 以内を維持（PGO 版も size-budget ゲート） |
+| 「テストされた成果物 = 出荷される成果物」 | build ジョブ成果物を integration / publish が共用 | **不変**（PGO 版も同一経路で保証）                  |
+
+---
+
+## 目次
+
+- [1. 背景と現状評価](#1-背景と現状評価)
+- [2. 方針と定量目標](#2-方針と定量目標)
+- [3. 技術選定（2026‑10‑01 一次確認）](#3-技術選定20261001-一次確認)
+- [4. 設計](#4-設計)
+- [5. 不採用・保留の技術と根拠](#5-不採用保留の技術と根拠)
+- [6. 実施計画](#6-実施計画)
+- [7. リスク管理](#7-リスク管理)
+- [8. ドキュメントと運営](#8-ドキュメントと運営)
+- [付録 A: 計測プロトコル](#付録-a-計測プロトコル)
+- [付録 B: 一次ソース一覧](#付録-b-一次ソース一覧)
+
+---
+
+# 1. 背景と現状評価
+
+## 1.1 現行コンパイル設定のスナップショット（2026‑10‑01 実査）
+
+**ワークスペース**（`native/Cargo.toml`）: members は `crates/znn-codec` +
+`crates/mm-core` の 2 クレート（fuzz は nightly 別ワークスペースとして
+exclude。旧 znn-cli / json-bench は計画完了後の整理で削除済み）。
+edition 2024・`rust-version = "1.85"`・resolver 2。PyO3 0.29.2
+（`abi3-py310`、`extension-module` は mm-core の default feature）。
+lints: `unsafe_code = deny`・`undocumented_unsafe_blocks = deny`・
+clippy `pedantic = warn`（CI の `-D warnings` で実質 deny）。
+
+**release プロファイル**: `panic = "unwind"`（**必須** — PyO3 が境界で
+パニックを捕捉し Python 例外化する。`abort` は ComfyUI プロセスを殺す）/
+`lto = "fat"` / `codegen-units = 1` / `opt-level = 3` / `strip = true`。
+Phase 8 実測: linux‑x86_64 **4,110,752 B = 5 MiB 目安の 78.4 %**
+（「さらなる縮小は K2/K3 速度目標とのトレードオフのため不採用」と判定済み）。
+
+**リンカーの現況（経路別）**:
+
+| ビルド経路                                    | 実際のリンカー                                 | 設定源                                                                                       |
+| --------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Linux ネイティブ（native-test・ローカル開発） | **mold**（`linker="clang"` + `-fuse-ld=mold`） | `native/.cargo/config.toml`（x86_64 / aarch64 の gnu 2 ターゲット）                          |
+| Linux 配布成果物（zigbuild クロス）           | **zig 内蔵 LLD**                               | cargo-zigbuild が `CARGO_TARGET_*_LINKER` で config を上書き（glibc 2.28 の床も zig が決定） |
+| macOS 配布成果物                              | ld‑prime                                       | maturin 1.15.0（universal2 = 両 arch + lipo、macOS ホスト）                                  |
+| Windows 配布成果物                            | link.exe（MSVC）                               | maturin 1.15.0（Windows ホスト）                                                             |
+| fuzz（nightly・ASan）                         | mold（config が fuzz ワークスペースへも遡及）  | cargo の config 探索が `native/.cargo/config.toml` を拾うため                                |
+
+**CI のリンカー関連ステップ**: `native.yml` native-test (ubuntu) の
+「Install mold + clang」ステップ（`timeout-minutes: 10` は run #80 の
+6 時間ハング事故の対策として第 18 セッションで追加）、`fuzz-long.yml` の
+同形ステップ（「sanitizer linking」名目だが、実体は上記 config の
+`linker="clang"` + mold を満たすために必要だったもの）。
+
+**ピン留め**: cargo-zigbuild 0.23.4 / ziglang 0.16.0 / maturin 1.15.0。
+ツールチェーンは `dtolnay/rust-toolchain@stable`（2026‑10‑01 に
+**1.99.0 へ更新された** — 下記 1.3）。
+
+## 1.2 性能目標の現況（Plan.md §2.2 との関係）
+
+K2（圧縮 ≥1.5×）/ K3（解凍 ≥2×）は、開発機の SHA‑NI 無し 2 vCPU 環境では
+検証ハッシュが律速となり **×1.3–2.0 / ×1.2–2.1 の「境界」**まで実測
+（BENCH §7.1、参照機での再計測が未完の宿題）。PGO はこの分子
+（圧縮/解凍自体のスループット）を**検証設計を変えずに**引き上げられる
+唯一の残されたコンパイル系レバーである（プロファイル設定は §1.1 の通り
+既に最大構成のため）。
+
+## 1.3 2026‑10‑01 のツールチェーンドリフト事故（本計画のリスク規定に反映）
+
+Rust **1.99.0 stable が 2026‑10‑01 にリリース**され、`@stable` 運用の
+native-test が新 clippy lint `clippy::assert_is_empty`（pedantic →
+`-D warnings` で実質 deny）を検出、**3 OS すべてで赤**になった
+（dev run #95）。対処は「ローカルへ同一 toolchain（1.99.0）+ zig cc を
+用意して CI ゲートを完全再現 → clippy の機械適用提案どおりの構造修正
+（suppression 不使用）」で完了（commit 5fa3679、native run #96 全緑）。
+**教訓**: `@stable` 運用ではリリース当日に lint ドリフトが全 push を
+赤くし得る。本計画の各 Step の検証もこの再現手順（MEMO §2.2 に追記）を
+使う。ツールチェーンのピン留め化は行わない（Plan T6 の「最新系追従」
+方針を維持し、ドリフトは構造修正で消化する）。
+
+---
+
+# 2. 方針と定量目標
+
+## 2.1 基本方針
+
+1. **障害面の削減を性能より先に採る**: Step 1（lld 化）は実行時性能を
+   変えないが、apt 外部依存（ハング前例あり）を CI から消す。
+2. **実測ゲートなしにパイプライン複雑度を上げない**: Step 4（PGO 本番
+   組み込み）は Step 3 のパイロット計測が基準（§2.2 G1）を満たした
+   場合のみ実施する。未達なら中止を記録して終了（沉没コストを残さない）。
+3. **「テストされた成果物 = 出荷される成果物」の不変条件を維持する**:
+   PGO 版バイナリは既存の build ジョブ内で生成し、integration（L4/L5）・
+   abi3-import・size-budget・publish-native-bin が**同じ成果物**に対して
+   走る現行構造を変えない。
+4. **プロファイルはビルド毎生成・コミットしない**: 陳腐化（ドリフト）と
+   リポジトリ肥大を構造的にゼロにする。ローカル再現手順は文書化する。
+5. **各 Step は独立コミット・独立 revert**: 1 Step = 1 プッシュ = CI 実走緑
+   を確認してから次へ（Plan §6.3 の保守的進行を継承）。
+6. **クロス arch のプロファイル流用はしない**: linux-aarch64 は
+   PGO 対象外（§4.5）。誤った流用は「静かな no-op」で発見が遅れるため
+   構造的に禁止する。
+
+## 2.2 定量目標（ゲート）
+
+| #   | 指標                                          | 目標                                                                                                                                                   |
+| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| G1  | PGO の実行時効果（linux-x86_64・Step 3 実測） | 圧縮・解凍スループット中央値が baseline 比 **+3 % 以上**（付録 A プロトコル）。未達なら Step 4 へ進まない                                              |
+| G2  | プロファイル一致率                            | `-Cllvm-args=-pgo-warn-missing-function` の mismatch 警告が**関数総数の 1 % 未満**（zigbuild 経路でも profile-use が実際に効いていることの機械的証明） |
+| G3  | バイナリサイズ                                | PGO 版も **≤ 5 MB/本（目安）・合計 ≤ 20 MB（ハード上限）** の既存 size-budget ゲートを通過                                                             |
+| G4  | CI 時間                                       | native run 全体 ≤ **20 分**（現行 ~9–10 分 + PGO 各セル +3–6 分を見込む。timeout-minutes 60 の範囲内）                                                 |
+| G5  | apt 依存                                      | native-test (ubuntu) の apt ステップ **ゼロ**（Step 1 完了条件）                                                                                       |
+| G6  | 既存ゲートの不変                              | L5 相互運用・fuzz-smoke 7 本・abi3-import（3.10/3.13）・glibc 2.28 床・integration 3 OS が全て緑のまま                                                 |
+
+---
+
+# 3. 技術選定（2026‑10‑01 一次確認）
+
+> 本章のバージョン・日付・挙動はすべて 2026‑10‑01 に一次ソース
+> （rust-lang.org 公式ブログ / rustc book / maturin リリースノート /
+> LLVM・GitHub issue / 各ベンダ公式文書）で確認した。出典は付録 B。
+
+## 3.1 選定結果サマリー
+
+| 領域                  | 採用                                                                        | 不採用・保留とした候補と理由（詳細 §5）                                                    |
+| --------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Linux リンカー        | **rust‑lld**（rustc 同梱・1.90 以降 x86_64‑gnu 既定）                       | mold 維持（apt 依存とハング前例）/ lld 明示指定（x86_64 では既定のため不要）               |
+| 実行時最適化          | **計装ベース PGO**（rustc 標準 `-Cprofile-generate/use` + `llvm-profdata`） | サンプリング PGO / AutoFDO（rustc 非公認・GH ランナーの perf 制約）                        |
+| PGO 駆動（mac/win）   | **maturin `--pgo` + `pgo-command`**（ピン留め 1.15.0 に機能存在を確認）     | 手動 RUSTFLAGS（maturin の一時 venv 三段階フローの再実装になる）                           |
+| PGO 駆動（linux）     | **手動 RUSTFLAGS 4 ステップ**（build-native.sh 統合）                       | cargo-pgo 0.3.x（zigbuild サブコマンドの駆動がサポート外。ローカル開発用の代替として記録） |
+| トレーニング workload | **自前 `scripts/pgo/train.py`**（stdlib + mm_core + tests/harness のみ）    | pytest 流用（ルート/ws オーバーヘッドでプロファイルが希釈される・torch 依存セルがある）    |
+| プロファイル保存      | **ビルド毎生成（非コミット）**                                              | .profdata コミット（陳腐化と 3 プラットフォーム分の肥大。arch/OS 非互換）                  |
+| post-link 最適化      | **導入しない**（BOLT 保留・IBOT 対象外・Propeller 監視）                    | §5.1–5.3                                                                                   |
+
+## 3.2 rust‑lld（Step 1）
+
+- **Rust 1.90.0（2025‑09‑18 stable）以降、`x86_64-unknown-linux-gnu` の
+  既定リンカーは rust‑lld**（rust-lang 公式ブログ 2025‑09‑01）。現行
+  toolchain（1.99.0）では `.cargo/config.toml` の mold 指定を**削除する
+  だけ**で rust‑lld に落ちる。
+- `aarch64-unknown-linux-gnu` は既定化されていない（rust-lang users
+  スレッド・rustc issue #127774 系）。**配布成果物は zigbuild（zig LLD）
+  のままで影響なし**。ARM ホストでのネイティブ開発ビルドはシステム既定
+  リンカー（必要なら `-C linker-features=+lld` を各自で）とし、config では
+  強制しない（旧 toolchain ユーザの `-C` フラグ互換性を壊さないため）。
+- fuzz（nightly）: nightly の rust‑lld 既定化は stable より先行しており
+  実績がある。**ASan ランタイムは rustc が compiler-rt を同梱**するため
+  リンカー変更で壊れる構造ではない。ただし週次 run で実証するまで
+  `fuzz-long.yml` の apt ステップ（clang + mold）は**残置**し、緑確認後に
+  別コミットで削除する（R5）。
+
+## 3.3 PGO（rustc 標準・計装ベース）
+
+- rustc book の PGO 章が定める 4 ステップ（`-Cprofile-generate` ビルド →
+  workload 実行 → `llvm-profdata merge` → `-Cprofile-use` ビルド）。
+  **計装された cdylib はホストプロセス（CPython）にロードされて実行された
+  分だけ独立した `.profraw` を生成する**ことが同章に明記されており、
+  `mm_core.abi3.so` / `mm_core.pyd` の PGO はこの机制で成立する。
+- `llvm-profdata` は `rustup component add llvm-tools-preview` で供給
+  （CI の `dtolnay/rust-toolchain` に `components: llvm-tools-preview` を
+  追加する）。
+- **同一 arch・同一 OS で採取したプロファイルのみを使う**（G2 の
+  warn-missing-function 検査で機械的に担保）。zigbuild の
+  `x86_64-unknown-linux-gnu.28` 表記は glibc 床の指定であり Rust 側の
+  コード生成（関数ハッシュ）を変えないため、ホスト x86_64 で採取した
+  プロファイルは zigbuild 成果物に適用可能 — **Step 3 で mismatch 率を
+  実測して確定**する（推測で本番化しない）。
+- cargo-pgo 0.3.x（Kobzol 氏、2026‑04 もコミットあり・rustc book が
+  手動代替として名指し推奨）は**ローカル開発用の選択肢**として記録するが、
+  CI 経路には使わない: 同ツールの `optimize` が wrap するのは
+  `build`/`run`/`test`/`bench` であり、`cargo zigbuild` の駆動は
+  サポート範囲外（README 実査）。手動 RUSTFLAGS なら build-native.sh の
+  既存構造（zigbuild 呼び出し）に 2 行で統合できる。
+- **maturin 1.15.0 の `--pgo`**: 同版リリースノートに `--pgo` 系の修正
+  （#3237 `maturin build --pgo -i <version>` の uv 対応）と
+  `MATURIN_PGO` env（#3271）・`maturin develop --pgo`（#3270）が収録
+  されており、**ピン留め中の 1.15.0 に機能が存在することを確認済み**。
+  `pgo-command` は計装 wheel をインストールした**一時 venv 内で実行**される
+  （maturin.rs/config 実査）→ train.py はサードパーティ import ゼロで
+  書く（§4.2）。
+
+## 3.4 トレーニング workload の設計原則
+
+- **代表負荷であること**: 圧縮/解凍（bf16 中心 + f32/f16/fp8）、デルタ、
+  スキャン、ハッシュ、ヘッダ/テンソルツリー、WebP の全 API 表面を
+  網羅する（プロファイルの偏りは PGO の副作用「外れた経路の劣化」を
+  招くため、使用実績のある経路は全部踏む）。
+- **決定論的であること**: シード固定の合成フィクスチャ
+  （`tests/harness.py` の字节級 writer と synth 群を再利用 — torch 不要・
+  ネットワーク不要・stdlib のみ）。ビルド毎に同一プロファイル形状が
+  再現され、成果物の決定論性が保たれる。
+- **短いこと**: 1 プラットフォーム ≤ 3 分（CI 時間予算 G4）。
+
+---
+
+# 4. 設計
+
+## 4.1 全体パイプライン（Step 4 完了形）
+
+```
+native-build-linux (ubuntu-latest)
+  1. instrumented host build:
+     RUSTFLAGS="-Cprofile-generate=$RUNNER_TEMP/pgo" cargo build --release -p mm-core
+  2. train:   PYTHONPATH=target/release python scripts/pgo/train.py
+  3. merge:   llvm-profdata merge -o $RUNNER_TEMP/pgo/merged.profdata $RUNNER_TEMP/pgo
+  4. ship:    build-native.sh --target linux-x86_64 --size-gate \
+                 --pgo $RUNNER_TEMP/pgo/merged.profdata
+               （内部: zigbuild + RUSTFLAGS="-Cprofile-use=…
+                 -Cllvm-args=-pgo-warn-missing-function"）
+  5. (aarch64 は 1–3 なしの現行経路のまま — §4.5)
+  → 既存ゲート（glibc 床 readelf / import smoke / pytest / upload-artifact）不変
+
+native-build-macos / native-build-windows
+  maturin build --release [--target universal2-apple-darwin] --pgo
+  （native/pyproject.toml [tool.maturin] pgo-command =
+    "python <abs>/scripts/pgo/train.py" — 一時 venv で実行される）
+  → build-native.sh の maturin 経路に --pgo フラグを透過
+
+integration / abi3-import / size-budget / publish-native-bin
+  → 変更なし（同じ成果物に対する既存ゲートがそのまま PGO 版を検証・出荷する）
+```
+
+## 4.2 `scripts/pgo/train.py`（Step 2 の成果物）
+
+| 特性        | 内容                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 依存        | stdlib + `mm_core`（PYTHONPATH 経由）+ `tests/harness`（sys.path 追加で import）。**pip 依存ゼロ**（maturin の一時 venv・全 OS ランナーでそのまま動く）                                                                                                                                                                                                                                     |
+| 決定論      | 全フィクスチャがシード固定（harness の synth_bf16/synth_f32/write_safetensors 系）。時刻・乱数・ネットワーク非依存                                                                                                                                                                                                                                                                          |
+| カバー範囲  | (1) `zipnn_compress`/`zipnn_decompress` ジョブ往復 × dtype 4 種（bf16 主、f32/f16/fp8 従）16–64 MB 級・複数ラウンド (2) `zipnn_delta_compress`/`decompress` 往復 (3) 合成ライブラリ（~2,000 モデル）の `scan_models` 冷/暖 (4) 128 MB ファイルの `hash_file`（5 表記） (5) 8 MB 級 MoE ヘッダの `safetensors_header` + `safetensors_tensor_tree` (6) `webp_encode`/`webp_decode`/アニメ往復 |
+| 実行時間    | ≤ 3 分 / プラットフォーム（反復数は環境変数で調整可: `TRAIN_ROUNDS`）                                                                                                                                                                                                                                                                                                                       |
+| `--measure` | スループット計測モード（Step 3 の効果判定用）: 圧縮/解凍 MB/s を **baseline 成果物と PGO 成果物を同一セッションで交互計測**（N=3 ラウンド・steal 記録・側別最小値 — 付録 A）し JSON 出力                                                                                                                                                                                                    |
+| 出力        | 計装ビルド実行時は `.profraw`（`LLVM_PROFILE_FILE` 既定挙動）。`--measure` は JSON を stdout / `--json-out`                                                                                                                                                                                                                                                                                 |
+| 配置        | `scripts/pgo/train.py` + `scripts/pgo/README.md`（目的・使い方・プロファイル方針）                                                                                                                                                                                                                                                                                                          |
+
+## 4.3 linux-x86_64 の手動 4 ステップ（Step 3/4）
+
+```bash
+# 1. 計装ビルド（ホストネイティブ。zigbuild ではない — トレーニングは
+#    ランナー上で実行する必要があるため）
+RUSTFLAGS="-Cprofile-generate=$PROF_DIR" \
+  cargo build --release -p mm-core
+# 2. トレーニング（計装 .so を CPython がロード → profraw 生成）
+PYTHONPATH=target/release LLVM_PROFILE_FILE="$PROF_DIR/default_%m.profraw" \
+  python scripts/pgo/train.py
+# 3. マージ
+llvm-profdata merge -o "$PROF_DIR/merged.profdata" "$PROF_DIR"
+# 4. 出荷ビルド（zigbuild + profile-use。glibc 2.28 床は不変）
+RUSTFLAGS="-Cprofile-use=$PROF_DIR/merged.profdata \
+  -Cllvm-args=-pgo-warn-missing-function" \
+  cargo zigbuild --release --target x86_64-unknown-linux-gnu.2.28 -p mm-core
+```
+
+- ステップ 4 のビルドログの **warn-missing-function 出力を CI でカウントし、
+  G2（mismatch < 1 %）を assert** する（プロファイルが静かに no-op 化する
+  失敗モードの機械的検出）。
+- `build-native.sh` には `--pgo <profdata>` フラグを追加し（未指定時は
+  現行と完全に同一挙動）、上記 RUSTFLAGS の組み立てをスクリプト内へ
+  カプセル化する。
+
+## 4.4 macOS / Windows（maturin `--pgo`、Step 4）
+
+- `native/pyproject.toml` の `[tool.maturin]` に
+  `pgo-command = "python …/scripts/pgo/train.py"` を追加し、
+  build-native.sh の maturin 呼び出しへ `--pgo` を透過する。
+- **universal2 の注意点（実施時の一次検証必須）**: maturin の PGO 三段階は
+  ホスト（arm64）で計装・トレーニングするため、**x86_64 スライスには
+  プロファイルが不一致（= そのスライスは実質 no-op）となる可能性**がある。
+  Step 4 の実施時に warn-missing-function 相当の挙動（ビルドログ /
+  `--measure` のスライス別実測）で一次確認し、(a) 両スライス有効なら
+  そのまま、(b) arm64 のみ有効なら「macOS は arm64 スライスのみ PGO」と
+  記録、(c) 悪影響があれば macOS は PGO 見送り — の 3 択で判断する
+  （推測で本番化しない）。
+- Windows（MSVC）: MSVC ツールチェーンの PGO（`/LTCG:PGI` 系）は
+  LLVM プロファイル機構とは別物だが、rustc の `-Cprofile-*` は
+  LLVM 計装であり MSVC リンクでもそのまま機能する（rustc 標準サポート）。
+  train.py は stdlib のみなので Windows ランナーの一時 venv でも動く。
+
+## 4.5 linux-aarch64（PGO 対象外 — 明記）
+
+クロスコンパイル（zigbuild）かつ ARM ランナーが無いため、
+**同一 arch プロファイル採取が不可能**。x86_64 プロファイルの流用は
+関数ハッシュ一致でもカウンタ布局・レジスタ割り付けが arch 固有のため
+行わない（§2.1‑6）。現状の非 PGO ビルドを維持し、`native.yml` に
+コメントで根拠を残す。**stretch 案**: GitHub の ARM hosted runner
+（`ubuntu-24.04-arm`）が利用可能なら、aarch64 の計装ビルド + トレーニングを
+ネイティブ実行する専用セルを追加する（本計画の範囲外・需要確認後）。
+
+## 4.6 プロファイルの保存方針（非コミット）
+
+- プロファイルは**各 build ジョブ内で生成・消費し、artifact にも
+  リポジトリにも残さない**。利点: (1) ソースとの版本ズレ（ドリフト）が
+  構造上ゼロ、(2) 3 プラットフォーム × arch 分のバイナリ肥大なし、
+  (3) arch/OS 非互換プロファイルの誤用が起きない。
+- 代償: ビルド毎 +2〜4 分（計装ビルド + トレーニング）。G4 の範囲内。
+- ローカルで PGO 成果物を再現する手順は `scripts/pgo/README.md` と
+  `native/README.md` に記載する。
+
+---
+
+# 5. 不採用・保留の技術と根拠
+
+> すべて 2026‑10‑01 の一次調査に基づく。**再評価条件**を各項に明記する。
+
+## 5.1 LLVM BOLT — 保留（PGO 実証後にデータ次第）
+
+- **ELF 専用**（Mach‑O / PE 非対応）→ 4 プラットフォーム中
+  linux 2 成果物のみ。配布の非対称は「全平台同等品質」の設計思想と衝突。
+- 前提条件が現行パイプラインと衝突: **非ストリップのシンボルテーブル +
+  `--emit-relocs` リンク**（BOLT README）が必要で、`strip = true` と
+  zigbuild 経路に「中間生成 → BOLT → 再ストリップ → glibc 床・abi3・
+  サイズを全再検証」の追加工程が発生する。
+- 共有ライブラリの計装は「ホスト（CPython）を計装できない」問題が
+  LLVM issue #69846 で議論されており、LBR/perf サンプリングは
+  GH ホストランナーの `perf_event_paranoid` 制約で不可 → 計装モード頼み。
+- 限界利得: **LTO+PGO 徹底済みバイナリへの追加効果は 2–6 %**
+  （Google/Chromium 記録）、rustc 同梱 LLVM（超巨大・フロントエンド
+  律速）への適用でも 3–5 %。4 MB 級 cdylib でホットコードが
+  i-cache に収まる本件では下端が期待値。
+- cargo-pgo の BOLT 対応は**明示的に experimental**（LLVM 手動ビルド or
+  リリース入手 + Docker 推奨）。
+- **再評価条件**: Step 3/4 の PGO 実装後、`perf stat` 相当の計測で
+  iTLB/i-cache miss が律速と実証された場合に linux-x86_64 限定の
+  オプショナル工程として再設計する。
+
+## 5.2 Intel Binary Optimization Tool（IBOT）— 対象外（導入する接口が存在しない）
+
+2026‑10‑01 の一次調査で実態を確認した。**IBOT はビルドツールチェーンの
+構成要素ではなく、Windows の Intel Application Optimization（APO）UI の
+Advanced Mode で有効化するエンドユーザー向けランタイム機能**である:
+
+- Intel DTT ドライバ（Platform Performance Package）必須・BIOS で
+  DTT/IPF 有効化が前提。**対応 CPU は Core Ultra 200 Plus シリーズ
+  （Arrow Lake Refresh）と Core Ultra Series 3（Panther Lake）の
+  ホワイトリスト制**（Intel 公式サポート記事 000102604、最終更新
+  2026‑06‑08）。
+- 最適化対象も**ホワイトリスト制**（Cyberpunk 2077・Shadow of the
+  Tomb Raider・Metro Exodus 等 約 20 タイトル + 「Geekbench 6.3+
+  (Proof of Concept)」）。起動時に実行ファイルのチェックサムで既知
+  バイナリを識別し、初回 40 秒・以降 2 秒の遅延の後に命令列を書き換える
+  （Primate Labs の解析）。
+- Primate Labs の SDE 実測では、公開文書が披露するコード再配置を超えた
+  **自動ベクトル化**（HDR ワークロードで scalar 命令 -62 % / vector 命令
+  +1366 %）を行う。Geekbench 6.3（ホワイトリスト版）で +5.5 %、
+  **6.7（非対象版）では +0.0 / +0.9 % と効果ゼロ** — つまり効果は
+  「Intel が個別にチューニングした特定バイナリ」に限られる。
+- **Geekbench 6.7 以降は BOT 検出時にスコアを invalid としてフラグする**
+  （Primate Labs: 「ピーク性能を測るもので典型性能ではない」「Intel CPU が
+  AMD 等に対し不当に速く見える」）。したがって「Geekbench 約 8 %」を
+  導入根拠にすることは、ベンチマークベンダー自身が無効と判定した数値の
+  引用になる。
+- 本プロジェクトとの関係: `mm_core` はホワイトリスト外の Python 拡張
+  ライブラリであり、Linux/macOS には IBOT に相当するものが存在しない。
+  **私たちが「導入」できる接口がそもそも無い**（BOLT = ビルド時に自分が
+  適用するツール、IBOT = Intel のドライバがエンドユーザーのマシンで
+  特定ゲームに適用するサービス、でレイヤーが異なる）。ゲーム title での
+  22–25 % 級の FPS 向上報告（Shadow of the Tomb Raider は対象リスト入り）
+  は「対応 CPU + Windows + ホワイトリスト済み実行ファイル」限定の
+  ランタイム書き換えの結果であり、圧縮ライブラリへ移植できる性質の
+  ものではない。
+
+## 5.3 Propeller — 監視のみ
+
+Google の「リンカー駆動」post-link 最適化（コンパイル時に基本ブロックを
+分裂させ、リンカがプロファイルで再配置）。BOLT よりバイナリが小さく
+メモリ/時間も軽量という報告がある一方、**2025‑12 時点で LLVM への
+アップストリーム進行中**であり、rustc 統合は皆無。x86‑64 ELF 中心。
+**再評価条件**: LLVM への完全取り込み + rustc 側の `-C` サポート出現。
+
+## 5.4 リンカー ICF（Identical Code Folding）— 任意実験（サイズが必要になったとき）
+
+- Rust の単相化は同一機械語関数を大量に生成するため折り畳み余地はあり、
+  Google の Safe ICF 論文は **4.95–7.76 % のサイズ削減**を報告。
+- ただし (1) これは**サイズ最適化であって速度最適化ではない**（サイズ
+  予算は 78.4 % で余裕あり）、(2) `--icf=all` は関数アドレス同一性
+  （fn ポインタ比較・バックトレース）を壊すリスクがあり Rust では
+  実質禁止、`--icf=safe` はコンパイラ側 address-significance 出力への
+  依存があり rustc の出力状況次第ではほぼ折り畳まれない、
+  (3) ELF(lld) / ld64 / link.exe `/OPT:ICF` で挙動が平台非対称。
+- **再評価条件**: バイナリサイズが予算を圧迫した場合に
+  `--icf=safe` のみ実験する。
+
+## 5.5 LLVM CAS — 適用対象外
+
+LLVM CAS は **Clang の explicit modules / ビルド計算のコンテンツ
+アドレス指定キャッシュ基盤**（2022 RFC で LLVM へ、Xcode 26 の
+コンパイルキャッシュも同系）。**rustc はこれを使わず**、Rust 側の等価物は
+incremental compilation + `Swatinem/rust-cache`（CI 導入済み）+ sccache。
+本ワークスペースに C コンパイルは存在しない（zenwebp も純 Rust）ため
+CAS が入り込む隙間がない。
+
+## 5.6 ThinLTO（成果物プロファイルへの適用）— 不採用
+
+- 現行 `lto="fat"` + `codegen-units=1` は実行時最大の構成（Phase 8 実測
+  済み）。rustc チームの計測では「LTO は無効比 4–20 % 高速、ThinLTO は
+  fatLTO と同等以上のケースが多い（ビルド時間は大幅短縮）」であり、
+  **ThinLTO の本質はビルド時間最適化**。
+- 成果物は CI で一度だけ作るため fat を維持。CI の
+  `cargo test --workspace --release`（native-test）を thin の別プロファイル
+  にする案は、native run 全体が ~10 分で回っている現状では
+  ボトルネックでなく、テストが実出荷プロファイルと乖離する
+  デメリットの方が大きい → **触らない**。
+
+## 5.7 アロケータ差し替え（mimalloc / jemalloc）— 保留
+
+glibc malloc 比で有意に速い計測は多数あるが、**両者とも C 実装**であり、
+本プロジェクトの「C 依存ゼロ」方針（zenwebp 選定や sha2/blake3 選定と
+同根）と衝突する。cdylib のグローバルアロケータ差し替えは Rust 側
+確保にのみ効く。scan の JSON 直列化等で小確保は多いが、
+**再評価条件**: プロファイリングでアロケータ律速が実証された場合。
+
+## 5.8 target‑cpu 多変種 / ISA 拡張 — 不採用（現状維持）
+
+配布バイナリに `-Ctarget-cpu=native` は不可（glibc 2.28 床と同じ
+移植性要件）。x86‑64‑v2/v3 の多変種配布 + ランタイム選択は、4 平台 × N
+変種の loader/CI/サイズ予算の複雑化に対し、**sha2（SHA‑NI）・blake3・
+zenwebp（archmage SIMD）が既に行っている実行時 CPU 特徴検出**で
+ホットパスの ISA 最適化が済んでいるため実益が薄い。残るスカラー
+ホットスポット（huff0 ビットストリーム・平面分割）への手書き SIMD
+ディスパッチは**コンパイル設定でなくソース作業**であり、
+プロファイルでホットと確認された関数から着手する（本計画の範囲外・
+別計画として起票する）。
+
+---
+
+# 6. 実施計画
+
+## 6.1 Step 総覧
+
+| Step | 名称                                          | 主成果物                                                          | 完了条件（要約）                                             |
+| ---- | --------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| 1    | rust‑lld 移行                                 | config/CI/文書からの mold 撤去                                    | dev CI native 全緑（apt ステップなし）+ ローカルゲート再現緑 |
+| 2    | PGO トレーニングハーネス                      | `scripts/pgo/train.py` + README                                   | 3 OS のランナーで完走（≤3 分）・ruff 緑・決定論              |
+| 3    | linux-x86_64 パイロット計測（非ゲーティング） | `pgo-measure`（workflow_dispatch 専用ジョブ）+ 計測レポート       | G1/G2/G3 の実測レポート完成。採用判定 = G1 達成              |
+| 4    | PGO 本番組み込み                              | build 3 ジョブの PGO 化（linux 手動 / mac・win は maturin --pgo） | native 全緑 + G3/G4/G6 + integration = PGO 成果物            |
+| 5    | ドキュメント・記録                            | native/README・BENCH・MEMO・（任意）README×2                      | 全ゲート緑 + 文書同步（同一コミット）                        |
+
+## 6.2 Step 詳細
+
+### Step 1 — rust‑lld 移行
+
+- [ ] `native/.cargo/config.toml`: 両 `[target.*-unknown-linux-gnu]` 節
+      （`linker="clang"` + `-fuse-ld=mold`）を削除し、判断根拠のコメントへ
+      置換（1.90 以降 x86_64 は rust‑lld 既定 / aarch64 はシステム既定・
+      任意で `-C linker-features=+lld` / クロスは zigbuild が
+      `CARGO_TARGET_*_LINKER` で上書きするため元々影響なし /
+      2026‑10‑01 決定・ NEO‑PLAN‑2026‑002 §3.2）
+- [ ] `native.yml` native-test: 「Install mold + clang (Linux only)」apt
+      ステップを削除（run #80 の 6 h ハング対策コメントは「apt 依存自体を
+      撤去」の記述へ更新）。ヘッダコメントの「mold installed on Linux」を
+      「rust-lld (rustc default since 1.90)」へ
+- [ ] `fuzz-long.yml`: **この Step では触らない**（apt の clang+mold は
+      未使用になるが無害。config 削除により fuzz ビルドは cc + rust‑lld へ
+      自然移行する — nightly の rust‑lld 既定は実績あり、ASan ランタイムは
+      rustc 同梱）。**次の週次スケジュール run（日曜 18:00 UTC）緑、または
+      ユーザによる手動 dispatch の緑を確認後**、別コミットで apt ステップを
+      削除する（R5）
+- [ ] `native/README.md`: 「### 2. mold リンカー」節を「### 2. リンカー
+      （rust‑lld 既定）」へ書き換え（mold 導入手順の削除・clang 不要の
+      フォールバック記述削除・zigbuild/macOS/Windows の現況は維持）
+- [ ] `Agent/MEMO.md` §2.2 再構築チェックリスト: apt 行から
+      `clang mold` を除去（build-essential 等は残す）+ §1.2 に
+      「リンカーは rust‑lld 既定（2026‑10‑01、NEO‑PLAN‑2026‑002 Step 1）」
+- [ ] ローカル検証: 1.99.0 toolchain + zig cc 環境（MEMO §2.2 の再現手順）で
+      `cargo build -p mm-core`（debug）疎通 + `cargo clippy --workspace
+--all-targets --all-features -- -D warnings` + `cargo fmt --check` +
+      `cargo test --workspace --exclude mm-core`
+- [ ] 完了条件: **dev CI の native run 全緑**（native-test ubuntu が
+      apt ステップなしで緑 = G5、integration/abi3/size-budget/fuzz-smoke
+      不変 = G6）+ 週次 fuzz-long の緑確認（またはユーザ dispatch）
+
+### Step 2 — PGO トレーニングハーネス
+
+- [ ] `scripts/pgo/train.py`（§4.2 仕様。stdlib + mm_core + tests/harness
+      のみ・シード固定・`TRAIN_ROUNDS` で反復数調整・`--measure` モード
+      内蔵・`--json-out`）
+- [ ] `scripts/pgo/README.md`（目的・使い方・プロファイル非コミット方針・
+      ローカル PGO 再現手順）
+- [ ] 検証: ローカル debug バイナリで完走（sandbox でビルド可能な場合）+
+      ruff check/format 緑 + **3 OS での実走は Step 3 のジョブに
+      一時的に組み込んで確認**（単体では CI に常設しない）
+- [ ] 完了条件: Step 3 ジョブ内で train.py が 3 プラットフォームの
+      ランナー環境（ubuntu の host / macos の一時 venv / windows の
+      一時 venv）でエラーなく完走し、profraw が生成されること
+
+### Step 3 — linux-x86_64 パイロット計測（非ゲーティング）
+
+- [ ] `native.yml` に **`workflow_dispatch` 専用ジョブ `pgo-measure`**
+      （毎 push では走らせない — ランナー分の節約と、計測の
+      オンデマンド化）:
+  - [ ] `dtolnay/rust-toolchain@stable` + `components: llvm-tools-preview`
+  - [ ] 計装ビルド（§4.3 ステップ 1）→ train.py 実行（ステップ 2）→
+        `llvm-profdata merge`（ステップ 3）
+  - [ ] baseline 成果物（現行 build-native.sh）と PGO 成果物
+        （`--pgo` 付き）の 2 本を zigbuild
+  - [ ] **G2 検査**: PGO ビルドログの warn-missing-function 出力を
+        カウントし mismatch 率 < 1 % を assert（超過ならジョブ失敗 =
+        プロファイル no-op の検出）
+  - [ ] `train.py --measure` で baseline / PGO を**同一セッション交互
+        計測**（N=3、steal 記録、側別最小値 — 付録 A）
+  - [ ] 結果を表で job summary へ出力 + JSON を artifact 化
+        （`scripts/bench/results/` へはコミットしない — 採用決定後に
+        BENCH.md 新セクションの証跡として精選してコミットする）
+  - [ ] サイズ実測（PGO 版 vs 5 MB 目安 = G3 の事前確認）
+- [ ] `build-native.sh` への `--pgo <profdata>` フラグ追加（未指定時 =
+      現行と完全同一挙動。RUSTFLAGS 組み立てのカプセル化）
+- [ ] 完了条件: **計測レポート完成**（数値・env ブロック・steal 記録）。
+      **採用判定 = G1（圧縮/解凍スループット中央値 +3 % 以上）**。
+      未達の場合は「不採用」を BENCH/MEMO に記録して本計画を終了
+      （Step 4/5 は実施しない）
+
+### Step 4 — PGO 本番組み込み（G1 達成後のみ）
+
+- [ ] `native-build-linux`: §4.1 の 1–4 を統合（instrumented ビルド →
+      train → merge → `build-native.sh --pgo`）。**G2 の assert を
+      本番ジョブにも常設**（プロファイル no-op の永久検出）
+- [ ] `native-build-macos` / `native-build-windows`:
+      `native/pyproject.toml [tool.maturin]` に `pgo-command` 追加 +
+      build-native.sh の maturin 経路へ `--pgo` 透過。
+      **universal2 × PGO の一次検証**（§4.4 の 3 択判断をコミット
+      メッセージと native/README に記録）
+- [ ] linux-aarch64: 非 PGO のまま（§4.5 の根拠コメントを native.yml へ）
+- [ ] `dtolnay/rust-toolchain` の build ジョブ 3 本へ
+      `components: llvm-tools-preview`（mac/win は maturin が内部で
+      llvm-profdata を要するため — 要否は実施時に一次確認し、
+      不要なら追加しない）
+- [ ] 完了条件: **native run 全緑**（G6）+ **G3**（size-budget 緑）+
+      **G4**（run 全体 ≤ 20 分）+ integration 3 OS が PGO 成果物に対して緑
+      （= 「テストされた成果物 = 出荷される成果物」）+ main マージ後の
+      publish-native-bin が PGO 版をコミット（bot の diff コミット確認）
+
+### Step 5 — ドキュメント・記録
+
+- [ ] `native/README.md`: PGO パイプライン節（train.py・プロファイル
+      ビルド毎生成・aarch64 除外の理由・universal2 判断の記録）+
+      リンカー節の最終形
+- [ ] `docs/BENCH.md`: 新セクション「PGO 効果の実測」（Step 3 の計測 +
+      本番ランナーの env ブロック・共有ランナーの但し書き・
+      証跡 JSON の精選コミット）
+- [ ] `Agent/MEMO.md`: 運営メモ（PGO の CI コスト増・maturin --pgo の癖・
+      プロファイル非コミット規程・warn-missing-function assert の意味）+
+      セッション記録
+- [ ] （任意・G1 の実測が README の性能主張を改善する場合のみ）
+      README×2 のエンジン節へ「PGO 最適化済みプリビルド」の 1 文追加
+- [ ] 本計画書の進捗マーク更新（§6.2 と下記 §6.3 を同一コミットで）
+- [ ] 完了条件: 全文書の参照整合（prettier 緑）+ dev CI 緑
+
+## 6.3 進捗管理規程
+
+- 着手時 `- [/]`、完了時 `- [x]`（Plan.md §6.3 と同一規程）。
+- **各 Step は CI 実走緑を確認してから次へ**（1 Step = 1 プッシュ）。
+- **リリース公開・main へのマージはユーザ専任**（Plan §6.3 の恒久規程を
+  継承）。セッションは dev へのコミット/プッシュと検証まで。
+- Step 3 のゲート未達時は**中止を記録して終了**（Step 4/5 のチェックは
+  未着手のまま「不採用」注記を追加する）。
+
+---
+
+# 7. リスク管理
+
+| #   | リスク                                                    | 確率 | 影響 | 緩和策                                                                                                                                     | Step |
+| --- | --------------------------------------------------------- | ---- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---- |
+| R1  | PGO 効果が基準未満（+3 % 未満）                           | 中   | 小   | Step 3 ゲートで中止判定。パイプライン複雑度を本番に入れない                                                                                | 3    |
+| R2  | プロファイル不一致による静かな no-op（zigbuild 経路等）   | 中   | 中   | `-Cllvm-args=-pgo-warn-missing-function` の mismatch 率を CI で assert（G2）                                                               | 3,4  |
+| R3  | universal2 の x86_64 スライスがプロファイル不一致         | 中   | 小   | §4.4 の一次検証 + 3 択判断（最悪 = macOS 見送り。arm64 のみ恩恵でも実害なし）                                                              | 4    |
+| R4  | CI 時間の増大（計装ビルド + トレーニング）                | 高   | 小   | train.py ≤3 分設計 + G4（≤20 分）ゲート。timeout-minutes 60 の範囲内                                                                       | 4    |
+| R5  | rust‑lld と ASan（fuzz-long）の相互作用                   | 低   | 中   | fuzz-long の apt ステップを緑確認まで残置。週次 run / ユーザ dispatch で実証後に削除                                                       | 1    |
+| R6  | stable ツールチェーン更新による lint ドリフト             | 中   | 小   | 2026‑10‑01 の 1.99.0 事故（§1.3）で確立した手順: ローカルへ同一 toolchain 再現 → 構造修正。MEMO に恒久記録                                 | 全   |
+| R7  | train.py の workload 偏り（合成データのみのプロファイル） | 中   | 中   | 全 API 表面を網羅する設計（§4.2）+ 実モデルオプション引数（`--model`）を将来用に用意。使用実績のある経路の追加時は train.py の更新を規程化 | 2    |
+| R8  | PGO 版のサイズ増（ホット/コールド分裂・インライン増）     | 低   | 小   | size-budget ゲート（G3）が毎 run 監視。予算 78.4 % に余裕                                                                                  | 4    |
+| R9  | maturin `--pgo` の一時 venv での train.py 依存問題        | 低   | 中   | train.py を stdlib のみで設計（§4.2）。harness 以外のリポジトリ内 import も sys.path 明示                                                  | 2,4  |
+
+---
+
+# 8. ドキュメントと運営
+
+- 本計画書の進捗は §6.2 のチェックリストで追跡し、セッションは
+  MEMO.md にセッション記録を残す（Plan.md 系の運営を継承）。
+- ユーザー向けドキュメント（README×2 / USAGE×3）への変更は Step 5 の
+  任意項目のみ — ビルド internals は `native/README.md`（開発者向け）に
+  集約する（2026‑10‑01 のドキュメント刷新で確立した「ユーザー文書と
+  開発文書の分離」を維持）。
+- 計測証跡の扱いは BENCH.md の既存規程に従う（env ブロック付き・
+  再生成しない・決定的な欄のみ外科的に追記）。
+
+---
+
+# 付録 A: 計測プロトコル
+
+Step 3 の効果判定（G1）は BENCH のゲートプロトコル（MEMO §3、
+Phase 1 確立）に準拠する:
+
+1. **同一セッション交互計測**: baseline 成果物と PGO 成果物を同一
+   ランナー上で交互に N=3 ラウンド計測する（環境ドリフトの相殺）。
+2. **steal ゲート**: 共有ランナーの他プロセス汚染（/proc/stat の steal）が
+   窓容量の ~5 % を超えるラウンドは破棄して再計測する。
+3. **側別最小値**: 判定は各側の最良窓（= 干渉ゼロのスループット上限）で
+   行う。
+4. **サブプロセス分離**: 各計測はサブプロセスに隔離し、ピーク RSS
+   （VmHWM）と実時間（monotonic）を報告する。
+5. **記録**: 結果 JSON には env ブロック（CPU・スレッド数・SHA 拡張の有無・
+   ランナー種別）を埋め込む。絶対値は共有ランナーのため参考値であり、
+   **判定は同一実行内比率**で行う。
+
+# 付録 B: 一次ソース一覧（すべて 2026‑10‑01 確認）
+
+| #   | 対象                                     | ソース                                                                                                                                                                     |
+| --- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | rust‑lld 既定化（1.90、x86_64‑gnu）      | rust-lang 公式ブログ「Faster linking times with 1.90.0 stable on Linux using the LLD linker」（2025‑09‑01）                                                                |
+| B2  | aarch64 の rust‑lld 未既定               | rust-lang users「Enabling rust-lld for aarch64-unknown-linux-gnu」/ rustc issue #127774                                                                                    |
+| B3  | rustc の PGO 手順・cdylib の profraw     | rustc book「Profile-guided Optimization」（計装プログラムがロードする計装動的ライブラリも独立 profraw を生成すると明記。cargo-pgo への言及あり）                           |
+| B4  | maturin `--pgo` / `pgo-command`          | maturin.rs「Configuration」（pgo-command = 一時 venv 実行）+ maturin v1.15.0 リリースノート（#3237 / #3270 / #3271 = 同版に --pgo 系が実在）                               |
+| B5  | cargo-pgo の位置づけ                     | github.com/Kobzol/cargo-pgo（0.3 系・2026‑04 コミット。BOLT 対応は experimental。optimize の wrap 対象は build/run/test/bench）                                            |
+| B6  | BOLT の前提（非ストリップ・emit-relocs） | llvm-project bolt/README.md / thenewstack.io の BOLT 解説                                                                                                                  |
+| B7  | BOLT の共有ライブラリ計装問題            | llvm-project issue #69846 / Arm Learning Path「Instrument shared libraries with BOLT」                                                                                     |
+| B8  | BOLT の限界利得（LTO+PGO 上 2–6 %）      | Chromium issue tracker 40740472（Google ベンチマーク記録）                                                                                                                 |
+| B9  | rustc 同梱 LLVM の BOLT 実績（3–5 %）    | rust-lang ブログ/rustc 配布記録（Linux x86_64 の rustc LLVM は BOLT 最適化済み）                                                                                           |
+| B10 | IBOT の実態（APO/DTT・対応 CPU・title）  | Intel サポート記事 000102604「Intel Binary Optimization Tool: Enhanced Performance for Gaming」（最終レビュー 2026‑06‑08）                                                 |
+| B11 | IBOT の技術解析・Geekbench 無効化        | Primate Labs「Analyzing Geekbench 6 under Intel's BOT」（2026‑03‑31、SDE 実測: scalar -62 % / vector +1366 %）・「Geekbench 6.7」（2026‑04‑07、BOT 検出で invalid フラグ） |
+| B12 | Propeller のアップストリーム状況         | Phoronix「Google Looks To Upstream Its Propeller Tool To LLVM」（2025‑12‑25）/ LLVM Discourse「Is propeller necessarily better than bolt?」                                |
+| B13 | Safe ICF のサイズ削減率                  | Google 論文「Safe ICF: Pointer Safe and Unwinding aware Identical Code Folding in Gold」（4.95–7.76 %）                                                                    |
+| B14 | LLVM CAS の位置づけ                      | LLVM Discourse RFC「Add an LLVM CAS library…」（2022）/ Xcode 26 の CAS ベースコンパイルキャッシュ系ツール                                                                 |
+| B15 | ThinLTO/fatLTO の実測                    | rust-lang Inside Rust ブログ「Disk space and LTO improvements」（2020‑06‑29、4–20 %・thin ≥ fat のケース）/ rustc issue #93321                                             |
+| B16 | アロケータ比較                           | rust-analyzer issue #1441（jemalloc/mimalloc は glibc より有意に速い計測）                                                                                                 |
+| B17 | Rust 1.99.0 / clippy assert_is_empty     | releases.rs（stable 1.99.0 = 2026‑10‑01）/ clippy 1.99 lint 一覧・dev run #95 の実測（§1.3）                                                                               |
+| B18 | mold の 6 h ハング前例                   | native run #80（2026‑09‑30）と第 18 セッションの対策記録（MEMO §4.1・native.yml の timeout-minutes 10 コメント）                                                           |
+
+---
+
+_本計画書は 2026‑10‑01 の一次ソース調査と本リポジトリの実測
+（Phase 8 サイズ実測・run #80/#95/#96/#98 の CI 実走）に基づく。
+実装着手はユーザ承認後とし、各 Step の完了条件を満たさない状態で
+次へ進まない。_
