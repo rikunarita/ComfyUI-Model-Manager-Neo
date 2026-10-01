@@ -1827,22 +1827,95 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
 > PyO3 `abi3t-py315` 対応済み・PEP 803 の abi3t は CPython 3.15+・maturin 側は
 > PyO3/maturin#3064 で整備中。需要確認後に追加ビルド）。
 
-- [ ] ゲート確認: L5 クロス検証 CI が 2 リリースサイクル連続 green
-- [ ] `py/compress.py` 旧経路（ensure_zipnn L160–628 ほか）全削除
-- [ ] `third_party/` 削除（LICENSE は `native/NOTICE` へ継承）
-- [ ] `MM_NATIVE` スイッチ撤去（単一経路化）
-- [ ] README / README‑JP / USAGE×3 の全面改訂
+- [x] ゲート確認: L5 クロス検証 CI が 2 リリースサイクル連続 green
+      （**2026‑10‑01 GitHub API 実証**: main の native run #64/#67/#72/#78/#82 は
+      全て全ジョブ success = integration(ubuntu) の L5 ステップ〔公式 pip zipnn
+      0.5.4 ソースビルドとの双方向クロス検証〕を含む。v0.2.0 以降 3 以上の
+      マージサイクル連続 green。加えて 2026‑10‑01 ユーザ指示「Phase 8 すべてを
+      完全実装」が着手の根拠）
+- [x] `py/compress.py` 旧経路（ensure_zipnn L160–628 ほか）全削除
+      （**2026‑10‑01 実施・第 19 セッション**: 2425 → 1391 行。ensure_zipnn 一式・
+      Python テンソルループ・旧デルタ・旧ウォーカー・_cleanup_targets 削除。
+      native_core() は「不在 = reason() 付き RuntimeError」、batch ルートは
+      validation 段で即エラー応答、単一ファイル/デルタは task 作成 →
+      zipnn_complete error で理由を配送〔ws 契約不変〕。inspect は
+      mm_core.safetensors_header へ = B4 の comfy.utils 依存撤去を完成）
+- [x] `third_party/` 削除（LICENSE は `native/NOTICE` へ継承）
+      （**実施**: ZipNN MIT 全文 + FSE BSD‑2 全文を NOTICE へ逐語継承。
+      CI の native-diff〔L2〕と fuzz-long の l2-full は退役 — 証跡 JSON は
+      scripts/l2/results/ に残置し scripts/l2/README.md に退役記録。
+      公式互換の機械証明は L5 が恒久ゲートとして担う。bench の旧 C コア
+      スクリプトは歴史的ツールとして残置 + 明確なエラーガード）
+- [x] `MM_NATIVE` スイッチ撤去（単一経路化）
+      （**実施**: py/native.py から native_mode/_fail/mode 分岐を削除 —
+      load() は常に非例外、core_if_enabled() = 「module or None」。
+      ZipNN 系・プレビュー WebP・アップロード preflight ハッシュは
+      native 必須〔T1/T7 の Plan 注記どおりフォールバック撤去〕。
+      **設計判断〔実施注記 2026‑10‑01〕**: 読み取り系レジリエンス経路
+      〔scan/hygiene・header/metadata/tensors・identify ハッシュ・download の
+      完了時再読〕の Python フォールバックは**維持**した — Plan に撤去指示が
+      無く〔§6.1 の「native-bin 単一経路」はバイナリ供給経路の一意化〕、
+      「scan は grid を絶対に壊さない」不変条件と parity ゴールデンの
+      オラクル存続が優先。テストのエンジン切替は env → core_if_enabled
+      注入へ移行し、ゴールデン parity は完全維持）
+- [x] README / README‑JP / USAGE×3 の全面改訂
       （ZipNN 節を「純 Rust 実装」へ、対応 OS 表・相互運用マトリクス追加）
-- [ ] pyproject / requirements 整理、`native-bin/README.md` 整備
-- [ ] バイナリサイズ最終最適化（**5 MB/本 = 目安** — 2026‑09‑27 目安化・2026‑09‑29 に 4→5 MB 改定で
+      （**実施**: エンジン節〔4 プラットフォーム表・abi3・CI 相互運用ゲート・
+      非対応プラットフォームのデグレード〕・「元版からの変更点」へ
+      **Backend & engine** 差分表を新設〔フォーク元 2.8.5 のルート/設定/フック
+      差分を一次照合し網羅性を担保〕・Development へ Rust/uv 手順・
+      プロジェクト構成を Phase 8 実態へ・冗長表現の削減
+      〔Why Neo 重複詳細・スクリーンショット三重注記・cancel 過剰主張等〕・
+      USAGE×3 へ Search/ZipNN/Download 設定カテゴリの欠落補完・
+      サブディレクトリ表示・トラブルシューティング 2 行追加）
+- [x] pyproject / requirements 整理、`native-bin/README.md` 整備
+      （**実施**: requirements.txt へランタイム契約ヘッダ〔pyproject が
+      source of truth の 1 方向同期〕+ tests/test_phase8_distribution.py が
+      依存一致・バージョン 3 者同期・third_party 残骸ゼロ・MM_NATIVE 撤去・
+      NOTICE 継承・gitignore 方針・publish ジョブを機械固定。
+      native-bin/README.md 全面改訂〔唯一の供給経路・5 MB 目安・publish 機構・
+      手動再生成〕）
+- [x] バイナリサイズ最終最適化（**5 MB/本 = 目安** — 2026‑09‑27 目安化・2026‑09‑29 に 4→5 MB 改定で
       絶対条件から降格。§3.3 参照）
-- [ ] リリース v0.3.0 の**公開準備**（version.yaml / package.json / pyproject 同期）。
+      （**実測 2026‑10‑01**: release〔lto=fat + codegen‑units=1 + opt‑level=3 +
+      strip = 最適化余地なし〕linux‑x86_64 **4,110,752 B = 3.92 MiB = 5 MiB
+      目安の 78.4 %**。さらなる縮小〔opt‑level="s" 等〕は K2/K3 速度目標との
+      トレードオフのため不採用 — budget 内につき「最適化完了」は実測で充足）
+- [x] リリース v0.3.0 の**公開準備**（version.yaml / package.json / pyproject 同期）。
       **公開作業そのもの（GitHub Release の作成・タグの publish・registry への
       公開等）はユーザが実施する — セッションは勝手に公開しない**
       （2026‑09‑27 ユーザ指示・§6.3 の恒久規程）。セッションが行うのは
       バージョン同期コミットと公開前検証（K16 スモーク）まで
-- [ ] 完了条件: 全新規 clone（Linux/Windows/macOS）で
-      コンパイラ・pip・ネットワークなしに ZipNN 機能が動作（K16）
+      （**実施**: pyproject / package.json 0.2.0→0.3.0・native workspace
+      0.3.0‑alpha.0→0.3.0〔Cargo.lock 追従〕・web/version.yaml は vite
+      プラグインが pyproject から 0.3.0 を再生成 + バンドル再ビルド。
+      **配布機構の新設**: native.yml `publish-native-bin` ジョブ = main push
+      時のみ 3 ビルドジョブの成果物を content 判定〔ELF e_machine /
+      FAT_MAGIC / .pyd〕で分類し native/native-bin/ へステージ →
+      `git add -f` → 差分時のみ bot コミット&プッシュ〔contents: write・
+      トークン由来コミットは再トリガーされずループ不可〕。.gitignore の
+      _.so 無視は**維持**〔dev/PR での debug ビルド誤コミット防止 —
+      force-add 方式なので K16 と両立〕。native.yml に tags: v_ トリガ追加）
+- [/] 完了条件: 全新規 clone（Linux/Windows/macOS）で
+  コンパイラ・pip・ネットワークなしに ZipNN 機能が動作（K16）
+  （**Linux は実証済み 2026‑10‑01**: 新規 clone 相当ツリー + release
+  バイナリ + 純標準ライブラリ `python3 -S -E`〔pip なし・コンパイラなし・
+  ネットワークなし〕で import → 圧縮〔263 KB → 600 B〕→ 解凍 →
+  SHA‑256 バイト一致、core_version 0.3.0+d35cbf3。Windows/macOS は
+  main へのマージ → publish-native-bin のバイナリ投入後、各 OS の
+  integration ジョブ + ユーザ側確認で消化する〔公開作業はユーザ専任〕）
+
+> 〔Phase 8 実施注記 2026‑10‑01・第 19 セッション〕フロントエンドは
+> installFailed/retry-install 分岐・force パラメータ・i18n 3 キーを削除
+> （インストール工程自体が消滅）。tensorTree の JS フォールドは存続
+> （tree 欠落応答 = 非 safetensors・file‑changed ガード・core 不在時の
+> header degrade で実際に使われる）。テストは 214 → 213〔legacy 系 14 本削除・
+> 注入方式へ書換・Phase 8 配布不変条件 8 本 + watcher 回帰 2 本 +
+> デグレード契約 1 本を追加〕、成果物なし 81+132 skip。**同日発見の
+> 本番 flake も修正**: watcher のクールダウンが「未放送」を monotonic 0.0
+> 既定値で符号化していたため、起動直後のランナーで初回 rescan/type 放送が
+> 抑制された（main native run #85 の失敗 = L5 ではなくこの flake。
+> None sentinel 化 + 固定時計回帰テスト 2 本、mutation 検証済み）。
 
 ## 6.3 進捗管理規程
 
@@ -2093,7 +2166,16 @@ sock_read=…, total=None)` へ忠実写像・`HttpStatusError` が
   （size-budget・fuzz-smoke 7 本・abi3-import api_version 6・integration ×3 OS・
   L5 公式 zipnn クロス検証・K15 cross-check 含む）= Plan 完了条件の「CI 実走緑」充足。
   サイズは CI 実測でも budget 内（linux-x86_64 4,110,816 B = 5 MiB 目安の 78 %）。
-- [ ] **Phase 8** — third_party 撤去・配布仕上げ・v0.3.0 リリース（旧 Phase 7）
+- [/] **Phase 8** — third_party 撤去・配布仕上げ・v0.3.0 リリース（旧 Phase 7）
+  **実装完了 2026‑10‑01（第 19 セッション）**: 旧経路全削除
+  （compress.py 2425→1391 行）・third_party/ 撤去（MIT+BSD‑2 全文を
+  NOTICE 継承）・MM_NATIVE 撤去（単一経路。読み取り系の Python
+  レジリエンス・フォールバックは維持 — §6.2 実施注記）・publish‑native‑bin
+  配布機構（main 専用・content 分類・git add -f）・L2/native‑diff 退役
+  （L5 が恒久ゲート）・v0.3.0 3 者同期 + web 再ビルド・README×2/USAGE×3
+  全面改訂（Backend & engine 差分表・対応 OS 表）・K16 Linux 実証・
+  サイズ実測 78.4 %（最適化済み）。**残 = 完了条件の Win/macOS 脚**:
+  main へのマージ → publish 後の各 OS 検証と v0.3.0 公開作業（ユーザ専任）
 
 ---
 
