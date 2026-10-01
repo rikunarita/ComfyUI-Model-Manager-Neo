@@ -13,19 +13,27 @@
 #                  file budget) and <= 20 MB total across all artifacts
 #                  (Plan §3.3 / R6)
 #
-# Transition-period gates (Plan §5.3):
-#   native-diff    L2 golden differential vs the bundled prebuilt C core
+# Permanent quality gates (Plan §5.3):
 #   fuzz-smoke     L3 cargo-fuzz smoke (7 targets x 60 s, ASan)
 #   integration    L4/L5 — the full pytest suite against the built artifact
 #                  on all three OSes + the official pip-zipnn 0.5.4
 #                  cross-validation on ubuntu (Phase 2)
-# Artifacts are verification only: `native-bin/` commits are generated on
-# main/release tags (Plan §5.3), never from PR/dev runs.
+# The transition-era L2 golden differential (native-diff, vs the bundled
+# prebuilt C core) was retired in Phase 8 together with third_party/; the
+# committed evidence stays under scripts/l2/results/ (see its README).
+# Artifacts are verification only on PR/dev runs; on `main` the
+# publish-native-bin job commits the four platform binaries back into
+# `native/native-bin/` (Plan §5.3 / Phase 8 distribution: a fresh clone must
+# work with no compiler, no pip and no network - K16).
 name: native
 
 on:
   push:
     branches: [main, dev]
+    # Release tags get the same verification (build + size + import + L4/L5);
+    # the binaries a tag ships are the ones committed on main (publish job
+    # below is main-only - a tag checkout is detached and never pushed to).
+    tags: ["v*"]
   pull_request:
 
 concurrency:
@@ -388,74 +396,16 @@ jobs:
           if [ "$found" -lt 4 ]; then echo "expected 4 platform binaries, found $found"; exit 1; fi
           if [ "$total" -gt 20971520 ]; then echo "TOTAL OVER BUDGET (>20 MB)"; exit 1; fi
 
-  native-diff:
-    # L2 golden differential gate (Plan §5.1 L2 / §6.2 Phase 1): the pinned
-    # prebuilt C core (third_party/zipnn-core-bin, linux-x86_64 cpython-311)
-    # is the golden generator; znn-cli (release) is the Rust side. PR/push
-    # gate = the quick suite (~1,200 cases: byte-identical compressed output,
-    # cross-decompression both directions, Appendix-C crash classes handled
-    # as error-or-correct, never a crash). The FULL >=10,000-case suite and
-    # the ratio/speed runs execute on the reference machine and in the
-    # scheduled fuzz-long workflow's companion job (results are committed
-    # under scripts/l2/results/).
-    # Ghost-run guard — see native-test.
-    if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
-    timeout-minutes: 60
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: native
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: native
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.11" # matches the pinned cpython-311 .so ABI
-
-      - name: Install mold + clang (Linux)
-        # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
-        # got the whole push run cancelled (2026-09-30, run #80, native-test
-        # ubuntu: the step ran 14:36 -> 20:37 without output). A 10 min step
-        # budget fails fast instead - the job goes red in minutes and a re-run
-        # picks a healthy mirror (the same step took <20 s in runs #79/#81).
-        timeout-minutes: 10
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang mold
-          sudo ln -sf "$(command -v mold)" /usr/local/bin/ld.mold
-
-      - name: Build znn-cli (release)
-        run: cargo build --release -p znn-cli
-
-      - name: Run L2 golden diff (quick suite)
-        working-directory: .
-        run: |
-          python3 scripts/l2/golden_diff.py --quick --out /tmp/l2_quick.json
-          python3 - <<'PY'
-          import json
-          report = json.load(open("/tmp/l2_quick.json"))
-          suite = report["suite"]
-          print(json.dumps(suite["counters"], indent=1))
-          assert report["gate"], "L2 gate FAILED"
-          assert suite["counters"]["byte_mismatch"] == 0
-          PY
-
   integration:
     timeout-minutes: 60
-    # L4/L5 integration (Plan §5.3 "integration" job, §6.2 Phase 2): the FULL
-    # pytest suite — route/ws golden contracts on BOTH code paths, the L4
-    # corpus round-trips, cancellation, corruption retreat, cleanup — runs
-    # against the real built artifact on every OS. Ubuntu is the full matrix
-    # cell: the vendored prebuilt C core (+ pip torch) enables the legacy
-    # path and the cross-path parity tests, and the L5 gate re-runs against
+    # L4/L5 integration (Plan §5.3 "integration" job): the FULL pytest suite —
+    # route/ws golden contracts, the L4 corpus round-trips, cancellation,
+    # corruption retreat, cleanup — runs against the real built artifact on
+    # every OS (Phase 8: the native core is the single engine, so every cell
+    # runs the same suite). Ubuntu is the extended cell: pip torch enables the
+    # reference-writer cross-check (phase4) and the L5 gate re-runs against
     # the UPSTREAM pip zipnn 0.5.4 (source-built on the runner) — the
-    # mechanical proof that vendored == official (Plan §5.1 L5).
+    # mechanical proof that Neo's files are official-compatible (Plan §5.1 L5).
     needs: [native-build-linux, native-build-windows, native-build-macos]
     strategy:
       fail-fast: false
@@ -468,11 +418,6 @@ jobs:
           - os: macos-latest
             artifact: native-bin-macos
     runs-on: ${{ matrix.os }}
-    env:
-      # windows/macos cells run the native path only: no prebuilt C core
-      # ships for them (that absence is precisely what the Rust core
-      # replaces), and a legacy-path source build would slow the gate down.
-      MMNEO_SKIP_LEGACY: ${{ matrix.os != 'ubuntu-latest' && '1' || '' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -498,12 +443,15 @@ jobs:
           # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
           uv pip install --system pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
 
-      # The legacy path (vendored zipnn) needs its runtime stack; the CPU
-      # wheel index keeps the install small (no CUDA payload).
-      - name: Legacy-path dependencies (ubuntu only)
+      # Ubuntu-only extras: torch + safetensors drive the REFERENCE-WRITER
+      # cross-check (test_torch_saved_dtypes_roundtrip writes with the real
+      # safetensors.torch and round-trips through the native core); blake3
+      # enables the optional BLAKE3 leg of the identify hash-parity golden.
+      # The CPU wheel index keeps the install small (no CUDA payload).
+      - name: Torch cross-check dependencies (ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          uv pip install --system numpy safetensors blake3
+          uv pip install --system safetensors blake3
           uv pip install --system torch --default-index https://download.pytorch.org/whl/cpu
 
       - name: Integration tests (pytest)
@@ -602,3 +550,101 @@ jobs:
           name: fuzz-crashes
           path: native/crates/znn-codec/fuzz/artifacts/
           if-no-files-found: ignore
+
+  publish-native-bin:
+    # Phase 8 distribution (Plan §5.3 / K16): on `main` pushes, commit the
+    # four freshly built platform binaries back into native/native-bin/ so a
+    # fresh clone runs the ZipNN engine with NO compiler, NO pip and NO
+    # network. dev/PR runs never publish (their artifacts are verification
+    # only); release tags ship whatever main already carries. The push uses
+    # the default GITHUB_TOKEN (contents: write) and GitHub does not trigger
+    # new workflow runs for token-created commits, so this cannot loop.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [native-build-linux, native-build-macos, native-build-windows]
+    permissions:
+      contents: write
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: native-bin-*
+          path: artifacts
+          merge-multiple: true
+
+      # download-artifact's layout is the uploads' least-common ancestor, so
+      # the `<tag>` directory segment can vanish (the size-budget job's
+      # FAT_MAGIC note). Identify each binary by CONTENT instead: ELF
+      # e_machine (x86_64 / aarch64), Mach-O FAT magic, or the .pyd name.
+      - name: Stage the four platform binaries into native/native-bin/
+        run: |
+          python3 - <<'PY'
+          import pathlib, shutil, sys
+
+          targets = {
+              "linux-x86_64": "mm_core.abi3.so",
+              "linux-aarch64": "mm_core.abi3.so",
+              "macos-universal2": "mm_core.abi3.so",
+              "windows-x86_64": "mm_core.pyd",
+          }
+          found = {}
+          for path in sorted(pathlib.Path("artifacts").rglob("*")):
+              if not path.is_file() or path.suffix not in (".so", ".pyd"):
+                  continue
+              head = path.read_bytes()[:4]
+              if path.suffix == ".pyd":
+                  tag = "windows-x86_64"
+              elif head == b"\x7fELF":
+                  machine = int.from_bytes(path.read_bytes()[18:20], "little")
+                  tag = {0x3E: "linux-x86_64", 0xB7: "linux-aarch64"}.get(machine)
+              elif head.hex() in ("cafebabe", "cafebabf"):
+                  tag = "macos-universal2"
+              else:
+                  tag = None
+              if tag is None:
+                  sys.exit(f"cannot classify artifact {path} (magic {head!r})")
+              if tag in found:
+                  sys.exit(f"duplicate artifact for {tag}: {found[tag]} and {path}")
+              found[tag] = path
+          missing = sorted(set(targets) - set(found))
+          if missing:
+              sys.exit(f"missing platform binaries: {missing}")
+          for tag, name in targets.items():
+              out = pathlib.Path("native/native-bin") / tag
+              out.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(found[tag], out / name)
+              print(f"staged {found[tag]} -> {out / name} ({(out / name).stat().st_size} bytes)")
+          PY
+
+      - name: Verify all four platform binaries are staged in the worktree
+        run: |
+          set -euo pipefail
+          for f in native/native-bin/linux-x86_64/mm_core.abi3.so \
+                   native/native-bin/linux-aarch64/mm_core.abi3.so \
+                   native/native-bin/macos-universal2/mm_core.abi3.so \
+                   native/native-bin/windows-x86_64/mm_core.pyd; do
+            test -s "$f" || { echo "BUG: $f is missing or empty"; exit 1; }
+          done
+
+      # The *.so ignore in .gitignore is deliberate for dev/PR worktrees (a
+      # local debug build must never be committed by accident); THIS job is
+      # the single authorised publisher and force-adds the release artifacts.
+      - name: Commit & push (no-op when the binaries are unchanged)
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f native/native-bin
+          if git diff --cached --quiet; then
+            echo "native-bin is byte-identical to HEAD - nothing to commit"
+          else
+            git commit -m "chore(native-bin): rebuild the prebuilt mm_core artifacts from ${GITHUB_SHA::7}
+
+          Generated by the publish-native-bin job (Plan §5.3 / Phase 8):
+          the four platform binaries (linux x86_64/aarch64 glibc>=2.28,
+          macos universal2, windows x86_64) that a fresh clone imports
+          directly - no compiler, no pip, no network (K16)."
+            git push
+          fi

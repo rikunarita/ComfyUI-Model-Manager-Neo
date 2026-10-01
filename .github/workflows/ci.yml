@@ -106,9 +106,10 @@ jobs:
       - name: Python format (ruff)
         run: ruff format --check py __init__.py tests scripts conftest.py
 
-      # Phase 0 regression suite: the Quick Win A1 route contract and the
-      # py/native.py loader (MM_NATIVE switch, platform tags, handshake).
-      # Loader tests that need a built mm_core binary skip here; the native
-      # workflow covers those against real artifacts on every OS.
+      # Regression suite: the Quick Win A1 route contract and the py/native.py
+      # loader (platform tags, handshake, diagnostics). On dev/PR checkouts no
+      # mm_core binary is committed, so the native-path tests skip here; on
+      # main (where publish-native-bin commits the artifacts) and in the native
+      # workflow's integration job they run against the real binary on every OS.
       - name: Python tests (pytest)
         run: python -m pytest tests -q

@@ -5,6 +5,9 @@
 # Phase 3 delta_decompress).
 # Crashes fail the job and are uploaded as artifacts; the committed corpus
 # (incl. the Phase-1 regression seeds found by the fuzzer) replays every run.
+# The former l2-full companion (the >=10,000-case golden differential against
+# the bundled C core) was retired in Phase 8 together with third_party/; its
+# committed evidence stays under scripts/l2/results/ (see its README).
 #
 # NOT a PR gate — scheduled (weekly) + manual dispatch only.
 name: fuzz-long
@@ -101,46 +104,3 @@ jobs:
           name: fuzz-crashes-${{ matrix.target }}
           path: native/crates/znn-codec/fuzz/artifacts/
           if-no-files-found: ignore
-
-  l2-full:
-    # Companion: the FULL >=10,000-case L2 golden differential suite
-    # (Plan §6.2 Phase 1: "L2 ... >=10,000 cases") on the same schedule, so
-    # the committed evidence under scripts/l2/results stays reproducible.
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: native
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-
-      - name: Install mold + clang
-        # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
-        # got the whole push run cancelled (2026-09-30, run #80, native-test
-        # ubuntu: the step ran 14:36 -> 20:37 without output). A 10 min step
-        # budget fails fast instead - the job goes red in minutes and a re-run
-        # picks a healthy mirror (the same step took <20 s in runs #79/#81).
-        timeout-minutes: 10
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang mold
-          sudo ln -sf "$(command -v mold)" /usr/local/bin/ld.mold
-
-      - name: Build znn-cli (release)
-        run: cargo build --release --manifest-path native/Cargo.toml -p znn-cli
-
-      - name: Run the full L2 suite (>=10,000 cases)
-        run: python3 scripts/l2/golden_diff.py --cases 10500 --out scripts/l2/results/golden_diff.json
-
-      - name: Upload the report
-        uses: actions/upload-artifact@v7
-        with:
-          name: l2-full-report
-          path: scripts/l2/results/golden_diff.json

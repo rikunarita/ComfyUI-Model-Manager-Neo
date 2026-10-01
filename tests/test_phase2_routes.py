@@ -1,26 +1,27 @@
-"""Plan Phase 2 (L4): route/ws contract golden tests + cross-path parity.
+"""Plan Phase 2 (L4) / Phase 8: route/ws contract golden tests (single path).
 
-The Phase-2 switchover contract (Plan §6.2):
-``POST /model-manager/zipnn/{compress,decompress}`` must emit the IDENTICAL
-websocket event sequence and stats shapes on both code paths —
-``MM_NATIVE=0`` (legacy vendored C core) and the native Rust pipeline — so
-the frontend needs no changes at all. These tests pin:
+The Phase-2 switchover contract (Plan §6.2), kept verbatim after the Phase-8
+removal of the legacy vendored C core and the ``MM_NATIVE`` switch:
+``POST /model-manager/zipnn/{compress,decompress}`` emits the SAME websocket
+event sequence and stats shapes the frontend has always consumed — the native
+Rust pipeline is now the only engine. These tests pin:
 
 * the exact event names / payload key sets / phase vocabulary / stats keys
-  (golden assertions, both paths);
-* cross-path file compatibility: native-compressed files decompress through
-  the legacy path and vice versa (the transition period runs BOTH);
-* blob-level parity: for the same source, both paths store byte-identical
-  per-tensor ZN payloads and identical ``znn_compressed_vectors`` values
-  (the codec's L2 byte-identity, re-proved through the production routes);
-* the cancel route (native cooperative cancel; legacy refusal);
+  (golden assertions through the production routes, byte-exact round trip);
+* the cancel route (cooperative native cancel; a task with no submitted job
+  is refused cleanly);
+* an unavailable native core fails the task with the loader's actionable
+  reason — never a silent fallback (there is no other engine any more);
 * the startup ``.tmp``/``.corrupt`` cleanup sweep (Plan §4.4.4).
+
+Cross-engine compatibility with the OFFICIAL zipnn lives in the L5 CI gate
+(``scripts/l5/official_cross.py`` against pip zipnn 0.5.4) — the transition-
+era legacy-path parity tests were retired together with the legacy path.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import sys
 import time
@@ -78,29 +79,6 @@ def _native_binary_present() -> bool:
     return any(p.name.startswith("mm_core") and p.name.endswith(suffixes) for p in binary.iterdir())
 
 
-def _legacy_available() -> bool:
-    """The vendored ZipNN C path works here (linux-x86_64 + matching CPython).
-
-    Probes cheaply FIRST: without torch/numpy/safetensors the legacy path
-    cannot run at all, and calling ``ensure_zipnn()`` anyway would kick off
-    a pointless multi-minute C source build on foreign platforms (CI sets
-    ``MMNEO_SKIP_LEGACY=1`` for the same reason)."""
-    if os.environ.get("MMNEO_SKIP_LEGACY", "").strip().lower() in ("1", "on", "true", "yes"):
-        return False
-    try:
-        import numpy  # noqa: F401
-        import safetensors  # noqa: F401
-        import torch  # noqa: F401
-    except Exception:
-        return False
-    compress = _compress_mod()
-    try:
-        compress.ensure_zipnn()
-        return compress.zipnn_available()
-    except Exception:
-        return False
-
-
 async def _wait_task(compress, task_id: str, timeout: float = 180.0) -> str:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -127,10 +105,9 @@ def _events(prompt_server) -> list[tuple]:
 
 def _make_model(model_lib, name="model", *, metadata=None, sort_keys=False, big=False):
     """A fixture in TORCH-CANONICAL order (dtype alignment descending, then
-    name — the reference serializer's order): the LEGACY round trip only
-    restores byte-exactly when the source is already in that order (its
-    save_file re-sorts), while the native path preserves ANY order. Tests
-    that assert legacy byte-exactness rely on this layout."""
+    name — the reference serializer's order). The native round trip preserves
+    ANY order byte-exactly; the canonical layout keeps the fixtures faithful
+    to what torch itself writes."""
     path = model_lib / "checkpoints" / f"{name}.safetensors"
     if big:
         tensors = {
@@ -188,60 +165,15 @@ def _assert_progress_contract(events, task_id: str, mode: str, stats_keys: set[s
 
 
 # ---------------------------------------------------------------------------
-# golden ws contract — legacy path
+# golden ws contract — the native single path
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_route_compress_decompress_legacy_golden(prompt_server, model_lib, monkeypatch):
-    if not _legacy_available():
-        pytest.skip("vendored ZipNN C core unavailable on this platform")
-    monkeypatch.setenv("MM_NATIVE", "0")
-    src = _make_model(model_lib, "legacy-golden")
-    original_sha = sha256_file(src)
-    znn_name = "legacy-golden.znn.safetensors"
-
-    compress, payload = await _post_zipnn(
-        prompt_server,
-        COMPRESS_ROUTE,
-        {"type": "checkpoints", "pathIndex": 0, "fullname": "legacy-golden.safetensors"},
-    )
-    assert payload["success"] is True, payload
-    task_id = payload["data"]["taskId"]
-    assert await _wait_task(compress, task_id) == "complete"
-    _assert_progress_contract(_events(prompt_server), task_id, "compress", _COMPRESS_STATS_KEYS)
-    stats = _events(prompt_server)[-1][1]["stats"]
-    assert stats["tensors"] == 2
-
-    znn_path = model_lib / "checkpoints" / znn_name
-    assert znn_path.exists() and not src.exists(), "original replaced by the .znn file"
-
-    # decompress back (fresh event log)
-    prompt_server.sent.clear()
-    compress, payload = await _post_zipnn(
-        prompt_server,
-        DECOMPRESS_ROUTE,
-        {"type": "checkpoints", "pathIndex": 0, "fullname": znn_name},
-    )
-    assert payload["success"] is True, payload
-    task_id = payload["data"]["taskId"]
-    assert await _wait_task(compress, task_id) == "complete"
-    _assert_progress_contract(_events(prompt_server), task_id, "decompress", _DECOMPRESS_STATS_KEYS)
-    restored = model_lib / "checkpoints" / "legacy-golden.safetensors"
-    assert sha256_file(restored) == original_sha, "legacy round trip must be byte-exact"
-
-
-# ---------------------------------------------------------------------------
-# golden ws contract — native path (same golden, both paths)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_route_compress_decompress_native_golden(prompt_server, model_lib, monkeypatch):
+async def test_route_compress_decompress_native_golden(prompt_server, model_lib):
     if not _native_binary_present():
         pytest.skip("native binary not built (scripts/build-native.sh)")
     _reset_native_loader()
-    monkeypatch.setenv("MM_NATIVE", "1")  # REQUIRE the native path (no silent fallback)
     src = _make_model(model_lib, "native-golden")
     original_sha = sha256_file(src)
     znn_name = "native-golden.znn.safetensors"
@@ -281,156 +213,15 @@ async def test_route_compress_decompress_native_golden(prompt_server, model_lib,
 
 
 # ---------------------------------------------------------------------------
-# cross-path compatibility (the MM_NATIVE transition period, Plan §5.4)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_cross_path_native_compress_legacy_decompress(prompt_server, model_lib, monkeypatch):
-    if not _native_binary_present():
-        pytest.skip("native binary not built")
-    if not _legacy_available():
-        pytest.skip("vendored ZipNN C core unavailable")
-    _reset_native_loader()
-    monkeypatch.setenv("MM_NATIVE", "1")
-    src = _make_model(model_lib, "x2l", sort_keys=True)  # sorted ⇒ legacy restore is byte-exact too
-    original_sha = sha256_file(src)
-
-    compress, payload = await _post_zipnn(
-        prompt_server, COMPRESS_ROUTE, {"type": "checkpoints", "pathIndex": 0, "fullname": "x2l.safetensors"}
-    )
-    task_id = payload["data"]["taskId"]
-    assert await _wait_task(compress, task_id) == "complete"
-
-    monkeypatch.setenv("MM_NATIVE", "0")
-    prompt_server.sent.clear()
-    compress, payload = await _post_zipnn(
-        prompt_server, DECOMPRESS_ROUTE, {"type": "checkpoints", "pathIndex": 0, "fullname": "x2l.znn.safetensors"}
-    )
-    task_id = payload["data"]["taskId"]
-    assert await _wait_task(compress, task_id) == "complete"
-    restored = model_lib / "checkpoints" / "x2l.safetensors"
-    header, tensors = read_safetensors(restored)
-    assert sha256_file(restored) == original_sha, "legacy must restore a native file byte-exactly (sorted source)"
-    # no Neo bookkeeping leaked into the restored metadata
-    for key in ("znn_neo_src_sha256", "znn_neo_exact", "znn_neo_src_meta_absent", "znn_neo_original_bytes"):
-        assert key not in header.get("__metadata__", {})
-    assert tensors
-
-
-@pytest.mark.asyncio
-async def test_cross_path_legacy_compress_native_decompress(prompt_server, model_lib, monkeypatch):
-    if not _native_binary_present():
-        pytest.skip("native binary not built")
-    if not _legacy_available():
-        pytest.skip("vendored ZipNN C core unavailable")
-    monkeypatch.setenv("MM_NATIVE", "0")
-    src = _make_model(model_lib, "l2x")
-    _hdr, original_tensors = read_safetensors(src)
-
-    compress, payload = await _post_zipnn(
-        prompt_server, COMPRESS_ROUTE, {"type": "checkpoints", "pathIndex": 0, "fullname": "l2x.safetensors"}
-    )
-    task_id = payload["data"]["taskId"]
-    assert await _wait_task(compress, task_id) == "complete"
-    znn_path = model_lib / "checkpoints" / "l2x.znn.safetensors"
-    legacy_header, _ = read_safetensors(znn_path)
-    assert "znn_neo_src_sha256" not in legacy_header.get("__metadata__", {}), "legacy files carry no sha"
-
-    _reset_native_loader()
-    monkeypatch.setenv("MM_NATIVE", "1")
-    prompt_server.sent.clear()
-    compress, payload = await _post_zipnn(
-        prompt_server, DECOMPRESS_ROUTE, {"type": "checkpoints", "pathIndex": 0, "fullname": "l2x.znn.safetensors"}
-    )
-    task_id = payload["data"]["taskId"]
-    assert await _wait_task(compress, task_id) == "complete"
-    restored = model_lib / "checkpoints" / "l2x.safetensors"
-    _rh, restored_tensors = read_safetensors(restored)
-    # byte-exactness is impossible here (legacy files record no sha and torch
-    # re-sorts), but the SEMANTIC content must match exactly
-    assert restored_tensors == original_tensors
-
-
-def test_blob_parity_both_paths_store_identical_bytes(tmp_path, monkeypatch):
-    """For one source, legacy and native compression must store
-    byte-identical per-tensor ZN blobs and an identical infos record — the
-    L2 byte-identity of the codec, re-proved through the two production
-    compressors (legacy = vendored C via zipnn.py, native = Rust pipeline)."""
-    if not _native_binary_present():
-        pytest.skip("native binary not built")
-    if not _legacy_available():
-        pytest.skip("vendored ZipNN C core unavailable")
-
-    src = tmp_path / "parity.safetensors"
-    write_safetensors(
-        src,
-        {
-            "bf": ("BF16", [256, 128], synth_bf16(256 * 128, 21, low_entropy=True)),
-            "f32": ("F32", [128, 64], synth_f32(128 * 64, 22, low_entropy=True)),
-            "f16": ("F16", [128, 64], __import__("harness").synth_f16(128 * 64, 23, low_entropy=True)),
-            "fp8": ("F8_E4M3", [512], __import__("harness").synth_fp8(512, 24, low_entropy=True)),
-            "u8": ("U8", [100], bytes(range(100))),
-        },
-        {"format": "pt"},
-        sort_keys=True,
-    )
-
-    # legacy
-    compress = _compress_mod()
-    legacy_out = tmp_path / "parity.legacy.znn.safetensors"
-    stats_legacy = compress.compress_safetensors(str(src), str(legacy_out), lambda *_: None)
-
-    # native
-    native = _reset_native_loader()
-    monkeypatch.delenv("MM_NATIVE", raising=False)
-    sys.modules.pop("mm_core", None)
-    assert native.load(), native.reason()
-    mm = native.core()
-    native_out = tmp_path / "parity.native.znn.safetensors"
-    handle = mm.zipnn_compress(str(src), str(native_out), None)
-    deadline = time.monotonic() + 120
-    while time.monotonic() < deadline:
-        _d, _t, phase = mm.job_progress(handle)
-        if phase in ("done", "failed"):
-            break
-        time.sleep(0.01)
-    assert phase == "done", mm.job_error(handle)
-    stats_native = json.loads(mm.job_result(handle))["stats"]
-
-    lh, lt = read_safetensors(legacy_out)
-    nh, nt = read_safetensors(native_out)
-    lmeta, nmeta = lh["__metadata__"], nh["__metadata__"]
-
-    # the infos record is byte-identical (Python json.dumps parity)
-    assert lmeta["znn_compressed_vectors"] == nmeta["znn_compressed_vectors"]
-    # the legacy-only size key matches too
-    assert lmeta["znn_neo_original_bytes"] == nmeta["znn_neo_original_bytes"]
-    infos = json.loads(nmeta["znn_compressed_vectors"])
-
-    # every stored tensor — compressed blobs AND pass-throughs — is
-    # byte-identical between the two files
-    assert set(lt) == set(nt)
-    for name in lt:
-        assert lt[name][2] == nt[name][2], f"tensor {name} bytes differ between paths"
-        assert lt[name][0] == nt[name][0]
-    assert set(infos) <= set(nt)
-
-    # stats parity (same counting rules on both paths)
-    assert stats_legacy == stats_native, (stats_legacy, stats_native)
-
-
-# ---------------------------------------------------------------------------
 # cancel route + startup cleanup
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_cancel_route_native(prompt_server, model_lib, monkeypatch):
+async def test_cancel_route_native(prompt_server, model_lib):
     if not _native_binary_present():
         pytest.skip("native binary not built")
     _reset_native_loader()
-    monkeypatch.setenv("MM_NATIVE", "1")
     _make_model(model_lib, "cancel-me", big=True)
 
     compress, payload = await _post_zipnn(
@@ -458,25 +249,28 @@ async def test_cancel_route_native(prompt_server, model_lib, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_cancel_route_rejects_legacy_tasks(prompt_server, model_lib, monkeypatch):
-    if not _legacy_available():
-        pytest.skip("vendored ZipNN C core unavailable")
-    monkeypatch.setenv("MM_NATIVE", "0")
-    _make_model(model_lib, "legacy-cancel")
-    compress, payload = await _post_zipnn(
-        prompt_server, COMPRESS_ROUTE, {"type": "checkpoints", "pathIndex": 0, "fullname": "legacy-cancel.safetensors"}
-    )
-    task_id = payload["data"]["taskId"]
-    assert await _wait_task(compress, task_id) == "complete"
-    _c, cancel_payload = await _post_zipnn(prompt_server, CANCEL_ROUTE, {"taskId": task_id})
-    assert cancel_payload["success"] is False
-    assert "legacy" in cancel_payload["error"]
+async def test_cancel_route_rejects_a_task_without_a_job(prompt_server):
+    """A task registered but whose native job was never submitted (the window
+    between task creation and the worker's ``zipnn_compress`` call, or an
+    already-finished task whose handle was popped) is refused cleanly — the
+    Phase-8 replacement of the old legacy-path refusal."""
+    compress = _compress_mod()
+    compress.ZipNNRoutes().add_routes(prompt_server.routes)
+    compress.ZIPNN_TASKS["no-job"] = {"mode": "compress", "status": "running", "src": "x", "dst": "y"}
+    try:
+        _c, cancel_payload = await _post_zipnn(prompt_server, CANCEL_ROUTE, {"taskId": "no-job"})
+        assert cancel_payload["success"] is False
+        assert "no cancellable native job" in cancel_payload["error"]
+    finally:
+        compress.ZIPNN_TASKS.pop("no-job", None)
 
 
 @pytest.mark.asyncio
-async def test_native_required_but_missing_fails_cleanly(prompt_server, model_lib, monkeypatch, tmp_path):
-    """MM_NATIVE=1 with no binary: the task fails with the loader's reason —
-    never a silent fallback to the C path (Plan §5.4)."""
+async def test_missing_core_fails_the_task_with_the_loader_reason(prompt_server, model_lib, tmp_path):
+    """Phase 8: no binary -> the single-file task fails with the loader's
+    actionable reason (never a silent fallback — there is no other engine),
+    and the batch route refuses IMMEDIATELY (no task is created for a run
+    that could only fail)."""
     compress = _compress_mod()
     config = import_ext("config")
     saved_uri = config.extension_uri
@@ -486,9 +280,10 @@ async def test_native_required_but_missing_fails_cleanly(prompt_server, model_li
         config.extension_uri = str(tmp_path)  # no native-bin under here
         native._module, native._reason, native._attempted = None, None, False
         sys.modules.pop("mm_core", None)
-        monkeypatch.setenv("MM_NATIVE", "1")
         _make_model(model_lib, "req-missing")
         compress.ZipNNRoutes().add_routes(prompt_server.routes)
+
+        # single-file route: the task starts, then fails with the reason
         handler = prompt_server.routes.handlers[COMPRESS_ROUTE]
         response = await handler(
             FakeRequest(body={"type": "checkpoints", "pathIndex": 0, "fullname": "req-missing.safetensors"})
@@ -499,38 +294,23 @@ async def test_native_required_but_missing_fails_cleanly(prompt_server, model_li
         assert await _wait_task(compress, task_id) == "error"
         complete = [e for e in _events(prompt_server) if e[0] == "zipnn_complete"][-1][1]
         assert complete["ok"] is False
-        assert "MM_NATIVE=1" in complete["error"]
+        assert "the native core is unavailable" in complete["error"]
+        assert "native-bin directory missing" in complete["error"]
         # the source is untouched
         assert (model_lib / "checkpoints" / "req-missing.safetensors").exists()
+
+        # batch route: an immediate request-level error, no task at all
+        _b, batch_payload = await _post_zipnn(
+            prompt_server,
+            ("POST", "/model-manager/zipnn/batch-folder"),
+            {"mode": "compress", "type": "checkpoints", "pathIndex": 0, "folder": "."},
+        )
+        assert batch_payload["success"] is False
+        assert "the native core is unavailable" in batch_payload["error"]
     finally:
         config.extension_uri = saved_uri
         native._module, native._reason, native._attempted = saved_state
         sys.modules.pop("mm_core", None)
-
-
-def test_cleanup_targets_never_deletes_dst_itself(tmp_path):
-    """A failed run must clean its PARTIALS but never the destination path:
-    both pipelines create dst only via a final atomic rename, so a dst that
-    exists during a failure cleanup belongs to someone else (race) — the
-    earlier dst-deleting behaviour was a (narrow) data-loss bug."""
-    compress = _compress_mod()
-    dst = tmp_path / "model.safetensors"
-    dst.write_bytes(b"somebody elses finished file")
-    partials = [
-        tmp_path / "model.safetensors.tmp",
-        tmp_path / "model.safetensors.verify.tmp",
-        tmp_path / "model.safetensors.tmp.fix",
-    ]
-    for partial in partials:
-        partial.write_bytes(b"partial")
-    corrupt = tmp_path / "model.safetensors.corrupt"
-    corrupt.write_bytes(b"diagnostic")
-
-    compress._cleanup_targets(str(dst))
-    assert dst.read_bytes() == b"somebody elses finished file", "dst must survive"
-    assert corrupt.exists(), ".corrupt diagnostics must survive"
-    for partial in partials:
-        assert not partial.exists(), f"{partial.name} must be removed"
 
 
 def test_startup_cleanup_sweeps_tmp_and_reports_corrupt(model_lib):

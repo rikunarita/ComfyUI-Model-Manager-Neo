@@ -50,25 +50,6 @@ api.addEventListener('update_zipnn_progress', (event: CustomEvent) => {
   if (detail.mode) zipnnState.mode = detail.mode
 })
 
-/**
- * A failed `pip install zipnn` carries the tail of pip's own output (compiler
- * errors, missing Python.h, ...). That is far too long for a toast, so the
- * first interesting line is shown and the rest is left to the console.
- */
-const compactError = (raw: string): string => {
-  const lines = raw
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-  if (lines.length <= 1) return raw
-  const interesting =
-    lines.find(line =>
-      /fatal error|error:|No such file|not found|cannot|Could not|failed/i.test(line),
-    ) ?? lines[lines.length - 1]
-  const body = interesting.length > 220 ? `${interesting.slice(0, 217)}…` : interesting
-  return `${body}\n${t('zipnnMoreInConsole', { n: lines.length - 1 })}`
-}
-
 /** Remembered so the "retry install" toast action can re-run the same job. */
 let lastRequest: {
   mode: ZipnnMode
@@ -111,7 +92,6 @@ interface ZipnnCompleteDetail {
   mode?: string
   fullname?: string
   kind?: string
-  installFailed?: boolean
   stats?: { originalBytes?: number; compressedBytes?: number }
 }
 
@@ -172,32 +152,13 @@ const advanceZipnnQueue = (ok: boolean) => {
 }
 
 const reportZipnnFailure = (detail: ZipnnCompleteDetail) => {
-  const raw = detail.error ?? t('zipnnFailed')
-  if (!detail.installFailed) {
-    toast.add({ severity: 'error', summary: t('error'), detail: raw, life: 12000 })
-    return
-  }
-  // The backend caches a failed install for a few minutes, so the retry has
-  // to ask for it explicitly (`force`).
-  const retry = lastRequest
+  // Phase 8: there is no install step to retry any more (the native core
+  // ships prebuilt) — every failure is a plain error toast.
   toast.add({
     severity: 'error',
-    summary: t('zipnnInstallFailed'),
-    detail: compactError(raw),
-    life: 20000,
-    action: retry
-      ? {
-          label: t('zipnnRetryInstall'),
-          onClick: () => {
-            void startZipnn(
-              retry.mode === 'auto' ? 'compress' : retry.mode,
-              retry.model,
-              retry.modelKey,
-              { force: true },
-            )
-          },
-        }
-      : undefined,
+    summary: t('error'),
+    detail: detail.error ?? t('zipnnFailed'),
+    life: 12000,
   })
 }
 
@@ -380,15 +341,8 @@ const startZipnn = async (
   mode: 'compress' | 'decompress',
   model: { type: string; pathIndex: number; fullname: string },
   modelKey: string,
-  options?: { force?: boolean },
 ): Promise<void> => {
-  await beginTask(
-    mode,
-    model,
-    modelKey,
-    `/zipnn/${mode}`,
-    options?.force ? { ...model, force: true } : model,
-  )
+  await beginTask(mode, model, modelKey, `/zipnn/${mode}`, model)
 }
 
 /** True while a ZipNN task for this exact model is running. */

@@ -5,11 +5,9 @@
   "$schema": "./node_modules/fallow/schema.json",
   "entry": ["src/main.ts"],
   // `web/` is the committed production bundle (loaded by ComfyUI at runtime,
-  // never imported from source); third_party/ is vendored Python; docs/ and
-  // assets/ carry no module graph.
+  // never imported from source); docs/ and assets/ carry no module graph.
   "ignorePatterns": [
     "web/**",
-    "third_party/**",
     "docs/**",
     "downloads/**",
     "assets/**",

@@ -629,9 +629,9 @@ def _encode_preview_webp_native(mm, content: bytes, preview_path: str) -> None:
     regression this removes). Frame extraction: an animated WebP goes through
     zenwebp's animation decoder (PIL does not surface per-frame WebP durations,
     so native keeps them intact); an animated GIF is walked by PIL (which does
-    report GIF durations and applies disposal). Raises on any failure so the
-    caller falls back to the PIL path (the native rollback unit, until Phase 8
-    drops ``MM_NATIVE``).
+    report GIF durations and applies disposal). Raises on any failure — the
+    caller wraps it in the historical "Unsupported or corrupt preview image"
+    RuntimeError (Phase 8: the PIL re-encode fallback is gone with MM_NATIVE).
     """
     from PIL import ImageSequence
 
@@ -697,23 +697,22 @@ def _write_preview_content(
             f.write(content)
     elif kind == "image":
         preview_path = _get_preview_path(model_path, ".webp", suffix)
-        # Plan Phase 7 T7: encode through the native zenwebp core when present
-        # (still + animated WebP, WebP decoded natively). A native failure
-        # falls back to the PIL path — the rollback unit until Phase 8 removes
-        # MM_NATIVE — so a corrupt image still surfaces the same RuntimeError.
+        # Phase 8: the native zenwebp encoder is the SINGLE path (the PIL
+        # re-encode was T7's rollback unit, retired together with the
+        # MM_NATIVE switch; PIL still decodes non-WebP INPUTS inside
+        # _encode_preview_webp_native). A failure keeps the historical
+        # RuntimeError wording the tolerant download path skips on and the
+        # editor path surfaces.
         mm = _native_core()
-        if mm is not None:
-            try:
-                _encode_preview_webp_native(mm, content, preview_path)
-                return
-            except Exception as e:
-                print_warning(f"native WebP preview encode failed ({e}); using the PIL fallback")
+        if mm is None:
+            from . import native as _native
+
+            raise RuntimeError(f"the native core is unavailable ({_native.reason()}): cannot encode the preview WebP")
         try:
-            image = Image.open(BytesIO(content))
-            image.save(preview_path, "WEBP")
+            _encode_preview_webp_native(mm, content, preview_path)
         except Exception as e:
-            # PIL cannot decode everything labelled image/* (SVG most
-            # notably): say what happened instead of leaking the raw
+            # Neither PIL nor zenwebp can decode everything labelled image/*
+            # (SVG most notably): say what happened instead of leaking the raw
             # "cannot identify image file" traceback at the user.
             raise RuntimeError(f"Unsupported or corrupt preview image ({content_type or 'unknown format'}): {e}") from e
     else:

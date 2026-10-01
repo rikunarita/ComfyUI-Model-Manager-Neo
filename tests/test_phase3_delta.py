@@ -1,24 +1,26 @@
-"""Plan Phase 3 (L4): delta route/batch switchover goldens + cross-path parity.
+"""Plan Phase 3 (L4) / Phase 8: delta route/batch goldens (single path).
 
-The Phase-3 switchover contract (Plan §6.2):
+The Phase-3 contract, kept verbatim after the Phase-8 removal of the legacy
+vendored C core (the native Rust pipeline is the only engine):
 
-* ``POST /model-manager/zipnn/delta-{compress,decompress}`` keep the legacy
+* ``POST /model-manager/zipnn/delta-{compress,decompress}`` keep the historic
   ws contract (phase vocabulary ``prepare/delta/done``, ``zipnn_complete``
-  with ``kind: "delta"``, stats ``originalBytes``/``compressedBytes``) on
-  BOTH paths, and the legacy ERROR WORDING reaches the UI verbatim;
-* the native compressor writes the official STREAMING delta form — proven
-  readable by the vendored zipnn 0.5.4 decompressor (cross-path), while the
-  native decompressor reads the legacy single-container files (cross-path
-  the other way);
+  with ``kind: "delta"``, stats ``originalBytes``/``compressedBytes``), and
+  the historic ERROR WORDING reaches the UI verbatim;
+* the compressor writes the official STREAMING delta form (cross-validation
+  against the official pip zipnn 0.5.4 lives in the L5 CI gate,
+  ``scripts/l5/official_cross.py`` — the transition-era cross-path tests
+  against the vendored C core were retired together with it);
 * the ``.neo-delta.json`` sidecar keeps ``basePad``/``ftPad`` and gains
   ``ftSha256`` (Plan §4.4.3: restore verification, ``.corrupt`` retreat);
 * the Appendix-C SEGFAULT class (padded total % 256 KiB ∈ {1,2,3} — the C
-  core dies, Phase 0 BENCH §4.3 proved the legacy production path reaches
-  it) round-trips through the NATIVE production route byte-exactly (K5);
-* the folder batch (``batch-folder``) produces the IDENTICAL tree through
-  both paths (bundles, sidecar moves, delta restores, stats), with the walk
-  and sidecar-move primitives golden-compared against their Python twins;
-* delta tasks are cancellable through the native cancel route.
+  core died on it, Phase 0 BENCH §4.3 proved the then-production path
+  reached it) round-trips through the production route byte-exactly (K5);
+* the folder batch (``batch-folder``) produces the correct bundle tree
+  (bundles, sidecar moves, delta restores, stats), with the walk and
+  sidecar-move primitives golden-compared against independent Python
+  reference walkers living in THIS file;
+* delta tasks are cancellable through the cancel route.
 """
 
 from __future__ import annotations
@@ -90,23 +92,6 @@ def _native_binary_present() -> bool:
     if not binary.is_dir():
         return False
     return any(p.name.startswith("mm_core") and p.name.endswith((".so", ".pyd")) for p in binary.iterdir())
-
-
-def _legacy_available() -> bool:
-    if os.environ.get("MMNEO_SKIP_LEGACY", "").strip().lower() in ("1", "on", "true", "yes"):
-        return False
-    try:
-        import numpy  # noqa: F401
-        import safetensors  # noqa: F401
-        import torch  # noqa: F401
-    except Exception:
-        return False
-    compress = _compress_mod()
-    try:
-        compress.ensure_zipnn()
-        return compress.zipnn_available()
-    except Exception:
-        return False
 
 
 async def _wait_task(compress, task_id: str, timeout: float = 180.0) -> str:
@@ -237,7 +222,6 @@ def test_native_core_exposes_the_phase3_api():
 @pytest.mark.asyncio
 async def test_route_delta_roundtrip_native_golden(prompt_server, model_lib, monkeypatch):
     _native_core_or_skip()
-    monkeypatch.setenv("MM_NATIVE", "1")
     base, ft = _delta_pair(model_lib)
     ft_sha = sha256_file(ft)
     base_size, ft_size = base.stat().st_size, ft.stat().st_size
@@ -312,79 +296,11 @@ async def test_route_delta_roundtrip_native_golden(prompt_server, model_lib, mon
 
 
 @pytest.mark.asyncio
-async def test_delta_cross_path_native_compress_legacy_decompress(prompt_server, model_lib, monkeypatch):
-    if not _legacy_available():
-        pytest.skip("vendored ZipNN C core unavailable on this platform")
-    _native_core_or_skip()
-    monkeypatch.setenv("MM_NATIVE", "1")
-    base, ft = _delta_pair(model_lib, "xb", "xft")
-    ft_sha = sha256_file(ft)
-
-    compress, payload = await _post(
-        prompt_server,
-        DELTA_COMPRESS_ROUTE,
-        {"type": "checkpoints", "pathIndex": 0, "baseFullname": "xb.safetensors", "fullname": "xft.safetensors"},
-    )
-    assert payload["success"] is True
-    assert await _wait_task(compress, payload["data"]["taskId"]) == "complete"
-
-    delta = model_lib / "checkpoints" / "xb_DeltaZNN" / "xft_delta_xb.znn"
-    out = model_lib / "checkpoints" / "xft-restored.safetensors"
-    # the LEGACY decompressor (vendored zipnn.py streaming path) must read
-    # the native streaming artifact byte-exactly
-    compress.delta_decompress_file(str(base), str(delta), str(out), lambda *a: None)
-    assert sha256_file(out) == ft_sha, "legacy decompress of a native streaming delta"
-
-
-@pytest.mark.asyncio
-async def test_delta_cross_path_legacy_compress_native_decompress(prompt_server, model_lib, monkeypatch):
-    if not _legacy_available():
-        pytest.skip("vendored ZipNN C core unavailable on this platform")
-    _native_core_or_skip()
-    compress = _compress_mod()
-    base, ft = _delta_pair(model_lib, "lb", "lft")
-    ft_sha = sha256_file(ft)
-
-    # legacy single-container artifact (is_streaming=False in zipnn.py)
-    monkeypatch.setenv("MM_NATIVE", "0")
-    delta_dir = model_lib / "checkpoints" / "lb_DeltaZNN"
-    delta_dir.mkdir()
-    delta = delta_dir / "lft_delta_lb.znn"
-    compress.delta_compress_files(str(base), str(ft), str(delta), lambda *a: None)
-    with open(delta, "rb") as f:
-        assert f.read(32)[13] == 0, "legacy delta = single non-streaming container"
-    # the route (not the engine) retires the redundant fine-tune
-    ft.unlink()
-
-    # the NATIVE route restores it (single-container branch), verified
-    # against the legacy sidecar (no ftSha256 → skipped, logged)
-    monkeypatch.setenv("MM_NATIVE", "1")
-    _reset_native_loader()
-    prompt_server.sent.clear()
-    compress, payload = await _post(
-        prompt_server,
-        DELTA_DECOMPRESS_ROUTE,
-        {"type": "checkpoints", "pathIndex": 0, "fullname": "lb_DeltaZNN/lft_delta_lb.znn"},
-    )
-    assert payload["success"] is True, payload
-    task_id = payload["data"]["taskId"]
-    assert await _wait_task(compress, task_id) == "complete", _events(prompt_server)
-    restored = model_lib / "checkpoints" / "lft.safetensors"
-    assert sha256_file(restored) == ft_sha, "native decompress of a legacy single-container delta"
-
-
-# ---------------------------------------------------------------------------
-# K5: the Appendix-C SEGFAULT class through the PRODUCTION route
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
 async def test_delta_segfault_class_totals_roundtrip_native(prompt_server, model_lib, monkeypatch):
     """Padded totals ≡ 1/2/3 (mod 256 KiB): the vendored C core SEGFAULTs
     (Plan Appendix C; Phase 0 proved the legacy delta route reaches it with
     real files). The native route must complete — byte-exactly."""
     _native_core_or_skip()
-    monkeypatch.setenv("MM_NATIVE", "1")
     ck = model_lib / "checkpoints"
     header_len = 64
     for k in (1, 2, 3):
@@ -442,7 +358,6 @@ async def test_delta_segfault_class_totals_roundtrip_native(prompt_server, model
 @pytest.mark.asyncio
 async def test_delta_data_size_mismatch_error_is_the_legacy_wording(prompt_server, model_lib, monkeypatch):
     _native_core_or_skip()
-    monkeypatch.setenv("MM_NATIVE", "1")
     ck = model_lib / "checkpoints"
     write_safetensors(ck / "mb.safetensors", {"w": ("BF16", [64], synth_bf16(64, 1))}, {"format": "pt"})
     write_safetensors(ck / "mf.safetensors", {"w": ("BF16", [128], synth_bf16(128, 2))}, {"format": "pt"})
@@ -467,7 +382,6 @@ async def test_delta_data_size_mismatch_error_is_the_legacy_wording(prompt_serve
 @pytest.mark.asyncio
 async def test_delta_sha_mismatch_keeps_delta_and_retreats_to_corrupt(prompt_server, model_lib, monkeypatch):
     _native_core_or_skip()
-    monkeypatch.setenv("MM_NATIVE", "1")
     _base, _ft = _delta_pair(model_lib, "vb", "vft")
     compress, payload = await _post(
         prompt_server,
@@ -503,7 +417,6 @@ async def test_delta_sha_mismatch_keeps_delta_and_retreats_to_corrupt(prompt_ser
 @pytest.mark.asyncio
 async def test_delta_paranoid_mode_native(prompt_server, model_lib, monkeypatch):
     _native_core_or_skip()
-    monkeypatch.setenv("MM_NATIVE", "1")
     monkeypatch.setenv("MM_ZNN_PARANOID", "1")
     _base, ft = _delta_pair(model_lib, "pb", "pft")
     ft_sha = sha256_file(ft)
@@ -526,7 +439,6 @@ async def test_delta_paranoid_mode_native(prompt_server, model_lib, monkeypatch)
 @pytest.mark.asyncio
 async def test_delta_cancel_native(prompt_server, model_lib, monkeypatch):
     _native_core_or_skip()
-    monkeypatch.setenv("MM_NATIVE", "1")
     # a pair big enough that an immediate cancel usually lands mid-run;
     # both outcomes are valid but must be CONSISTENT (Phase-2 pattern)
     ck = model_lib / "checkpoints"
@@ -594,7 +506,55 @@ def _batch_tree(model_lib):
     return root
 
 
-def test_walk_models_matches_the_python_walkers(model_lib):
+# Independent Python reference walkers (the contract the Rust walk_models
+# must satisfy — verbatim semantics of the Phase-3 Python twins that Phase 8
+# retired from py/compress.py; kept HERE so the golden parity survives the
+# single-path switch and pins the Rust walk against an executable spec).
+def _ref_walk_compress(folder: str) -> list[str]:
+    compress_mod = _compress_mod()
+    found: list[str] = []
+    for root, dirs, names in os.walk(folder):
+        dirs[:] = [d for d in dirs if not compress_mod._is_bundle_dir_name(d)]
+        for name in names:
+            if name.endswith(compress_mod.SAFE_SUFFIX) and not name.endswith(compress_mod.ZNN_SUFFIX):
+                found.append(os.path.join(root, name))
+    return sorted(found)
+
+
+def _ref_walk_decompress(folder: str) -> list[str]:
+    compress_mod = _compress_mod()
+    utils = import_ext("utils")
+    found: list[str] = []
+    for root, _dirs, names in os.walk(folder):
+        in_delta_folder = os.path.basename(root).endswith(utils.DELTA_FOLDER_SUFFIX)
+        for name in names:
+            if name.endswith(compress_mod.ZNN_SUFFIX) or (
+                in_delta_folder and name.endswith(".znn") and "_delta_" in name
+            ):
+                found.append(os.path.join(root, name))
+    return sorted(found)
+
+
+def _ref_walk_blockers(folder: str) -> list[str]:
+    import folder_paths
+
+    compress_mod = _compress_mod()
+    blockers: list[str] = []
+    for root, dirs, names in os.walk(folder):
+        dirs[:] = [d for d in dirs if not compress_mod._is_bundle_dir_name(d)]
+        for name in names:
+            extension = os.path.splitext(name)[1]
+            if (
+                extension in folder_paths.supported_pt_extensions
+                and ".znn." not in name
+                and not name.endswith(compress_mod.SAFE_SUFFIX)
+                and not name.endswith(".znn")
+            ):
+                blockers.append(os.path.join(root, name))
+    return sorted(blockers)
+
+
+def test_walk_models_matches_the_reference_walkers(model_lib):
     mm = _native_core_or_skip()
     compress = _compress_mod()
     root = _batch_tree(model_lib)
@@ -607,11 +567,11 @@ def test_walk_models_matches_the_python_walkers(model_lib):
     }
     # compress walker
     got = json.loads(mm.walk_models(str(root), {"mode": "compress", "skipBundles": True, **opts_common}))
-    want = compress._walk_model_files(str(root), "compress", skip_bundles=True)
+    want = _ref_walk_compress(str(root))
     assert got == want, (got, want)
     # decompress walker
     got = json.loads(mm.walk_models(str(root), {"mode": "decompress", **opts_common}))
-    want = compress._walk_decompress_files(str(root))
+    want = _ref_walk_decompress(str(root))
     assert got == want, (got, want)
     # blockers walker
     got = json.loads(
@@ -620,7 +580,7 @@ def test_walk_models_matches_the_python_walkers(model_lib):
             {"mode": "blockers", "extensions": sorted(folder_paths.supported_pt_extensions), **opts_common},
         )
     )
-    want = compress._batch_invariants_blockers(str(root))
+    want = _ref_walk_blockers(str(root))
     assert got == want, (got, want)
     assert got and all(g.endswith((".gguf", ".ckpt")) for g in got)
 
@@ -738,11 +698,9 @@ def _tree_state(root):
 @pytest.mark.asyncio
 async def test_batch_folder_native_roundtrip(prompt_server, model_lib, monkeypatch):
     _native_core_or_skip()
-    monkeypatch.setenv("MM_NATIVE", "1")
     ck = model_lib / "checkpoints"
 
-    # three models (one nested) + sidecars; identical content shapes so the
-    # legacy-parity comparison below is apples-to-apples
+    # three models (one nested) + sidecars
     def models(tag: str):
         w1 = ("BF16", [256, 128], synth_bf16(256 * 128, 1, low_entropy=True))
         w2 = ("BF16", [256, 128], synth_bf16(256 * 128, 2, low_entropy=True))
@@ -801,7 +759,6 @@ async def test_batch_folder_with_delta_files_native(prompt_server, model_lib, mo
     """A bundle holding a delta file batch-decompresses through the native
     delta job (base resolved beside the bundle, sidecar removed)."""
     _native_core_or_skip()
-    monkeypatch.setenv("MM_NATIVE", "1")
     _base, ft = _delta_pair(model_lib, "bb", "bff")
     ft_sha = sha256_file(ft)
 
@@ -824,109 +781,3 @@ async def test_batch_folder_with_delta_files_native(prompt_server, model_lib, mo
     restored = model_lib / "checkpoints" / "bff.safetensors"
     assert sha256_file(restored) == ft_sha
     assert not (model_lib / "checkpoints" / "bb_DeltaZNN").exists()
-
-
-@pytest.mark.asyncio
-async def test_batch_parity_legacy_vs_native(prompt_server, model_lib, monkeypatch, tmp_path):
-    """The completed batch trees of both engines are IDENTICAL (Plan §6.2
-    Phase 3 完了条件: フォルダバッチ圧縮/解凍の現行同一挙動 QA)."""
-    if not _legacy_available():
-        pytest.skip("vendored ZipNN C core unavailable on this platform")
-    _native_core_or_skip()
-
-    import shutil
-
-    def build(tag: str):
-        ck = model_lib / "checkpoints"
-        for child in ck.iterdir():
-            if child.is_dir():
-                shutil.rmtree(child)
-            else:
-                child.unlink()
-        w = ("BF16", [256, 128], synth_bf16(256 * 128, 1, low_entropy=True))
-        write_safetensors(ck / f"{tag}.safetensors", {"w": w}, {"format": "pt"})
-        (ck / f"{tag}.webp").write_bytes(b"img")
-        return ck
-
-    def names_of(state):
-        return [n for n, _ in state]
-
-    # native batch compress
-    monkeypatch.setenv("MM_NATIVE", "1")
-    _reset_native_loader()
-    ck = build("p")
-    body = {"mode": "compress", "type": "checkpoints", "pathIndex": 0, "folder": "."}
-    compress, payload = await _post(prompt_server, BATCH_ROUTE, body)
-    assert await _wait_task(compress, payload["data"]["taskId"]) == "complete"
-    native_state = _tree_state(ck)
-
-    # legacy batch compress on the identical input
-    monkeypatch.setenv("MM_NATIVE", "0")
-    ck = build("p")
-    body = {"mode": "compress", "type": "checkpoints", "pathIndex": 0, "folder": "."}
-    compress, payload = await _post(prompt_server, BATCH_ROUTE, body)
-    assert await _wait_task(compress, payload["data"]["taskId"]) == "complete"
-    legacy_state = _tree_state(ck)
-
-    # identical STRUCTURE (the compressed bytes carry different Neo
-    # metadata keys across engines BY DESIGN — Phase 2 pinned blob-level,
-    # not file-level, parity)
-    assert names_of(native_state) == names_of(legacy_state), "batch-compress trees must match"
-
-    # and both engines' artifacts restore to the identical original bytes
-    monkeypatch.setenv("MM_NATIVE", "0")
-    compress = _compress_mod()
-    out_n = tmp_path / "from-native.safetensors"
-    compress.decompress_safetensors(str(ck / "checkpoints_DeltaZNN" / "p.znn.safetensors"), str(out_n), lambda *a: None)
-    monkeypatch.setenv("MM_NATIVE", "1")
-    _reset_native_loader()
-    ck = build("p")
-    body = {"mode": "compress", "type": "checkpoints", "pathIndex": 0, "folder": "."}
-    compress, payload = await _post(prompt_server, BATCH_ROUTE, body)
-    assert await _wait_task(compress, payload["data"]["taskId"]) == "complete"
-    out_r = tmp_path / "from-native-route.safetensors"
-    body2 = {"mode": "decompress", "type": "checkpoints", "pathIndex": 0, "folder": "checkpoints_DeltaZNN"}
-    compress, payload = await _post(prompt_server, BATCH_ROUTE, body2)
-    assert await _wait_task(compress, payload["data"]["taskId"]) == "complete"
-    assert sha256_file(ck / "p.safetensors") == sha256_file(out_n), "native batch restores what legacy restores"
-    assert not out_r.exists()
-
-
-# ---------------------------------------------------------------------------
-# legacy delta route (MM_NATIVE=0) — the untouched contract
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_route_delta_roundtrip_legacy_golden(prompt_server, model_lib, monkeypatch):
-    if not _legacy_available():
-        pytest.skip("vendored ZipNN C core unavailable on this platform")
-    monkeypatch.setenv("MM_NATIVE", "0")
-    _base, ft = _delta_pair(model_lib, "lgb", "lgft")
-    ft_sha = sha256_file(ft)
-
-    compress, payload = await _post(
-        prompt_server,
-        DELTA_COMPRESS_ROUTE,
-        {"type": "checkpoints", "pathIndex": 0, "baseFullname": "lgb.safetensors", "fullname": "lgft.safetensors"},
-    )
-    assert payload["success"] is True
-    task_id = payload["data"]["taskId"]
-    assert await _wait_task(compress, task_id) == "complete", _events(prompt_server)
-    _assert_delta_contract(_events(prompt_server), task_id, "compress")
-    delta = model_lib / "checkpoints" / "lgb_DeltaZNN" / "lgft_delta_lgb.znn"
-    assert delta.is_file()
-    meta = json.loads((delta.parent / (delta.name + ".neo-delta.json")).read_text(encoding="utf-8"))
-    assert set(meta) == {"basePad", "ftPad"}, "legacy sidecar keeps its two keys"
-
-    prompt_server.sent.clear()
-    compress, payload = await _post(
-        prompt_server,
-        DELTA_DECOMPRESS_ROUTE,
-        {"type": "checkpoints", "pathIndex": 0, "fullname": "lgb_DeltaZNN/lgft_delta_lgb.znn"},
-    )
-    assert payload["success"] is True
-    task_id = payload["data"]["taskId"]
-    assert await _wait_task(compress, task_id) == "complete", _events(prompt_server)
-    _assert_delta_contract(_events(prompt_server), task_id, "decompress")
-    assert sha256_file(model_lib / "checkpoints" / "lgft.safetensors") == ft_sha

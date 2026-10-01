@@ -1,9 +1,13 @@
-"""Plan Phase 0: py/native.py loader — platform tags, MM_NATIVE switch, handshake.
+"""Plan Phase 0 (Phase 8 single-path): py/native.py loader — platform tags,
+handshake, diagnostics.
 
-Written against the loader's public surface: ``platform_tag`` / ``native_mode``
-/ ``load`` / ``available`` / ``core`` / ``reason`` / ``core_version`` /
-``diagnostics``. The loader caches its attempt in module state, so every test
-reloads ``mmneo_py.native``; an autouse fixture restores ``sys.path`` and
+Written against the loader's public surface: ``platform_tag`` / ``load`` /
+``available`` / ``core`` / ``core_if_enabled`` / ``reason`` / ``core_version``
+/ ``diagnostics``. Phase 8 removed the ``MM_NATIVE`` switch: ``load()`` never
+raises, it reports ``available() is False`` + ``reason()``, and the ZipNN
+routes turn that into their actionable error (covered in test_phase2_routes).
+The loader caches its attempt in module state, so every test reloads
+``mmneo_py.native``; an autouse fixture restores ``sys.path`` and
 ``sys.modules["mm_core"]`` because ``load()`` appends the binary directory to
 the import path.
 """
@@ -30,7 +34,6 @@ def _isolate_loader_state(monkeypatch):
     version check they are asserting. Removing it at setup is safe — the tests
     that need the real prebuilt re-add it through ``native.load()``.
     """
-    monkeypatch.delenv("MM_NATIVE", raising=False)
     sys.path[:] = [p for p in sys.path if "native-bin" not in p]
     sys.modules.pop("mm_core", None)
     path_snapshot = list(sys.path)
@@ -72,22 +75,7 @@ def test_platform_tag_mapping(monkeypatch):
         assert native.platform_tag() == expected, (system, machine)
 
 
-def test_native_mode_normalization(monkeypatch):
-    native = _fresh_native()
-    for raw in ("0", "off", "false", "no", " OFF ", "No"):
-        monkeypatch.setenv("MM_NATIVE", raw)
-        assert native.native_mode() == "0", raw
-    for raw in ("1", "on", "true", "yes", " TRUE "):
-        monkeypatch.setenv("MM_NATIVE", raw)
-        assert native.native_mode() == "1", raw
-    for raw in ("", "banana", "2", "maybe"):
-        monkeypatch.setenv("MM_NATIVE", raw)
-        assert native.native_mode() == "auto", raw
-    monkeypatch.delenv("MM_NATIVE")
-    assert native.native_mode() == "auto"
-
-
-def test_auto_mode_loads_prebuilt_and_handshakes():
+def test_load_finds_prebuilt_and_handshakes():
     """With native-bin/<tag>/ populated, load() succeeds and reports versions."""
     native = _fresh_native()
     config = import_ext("config")
@@ -105,32 +93,25 @@ def test_auto_mode_loads_prebuilt_and_handshakes():
     version = native.core_version()
     assert version and "+" in version  # "x.y.z+commit"
     diag = native.diagnostics()
-    assert diag["available"] is True and diag["mode"] == "auto"
+    assert diag["available"] is True
     assert diag["platformTag"] == tag and diag["apiVersion"] == native.MIN_API_VERSION
     # Idempotence: a second load() must not re-import or flip state.
     assert native.load() is True
 
 
-def test_disabled_mode_never_loads(monkeypatch):
-    monkeypatch.setenv("MM_NATIVE", "0")
-    native = _fresh_native()
-    assert native.load() is False
-    assert native.available() is False
-    assert "MM_NATIVE=0" in (native.reason() or "")
-    assert native.diagnostics()["mode"] == "0"
-
-
-def test_required_mode_raises_when_unavailable(monkeypatch, tmp_path):
-    """MM_NATIVE=1 must never silently fall back to the legacy path (§5.4)."""
-    monkeypatch.setenv("MM_NATIVE", "1")
+def test_core_if_enabled_never_raises_and_reports_none(tmp_path):
+    """Phase 8 contract: ``core_if_enabled`` is the single entry point — it
+    loads when the binary is there and returns None (never raises) when it is
+    not; ``reason()`` carries the explanation for the ZipNN routes' error."""
     native = _fresh_native()
     _point_extension_at(tmp_path)  # no native/native-bin under tmp_path
-    with pytest.raises(RuntimeError, match="MM_NATIVE=1"):
-        native.load()
+    assert native.core_if_enabled() is None
+    assert native.available() is False
+    assert "native-bin directory missing" in (native.reason() or "")
 
 
 def test_missing_binary_reports_reason_without_raising(tmp_path):
-    """auto mode + no prebuilt => available False + a human-readable reason."""
+    """No prebuilt => load() False (never raises) + a human-readable reason."""
     native = _fresh_native()
     _point_extension_at(tmp_path)
     assert native.load() is False

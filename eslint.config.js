@@ -35,7 +35,6 @@ export default tseslint.config(
       'demo/**',
       'assets/**',
       // Vendored third-party code (ZipNN): formatted/linted upstream, not here.
-      'third_party/**',
       'node_modules/**',
       'dist/**',
       'coverage/**',

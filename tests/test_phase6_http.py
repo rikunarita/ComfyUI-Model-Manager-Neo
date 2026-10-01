@@ -49,6 +49,16 @@ def _reset_native_loader():
     return native
 
 
+def _skip_without_native():
+    """Phase 8: preview IMAGE writes go through the native zenwebp encoder
+    exclusively (the PIL re-encode fallback retired with MM_NATIVE), so tests
+    that write a WebP need the built core; they skip on ci.yml@dev where no
+    artifact is present and run on main / in the integration job."""
+    native = _reset_native_loader()
+    if native.core_if_enabled() is None:
+        pytest.skip(f"native core unavailable: {native.reason()}")
+
+
 # ---------------------------------------------------------------------------
 # local mock hub
 # ---------------------------------------------------------------------------
@@ -791,6 +801,7 @@ async def test_save_model_preview_falls_back_to_url_content_type_when_missing(mo
     """When the fetch reports NO content-type (a real CDN can omit it; aiohttp's
     test server cannot), save_model_preview falls back to
     `resolve_file_content_type(url)` exactly as the pre-T8 requests path did."""
+    _skip_without_native()
     import os
 
     utils = import_ext("utils")
@@ -841,6 +852,7 @@ async def test_fetch_preview_honours_the_read_timeout(hub_factory):
 async def test_save_model_preview_writes_webp_and_skips_blob(hub_factory, model_lib):
     """Download-completion path: an HTTP image is re-encoded to `<base>.webp`;
     a browser-local `blob:` URL is skipped with no fetch and no file."""
+    _skip_without_native()
     import os
 
     utils = import_ext("utils")
@@ -861,6 +873,7 @@ async def test_save_model_preview_writes_webp_and_skips_blob(hub_factory, model_
 async def test_save_model_preview_local_branch_reads_the_stored_file(model_lib):
     """Our own `/model-manager/preview/...` URL is read from disk server-side
     (no HTTP round trip), matching the pre-T8 behaviour."""
+    _skip_without_native()
     import os
 
     utils = import_ext("utils")
@@ -879,6 +892,7 @@ async def test_save_model_preview_local_branch_reads_the_stored_file(model_lib):
 async def test_save_model_previews_is_tolerant_of_a_bad_entry(hub_factory, model_lib):
     """The download-completion path stays tolerant: a 500 on one gallery entry
     is warned+skipped, the good one is written, and the call does NOT raise."""
+    _skip_without_native()
     import os
 
     utils = import_ext("utils")
@@ -928,6 +942,7 @@ async def test_resolve_preview_sources_parity(hub_factory):
 async def test_write_resolved_previews_rewrites_the_gallery(model_lib):
     """Editor path (write half): staged bytes are re-encoded into the suffix
     slots and the old set is replaced."""
+    _skip_without_native()
     import os
 
     utils = import_ext("utils")
@@ -952,6 +967,7 @@ async def test_update_model_junction_resolve_write_then_remove(hub_factory, mode
     ``update_model``, which writes/removes in the executor. Both halves are
     pinned above; this pins the CONNECTION so a signature/plumbing regression
     between them (the classic untested-junction defect) fails here."""
+    _skip_without_native()
     import os
 
     manager = import_ext("manager")
@@ -1078,6 +1094,7 @@ async def test_save_model_preview_accepts_an_uploaded_file_field(model_lib):
     own content-type/filename drive the re-encode and no HTTP round trip
     happens. This branch moved untouched through the requests -> aiohttp
     refactor but had no test pinning it."""
+    _skip_without_native()
     import os
 
     utils = import_ext("utils")
@@ -1117,3 +1134,35 @@ async def test_resolve_preview_sources_stages_uploaded_file_fields():
     assert content_type == "image/png"
     assert content == payload
     assert len(failures) == 1 and "Invalid file" in failures[0]
+
+
+@pytest.mark.asyncio
+async def test_preview_without_native_core_degrades_per_path(model_lib, monkeypatch):
+    """Phase 8 degradation contract with NO loadable core: the tolerant
+    download-completion path warns+skips (written == 0, the download itself
+    never fails), while the editor write path surfaces the actionable
+    "native core is unavailable" reason inside its historical wording."""
+    native = _reset_native_loader()
+    monkeypatch.setattr(native, "core_if_enabled", lambda: None)
+    utils = import_ext("utils")
+
+    import os
+
+    from PIL import Image
+
+    checkpoints = str(model_lib / "checkpoints")
+    model_path = os.path.join(checkpoints, "m.safetensors")
+    with open(model_path, "wb") as f:
+        f.write(b"x")
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 6), (3, 2, 1)).save(buf, "PNG")
+    png = buf.getvalue()
+
+    # tolerant path: warn + skip, never raise
+    written = await utils.save_model_previews(model_path, [_file_field("up.png", png, "image/png")])
+    assert written == 0
+    assert not os.path.isfile(os.path.join(checkpoints, "m.webp"))
+
+    # editor path: the failure surfaces with the historical prefix
+    with pytest.raises(RuntimeError, match="Failed to save preview entries"):
+        utils.write_resolved_previews(model_path, [("up.png", "image/png", png)])

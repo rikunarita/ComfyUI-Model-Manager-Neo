@@ -577,8 +577,8 @@ class ModelDownload:
         if task_content.downloadPlatform == "civitai" and expected_sha:
             # B1 (Plan §4.8 / K7): prefer the INLINE digest the write loop fed
             # the native hasher — verifying costs ZERO extra I/O. Fall back to
-            # the full re-read only when no inline digest was staged (the
-            # legacy MM_NATIVE=0 engine, a file that was already complete on
+            # the full re-read only when no inline digest was staged (no
+            # native core on this machine, a file that was already complete on
             # resume, or a task whose hasher was dropped on pause).
             actual_sha = self._inline_sha256.pop(task_id, None)
             if actual_sha is None:

@@ -203,6 +203,14 @@ def vendored_zipnn_on_path() -> None:
     pip/source-build fallbacks.
     """
     third_party = os.path.join(REPO_ROOT, "third_party")
+    if not os.path.isdir(third_party):
+        raise RuntimeError(
+            "third_party/ was removed in Phase 8 (the native core is the single "
+            "engine). The legacy-comparison benchmarks are HISTORICAL tools - "
+            "recover the tree from git history (any Phase 7 tip or older) to "
+            "re-run them; the committed result JSONs under results/ stay valid "
+            "evidence (see scripts/l2/README.md for the retirement note)."
+        )
     tag = "linux-x86_64"
     bin_dir = os.path.join(third_party, "zipnn-core-bin", tag)
     suffix = f"cpython-{sys.version_info.major}{sys.version_info.minor}"

@@ -23,10 +23,12 @@
  * renders, so the Rust fold (header order) and the JS fallback below are
  * indistinguishable on screen.
  *
- * [buildTensorTreePayload] is the fallback encoder for a backend that cannot
- * produce the tree (`MM_NATIVE=0`, a legacy engine, a non-safetensors model):
- * it reproduces the Rust grouping rule exactly, so the renderer has ONE code
- * path either way.
+ * [buildTensorTreePayload] is the fallback encoder for a response that
+ * carries no Rust-folded tree (a non-safetensors model, a tree dropped by the
+ * backend's file-changed guard, or a machine whose native core could not
+ * load — the header itself still degrades to the Python parse): it
+ * reproduces the Rust grouping rule exactly (pinned by the CI cross-check),
+ * so the renderer has ONE code path either way.
  */
 
 import {

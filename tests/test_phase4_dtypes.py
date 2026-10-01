@@ -17,9 +17,11 @@ Gates covered here (Plan §6.2 Phase 4 完了条件 "全拡張 dtype 往復 gree
   zero-topped integer tensors) with byte-exact restore;
 * sub-byte dtypes (F4 = 4-bit, F6_* = 6-bit packed) honour the reference
   shape semantics (``nelem * bits / 8`` bytes);
-* the legacy (vendored zipnn) path fails CLEANLY on extension-band files
-  (``ValueError: Unsupported Dtype``) — the documented migration behaviour;
 * the inspect route contract (plain + compressed files, error paths).
+
+(Phase 8 retired the legacy-path rejection test together with the vendored
+C core — the OFFICIAL zipnn's explicit refusal of extension-band files is
+pinned by the L5 CI cross-validation instead.)
 
 Skips cleanly when no native binary exists for this platform (the CI verify
 job); the native workflow's integration job runs it against the artifact.
@@ -53,7 +55,7 @@ from harness import (
 )
 from test_phase2_native_pipeline import _compress, _decompress
 from test_phase2_native_pipeline import mm as _imported_mm  # noqa: F401  (fixture re-export)
-from test_phase2_routes import _legacy_available, _post_zipnn
+from test_phase2_routes import _native_binary_present, _post_zipnn, _reset_native_loader
 
 
 @pytest.fixture
@@ -262,36 +264,6 @@ def test_marker_absent_when_neo_tensors_pass_through(mm, tmp_path):
     assert sha256_file(back) == sha256_file(src)
 
 
-def test_legacy_engine_fails_cleanly_on_extended_files(mm, tmp_path):
-    """The vendored zipnn 0.5.4 path must REJECT Neo-extension files with
-    its explicit ValueError (never silent corruption), and its compressor
-    keeps refusing f64 sources — the documented migration behaviour until
-    Phase 8 removes the legacy path."""
-    if not _legacy_available():
-        pytest.skip("vendored ZipNN C core unavailable on this platform")
-    src = tmp_path / "f64model.safetensors"
-    write_safetensors(
-        src,
-        {"grid": ("F64", [512, 8], synth_f64(512 * 8, 71, low_entropy=True))},
-        {"format": "pt"},
-    )
-    znn = tmp_path / "f64model.znn.safetensors"
-    _compress(mm, src, znn)
-    assert read_safetensors(znn)[0]["__metadata__"]["znn_neo_extended"] == "1"
-
-    compress = import_ext("compress")
-    # legacy DEcompress of the extension-band file → explicit dtype error
-    back = tmp_path / "f64model.legacy.back.safetensors"
-    with pytest.raises(Exception, match="Unsupported Dtype"):
-        compress.decompress_safetensors(str(znn), str(back), lambda *_: None)
-    assert not back.exists() and not Path(str(back) + ".tmp").exists()
-    # legacy COMPRESS of the f64 source → its documented ValueError
-    out2 = tmp_path / "f64model.legacy.znn.safetensors"
-    with pytest.raises(ValueError, match="Support only"):
-        compress.compress_safetensors(str(src), str(out2), lambda *_: None)
-    assert not out2.exists()
-
-
 # ---------------------------------------------------------------------------
 # The /zipnn/inspect route (the confirm-dialog data source)
 # ---------------------------------------------------------------------------
@@ -360,6 +332,12 @@ async def test_inspect_route_plain_and_compressed(prompt_server, model_lib, mm, 
 
 @pytest.mark.asyncio
 async def test_inspect_route_compat_only_file(prompt_server, model_lib):
+    # Phase 8: the inspect header parse goes through mm_core (B4 single
+    # route) — without a built artifact the route answers with its error
+    # FIELD, which test_inspect_helper_survives_broken_files pins instead.
+    if not _native_binary_present():
+        pytest.skip("native binary not built (scripts/build-native.sh)")
+    _reset_native_loader()
     root = model_lib / "checkpoints"
     src = root / "compat.safetensors"
     write_safetensors(
