@@ -453,12 +453,12 @@ Rust 核心压缩 **safetensors 0.8 定义的每个 dtype**（全部 22 种）�
 在每个受支持的平台上都**无需 `pip install`、无需 C 编译器、无需联网、
 无需等待**：
 
-| 平台                            | 产物                                          | 要求                                      |
-| ------------------------------- | --------------------------------------------- | ----------------------------------------- |
-| Linux x86_64                    | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+） |
-| Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                              |
-| macOS（Intel 与 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 单个 fat 二进制，macOS 11+                |
-| Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC 构建                                 |
+| 平台                            | 产物                                          | 要求                                                      |
+| ------------------------------- | --------------------------------------------- | --------------------------------------------------------- |
+| Linux x86_64                    | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+）                 |
+| Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                                              |
+| macOS（Intel 与 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 单个 fat 二进制 —— Intel macOS 10.12+ / Apple Silicon 11+ |
+| Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC 构建                                                 |
 
 每个平台一个二进制即支持 **CPython 3.10 及更新版本**（Python Stable ABI）。
 与官方格式的互操作是 CI 关卡而非口头承诺：每次 push 都会与官方 pip

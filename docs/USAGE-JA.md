@@ -534,12 +534,12 @@ Information タブは**Neo Extended** バッジ（相互運用を説明するツ
 素の `import` でロードされます — 対応するすべてのプラットフォームで、
 **`pip install` も C コンパイラもネットワークも待ち時間も不要**です:
 
-| プラットフォーム               | 成果物                                        | 要件                                      |
-| ------------------------------ | --------------------------------------------- | ----------------------------------------- |
-| Linux x86_64                   | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+） |
-| Linux aarch64                  | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                              |
-| macOS（Intel & Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 1 本の fat binary、macOS 11+              |
-| Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC ビルド                               |
+| プラットフォーム               | 成果物                                        | 要件                                                       |
+| ------------------------------ | --------------------------------------------- | ---------------------------------------------------------- |
+| Linux x86_64                   | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+）                  |
+| Linux aarch64                  | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                                               |
+| macOS（Intel & Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 1 本の fat binary — Intel macOS 10.12+ / Apple Silicon 11+ |
+| Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC ビルド                                                |
 
 プラットフォーム毎の 1 バイナリが **CPython 3.10 以降**すべてに対応します
 （Python Stable ABI）。公式フォーマットとの相互運用は約束ではなく CI ゲート
