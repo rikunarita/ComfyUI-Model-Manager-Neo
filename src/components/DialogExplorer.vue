@@ -146,7 +146,7 @@ import { useModelDetail } from 'hooks/modelDetail'
 import { isFolderStarred } from 'hooks/stars'
 import { useSelection } from 'hooks/zipnn'
 import { resolveIcon } from 'utils/iconMap'
-import { genModelKey, isBundleFolderName } from 'utils/model'
+import { folderBatchDirection, genModelKey } from 'utils/model'
 import { compareText } from 'utils/modelFilter'
 
 const { t } = useI18n()
@@ -158,7 +158,11 @@ const isSelected = (model: ModelTreeNode) => Boolean(selection.state.selected[ge
 
 /** Selection kind for the ZipNN bundle exclusion rule. */
 const kindOf = (node: ModelTreeNode) =>
-  node.isFolder ? (isBundleFolderName(node.basename) ? 'znn-folder' : 'folder') : ('model' as const)
+  node.isFolder
+    ? folderBatchDirection(node) === 'decompress'
+      ? 'znn-folder'
+      : 'folder'
+    : ('model' as const)
 
 const handleCardClick = (model: ModelTreeNode) => {
   if (selection.state.enabled) {

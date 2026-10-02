@@ -15,7 +15,7 @@ import {
 } from 'hooks/zipnn'
 import { type BaseModel } from 'types/typings'
 import { assetUrl } from 'utils/media'
-import { genModelKey, isBundleFolderName } from 'utils/model'
+import { genModelKey, folderBatchDirection } from 'utils/model'
 
 interface Props {
   model: BaseModel
@@ -52,13 +52,20 @@ const zipnnApplicable = computed(() => {
   if (isFolder.value) return true
   return isCompressedModel.value || props.model.extension === '.safetensors'
 })
-/** Direction of the folder batch: bundles decompress, type roots auto. */
+/**
+ * Direction of the folder batch, from the folder's CONTENT (the frontend
+ * mirror of the backend `auto` resolution): bundle-named folders AND folders
+ * whose sub-tree holds only ZipNN content (a type root that keeps its bundle
+ * inside itself, a sub-folder of in-place compressed models) decompress;
+ * type roots with plain models let the backend pick; anything else compresses.
+ */
+const folderDirection = computed(() => folderBatchDirection(props.model))
 const zipnnFolderMode = computed<'compress' | 'decompress' | 'auto'>(() => {
-  if (isBundleFolderName(folderName.value)) return 'decompress'
+  if (folderDirection.value === 'decompress') return 'decompress'
   return isTypeRootFolder.value ? 'auto' : 'compress'
 })
 const zipnnInverted = computed(() => {
-  if (isFolder.value) return isBundleFolderName(folderName.value)
+  if (isFolder.value) return folderDirection.value === 'decompress'
   return isCompressedModel.value || isDeltaModel.value
 })
 const zipnnRunning = computed(() => zipnnRunningFor(modelKey.value))
@@ -66,7 +73,7 @@ const zipnnRunning = computed(() => zipnnRunningFor(modelKey.value))
 const zipnnProgress = computed(() => zipnnState.progress)
 const zipnnLabel = computed(() => {
   if (isFolder.value) {
-    if (isBundleFolderName(folderName.value)) return t('zipnnBatchDecompress')
+    if (folderDirection.value === 'decompress') return t('zipnnBatchDecompress')
     return isTypeRootFolder.value ? t('zipnnBatch') : t('zipnnBatchCompress')
   }
   if (isDeltaModel.value) return t('zipnnDeltaDecompress')

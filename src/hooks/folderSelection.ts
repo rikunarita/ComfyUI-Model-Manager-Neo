@@ -6,7 +6,7 @@ import { applyFolderStars, isFolderStarred } from 'hooks/stars'
 import { useToast } from 'hooks/toast'
 import { queueZipnnBatches, useSelection, zipnnState } from 'hooks/zipnn'
 import { useZipnnDeltaDialog } from 'hooks/zipnnDelta'
-import { genModelKey, isBundleFolderName } from 'utils/model'
+import { folderBatchDirection, genModelKey } from 'utils/model'
 
 /**
  * Everything the selection bulk bar of the folder view needs: the selected
@@ -109,18 +109,25 @@ export const useFolderSelection = (getTree: () => ModelTreeNode[]) => {
       zipnnState.active &&
       selectedFolderNodes.value.some(n => genModelKey(n) === zipnnState.targetKey),
   )
+  // Content-implied direction (utils/model folderBatchDirection): bundle-named
+  // folders AND folders whose sub-tree holds only ZipNN content (a type root
+  // keeping its bundle inside itself, an in-place-compressed sub-folder)
+  // decompress - the same resolution the backend `auto` mode applies.
   const batchInverted = computed(
     () =>
       selectedFolderNodes.value.length > 0 &&
-      selectedFolderNodes.value.every(n => isBundleFolderName(n.basename)),
+      selectedFolderNodes.value.every(n => folderBatchDirection(n) === 'decompress'),
   )
-  const batchModeFor = (n: ModelTreeNode): 'compress' | 'decompress' | 'auto' =>
-    isBundleFolderName(n.basename) ? 'decompress' : isTypeRootNode(n) ? 'auto' : 'compress'
+  const batchModeFor = (n: ModelTreeNode): 'compress' | 'decompress' | 'auto' => {
+    if (folderBatchDirection(n) === 'decompress') return 'decompress'
+    return isTypeRootNode(n) ? 'auto' : 'compress'
+  }
 
   const batchLabel = computed(() => {
     const folders = selectedFolderNodes.value
     if (folders.length === 0) return t('zipnnBatchCompress')
-    if (folders.every(n => isBundleFolderName(n.basename))) return t('zipnnBatchDecompress')
+    if (folders.every(n => folderBatchDirection(n) === 'decompress'))
+      return t('zipnnBatchDecompress')
     if (folders.some(n => batchModeFor(n) === 'auto')) return t('zipnnBatch')
     return t('zipnnBatchCompress')
   })
