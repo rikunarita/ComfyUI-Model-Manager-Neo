@@ -4,9 +4,10 @@
 
 ### 閲覧・ダウンロード・アップロード・ドラッグ＆ドロップ — モデルを、美しく管理。
 
-ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui** の上に
-再構築した、グラスモフィズムの現代的な再想像。ZipNN 圧縮エンジンを含む
-すべてのホットパスは、**プリビルドの純 Rust コア**が実行します。
+ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui** で
+再構築し、モダンなグラスモフィズム UI へ再設計したフォークです。ZipNN
+圧縮エンジンを含むすべてのホットパスを、**プリビルドの純 Rust コア**が
+実行します。
 
 ![Version](https://img.shields.io/badge/version-0.3.0-6366f1.svg)
 ![License](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)
@@ -36,7 +37,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ![macOS universal2](https://img.shields.io/badge/macOS-Intel_%2B_Apple_Silicon-000000.svg?logo=apple)
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D6.svg?logo=windows&logoColor=white)
 
-[English](README.md) · **日本語**
+[English](README.md) · **日本語** · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
 ![Hero overview](demo-assets/hero.gif)
 
@@ -62,11 +63,8 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 **ComfyUI‑Model‑Manager‑Neo** は、優れた元祖マネージャーを受け継ぎながら、
 体験を根底から作り直したものです:
 
-- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **グラスモフィズム UI** — 半透明・ぼかし・奥行き対応のインターフェース。
-  ComfyUI 自身のライト/ダークパレットに自動で追従します。
-- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **PrimeVue 不使用** — PrimeVue 依存をまるごと取り除き、軽量でヘッドレスな
-  **[reka-ui]** プリミティブ + **Tailwind CSS v4** + **[Lucide]** アイコンへ置換
-  （読んで調整できる shadcn‑vue スタイルのコンポーネント群）。
+**Neo の新機能**
+
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Rust ネイティブコア** — ライブラリスキャン・ハッシュ・safetensors ヘッダ
   解析・テンソルツリー・フォルダ監視・プレビュー WebP codec・ZipNN エンジン
   全体が、リポジトリ同梱の**プリビルド Rust 拡張**で動きます（4 プラットフォーム・
@@ -85,7 +83,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
   記録した SHA‑256 との照合が走ります。公式 `zipnn` 0.5.4 とのフォーマット互換は
   約束ではなく CI ゲートです — push のたびに双方向でクロス検証されます。
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN 可逆圧縮** — safetensors モデルをその場で圧縮/解凍
-  （`.znn.safetensors`）、フォルダ単位では封印された `<name>_DeltaZNN` バンドルへ
+  （`.znn.safetensors`）、フォルダ単位では密封された `<name>_DeltaZNN` バンドルへ
   バッチ圧縮、ファインチューンはベースモデルとの極小**デルタファイル**へ。
 - <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Hugging Face / ModelScope へアップロード** — ローカルモデルを HF または
   ModelScope のリポジトリへ直接公開（必要ならリポジトリ作成、プライベート指定、
@@ -101,11 +99,21 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
   貼り付け、保存先フォルダと任意のサブフォルダを選択できます。
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` アクセラレーション** — Hugging Face 転送は、利用可能な場合
   チャンク分割・重複排除された Xet プロトコルを使用します。
+- <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **日本語ロケール** — English・中文に加え、完全な日本語バンドルを
+  追加。UI は ComfyUI 自身の言語設定に追従し、リージョン/書記系のサブタグ
+  （`ja-JP`・`zh-Hant-TW` 等）は基底部言語へ折りたたまれます。
+
+**刷新・強化されたポイント**
+
+- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **グラスモフィズム UI** — 半透明・ぼかし・奥行き対応のインターフェース。
+  ComfyUI 自身のライト/ダークパレットに自動で追従します。
+- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Reka-UI への全面刷新** — PrimeVue 依存は軽量でヘッドレスな
+  **[reka-ui]** プリミティブ + **Tailwind CSS v4** + **[Lucide]** アイコンへ
+  置き換わりました（ソースを読んで調整できる shadcn-vue スタイルの
+  コンポーネント群）。
 - <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **第一級のノードグラフ統合** — モデルをキャンバスへドラッグしてノードを
   生成/入力、embedding をテキストエリアへドラッグ、プレビュー画像に埋め込まれた
   ワークフローの読込。
-- <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **3 言語の完全バンドル** — English・中文・日本語。ComfyUI 自身の言語設定に
-  追従します。
 - <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **レスポンシブ** — デスクトップ・モバイル・マルチスクリーン環境を想定した設計。
 - <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **現代的なツールチェーン** — Vite 8（Rolldown）、TypeScript 6、ESLint 10
   flat config、Prettier、Stylelint、Ruff、clippy、husky + lint‑staged。
@@ -180,10 +188,17 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 をダウンロードして `ComfyUI/custom_nodes/` に展開し、フォルダ名が
 `ComfyUI-Model-Manager-Neo` であることを確認してください。
 
-**3 · ComfyUI Manager**
+**3 · ComfyUI レジストリ（ComfyUI Manager / CLI）**
 
-フォークがレジストリへ公開されている場合は、[ComfyUI-Manager] で
-**“ComfyUI‑Model‑Manager‑Neo”** を検索してインストールできます。
+Neo は ComfyUI レジストリに
+[`comfyui-model-manager-neo`](https://registry.comfy.org/publishers/rikunarita7669/nodes/comfyui-model-manager-neo)
+として公開されています: [ComfyUI-Manager] で
+**“ComfyUI‑Model‑Manager‑Neo”** を検索するか、公式 CLI から
+インストールできます:
+
+```bash
+comfy node install comfyui-model-manager-neo
+```
 
 その後 **ComfyUI を再起動**してください。Python 依存
 （`huggingface_hub`・`hf_xet`・`modelscope_hub`・`markdownify`）は初回起動時に
@@ -291,7 +306,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 - 読み取り専用の **Information** テーブルに、モデルについて記録されたすべてを
   表示: ノートの YAML front‑matter を解析した作者・ベースモデル・全ハッシュ
   （`AutoV1` … `SHA256_12`）・フォーマットと精度・モデルプラットフォーム・
-  モデルページリンク・全プレビュー URL（未知のキーは末尾に逐語表示）、
+  モデルページリンク・全プレビュー URL（未知のキーは末尾にそのまま表示）、
   またはノートのないモデルでは safetensors の `__metadata__` ブロック。
 - safetensors モデルはさらに**テンソル構成**を折りたたみ可能な
   **フォルダツリー**として表示 — ドット区切りの名前をセグメントごとに
@@ -306,7 +321,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 - プレビュー**ギャラリー**の管理: 並べ替え・削除・ローカル画像の追加・
   メインプレビューの選択（編集モードで青いリングを付けたタイル）。
 - **モデルページを開く**ボタンは記録されたソースハブ（Civitai・Hugging Face・
-  ModelScope）のロゴを背景にまとい、**ローカルへダウンロード**は保存済み
+  ModelScope）のロゴを背景に表示し、**ローカルへダウンロード**は保存済み
   ファイルをライブラリ名そのままに添付としてブラウザへストリームします。
 - **ハッシュで識別**はローカルファイルを Civitai カタログに逆引きします
   （記録済みハッシュを先に試し、なければ 1 パスでハッシュ計算）。
@@ -494,7 +509,7 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
 を押すか、フォルダカードのコーナーボタンを使うと、フォルダツリー内のすべての
 `.safetensors` モデルが圧縮され（プレビューとノートも追従）、
 **バンドルフォルダ `<name>_DeltaZNN` へ移動**します。空になった元のフォルダは
-消えます。`*_DeltaZNN` バンドルは封印されています:
+消えます。`*_DeltaZNN` バンドルは密封されています:
 
 - 中に置けるのは ZipNN コンテンツ（`*.znn.*` モデル・`*.znn` デルタファイル）
   のみ（素のモデルのアップロード・ダウンロード・移動は拒否されます）。
@@ -529,17 +544,18 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
 ファインチューンモデルをベースの隣に**バイト単位まで正確に**復元し、
 空になったデルタフォルダを撤去します。復元にはベースモデルが必要で、
 デルタにはファインチューン自身の SHA‑256 が記録されるため、
-復元は端到端で検証されます。
+復元はエンドツーエンドで検証されます。
 
 ### <a id="the-engine"></a>エンジン: プリビルドの純 Rust コア
 
-圧縮器は公式 Python パッケージでは**ありません**: `zipnn` の C 拡張は PyPI に
-Linux wheel が無く、`pip install zipnn` はソースからのコンパイルになります —
-そのコンパイルこそ、Neo があなたのマシンから取り除いたものです。Neo は
-代わりに形式を Rust へ移植し（[`native/crates/znn-codec`](native/crates/znn-codec):
+圧縮器は公式 Python パッケージのラッパーではなく、Neo 自前の**純 Rust
+エンジン**が形式を実行します: 上流の C 拡張は PyPI に Linux wheel が無く
+（`pip install zipnn` はソースからのコンパイルになります）、Neo はその
+コンパイルをあなたのマシンから完全に無くしました。フォーマットは Rust へ
+移植され（[`native/crates/znn-codec`](native/crates/znn-codec):
 フォーマット中核に `unsafe` なし、7 本の継続的ファジングターゲット、
 オリジナル C 実装とのバイト同一差分検証の経歴）、リポジトリ同梱の
-**プリビルド abi3 バイナリ**として配布します — プラットフォームごとに 1 本、
+**プリビルド abi3 バイナリ**として出荷されます — プラットフォームごとに 1 本、
 ロードは `import` だけ:
 
 | プラットフォーム               | 成果物                                        | 要件                                                 |
@@ -572,7 +588,7 @@ codec は zenwebp（AGPL‑3.0）を使用 — 全文は [`native/NOTICE`](nativ
 
 バイナリの無いプラットフォーム（その他のアーキテクチャ・32 ビット・特殊な libc）
 でも拡張機能はインストールできます: 閲覧・ダウンロード・ハッシュは純 Python
-経路へデグレードし、ZipNN 操作とプレビュー再エンコードは静かに失敗する代わりに
+経路へフォールバックし、ZipNN 操作とプレビュー再エンコードは静かに失敗する代わりに
 ローダーの正確な理由を報告します。
 
 > [!NOTE]
@@ -599,15 +615,15 @@ PrimeVue 依存そのものと、バッチスキャン機能です
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="22" height="22" align="middle" alt=""> インターフェース
 
-| 領域                     | 元版                                                      | **Neo**                                                                                                                                                                                                                                                                                                        |
-| ------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| コンポーネントライブラリ | PrimeVue 4                                                | **reka‑ui**（ヘッドレス）+ shadcn‑vue スタイルのラッパー                                                                                                                                                                                                                                                       |
-| スタイリング             | Tailwind CSS v3 + PrimeVue テーマ                         | スコープ付き `--mm-*` デザイントークンによる **Tailwind CSS v4**                                                                                                                                                                                                                                               |
-| アイコン                 | PrimeIcons                                                | アイコンマップ経由の **Lucide**（`@lucide/vue`）                                                                                                                                                                                                                                                               |
-| 見た目と操作感           | 標準の PrimeVue サーフェス                                | **グラスモフィズム**（ぼかし・奥行き・マイクロインタラクション）、自動ダークモード                                                                                                                                                                                                                             |
-| ダイアログ               | PrimeVue `Dialog`/`ContextMenu`                           | reka‑ui ダイアログ、ダイアログ毎のサイズ/位置、ドラッグ移動、アンカー付きコンテキストメニュー                                                                                                                                                                                                                  |
-| モデル詳細タブ           | Description + Metadata（生の safetensors `__metadata__`） | Description + **Information**: ノートの YAML front‑matter を解析した読み取り専用テーブル（作者・ベースモデル・ハッシュ・フォーマットと精度・モデルプラットフォーム・モデルページリンク・全プレビュー URL・未知のキーは逐語表示）、フォールバックは生の `__metadata__`、加えて safetensors の**テンソルツリー** |
-| ロケール                 | English・中文                                             | English・中文・**日本語**（完全バンドル）                                                                                                                                                                                                                                                                      |
+| 領域                     | 元版                                                      | **Neo**                                                                                                                                                                                                                                                                                                            |
+| ------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| コンポーネントライブラリ | PrimeVue 4                                                | **reka‑ui**（ヘッドレス）+ shadcn‑vue スタイルのラッパー                                                                                                                                                                                                                                                           |
+| スタイリング             | Tailwind CSS v3 + PrimeVue テーマ                         | スコープ付き `--mm-*` デザイントークンによる **Tailwind CSS v4**                                                                                                                                                                                                                                                   |
+| アイコン                 | PrimeIcons                                                | アイコンマップ経由の **Lucide**（`@lucide/vue`）                                                                                                                                                                                                                                                                   |
+| 見た目と操作感           | 標準の PrimeVue サーフェス                                | **グラスモフィズム**（ぼかし・奥行き・マイクロインタラクション）、自動ダークモード                                                                                                                                                                                                                                 |
+| ダイアログ               | PrimeVue `Dialog`/`ContextMenu`                           | reka‑ui ダイアログ、ダイアログ毎のサイズ/位置、ドラッグ移動、アンカー付きコンテキストメニュー                                                                                                                                                                                                                      |
+| モデル詳細タブ           | Description + Metadata（生の safetensors `__metadata__`） | Description + **Information**: ノートの YAML front‑matter を解析した読み取り専用テーブル（作者・ベースモデル・ハッシュ・フォーマットと精度・モデルプラットフォーム・モデルページリンク・全プレビュー URL・未知のキーはそのまま表示）、フォールバックは生の `__metadata__`、加えて safetensors の**テンソルツリー** |
+| ロケール                 | English・中文                                             | English・中文・**日本語**（完全バンドル）                                                                                                                                                                                                                                                                          |
 
 ### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="22" height="22" align="middle" alt=""> バックエンドとエンジン
 
@@ -627,7 +643,7 @@ HTTP ルート 15 本）ですが、Neo は 16 モジュール・約 40 ルー�
 | ZipNN 圧縮             | —                                                                            | エンジン全体: 圧縮/解凍/フォルダバッチ/ファインチューン デルタ、mmap ストリーミング（どんなモデルでも RAM 1 GB 未満）、SHA‑256 検証付き復元、協調キャンセル API                    |
 | プレビュー画像         | PIL 再エンコード。アニメは 1 フレーム目に固定化                              | zenwebp（純 Rust）の encode/decode。アニメ GIF/WebP プレビューは**アニメのまま**（フレーム・duration・ループ数・ICC プロファイルを保持）                                           |
 | ハブ HTTP              | スレッドプールワーカー内のブロッキング `requests`                            | イベントループ上の共有 `aiohttp` セッション 1 本（ストールした CDN が read timeout の 120 秒間ワーカーを専有することはもうありません）                                             |
-| フォルダ監視           | —                                                                            | 任意のネイティブ `notify` watcher（既定 OFF）: 種別単位で約 1.5 秒の更新、ネットワークマウントはスキップ、inotify 予算枯渇は 30 秒 TTL 更新へデグレード                            |
+| フォルダ監視           | —                                                                            | 任意のネイティブ `notify` watcher（既定 OFF）: 種別単位で約 1.5 秒の更新、ネットワークマウントはスキップ、inotify 予算枯渇は 30 秒 TTL 更新へフォールバック                        |
 | ライブラリ衛生         | —                                                                            | 孤立サイドカー/空フォルダの一斉検査と一括削除                                                                                                                                      |
 | アップロード preflight | —                                                                            | HF/ModelScope アップロードの重複検出ハッシュをネイティブコアで実行（GIL 解放）                                                                                                     |
 | 配布                   | プリビルドの web バンドルを初回起動時に GitHub Releases からダウンロード     | web バンドルは `web/` に、Rust コアは `native/native-bin/` に同梱 — 初回起動時の取得は Python 依存 4 点のみ                                                                        |
@@ -675,7 +691,7 @@ HTTP ルート 15 本）ですが、Neo は 16 モジュール・約 40 ルー�
 - **フォルダカード**は静止したガラスフォルダを表示し、ポインターを 1 秒以上
   休ませると開くアニメーション（SMIL モーフ）が、離れて 1 秒経つと閉じる
   アニメーションが再生され、カードは静止アイコンへ戻ります —
-  通りすがりのホバーでフォルダが羽ばたくことはありません。SVG は
+  一時的なホバーではフォルダの開閉アニメは再生されません。SVG は
   data URI としてバンドルへインラインされるため、各カードが自分の SVG
   ドキュメントを持ち、追加リクエストもグラデーション ID の衝突も起きません。
 - **ブレッドクラム**は各セグメントに小さなフォルダグリフを付けます。
@@ -705,7 +721,7 @@ Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備え�
 **「モデル情報のバッチスキャン」**機能は削除されました。冗長だったためです:
 モデル詳細ウィンドウは、そのモデルの `__metadata__` を safetensors ヘッダから
 直接、隣に保存された Markdown ノートとともに読み込み、プレビューのないモデルは
-グリッド上で同梱のガラス製 NO‑PREVIEW アートワークを身につけます。
+グリッド上で同梱のガラス製 NO‑PREVIEW アートワークが表示されます。
 ライブラリ全体を walk して全モデルをハッシュし Civitai へ問い合わせる方式は、
 同じ情報へ至るはるかに遅い第二の経路でした — さらにモーダルダイアログ・
 グローバルストア・websocket イベント・ディスク上のタスクファイル・専用設定まで、
@@ -734,9 +750,10 @@ Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備え�
 
 それぞれ完結したステップバイステップの使い方ガイド:
 
-- [`docs/USAGE-EN.md`](docs/USAGE-EN.md) — English
-- [`docs/USAGE-JA.md`](docs/USAGE-JA.md) — 日本語
-- [`docs/USAGE-ZN.md`](docs/USAGE-ZN.md) — 中文
+- [`docs/USAGE.md`](docs/USAGE.md) — English
+- [`docs/USAGE.ja.md`](docs/USAGE.ja.md) — 日本語
+- [`docs/USAGE.zh-CN.md`](docs/USAGE.zh-CN.md) — 中文（简体）
+- [`docs/USAGE.zh-TW.md`](docs/USAGE.zh-TW.md) — 中文（繁體）
 
 インストール、2 つのレイアウト、カード操作とグラフへのドラッグ、モデルエディタ
 （フォルダピッカー・フォルダ接頭辞付きファイル名・プレビュー・説明）、
@@ -894,8 +911,8 @@ ComfyUI‑Model‑Manager‑Neo は、**[hayden‑cn](https://github.com/hayden-
 ダウンロードタスクシステム、Civitai / Hugging Face のページパーサ、
 カードをグラフへドラッグする統合、モデルエディタのフォーム配管、
 カードサイズ プリセットのような小さな気配りまで — hayden‑cn 氏の設計です。
-Neo が変えたのは皮膚と依存と数多くのバグであり、身体を発明する必要は
-ありませんでした。このコードベースがなぜ今の形をしているかを理解する最速の道は
+Neo が変えたのは外観と依存関係、そして数多くのバグであり、アーキテクチャ
+そのものをゼロから発明する必要はありませんでした。このコードベースがなぜ今の形をしているかを理解する最速の道は
 今もオリジナルを読むことであり、アーキテクチャへの正直な帰属は
 **原著作者のもの**です。
 
@@ -918,12 +935,10 @@ ZipNN 圧縮、HF/ModelScope アップロード、マルチハブ検索とハッ
 
 ### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="22" height="22" align="middle" alt=""> Built with Qwen Studio
 
-このフォークの大部分は **[Qwen Studio]** とともに作られました: ZipNN エンジン
-（フォーマットの `unsafe` フリー Rust 移植、ファズスイート、プリビルド abi3
-配布）、グラスモフィズム UI の再構築、ハブ アップロード フロー、信頼性と
-セキュリティのパス、そしてデバッグの多くが、緊密な協働の産物です。
-
-このフォークが役に立ったなら、上流リポジトリにもスターを。
+このフォークの大部分は **[Qwen Studio]** との緊密な協働で作られました:
+グラスモフィズム UI への再構築、Rust ネイティブコア、ZipNN 圧縮エンジン、
+ハブアップロードフロー、信頼性とセキュリティの強化、そしてデバッグの
+多くまでです。
 
 これらの優れたプロジェクトとともに構築: [reka-ui]・[Tailwind CSS]・[Lucide]・
 [VueUse]・[es-toolkit]・[vue-sonner]・[huggingface_hub]・[hf_xet]・
