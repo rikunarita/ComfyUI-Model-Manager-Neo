@@ -12,13 +12,14 @@ import en from './locales/en.json'
  */
 const LOADERS: Record<string, () => Promise<{ default: Record<string, unknown> }>> = {
   zh: () => import('./locales/zh.json'),
+  'zh-TW': () => import('./locales/zh-TW.json'),
   ja: () => import('./locales/ja.json'),
 }
 
 const messages = { en }
 
 /** Locales this extension ships a complete bundle for. */
-const SUPPORTED_LOCALES = ['en', 'zh', 'ja']
+const SUPPORTED_LOCALES = ['en', 'zh', 'zh-TW', 'ja']
 
 /**
  * Reduce a BCP-47 tag to a bundle we actually have.
@@ -28,9 +29,22 @@ const SUPPORTED_LOCALES = ['en', 'zh', 'ja']
  * as unknown locales and log a missing-message warning for every single key, so
  * they are folded onto their base language and anything untranslatable falls
  * back to English explicitly.
+ *
+ * Chinese is script-aware: a Hant script subtag (`zh-Hant`, `zh-Hant-TW`, …) or
+ * a Traditional region (`zh-TW`, `zh-HK`, `zh-MO`) selects the Traditional
+ * bundle, every other Chinese tag (`zh`, `zh-CN`, `zh-Hans`, …) the Simplified
+ * one. Region subtags on the other languages fold onto their base language.
  */
 const normalizeLocale = (raw: string | undefined | null): string => {
-  const base = (raw ?? '').toLowerCase().split(/[-_]/)[0]
+  const tag = (raw ?? '').toLowerCase().replace(/_/g, '-')
+  const parts = tag.split('-')
+  const base = parts[0]
+  const script = parts[1]?.length === 4 ? parts[1] : ''
+  const region = parts.find(part => part.length === 2) ?? ''
+  if (base === 'zh') {
+    const traditional = script === 'hant' || region === 'tw' || region === 'hk' || region === 'mo'
+    return traditional ? 'zh-TW' : 'zh'
+  }
   return SUPPORTED_LOCALES.includes(base) ? base : 'en'
 }
 

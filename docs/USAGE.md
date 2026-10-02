@@ -101,7 +101,7 @@ A single grid of every model of every type, with a toolbar:
 - **Card size** — Extra Large / Large / Medium / Small, or **Custom Size**
   (a dialog with width/height sliders, persisted in ComfyUI settings).
 
-![flat layout](../demo-assets/view-flat.png)
+![flat layout](../demo-assets/view-flat.avif)
 
 ### Folder layout
 
@@ -113,7 +113,7 @@ window narrows, intermediate crumbs ellipsise first and the toolbar stacks
 vertically — the same responsive rule as the flat view — so controls are never
 clipped away.
 
-![folder layout](../demo-assets/view-folders.png)
+![folder layout](../demo-assets/view-folders.avif)
 
 The row next to the search box offers **Add Folder** (folder‑plus icon): type
 any name and the folder is created inside the directory you are browsing
@@ -170,11 +170,11 @@ folders whose name starts with `.`).
 The hygiene scan collects its findings in a single dialog, each entry removable
 through the usual Danger confirmation:
 
-![hygiene scan](../demo-assets/hygiene-scan.png)
+![hygiene scan](../demo-assets/hygiene-scan.avif)
 
 ## 5. Model detail & editing
 
-![model detail](../demo-assets/model-info.png)
+![model detail](../demo-assets/model-info.avif)
 
 The window shows the preview (with a carousel when several previews exist), a
 base‑info table, and two tabs.
@@ -214,7 +214,7 @@ base‑info table, and two tabs.
   explicit _show all_ action. The tree is pre‑grouped by the Rust core, so even
   MoE headers with tens of thousands of tensors open instantly.
 
-  ![tensor tree](../demo-assets/tensor-tree.png)
+  ![tensor tree](../demo-assets/tensor-tree.avif)
 
 - **Open model page** — in the action row, like its twin in the card hover
   column, wears the logo of the source hub (Civitai, Hugging Face or
@@ -236,13 +236,13 @@ and on demand — no library‑wide scan or hashing ever runs.
 
 Press the **pencil** to enter edit mode (the window turns into a form):
 
-![edit mode](../demo-assets/model-edit.png)
+![edit mode](../demo-assets/model-edit.avif)
 
 - **Model Type** — dropdown of the types your ComfyUI actually has folders for.
 - **Directory** — read‑only field plus the **folder button**, which opens a
   nested folder‑picker dialog with a tree of every base path and sub‑folder:
 
-  ![folder picker](../demo-assets/folder-picker.png)
+  ![folder picker](../demo-assets/folder-picker.avif)
 
 - **File name** — accepts a **folder prefix**. Typing `subfolder/my-model`
   files the model into `…/models/unet/subfolder/` on save (missing folders are
@@ -261,8 +261,6 @@ Press the **pencil** to enter edit mode (the window turns into a form):
 - **Description** — press the **Edit (pencil) icon** next to the hint text to
   open the Markdown textarea; it saves when the textarea loses focus:
 
-  ![description editor](../demo-assets/model-edit-description.png)
-
 - **Save / Cancel** — cancelling with unsaved changes asks for confirmation
   first. Save issues a single request; anything that changed (name, type,
   directory, preview, description) is applied atomically per field.
@@ -275,8 +273,6 @@ Open **Download List** from the header, then:
 
 ### Create Download Task
 
-![create download task](../demo-assets/download.png)
-
 1. Paste a **Civitai model page**, **Hugging Face repo/blob/tree**,
    **ModelScope model page** (`www.modelscope.ai`) or a **direct file link**
    (`.safetensors`, `.ckpt`, `.gguf`, …) and press **Enter** or the search
@@ -288,7 +284,7 @@ Open **Download List** from the header, then:
 3. Civitai/HF pages resolve to one or more **versions** and **files**; pick the
    version in the toolbar and the file in the editor.
 
-   ![resolved result](../demo-assets/download-resolved.png)
+   ![resolved result](../demo-assets/download-resolved.avif)
 
    The editor below the version row places the **preview on the left and the
    gallery strip on the right**, with file pick + download, metadata editor and
@@ -326,7 +322,7 @@ hidden, and each platform's **sort order** chosen, in **Settings → Model
 Manager Neo → Search** (the defaults are Hugging Face trending, ModelScope
 likes and Civitai highest rated).
 
-![multi-platform search columns](../demo-assets/search-columns.png)
+![multi-platform search columns](../demo-assets/search-columns.avif)
 
 ### Download plan & safety checks
 
@@ -378,7 +374,7 @@ Open **Upload to Hugging Face / ModelScope** from the header:
    destination path with the model's relative path.
 4. **Upload**:
 
-   ![hf upload form](../demo-assets/hf-upload.png)
+   ![hf upload form](../demo-assets/hf-upload.avif)
 
    - **Repository ID** — `username/repo-name`.
    - **Create as private if the repository does not exist** — applies _only on
@@ -401,7 +397,7 @@ the current phase:
 | `Hashing…`   | the local SHA256 is computed in the native core (a multi‑GB model can take minutes); **no bytes leave your machine yet** |
 | `Uploading…` | the real transfer, with live percentages                                                                                 |
 
-![hf upload progress](../demo-assets/hf-upload-progress.png)
+![hf upload progress](../demo-assets/hf-upload-progress.avif)
 
 ### Messages you may see on completion
 
@@ -431,8 +427,6 @@ server‑side (no arbitrary writes, no path traversal).
   tinted left bar, and a **close button** in its top‑right corner; they stack
   at the top‑right above every dialog and auto‑dismiss after their lifetime.
 
-  ![toasts](../demo-assets/toast-stack.png)
-
 - **All previews are kept.** Downloads and saves store every preview image of a
   model (`<name>.webp`, `<name>.preview.webp`, `<name>.preview2.webp`, …).
 - **Paging.** When a model has more than one preview, the preview area shows
@@ -440,8 +434,6 @@ server‑side (no arbitrary writes, no path traversal).
 - **Lightbox.** Clicking (tapping) the preview opens it full‑screen; `<` / `>`
   or the arrow keys page through the gallery, `Esc`, the backdrop or the close
   button dismiss it.
-
-  ![lightbox](../demo-assets/lightbox.png)
 
 - **Environment keys.** If `private.key` is empty and `HF_TOKEN` /
   `CIVITAI_API_KEY` / `MODELSCOPE_API_TOKEN` are exported, those keys are
@@ -459,7 +451,7 @@ While it is on, every card and folder shows a round checkbox at its top‑left;
 clicking a card ticks it instead of opening it. As soon as one item is selected
 a bulk bar appears at the bottom of the window:
 
-![selection mode](../demo-assets/selection-mode.png)
+![selection mode](../demo-assets/selection-mode.avif)
 
 - **Add to workflow** — creates one loader node per selected model; selected
   _folders_ contribute every model inside them (recursively);
@@ -503,7 +495,7 @@ For a compressed model the info table also swaps its single _File Size_ row for
 **Original File Size** / **Compressed File Size** / **% of Original Size** (the
 pre‑compression size is recorded in the file's metadata at compression time).
 
-![compressed model detail](../demo-assets/compressed-model.png)
+![compressed model detail](../demo-assets/compressed-model.avif)
 
 Compressed files follow the official ZipNN layout (`znn_compressed_vectors`
 metadata, Huffman‑compressed tensors — the Rust core covers **every**
@@ -594,7 +586,7 @@ to the base and deletes the delta folder once it empties. Restoring requires
 the base model to still be present, and the delta records the fine‑tune's own
 SHA‑256 so the restore is verified end to end.
 
-![ZipNN delta dialog](../demo-assets/zipnn-delta-dialog.png)
+![ZipNN delta dialog](../demo-assets/zipnn-delta-dialog.avif)
 
 ## 11. Settings
 
@@ -658,11 +650,12 @@ ComfyUI **Settings → Model Manager Neo**:
 ## 12. Languages
 
 The UI follows ComfyUI's locale (**Settings → ComfyUI → Locale**) and ships
-complete bundles for **English**, **中文** and **日本語**. Region/script
-subtags (`ja-JP`, `zh-Hant-TW`, …) are folded onto their base language;
-anything else falls back to English.
+complete bundles for **English**, **中文** (Simplified & Traditional) and
+**日本語**. Region subtags (`ja-JP`, …) fold onto their base language and
+Hant script tags (`zh-Hant`, `zh-Hant-TW`, …) select the Traditional
+bundle; anything else falls back to English.
 
-![Japanese UI](../demo-assets/ja-model-info.png)
+![Japanese UI](../demo-assets/ja-model-info.avif)
 
 ## 13. Troubleshooting
 
@@ -679,6 +672,6 @@ anything else falls back to English.
 
 ## Screenshots
 
-The images in this guide live in [`demo-assets/`](../demo-assets/). The header
-tour ships twice: as the GIF in the README and as the near‑lossless source
-recording [`hero.webm`](../demo-assets/hero.webm) it is derived from.
+The images in this guide live in [`demo-assets/`](../demo-assets/) as AVIF
+stills, and the header tour is the near-lossless recording
+[`hero.webm`](../demo-assets/hero.webm).
