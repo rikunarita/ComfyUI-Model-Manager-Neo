@@ -1,6 +1,6 @@
 # ComfyUI‑Model‑Manager‑Neo — Usage Guide (English)
 
-> Sister documents: [日本語](USAGE-JA.md) · [中文](USAGE-ZN.md)
+> Sister documents: [日本語](USAGE.ja.md) · [简体中文](USAGE.zh-CN.md) · [繁體中文](USAGE.zh-TW.md)
 
 ComfyUI‑Model‑Manager‑Neo is a custom node that adds a model browser,
 downloader, uploader and editor to ComfyUI. It never leaves the ComfyUI
@@ -31,20 +31,35 @@ engine — runs in a prebuilt Rust core that ships inside the repository.
 
 ## 1. Installation
 
+Pick one method:
+
+**Git clone (recommended for updates)**
+
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 ```
 
-Restart ComfyUI. The Python dependencies (`huggingface_hub`, `hf_xet`,
+**ComfyUI Registry (ComfyUI Manager / CLI)** — Neo is published on the
+[ComfyUI registry](https://registry.comfy.org/publishers/rikunarita7669/nodes/comfyui-model-manager-neo)
+(its official node catalogue) as `comfyui-model-manager-neo`: search for
+**ComfyUI‑Model‑Manager‑Neo** in ComfyUI-Manager, or install it from
+the command line with the official CLI:
+
+```bash
+comfy node install comfyui-model-manager-neo
+```
+
+**Manual download** — download the
+[repository archive](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/archive/refs/heads/main.zip),
+extract it into `ComfyUI/custom_nodes/` and make sure the folder is named
+`ComfyUI-Model-Manager-Neo`.
+
+Then **restart ComfyUI**. The Python dependencies (`huggingface_hub`, `hf_xet`,
 `modelscope_hub`, `markdownify`) are installed automatically on first launch.
 The web bundle ships prebuilt in `web/` and the Rust core ships prebuilt in
 `native/native-bin/`, so **neither Node.js nor a compiler is required to run
 the extension** — see [The engine](#the-engine) for the covered platforms.
-
-Manual install: download the repository archive, extract it into
-`ComfyUI/custom_nodes/` and make sure the folder is named
-`ComfyUI-Model-Manager-Neo`.
 
 ## 2. Opening the manager
 

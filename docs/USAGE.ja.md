@@ -1,6 +1,6 @@
 # ComfyUI‑Model‑Manager‑Neo 使い方ガイド（日本語）
 
-> 姉妹ドキュメント: [English](USAGE-EN.md) · [中文](USAGE-ZN.md)
+> 姉妹ドキュメント: [English](USAGE.md) · [简体中文](USAGE.zh-CN.md) · [繁體中文](USAGE.zh-TW.md)
 
 ComfyUI‑Model‑Manager‑Neo は、ComfyUI にモデルの**閲覧・ダウンロード・
 アップロード・編集**機能を追加するカスタムノードです。ComfyUI プロセスの外には
@@ -31,20 +31,35 @@ ComfyUI‑Model‑Manager‑Neo は、ComfyUI にモデルの**閲覧・ダウ�
 
 ## 1. インストール
 
+いずれかの方法で導入してください:
+
+**Git クローン（アップデート推奨）**
+
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 ```
 
-ComfyUI を再起動してください。Python 依存（`huggingface_hub`・`hf_xet`・
-`modelscope_hub`・`markdownify`）は初回起動時に自動インストールされます。
-Web バンドルは `web/` に、Rust コアは `native/native-bin/` にビルド済みで
-同梱されているため、**拡張機能の実行に Node.js も C コンパイラも不要です** —
-対応プラットフォームは[エンジン](#the-engine)の表を参照してください。
+**ComfyUI レジストリ（ComfyUI Manager / CLI）** — Neo は
+[ComfyUI レジストリ](https://registry.comfy.org/publishers/rikunarita7669/nodes/comfyui-model-manager-neo)
+（公式ノードカタログ）に `comfyui-model-manager-neo` として公開されています:
+ComfyUI-Manager で **ComfyUI‑Model‑Manager‑Neo** を検索するか、
+公式 CLI からインストールできます:
 
-手動インストール: リポジトリのアーカイブをダウンロードして
-`ComfyUI/custom_nodes/` に展開し、フォルダ名が
+```bash
+comfy node install comfyui-model-manager-neo
+```
+
+**手動ダウンロード** —
+[リポジトリのアーカイブ](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/archive/refs/heads/main.zip)
+をダウンロードして `ComfyUI/custom_nodes/` に展開し、フォルダ名が
 `ComfyUI-Model-Manager-Neo` であることを確認してください。
+
+その後 **ComfyUI を再起動**してください。Python 依存（`huggingface_hub`・
+`hf_xet`・`modelscope_hub`・`markdownify`）は初回起動時に自動インストール
+されます。Web バンドルは `web/` に、Rust コアは `native/native-bin/` に
+ビルド済みで同梱されているため、**拡張機能の実行に Node.js も C コンパイラも
+不要です** — 対応プラットフォームは[エンジン](#the-engine)の表を参照してください。
 
 ## 2. マネージャーの開き方
 
@@ -64,7 +79,7 @@ Web バンドルは `web/` に、Rust コアは `native/native-bin/` にビル�
 クリックしたものが前面に来ます。マネージャーウィンドウのタイトルバーは
 ライブラリのモデル合計サイズをライブ表示します。
 
-> ローディング表示は**所属パネルにスコープ**されています — リクエスト中は
+> ローディング表示は**対象パネル内に限定**されます — リクエスト中は
 > そのウィンドウだけが暗くぼかされ、キャンバス・トップバー・他のウィンドウは
 > 使い続けられます。
 
@@ -187,8 +202,8 @@ Danger 確認を経て削除できます:
   行へ解析されます: 作者、ベースモデル、全ファイルハッシュ（`AutoV1` …
   `SHA256_12`）、フォーマットと精度、モデルプラットフォーム、クリック可能な
   モデルページリンク、**すべての**プレビュー画像 URL。パーサが知らないキーは
-  テーブル末尾に逐語で列挙されます。front‑matter のないモデルは、safetensors
-  ヘッダから直接読んだ `__metadata__` ブロックを逐語表示します —
+  テーブル末尾にそのまま列挙されます。front‑matter のないモデルは、safetensors
+  ヘッダから直接読んだ `__metadata__` ブロックをそのまま表示します —
   何もキャッシュもバックグラウンドスキャンもされません。
 - **テンソル セクション**（safetensors モデル） — ヘッダから解析した正確な
   テンソル構成を、Hugging Face の safetensors ビューア風の折りたたみ可能な
@@ -204,7 +219,7 @@ Danger 確認を経て削除できます:
 
 - **モデルページを開く** — アクション行のボタンは、カードのホバー列の双子と
   同じく、ノートにプラットフォームが記録されていればソースハブ（Civitai・
-  Hugging Face・ModelScope）のロゴを背景にまといます。
+  Hugging Face・ModelScope）のロゴを背景に表示します。
 
 ### ハッシュで識別
 
@@ -545,7 +560,7 @@ Information タブは**Neo Extended** バッジ（相互運用を説明するツ
 （Python Stable ABI）。公式フォーマットとの相互運用は約束ではなく CI ゲート
 です: push のたびに公式 pip `zipnn` 0.5.4 と双方向でクロス検証されます。
 表の外側のプラットフォームでも拡張機能はインストールできます — 閲覧・
-ダウンロード・ハッシュは純 Python 経路へデグレードし、ZipNN 操作と
+ダウンロード・ハッシュは純 Python 経路へフォールバックし、ZipNN 操作と
 プレビュー再エンコードは静かに失敗する代わりに、エラー トーストでローダーの
 正確な理由を報告します。
 
@@ -556,7 +571,7 @@ Information タブは**Neo Extended** バッジ（相互運用を説明するツ
 すべての `.safetensors` モデルが圧縮され — プレビューとノートもモデルに
 追従し — すべての圧縮ファイルは**バンドルフォルダ `<name>_DeltaZNN` へ
 移動**します（空になった元のフォルダは消えます）。バンドルフォルダは
-封印されています: 中に置けるのは ZipNN コンテンツ（`*.znn.*` モデル・
+密封されています: 中に置けるのは ZipNN コンテンツ（`*.znn.*` モデル・
 `*.znn` デルタファイル）だけで、素のモデルのアップロード・ダウンロード・
 移動は拒否されます。バンドルの ZipNN ボタンは**反転**しており、押すと
 バンドルを**一括解凍**して、名前の由来のフォルダへすべてを移し返し、
@@ -581,7 +596,7 @@ Information タブは**Neo Extended** バッジ（相互運用を説明するツ
 ファインチューンモデルをベースの隣に**バイト単位まで正確に**復元し、
 空になったデルタフォルダを削除します。復元にはベースモデルがまだ存在する
 必要があり、デルタにはファインチューン自身の SHA‑256 が記録されるため、
-復元は端到端で検証されます。
+復元はエンドツーエンドで検証されます。
 
 ![ZipNN デルタダイアログ](../demo-assets/zipnn-delta-dialog.png)
 
@@ -610,7 +625,7 @@ ComfyUI の**設定 → Model Manager Neo**:
   ネットワークマウントされたフォルダは自動でスキップされ（inotify 系の
   監視は NFS/SMB 共有からイベントを受け取れません）、Linux の監視予算
   （`fs.inotify.max_user_watches`）が枯渇するとログの警告とともに定期更新へ
-  デグレードします。`MM_WATCH_ROOTS=1/0` が設定を上書きします。監視の状態 —
+  フォールバックします。`MM_WATCH_ROOTS=1/0` が設定を上書きします。監視の状態 —
   稼働中の root・デグレード状態・イベントカウンタ — は
   `GET /model-manager/watch-status` で読み取り専用で配信されます。
 
@@ -668,5 +683,5 @@ UI は ComfyUI のロケール（**設定 → ComfyUI → Locale**）に追従�
 ## スクリーンショット
 
 本書の画像は [`demo-assets/`](../demo-assets/) にあります。ヘッダーのツアーは
-2 形式で同梱されています: README の GIF と、その元になった準可逆のソース録画
+2 形式で同梱されています: README の GIF と、その元になったほぼ無劣化のソース録画
 [`hero.webm`](../demo-assets/hero.webm) です。

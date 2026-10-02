@@ -36,7 +36,7 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
 ![macOS universal2](https://img.shields.io/badge/macOS-Intel_%2B_Apple_Silicon-000000.svg?logo=apple)
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D6.svg?logo=windows&logoColor=white)
 
-**English** · [日本語](README-JP.md)
+**English** · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
 ![Hero overview](demo-assets/hero.gif)
 
@@ -63,11 +63,8 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
 **ComfyUI‑Model‑Manager‑Neo** takes the excellent original manager and rebuilds
 the experience from the ground up:
 
-- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Glassmorphism UI** — a translucent, blurred, elevation‑aware interface
-  that follows ComfyUI's own light/dark palette automatically.
-- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **PrimeVue‑free** — the entire PrimeVue dependency was removed and replaced
-  with lightweight, headless **[reka-ui]** primitives, **Tailwind CSS v4** and
-  **[Lucide]** icons: shadcn‑vue‑style components you can read and tweak.
+**New in Neo**
+
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Rust native core** — library scanning, hashing, safetensors header
   parsing, the tensor tree, the folder watcher, the preview WebP codec and the
   entire ZipNN engine run in a **prebuilt Rust extension** that ships inside the
@@ -106,11 +103,22 @@ the experience from the ground up:
   pick the target folder, optionally choose a custom sub‑folder.
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` acceleration** — Hugging Face transfers use the chunked,
   deduplicated Xet protocol when available.
+- <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Japanese locale** — a complete Japanese bundle joins the existing
+  English and 中文 ones. The UI follows ComfyUI's own language setting, and
+  region/script subtags (`ja-JP`, `zh-Hant-TW`, …) fold onto their base
+  language.
+
+**Refreshed & enhanced**
+
+- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Glassmorphism UI** — a translucent, blurred, elevation‑aware interface
+  that follows ComfyUI's own light/dark palette automatically.
+- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Headless Reka‑UI components** — the PrimeVue dependency was
+  replaced with lightweight, headless **[reka-ui]** primitives,
+  **Tailwind CSS v4** and **[Lucide]** icons: shadcn‑vue‑style components
+  you can read and tweak.
 - <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **First‑class node‑graph integration** — drag a model onto the canvas to
   spawn or fill a node, drag embeddings into text areas, load workflows embedded
   in preview images.
-- <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Three complete locales** — English, 中文 and 日本語, following ComfyUI's
-  own language setting.
 - <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Responsive** — designed for desktop, mobile and multi‑screen setups.
 - <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Modern toolchain** — Vite 8 (Rolldown), TypeScript 6, ESLint 10 flat
   config, Prettier, Stylelint, Ruff, clippy, husky + lint‑staged.
@@ -184,10 +192,16 @@ Download the
 extract it into `ComfyUI/custom_nodes/`, and make sure the folder is named
 `ComfyUI-Model-Manager-Neo`.
 
-**3 · ComfyUI Manager**
+**3 · ComfyUI Registry (ComfyUI Manager / CLI)**
 
-If the fork is published to the registry, search for
-**“ComfyUI‑Model‑Manager‑Neo”** in [ComfyUI-Manager] and install it from there.
+Neo is published on the ComfyUI registry as
+[`comfyui-model-manager-neo`](https://registry.comfy.org/publishers/rikunarita7669/nodes/comfyui-model-manager-neo):
+search for **“ComfyUI‑Model‑Manager‑Neo”** in [ComfyUI-Manager], or
+install it from the command line with the official CLI:
+
+```bash
+comfy node install comfyui-model-manager-neo
+```
 
 Then **restart ComfyUI**. The Python dependencies (`huggingface_hub`, `hf_xet`,
 `modelscope_hub`, `markdownify`) are installed automatically on first launch.
@@ -551,13 +565,13 @@ end to end.
 
 ### The engine: a prebuilt pure‑Rust core
 
-The compressor is **not** the official Python package: `zipnn`'s C extension has
-no Linux wheels on PyPI, so `pip install zipnn` compiles from source — and
-compilation of the vendored C core is exactly what Neo removed from your
-machine. Neo instead ports the format to Rust
+Rather than wrapping the official Python package, Neo runs the format on its
+own pure‑Rust engine: the upstream C extension ships no Linux wheels on
+PyPI (`pip install zipnn` compiles from source), so Neo moves that compilation
+off your machine entirely. The format is ported to Rust
 ([`native/crates/znn-codec`](native/crates/znn-codec): no `unsafe` code in the
 format core, seven continuous fuzzing targets, a byte‑identical differential
-history against the original C implementation) and ships it as **prebuilt abi3
+history against the original C implementation) and ships as **prebuilt abi3
 binaries** inside the repository — one per platform, loaded by `import` alone:
 
 | Platform                      | Artifact                                      | Requirements                                     |
@@ -755,9 +769,10 @@ installation's saved setting.
 
 Step‑by‑step usage guides, each complete and self‑contained:
 
-- [`docs/USAGE-EN.md`](docs/USAGE-EN.md) — English
-- [`docs/USAGE-JA.md`](docs/USAGE-JA.md) — 日本語
-- [`docs/USAGE-ZN.md`](docs/USAGE-ZN.md) — 中文
+- [`docs/USAGE.md`](docs/USAGE.md) — English
+- [`docs/USAGE.ja.md`](docs/USAGE.ja.md) — 日本語
+- [`docs/USAGE.zh-CN.md`](docs/USAGE.zh-CN.md) — 中文（简体）
+- [`docs/USAGE.zh-TW.md`](docs/USAGE.zh-TW.md) — 中文（繁體）
 
 They cover installation, both layouts, card interactions and drag‑to‑graph, the
 model editor (folder picker, folder‑prefixed names, previews, descriptions),
@@ -941,13 +956,10 @@ license text are preserved in [`LICENSE`](LICENSE).
 
 ### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="22" height="22" align="middle" alt=""> Built with Qwen Studio
 
-A large part of this fork was built with **[Qwen Studio]**: the ZipNN engine
-(the `unsafe`-free Rust port of the format, its fuzz suites and the prebuilt
-abi3 distribution), the glassmorphism UI rebuild, the hub upload flows, the
-reliability and security passes, and much of the debugging were developed in
-close collaboration with it.
-
-If this fork is useful to you, the upstream repository deserves the star.
+A large part of this fork was built in close collaboration with
+**[Qwen Studio]**: the glassmorphism UI rebuild, the Rust native core, the
+ZipNN compression engine, the hub upload flows, the reliability and security
+passes, and much of the debugging.
 
 Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 [VueUse], [es-toolkit], [vue-sonner], [huggingface_hub], [hf_xet],
