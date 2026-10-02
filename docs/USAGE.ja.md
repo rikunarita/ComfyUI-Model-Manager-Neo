@@ -101,7 +101,7 @@ comfy node install comfyui-model-manager-neo
 - **カードサイズ** — Extra Large / Large / Medium / Small、または
   **カスタムサイズ**（幅/高さスライダーのダイアログ。ComfyUI 設定に永続化）。
 
-![フラット表示](../demo-assets/view-flat.png)
+![フラット表示](../demo-assets/view-flat.avif)
 
 ### フォルダ表示
 
@@ -113,7 +113,7 @@ comfy node install comfyui-model-manager-neo
 フラットビューと同じレスポンシブ規則で、コントロールが切り捨てられることは
 ありません。
 
-![フォルダ表示](../demo-assets/view-folders.png)
+![フォルダ表示](../demo-assets/view-folders.avif)
 
 検索ボックスの隣の行に **フォルダを追加**（フォルダプラス アイコン）があります:
 名前を入力すると、閲覧中のディレクトリ内にフォルダが作成されます
@@ -170,11 +170,11 @@ comfy node install comfyui-model-manager-neo
 衛生スキャンは発見事項を 1 つのダイアログに集約し、各エントリはいつもの
 Danger 確認を経て削除できます:
 
-![衛生スキャン](../demo-assets/hygiene-scan.png)
+![衛生スキャン](../demo-assets/hygiene-scan.avif)
 
 ## 5. モデル詳細と編集
 
-![モデル詳細](../demo-assets/model-info.png)
+![モデル詳細](../demo-assets/model-info.avif)
 
 ウィンドウにはプレビュー（複数プレビューがあればカルーセル）、基本情報
 テーブル、2 つのタブが表示されます。
@@ -215,7 +215,7 @@ Danger 確認を経て削除できます:
   備えます。ツリーは Rust コアが事前グループ化するため、数万テンソルの MoE
   ヘッダでも即座に開きます。
 
-  ![テンソルツリー](../demo-assets/tensor-tree.png)
+  ![テンソルツリー](../demo-assets/tensor-tree.avif)
 
 - **モデルページを開く** — アクション行のボタンは、カードのホバー列の双子と
   同じく、ノートにプラットフォームが記録されていればソースハブ（Civitai・
@@ -238,14 +238,14 @@ Civitai カタログへ問い合わせます: ノートの front‑matter に記
 
 **鉛筆**を押すと編集モードに入ります（ウィンドウがフォームになります）:
 
-![編集モード](../demo-assets/model-edit.png)
+![編集モード](../demo-assets/model-edit.avif)
 
 - **Model Type** — この ComfyUI に実際にフォルダがある種別だけのドロップダウン。
 - **Directory** — 読み取り専用フィールド + **フォルダボタン**。すべての
   ベースパスとサブフォルダのツリーを持つ、入れ子のフォルダ選択ダイアログを
   開きます:
 
-  ![フォルダピッカー](../demo-assets/folder-picker.png)
+  ![フォルダピッカー](../demo-assets/folder-picker.avif)
 
 - **ファイル名** — **フォルダ接頭辞**を受け付けます。`subfolder/my-model` と
   入力すると、保存時にモデルは `…/models/unet/subfolder/` へ格納されます
@@ -264,8 +264,6 @@ Civitai カタログへ問い合わせます: ノートの front‑matter に記
 - **説明** — ヒントテキストの隣の**編集（鉛筆）アイコン**を押すと Markdown
   テキストエリアが開き、フォーカスを失ったときに保存されます:
 
-  ![説明エディタ](../demo-assets/model-edit-description.png)
-
 - **保存 / キャンセル** — 未保存の変更があるキャンセルはまず確認を求めます。
   保存は 1 回のリクエストを発行し、変わったもの（名前・種別・ディレクトリ・
   プレビュー・説明）はフィールド単位でアトミックに適用されます。
@@ -278,8 +276,6 @@ Civitai カタログへ問い合わせます: ノートの front‑matter に記
 
 ### ダウンロードタスクを作成
 
-![ダウンロードタスクを作成](../demo-assets/download.png)
-
 1. **Civitai モデルページ**・**Hugging Face repo/blob/tree**・
    **ModelScope モデルページ**（`www.modelscope.ai`）・**直接ファイルリンク**
    （`.safetensors`・`.ckpt`・`.gguf` 等）を貼り付け、**Enter** または
@@ -291,7 +287,7 @@ Civitai カタログへ問い合わせます: ノートの front‑matter に記
 3. Civitai/HF のページは 1 つ以上の**バージョン**と**ファイル**へ解決されます。
    ツールバーでバージョン、エディタでファイルを選びます。
 
-   ![解決済みエディタ](../demo-assets/download-resolved.png)
+   ![解決済みエディタ](../demo-assets/download-resolved.avif)
 
    バージョン行の下のエディタは**左にプレビュー・右にギャラリーストリップ**を
    配置し、ファイル選択 + ダウンロード、メタデータエディタ、
@@ -329,7 +325,7 @@ Civitai カタログへ問い合わせます: ノートの front‑matter に記
 **設定 → Model Manager Neo → 検索** で選べます（既定は Hugging Face
 トレンド・ModelScope いいね・Civitai 高評価順）。
 
-![マルチプラットフォーム検索](../demo-assets/search-columns.png)
+![マルチプラットフォーム検索](../demo-assets/search-columns.avif)
 
 ### ダウンロード計画と安全チェック
 
@@ -384,7 +380,7 @@ Hugging Face API キー**（または `HF_TOKEN` をエクスポート）。Mode
    相対パスが事前入力されます。
 4. **アップロード**:
 
-   ![HF アップロードフォーム](../demo-assets/hf-upload.png)
+   ![HF アップロードフォーム](../demo-assets/hf-upload.avif)
 
    - **リポジトリ ID** — `username/repo-name`。
    - **リポジトリが存在しない場合プライベートで作成** — _作成時のみ_適用。
@@ -407,7 +403,7 @@ Hugging Face API キー**（または `HF_TOKEN` をエクスポート）。Mode
 | `ハッシュ中…`     | ローカル SHA256 をネイティブコアで計算（数 GB のモデルでは数分かかり得ます）。**まだ 1 バイトも送信されません** |
 | `アップロード中…` | 実際の転送。ライブのパーセント表示                                                                              |
 
-![HF アップロード進捗](../demo-assets/hf-upload-progress.png)
+![HF アップロード進捗](../demo-assets/hf-upload-progress.avif)
 
 ### 完了時に出るメッセージ
 
@@ -437,8 +433,6 @@ Hugging Face API キー**（または `HF_TOKEN` をエクスポート）。Mode
   右上の**閉じるボタン**を持ち、すべてのダイアログの上の右上にスタックされ、
   寿命が尽きると自動で消えます。
 
-  ![トースト](../demo-assets/toast-stack.png)
-
 - **プレビューはすべて保持されます。** ダウンロードと保存は、モデルの
   すべてのプレビュー画像を保存します（`<name>.webp`・`<name>.preview.webp`・
   `<name>.preview2.webp` 等）。
@@ -447,8 +441,6 @@ Hugging Face API キー**（または `HF_TOKEN` をエクスポート）。Mode
 - **ライトボックス。** プレビューのクリック（タップ）で全画面表示。
   `<` / `>` または矢印キーでギャラリーをページ送りし、`Esc`・背景・
   閉じるボタンで閉じます。
-
-  ![ライトボックス](../demo-assets/lightbox.png)
 
 - **環境変数キー。** `private.key` が空で `HF_TOKEN` / `CIVITAI_API_KEY` /
   `MODELSCOPE_API_TOKEN` がエクスポートされている場合、それらのキーは
@@ -466,7 +458,7 @@ Hugging Face API キー**（または `HF_TOKEN` をエクスポート）。Mode
 表示し、カードのクリックは開くのではなくチェックします。1 つ選択すると
 すぐにウィンドウ下部に一括アクションバーが現れます:
 
-![選択モード](../demo-assets/selection-mode.png)
+![選択モード](../demo-assets/selection-mode.avif)
 
 - **ワークフローに追加** — 選択したモデルごとに 1 つのローダーノードを生成。
   選択した_フォルダ_は内部の全モデルを（再帰的に）提供します。
@@ -509,7 +501,7 @@ ZipNN バンドルフォルダ（`*_DeltaZNN`、旧式 `*_ZNN`）と通常のフ
 **元のファイルサイズ** / **圧縮後ファイルサイズ** / **元サイズ比**の 3 行に
 置き換わります（圧縮前のサイズは圧縮時にファイルのメタデータへ記録されます）。
 
-![圧縮済みモデルの詳細](../demo-assets/compressed-model.png)
+![圧縮済みモデルの詳細](../demo-assets/compressed-model.avif)
 
 圧縮ファイルは公式 ZipNN レイアウト（`znn_compressed_vectors` メタデータ、
 Huffman 圧縮されたテンソル — Rust コアは**すべての** safetensors dtype を
@@ -598,7 +590,7 @@ Information タブは**Neo Extended** バッジ（相互運用を説明するツ
 必要があり、デルタにはファインチューン自身の SHA‑256 が記録されるため、
 復元はエンドツーエンドで検証されます。
 
-![ZipNN デルタダイアログ](../demo-assets/zipnn-delta-dialog.png)
+![ZipNN デルタダイアログ](../demo-assets/zipnn-delta-dialog.avif)
 
 ## 11. 設定
 
@@ -661,11 +653,12 @@ ComfyUI の**設定 → Model Manager Neo**:
 ## 12. 言語
 
 UI は ComfyUI のロケール（**設定 → ComfyUI → Locale**）に追従し、
-**English**・**中文**・**日本語**の完全バンドルを同梱します。
-リージョン/書記系のサブタグ（`ja-JP`・`zh-Hant-TW` 等）は基底部言語へ
-折りたたまれ、それ以外は English へフォールバックします。
+**English**・**中文**（簡体・繁體）・**日本語**の完全バンドルを同梱します。
+リージョンサブタグ（`ja-JP` 等）は基底部言語へ折りたたまれ、Hant 書記系
+タグ（`zh-Hant`・`zh-Hant-TW` 等）は繁體中文バンドルを選択します。それ
+以外は English へフォールバックします。
 
-![日本語 UI](../demo-assets/ja-model-info.png)
+![日本語 UI](../demo-assets/ja-model-info.avif)
 
 ## 13. トラブルシューティング
 
@@ -682,6 +675,6 @@ UI は ComfyUI のロケール（**設定 → ComfyUI → Locale**）に追従�
 
 ## スクリーンショット
 
-本書の画像は [`demo-assets/`](../demo-assets/) にあります。ヘッダーのツアーは
-2 形式で同梱されています: README の GIF と、その元になったほぼ無劣化のソース録画
-[`hero.webm`](../demo-assets/hero.webm) です。
+本書の画像は [`demo-assets/`](../demo-assets/) に AVIF 静止画としてあります。
+ヘッダーのツアーはほぼ無劣化の録画 [`hero.webm`](../demo-assets/hero.webm)
+です。

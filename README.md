@@ -1,6 +1,6 @@
 <div align="center">
 
-# <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="34" height="34" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
+# <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
 
 ### Browse · Download · Upload · Drag‑and‑drop — your models, beautifully managed.
 
@@ -13,7 +13,7 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![CI](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/ci.yml/badge.svg?branch=main)
 ![Native core](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/native.yml/badge.svg?branch=main)
-![ZipNN format](https://img.shields.io/badge/ZipNN-format_0.5.4_cross--validated-0ea5e9.svg)
+![ZipNN](https://img.shields.io/badge/ZipNN-Rust_reimplementation-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)
@@ -28,8 +28,9 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
 ![Ruff](https://img.shields.io/badge/Ruff-0.16.9-D7FF64.svg?logo=ruff&logoColor=black)
-![Node](https://img.shields.io/badge/Node-26_%C2%B7_build-339933.svg?logo=nodedotjs&logoColor=white)
+![Node](https://img.shields.io/badge/Node-26-339933.svg?logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
+![uv](https://img.shields.io/badge/uv-dev_%26_CI-DE5FE9.svg?logo=uv&logoColor=white)
 
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
@@ -38,7 +39,7 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
 
 **English** · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
-![Hero overview](demo-assets/hero.gif)
+![Hero overview](demo-assets/hero.webm)
 
 </div>
 
@@ -58,14 +59,14 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
 
 <a id="why-neo"></a>
 
-## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="28" height="28" align="middle" alt=""> Why Neo?
+## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="34" height="34" align="middle" alt=""> Why Neo?
 
 **ComfyUI‑Model‑Manager‑Neo** takes the excellent original manager and rebuilds
 the experience from the ground up:
 
-**New in Neo**
+**1. New in Neo**
 
-- <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Rust native core** — library scanning, hashing, safetensors header
+- <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust native core** — library scanning, hashing, safetensors header
   parsing, the tensor tree, the folder watcher, the preview WebP codec and the
   entire ZipNN engine run in a **prebuilt Rust extension** that ships inside the
   repository: four platforms, one binary each, CPython 3.10 and newer through
@@ -77,7 +78,7 @@ the experience from the ground up:
   in **one pass**, a 65,000‑tensor MoE tensor tree built about **100× faster**,
   and ZipNN compression that stays **under 1 GB of peak RAM** no matter how
   large the model is (evidence: [`docs/BENCH.md`](docs/BENCH.md)).
-- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **Verified, memory‑safe compression** — the Rust engine denies `unsafe`
+- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **Verified, memory‑safe compression** — the Rust engine denies `unsafe`
   code by lint: the format core contains none at all, and the one boundary
   that needs it (a read‑only memory map) is safety‑reviewed and
   documented. It is hardened with seven continuous fuzzing targets, and
@@ -85,42 +86,44 @@ the experience from the ground up:
   time.
   Format compatibility with the official `zipnn` 0.5.4 package is a CI gate
   that runs on every push, in both directions.
-- <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN lossless compression** — compress and decompress safetensors models
+- <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **ZipNN lossless compression** — compress and decompress safetensors models
   in place (`.znn.safetensors`), batch whole folders into sealed
   `<name>_DeltaZNN` bundles, and shrink fine‑tunes to tiny **delta files**
   against their base model.
-- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Upload to Hugging Face / ModelScope** — publish any local model straight to
+- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Upload to Hugging Face / ModelScope** — publish any local model straight to
   a Hugging Face or ModelScope repository (created for you if needed, with a
   private option, related assets and live progress).
-- <img src="https://api.iconify.design/lucide/radar.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Multi‑hub search & hash identify** — search Hugging Face, ModelScope and
+- <img src="https://api.iconify.design/lucide/radar.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Multi‑hub search & hash identify** — search Hugging Face, ModelScope and
   Civitai in parallel from a single input, and resolve any local file against
   the Civitai catalog by hash.
-- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Multi‑select** — tick model and folder cards to add them to the workflow or
+- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Multi‑select** — tick model and folder cards to add them to the workflow or
   delete them in one go.
-- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **Stars** — a star toggle on every card; starred entries always sort first.
-- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **Create folders** — an “Add Folder” button in the folder view.
-- <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Direct‑link downloads** — paste a raw `.safetensors`/`.ckpt`/`.gguf` URL,
+- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="19" height="19" align="middle" alt=""> **Stars** — a star toggle on every card; starred entries always sort first.
+- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **Create folders** — an “Add Folder” button in the folder view.
+- <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Direct‑link downloads** — paste a raw `.safetensors`/`.ckpt`/`.gguf` URL,
   pick the target folder, optionally choose a custom sub‑folder.
-- <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` acceleration** — Hugging Face transfers use the chunked,
+- <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf_xet` acceleration** — Hugging Face transfers use the chunked,
   deduplicated Xet protocol when available.
-- <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Japanese locale** — a complete Japanese bundle joins the existing
-  English and 中文 ones. The UI follows ComfyUI's own language setting, and
-  region/script subtags (`ja-JP`, `zh-Hant-TW`, …) fold onto their base
-  language.
+- <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Japanese & Traditional Chinese locales** — complete Japanese and
+  Traditional Chinese (zh-TW) bundles join English and Simplified
+  Chinese. The UI follows ComfyUI's own language setting; region
+  subtags (`ja-JP`, …) fold onto their base language, while Hant
+  script tags (`zh-Hant`, `zh-Hant-TW`, …) select the Traditional
+  bundle.
 
-**Refreshed & enhanced**
+**2. Refreshed & enhanced**
 
-- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Glassmorphism UI** — a translucent, blurred, elevation‑aware interface
+- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Glassmorphism UI** — a translucent, blurred, elevation‑aware interface
   that follows ComfyUI's own light/dark palette automatically.
-- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Headless Reka‑UI components** — the PrimeVue dependency was
+- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Headless Reka‑UI components** — the PrimeVue dependency was
   replaced with lightweight, headless **[reka-ui]** primitives,
   **Tailwind CSS v4** and **[Lucide]** icons: shadcn‑vue‑style components
   you can read and tweak.
-- <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **First‑class node‑graph integration** — drag a model onto the canvas to
+- <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **First‑class node‑graph integration** — drag a model onto the canvas to
   spawn or fill a node, drag embeddings into text areas, load workflows embedded
   in preview images.
-- <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Responsive** — designed for desktop, mobile and multi‑screen setups.
-- <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Modern toolchain** — Vite 8 (Rolldown), TypeScript 6, ESLint 10 flat
+- <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Responsive** — designed for desktop, mobile and multi‑screen setups.
+- <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Modern toolchain** — Vite 8 (Rolldown), TypeScript 6, ESLint 10 flat
   config, Prettier, Stylelint, Ruff, clippy, husky + lint‑staged.
   Deterministic, lint‑clean builds.
 
@@ -133,48 +136,48 @@ the experience from the ground up:
 
 <a id="screenshots"></a>
 
-## <img src="https://api.iconify.design/lucide/camera.svg?color=%238b5cf6" width="28" height="28" align="middle" alt=""> Screenshots
+## <img src="https://api.iconify.design/lucide/camera.svg?color=%238b5cf6" width="34" height="34" align="middle" alt=""> Screenshots
 
-### Flat “Models” view — search, sort and resize the grid
+### 1. Flat “Models” view — search, sort and resize the grid
 
-![Flat models grid](demo-assets/view-flat.png)
+![Flat models grid](demo-assets/view-flat.avif)
 
 The manager window in **Flat** layout: a grid of glass model cards with preview,
 type and size chips, the search bar, and the type / sort / card‑size selectors.
 
-### Folder (explorer) view — navigate your directory tree
+### 2. Folder (explorer) view — navigate your directory tree
 
-![Folder explorer view](demo-assets/view-folders.png)
+![Folder explorer view](demo-assets/view-folders.avif)
 
 The **Folder** layout one level deep, with the breadcrumb trail and the animated
 glass folder cards that open when the pointer rests on them.
 
-### Model detail, editing, and the Hugging Face upload
+### 3. Model detail, editing, and the Hugging Face upload
 
 |                                                                           |                                                                                                  |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| ![Model info](demo-assets/model-info.png)                                 | ![Edit mode](demo-assets/model-edit.png)                                                         |
+| ![Model info](demo-assets/model-info.avif)                                | ![Edit mode](demo-assets/model-edit.avif)                                                        |
 | _Model info: preview, base‑info table, Description and Information tabs._ | _Edit mode: type dropdown, folder picker button, file name that accepts a `folder/name` prefix._ |
 
-|                                                                                 |                                                                                          |
-| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| ![Hugging Face upload](demo-assets/hf-upload.png)                               | ![Japanese UI](demo-assets/ja-model-info.png)                                            |
-| _Upload to Hugging Face, step 3: repo id, private‑on‑create, destination path._ | _The same window in **日本語** — the UI ships complete English / 中文 / 日本語 bundles._ |
+|                                                                                 |                                                                                                          |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| ![Hugging Face upload](demo-assets/hf-upload.avif)                              | ![Japanese UI](demo-assets/ja-model-info.avif)                                                           |
+| _Upload to Hugging Face, step 3: repo id, private‑on‑create, destination path._ | _The same window in **日本語** — the UI ships complete English, 中文 (both scripts) and 日本語 bundles._ |
 
-### Model‑name search and the safetensors tensor tree
+### 4. Model-name search and the safetensors tensor tree
 
 |                                                                                                                    |                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| ![Multi-platform search](demo-assets/search-columns.png)                                                           | ![Tensor tree](demo-assets/tensor-tree.png)                                                                    |
+| ![Multi-platform search](demo-assets/search-columns.avif)                                                          | ![Tensor tree](demo-assets/tensor-tree.avif)                                                                   |
 | _One query, three hubs: Hugging Face / ModelScope / Civitai columns with avatars, download counts and deep links._ | _The Information tab renders the safetensors header as a collapsible folder tree (Hugging Face‑viewer style)._ |
 
-A 10‑second tour is [`demo-assets/hero.gif`](demo-assets/hero.gif).
+A 10‑second tour is [`demo-assets/hero.webm`](demo-assets/hero.webm).
 
 ---
 
 <a id="installation"></a>
 
-## <img src="https://api.iconify.design/lucide/rocket.svg?color=%2322c55e" width="28" height="28" align="middle" alt=""> Installation
+## <img src="https://api.iconify.design/lucide/rocket.svg?color=%2322c55e" width="34" height="34" align="middle" alt=""> Installation
 
 Neo runs as a ComfyUI custom node. Pick one method:
 
@@ -221,7 +224,7 @@ the `Extensions → Model Manager Neo` menu, or the command palette.
 
 <a id="features"></a>
 
-## <img src="https://api.iconify.design/lucide/list-checks.svg?color=%233b82f6" width="28" height="28" align="middle" alt=""> Features
+## <img src="https://api.iconify.design/lucide/list-checks.svg?color=%233b82f6" width="34" height="34" align="middle" alt=""> Features
 
 <details open>
 <summary><b>Browse &amp; organise</b></summary>
@@ -349,9 +352,10 @@ the `Extensions → Model Manager Neo` menu, or the command palette.
   are skipped automatically).
 - ZipNN automation: auto‑compress models unused for N days, auto‑compress after
   a download completes, and pause downloads while a prompt executes.
-- UI language follows ComfyUI's locale — **English**, **中文** and **日本語**
-  bundled in full; region/script subtags (`ja-JP`, `zh-Hant-TW`, …) fold onto
-  their base language.
+- UI language follows ComfyUI's locale — **English**, **中文**
+  (Simplified & Traditional) and **日本語** bundled in full; region
+  subtags (`ja-JP`, …) fold onto their base language and Hant script
+  tags select the Traditional bundle.
 
 </details>
 
@@ -359,7 +363,7 @@ the `Extensions → Model Manager Neo` menu, or the command palette.
 
 <a id="search"></a>
 
-## <img src="https://api.iconify.design/lucide/search.svg?color=%2314b8a6" width="28" height="28" align="middle" alt=""> Model search & multi‑platform discovery
+## <img src="https://api.iconify.design/lucide/search.svg?color=%2314b8a6" width="34" height="34" align="middle" alt=""> Model search & multi‑platform discovery
 
 The **Create Download Task** window accepts more than page URLs: anything that
 does **not** start with `https://` is treated as a model‑name query and searched
@@ -421,7 +425,7 @@ says no matching model version was found.
 
 <a id="zipnn"></a>
 
-## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> ZipNN lossless compression
+## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="34" height="34" align="middle" alt=""> ZipNN lossless compression
 
 Large `.safetensors` checkpoints eat disk space fast. Neo compresses and
 decompresses them **in place, losslessly**, in the
@@ -430,7 +434,7 @@ the official ZipNN project uses — executed by Neo's **pure‑Rust core** and
 cross‑validated against the official `zipnn` 0.5.4 package in CI on every push,
 so results stay interchangeable with the wider ZipNN ecosystem.
 
-### How it works
+### 1. How it works
 
 Model weights are mostly floating‑point numbers, and floating‑point numbers are
 mostly _redundant_: the exponent bytes of a well‑behaved weight tensor repeat
@@ -457,7 +461,9 @@ loader reads a Neo‑compressed model transparently. Realistic checkpoints
 typically land around **60–80 %** of their original size (random‑looking data
 compresses far less; low‑entropy weights compress much more).
 
-### dtype coverage & the interoperability matrix
+<a id="dtype-coverage--the-interoperability-matrix"></a>
+
+### 2. dtype coverage & the interoperability matrix
 
 The Rust core compresses **every dtype safetensors 0.8 defines** — 22 of
 them — in two interoperability bands. The band of a compressed file is recorded
@@ -487,7 +493,7 @@ Details worth knowing:
 - `complex128` and `bcomplex32` exist at the codec level (codes 129/131) but
   have no safetensors representation — no `.safetensors` file can carry them.
 
-### Using it
+### 3. Using it
 
 Open any `.safetensors` model. In the gap between the preview and the info table
 sits the **ZipNN artwork itself as the button** — the shipped SVG draws its own
@@ -518,7 +524,7 @@ inverted) without opening the model at all, behind the identical confirmation.
 While any task runs — single, batch or delta — the button shows a **circular
 progress ring** (with the percentage for batches).
 
-### Batch compression (whole folders)
+### 4. Batch compression (whole folders)
 
 Select folders (“Select files”) and press the **ZipNN artwork button in the
 bottom bar** — or use the corner button on a folder card — and every
@@ -547,7 +553,7 @@ sealed:
 Several folders run as a queue: one confirmation, sequential tasks, one
 progress state at a time.
 
-### Delta compression (fine‑tunes against a base)
+### 5. Delta compression (fine‑tunes against a base)
 
 A fine‑tuned model shares most of its bytes with its base, and ZipNN can store
 only the **difference**: select exactly two plain `.safetensors` models and
@@ -563,7 +569,7 @@ end to end.
 
 <a id="the-engine"></a>
 
-### The engine: a prebuilt pure‑Rust core
+### 6. The engine: a prebuilt pure‑Rust core
 
 Rather than wrapping the official Python package, Neo runs the format on its
 own pure‑Rust engine: the upstream C extension ships no Linux wheels on
@@ -622,7 +628,7 @@ loader's exact reason instead of failing silently.
 
 <a id="what-changed"></a>
 
-## <img src="https://api.iconify.design/lucide/git-compare.svg?color=%23a855f7" width="28" height="28" align="middle" alt=""> What changed from the original
+## <img src="https://api.iconify.design/lucide/git-compare.svg?color=%23a855f7" width="34" height="34" align="middle" alt=""> What changed from the original
 
 This section makes the fork's differences explicit, as the GPL‑3.0 license
 requires. The comparison baseline is
@@ -631,7 +637,7 @@ requires. The comparison baseline is
 the PrimeVue dependency itself, and the batch‑scan feature — see
 [Removed feature: batch scan](#removed-feature).
 
-### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="22" height="22" align="middle" alt=""> Interface
+### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="26" height="26" align="middle" alt=""> Interface
 
 | Area              | Original                                                | **Neo**                                                                                                                                                                                                                                                                                     |
 | ----------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -641,9 +647,9 @@ the PrimeVue dependency itself, and the batch‑scan feature — see
 | Look & feel       | Standard PrimeVue surfaces                              | **Glassmorphism** (blur, elevation, micro‑interactions), auto dark mode                                                                                                                                                                                                                     |
 | Dialogs           | PrimeVue `Dialog`/`ContextMenu`                         | reka‑ui dialogs, per‑dialog size/position, drag‑to‑move, anchored context menus                                                                                                                                                                                                             |
 | Model detail tabs | Description + Metadata (raw safetensors `__metadata__`) | Description + **Information**: a read‑only table parsing the notes' YAML front‑matter (author, base model, hashes, format & precision, model platform, model‑page link, every preview URL, unknown keys verbatim), raw `__metadata__` as the fallback, plus the safetensors **tensor tree** |
-| Locales           | English, 中文                                           | English, 中文, **日本語** (complete bundles)                                                                                                                                                                                                                                                |
+| Locales           | English, 中文                                           | English, 中文 (Simplified + **Traditional**), **日本語** (complete bundles)                                                                                                                                                                                                                 |
 
-### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="22" height="22" align="middle" alt=""> Backend & engine
+### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="26" height="26" align="middle" alt=""> Backend & engine
 
 The deepest changes are below the UI. The original is pure Python (7 backend
 modules, 15 HTTP routes); Neo grows to 16 Python modules and roughly 40 routes,
@@ -669,10 +675,10 @@ A pure‑Python fallback survives only where a degraded answer beats an error:
 Feature‑level additions on top of the original — upload to Hugging Face and
 ModelScope, multi‑hub search, hash identify, smart collections, stars,
 multi‑select, folder creation, direct‑link downloads, the free‑space guard, the
-Civitai download safety net, gallery previews, the Japanese locale — are
+Civitai download safety net, gallery previews, the Japanese and Traditional Chinese locales — are
 described in [Features](#features); every one of them is Neo‑side work.
 
-### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="22" height="22" align="middle" alt=""> Packages
+### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="26" height="26" align="middle" alt=""> Packages
 
 - **Removed:** `primevue`, `@primevue/themes`, `lodash`, `dayjs`, `js-yaml`
   (the last was already unused in the original — its YAML work was done by
@@ -694,13 +700,13 @@ described in [Features](#features); every one of them is Neo‑side work.
   per‑CPython‑version `.so` files that an earlier development stage of
   this fork carried were removed once the Rust core replaced them.
 
-### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="22" height="22" align="middle" alt=""> Toolbar / button roles
+### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="26" height="26" align="middle" alt=""> Toolbar / button roles
 
 The manager header was redesigned into explicit, icon‑driven actions:
 **flat ⇄ folder layout toggle**, **hygiene scan**, **show/hide hidden files**,
 **refresh**, **download list**, and **upload to Hugging Face / ModelScope**.
 
-### <img src="https://api.iconify.design/lucide/folder-open.svg?color=%23f59e0b" width="22" height="22" align="middle" alt=""> Glass asset pack (folder icons & no‑preview art)
+### <img src="https://api.iconify.design/lucide/folder-open.svg?color=%23f59e0b" width="26" height="26" align="middle" alt=""> Glass asset pack (folder icons & no‑preview art)
 
 The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
 
@@ -717,7 +723,7 @@ The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
 - **Model‑hub logos** (Civitai, Hugging Face, ModelScope) back the **Open model
   page** button, so a model's origin is recognisable at a glance.
 
-### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="22" height="22" align="middle" alt=""> Toolchain
+### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="26" height="26" align="middle" alt=""> Toolchain
 
 The lint and format pipeline is a conventional, fully configured
 **ESLint 10 flat config** + **Prettier** + **Stylelint 17** setup for the
@@ -734,7 +740,7 @@ three OSes, and the official‑`zipnn` cross‑validation (see
 
 <a id="removed-feature"></a>
 
-## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="28" height="28" align="middle" alt=""> Removed feature: batch scan
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> Removed feature: batch scan
 
 The **“Batch scan model information”** feature has been removed. It was
 redundant: the model detail window reads that model's `__metadata__` straight
@@ -765,7 +771,7 @@ installation's saved setting.
 
 <a id="documentation"></a>
 
-## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="28" height="28" align="middle" alt=""> Documentation
+## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> Documentation
 
 Step‑by‑step usage guides, each complete and self‑contained:
 
@@ -791,7 +797,7 @@ Further reading:
 
 <a id="development"></a>
 
-## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> Development
+## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="34" height="34" align="middle" alt=""> Development
 
 You only need Node.js to **build** the web bundle; running the extension inside
 ComfyUI needs nothing but Python (the Rust core ships prebuilt).
@@ -861,7 +867,7 @@ A **husky** `pre-commit` hook runs **lint-staged** on staged files (ESLint +
 Stylelint + Prettier for the frontend, Ruff for the backend) plus a full
 `pnpm typecheck`.
 
-### Quality gates
+### 1. Quality gates
 
 **Fallow** (Rust, no AI inside the analyzer) reads the repository as one
 dependency graph and reports unused files/exports/types/dependencies, circular
@@ -885,7 +891,7 @@ platform artifacts, enforces the size budget, smoke‑fuzzes all seven targets,
 imports the abi3 artifact under CPython 3.10 and 3.13, and runs the full pytest
 suite plus the official‑`zipnn` cross‑validation on Linux, Windows and macOS.
 
-### Project structure
+### 2. Project structure
 
 ```
 ├─ __init__.py            # ComfyUI entry: installs deps, registers routes
@@ -922,7 +928,7 @@ suite plus the official‑`zipnn` cross‑validation on Linux, Windows and macOS
 
 <a id="credits"></a>
 
-## <img src="https://api.iconify.design/lucide/heart-handshake.svg?color=%23ec4899" width="28" height="28" align="middle" alt=""> Credits & Attribution
+## <img src="https://api.iconify.design/lucide/heart-handshake.svg?color=%23ec4899" width="34" height="34" align="middle" alt=""> Credits & Attribution
 
 ComfyUI‑Model‑Manager‑Neo exists only because
 **[`ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)**
@@ -954,7 +960,7 @@ localisation — itemised in
 GPL‑3.0 license. Per the license, the original copyright notice and the full
 license text are preserved in [`LICENSE`](LICENSE).
 
-### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="22" height="22" align="middle" alt=""> Built with Qwen Studio
+### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="26" height="26" align="middle" alt=""> Built with Qwen Studio
 
 A large part of this fork was built in close collaboration with
 **[Qwen Studio]**: the glassmorphism UI rebuild, the Rust native core, the
@@ -969,7 +975,7 @@ Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 
 <a id="license"></a>
 
-## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="28" height="28" align="middle" alt=""> License
+## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="34" height="34" align="middle" alt=""> License
 
 **GPL‑3.0‑only** — see [`LICENSE`](LICENSE) for the full text.
 
@@ -985,7 +991,7 @@ repository. Full third‑party attribution for the native core:
 
 <div align="center">
 
-**If Neo saves you time, consider starring the repo <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> and thanking the
+**If Neo saves you time, consider starring the repo <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="19" height="19" align="middle" alt=""> and thanking the
 [original author](https://github.com/hayden-cn/ComfyUI-Model-Manager).**
 
 </div>

@@ -1,6 +1,6 @@
 <div align="center">
 
-# <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="34" height="34" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
+# <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
 
 ### 閲覧・ダウンロード・アップロード・ドラッグ＆ドロップ — モデルを、美しく管理。
 
@@ -14,7 +14,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![CI](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/ci.yml/badge.svg?branch=main)
 ![Native core](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/native.yml/badge.svg?branch=main)
-![ZipNN format](https://img.shields.io/badge/ZipNN-format_0.5.4_cross--validated-0ea5e9.svg)
+![ZipNN](https://img.shields.io/badge/ZipNN-Rust_reimplementation-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)
@@ -29,8 +29,9 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
 ![Ruff](https://img.shields.io/badge/Ruff-0.16.9-D7FF64.svg?logo=ruff&logoColor=black)
-![Node](https://img.shields.io/badge/Node-26_%C2%B7_build-339933.svg?logo=nodedotjs&logoColor=white)
+![Node](https://img.shields.io/badge/Node-26-339933.svg?logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
+![uv](https://img.shields.io/badge/uv-dev_%26_CI-DE5FE9.svg?logo=uv&logoColor=white)
 
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
@@ -39,7 +40,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 
 [English](README.md) · **日本語** · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
-![Hero overview](demo-assets/hero.gif)
+![Hero overview](demo-assets/hero.webm)
 
 </div>
 
@@ -58,14 +59,14 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 
 <a id="why-neo"></a>
 
-## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="28" height="28" align="middle" alt=""> Why Neo?
+## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="34" height="34" align="middle" alt=""> Why Neo?
 
 **ComfyUI‑Model‑Manager‑Neo** は、優れた元祖マネージャーを受け継ぎながら、
 体験を根底から作り直したものです:
 
-**Neo の新機能**
+**1. Neo の新機能**
 
-- <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Rust ネイティブコア** — ライブラリスキャン・ハッシュ・safetensors ヘッダ
+- <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust ネイティブコア** — ライブラリスキャン・ハッシュ・safetensors ヘッダ
   解析・テンソルツリー・フォルダ監視・プレビュー WebP codec・ZipNN エンジン
   全体が、リポジトリ同梱の**プリビルド Rust 拡張**で動きます（4 プラットフォーム・
   各 1 バイナリ、Stable ABI により CPython 3.10 以降に対応）。コア自体は素の
@@ -76,46 +77,48 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
   5 表記のハッシュを **1 パス**で計算、65,000 テンソルの MoE テンソルツリー構築が
   約 **100 倍**高速、ZipNN 圧縮はモデルの大きさを問わず**ピーク RAM 1 GB 未満**
   （証跡: [`docs/BENCH.md`](docs/BENCH.md)）。
-- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **検証付きでメモリ安全な圧縮** — Rust エンジンは lint で `unsafe` を
+- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **検証付きでメモリ安全な圧縮** — Rust エンジンは lint で `unsafe` を
   deny しています: フォーマット中核は `unsafe` ゼロ、必要となる唯一の境界
   （読み取り専用のメモリマップ）は SAFETY レビュー済みで文書化されています。
   7 本の継続的ファジングターゲットで強化され、復元のたびに、圧縮時に
   記録した SHA‑256 との照合が走ります。公式 `zipnn` 0.5.4 とのフォーマット互換は
   約束ではなく CI ゲートです — push のたびに双方向でクロス検証されます。
-- <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN 可逆圧縮** — safetensors モデルをその場で圧縮/解凍
+- <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **ZipNN 可逆圧縮** — safetensors モデルをその場で圧縮/解凍
   （`.znn.safetensors`）、フォルダ単位では密封された `<name>_DeltaZNN` バンドルへ
   バッチ圧縮、ファインチューンはベースモデルとの極小**デルタファイル**へ。
-- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Hugging Face / ModelScope へアップロード** — ローカルモデルを HF または
+- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Hugging Face / ModelScope へアップロード** — ローカルモデルを HF または
   ModelScope のリポジトリへ直接公開（必要ならリポジトリ作成、プライベート指定、
   関連アセット同梱、ライブ進捗表示）。
-- <img src="https://api.iconify.design/lucide/radar.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **マルチハブ検索とハッシュ識別** — 1 つの入力欄から Hugging Face・
+- <img src="https://api.iconify.design/lucide/radar.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **マルチハブ検索とハッシュ識別** — 1 つの入力欄から Hugging Face・
   ModelScope・Civitai を並列検索でき、ローカルファイルをハッシュで Civitai
   カタログに逆引きできます。
-- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **複数選択** — モデル/フォルダカードにチェックを入れて、ワークフローへ
+- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **複数選択** — モデル/フォルダカードにチェックを入れて、ワークフローへ
   一括追加、または一括削除。
-- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **スター** — 全カードのスタートグル。スター済みは常に先頭へ並びます。
-- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **フォルダ作成** — フォルダビューの「フォルダを追加」ボタン。
-- <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **直接リンクダウンロード** — 生の `.safetensors` / `.ckpt` / `.gguf` URL を
+- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="19" height="19" align="middle" alt=""> **スター** — 全カードのスタートグル。スター済みは常に先頭へ並びます。
+- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **フォルダ作成** — フォルダビューの「フォルダを追加」ボタン。
+- <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **直接リンクダウンロード** — 生の `.safetensors` / `.ckpt` / `.gguf` URL を
   貼り付け、保存先フォルダと任意のサブフォルダを選択できます。
-- <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` アクセラレーション** — Hugging Face 転送は、利用可能な場合
+- <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf_xet` アクセラレーション** — Hugging Face 転送は、利用可能な場合
   チャンク分割・重複排除された Xet プロトコルを使用します。
-- <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **日本語ロケール** — English・中文に加え、完全な日本語バンドルを
-  追加。UI は ComfyUI 自身の言語設定に追従し、リージョン/書記系のサブタグ
-  （`ja-JP`・`zh-Hant-TW` 等）は基底部言語へ折りたたまれます。
+- <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **日本語・繁體中文ロケール** — English・簡体中文に加え、完全な日本語
+  バンドルと繁體中文（zh-TW）バンドルを追加。UI は ComfyUI 自身の言語
+  設定に追従し、リージョンサブタグ（`ja-JP` 等）は基底部言語へ折りたたまれ、
+  Hant 書記系タグ（`zh-Hant`・`zh-Hant-TW` 等）は繁體中文バンドルを
+  選択します。
 
-**刷新・強化されたポイント**
+**2. 刷新・強化されたポイント**
 
-- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **グラスモフィズム UI** — 半透明・ぼかし・奥行き対応のインターフェース。
+- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **グラスモフィズム UI** — 半透明・ぼかし・奥行き対応のインターフェース。
   ComfyUI 自身のライト/ダークパレットに自動で追従します。
-- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Reka-UI への全面刷新** — PrimeVue 依存は軽量でヘッドレスな
+- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Reka-UI への全面刷新** — PrimeVue 依存は軽量でヘッドレスな
   **[reka-ui]** プリミティブ + **Tailwind CSS v4** + **[Lucide]** アイコンへ
   置き換わりました（ソースを読んで調整できる shadcn-vue スタイルの
   コンポーネント群）。
-- <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **第一級のノードグラフ統合** — モデルをキャンバスへドラッグしてノードを
+- <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **第一級のノードグラフ統合** — モデルをキャンバスへドラッグしてノードを
   生成/入力、embedding をテキストエリアへドラッグ、プレビュー画像に埋め込まれた
   ワークフローの読込。
-- <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **レスポンシブ** — デスクトップ・モバイル・マルチスクリーン環境を想定した設計。
-- <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **現代的なツールチェーン** — Vite 8（Rolldown）、TypeScript 6、ESLint 10
+- <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **レスポンシブ** — デスクトップ・モバイル・マルチスクリーン環境を想定した設計。
+- <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **現代的なツールチェーン** — Vite 8（Rolldown）、TypeScript 6、ESLint 10
   flat config、Prettier、Stylelint、Ruff、clippy、husky + lint‑staged。
   決定的で lint クリーンなビルド。
 
@@ -129,49 +132,49 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 
 <a id="screenshots"></a>
 
-## <img src="https://api.iconify.design/lucide/camera.svg?color=%238b5cf6" width="28" height="28" align="middle" alt=""> スクリーンショット
+## <img src="https://api.iconify.design/lucide/camera.svg?color=%238b5cf6" width="34" height="34" align="middle" alt=""> スクリーンショット
 
-### フラット「モデル」ビュー — 検索・並び替え・グリッドサイズ変更
+### 1. フラット「モデル」ビュー — 検索・並び替え・グリッドサイズ変更
 
-![Flat models grid](demo-assets/view-flat.png)
+![Flat models grid](demo-assets/view-flat.avif)
 
 **フラット**レイアウトのマネージャーウィンドウ: ガラス製のモデルカードのグリッド
 （プレビュー・種別とサイズのチップ付き）、検索バー、種別/並び替え/カードサイズの
 セレクタ。
 
-### フォルダ（エクスプローラ）ビュー — ディレクトリツリーを辿る
+### 2. フォルダ（エクスプローラ）ビュー — ディレクトリツリーを辿る
 
-![Folder explorer view](demo-assets/view-folders.png)
+![Folder explorer view](demo-assets/view-folders.avif)
 
 **フォルダ**レイアウトの 1 階層目。ブレッドクラムと、ポインターを 1 秒休ませると
 開くアニメーション付きのガラスのフォルダカード。
 
-### モデル詳細・編集・Hugging Face アップロード
+### 3. モデル詳細・編集・Hugging Face アップロード
 
 |                                                                              |                                                                                                        |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| ![Model info](demo-assets/model-info.png)                                    | ![Edit mode](demo-assets/model-edit.png)                                                               |
+| ![Model info](demo-assets/model-info.avif)                                   | ![Edit mode](demo-assets/model-edit.avif)                                                              |
 | _モデル情報: プレビュー、基本情報テーブル、Description / Information タブ。_ | _編集モード: 種別ドロップダウン、フォルダピッカーボタン、`folder/name` 接頭辞を受け付けるファイル名。_ |
 
-|                                                                                                |                                                                                         |
-| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| ![Hugging Face upload](demo-assets/hf-upload.png)                                              | ![Japanese UI](demo-assets/ja-model-info.png)                                           |
-| _Hugging Face へアップロード、ステップ 3: リポジトリ ID、作成時プライベート指定、保存先パス。_ | _同じウィンドウの**日本語**表示 — UI は English / 中文 / 日本語 の完全バンドルを同梱。_ |
+|                                                                                                |                                                                                                |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| ![Hugging Face upload](demo-assets/hf-upload.avif)                                             | ![Japanese UI](demo-assets/ja-model-info.avif)                                                 |
+| _Hugging Face へアップロード、ステップ 3: リポジトリ ID、作成時プライベート指定、保存先パス。_ | _同じウィンドウの**日本語**表示 — UI は English / 中文（簡繁）/ 日本語 の完全バンドルを同梱。_ |
 
-### モデル名検索と safetensors テンソルツリー
+### 4. モデル名検索と safetensors テンソルツリー
 
 |                                                                                                               |                                                                                                              |
 | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| ![マルチプラットフォーム検索](demo-assets/search-columns.png)                                                 | ![テンソルツリー](demo-assets/tensor-tree.png)                                                               |
+| ![マルチプラットフォーム検索](demo-assets/search-columns.avif)                                                | ![テンソルツリー](demo-assets/tensor-tree.avif)                                                              |
 | _1 つのクエリで 3 ハブ: Hugging Face / ModelScope / Civitai の列にアバター・ダウンロード数・ディープリンク。_ | _Information タブは safetensors ヘッダを折りたたみ可能なフォルダツリーで描画（Hugging Face ビューア様式）。_ |
 
-10 秒間のツアーは [`demo-assets/hero.gif`](demo-assets/hero.gif) です。
+10 秒間のツアーは [`demo-assets/hero.webm`](demo-assets/hero.webm) です。
 
 ---
 
 <a id="installation"></a>
 
-## <img src="https://api.iconify.design/lucide/rocket.svg?color=%2322c55e" width="28" height="28" align="middle" alt=""> インストール
+## <img src="https://api.iconify.design/lucide/rocket.svg?color=%2322c55e" width="34" height="34" align="middle" alt=""> インストール
 
 Neo は ComfyUI のカスタムノードとして動作します。いずれかの方法で導入してください:
 
@@ -218,7 +221,7 @@ comfy node install comfyui-model-manager-neo
 
 <a id="features"></a>
 
-## <img src="https://api.iconify.design/lucide/list-checks.svg?color=%233b82f6" width="28" height="28" align="middle" alt=""> 機能
+## <img src="https://api.iconify.design/lucide/list-checks.svg?color=%233b82f6" width="34" height="34" align="middle" alt=""> 機能
 
 <details open>
 <summary><b>閲覧と整理</b></summary>
@@ -342,9 +345,9 @@ comfy node install comfyui-model-manager-neo
   自動でスキップ）。
 - ZipNN 自動化: N 日以上未使用のモデルの自動圧縮、ダウンロード完了後の
   自動圧縮、prompt 実行中のダウンロード一時停止。
-- UI 言語は ComfyUI のロケールに追従 — **English**・**中文**・**日本語**の
-  完全バンドルを同梱。リージョン/書記系のサブタグ（`ja-JP`・`zh-Hant-TW` 等）は
-  基底部言語へ折りたたまれます。
+- UI 言語は ComfyUI のロケールに追従 — **English**・**中文**（簡体・繁體）・
+  **日本語**の完全バンドルを同梱。リージョンサブタグ（`ja-JP` 等）は基部
+  言語へ折りたたまれ、Hant 書記系タグは繁體中文バンドルを選択します。
 
 </details>
 
@@ -352,7 +355,7 @@ comfy node install comfyui-model-manager-neo
 
 <a id="search"></a>
 
-## <img src="https://api.iconify.design/lucide/search.svg?color=%2314b8a6" width="28" height="28" align="middle" alt=""> モデル検索とマルチプラットフォーム探索
+## <img src="https://api.iconify.design/lucide/search.svg?color=%2314b8a6" width="34" height="34" align="middle" alt=""> モデル検索とマルチプラットフォーム探索
 
 **ダウンロードタスクを作成**ウィンドウはページ URL 以外も受け付けます:
 `https://` で**始まらない**入力はモデル名クエリとして扱われ、
@@ -409,7 +412,7 @@ CFG スケール、シード、clip skip、サイズ、ベースモデル、リ�
 
 <a id="zipnn"></a>
 
-## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> ZipNN 可逆圧縮
+## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="34" height="34" align="middle" alt=""> ZipNN 可逆圧縮
 
 大きな `.safetensors` チェックポイントはディスクをすぐに食い尽くします。
 Neo はこれらを [ZipNN](https://github.com/zipnn/zipnn) 形式で**その場・可逆**に
@@ -417,7 +420,7 @@ Neo はこれらを [ZipNN](https://github.com/zipnn/zipnn) 形式で**その場
 Neo の**純 Rust コア**が実行し、push のたびに公式 `zipnn` 0.5.4 パッケージと
 CI で相互検証するため、ZipNN エコシステム全体と交換可能なままです。
 
-### 仕組み
+### 1. 仕組み
 
 モデル重みの大半は浮動小数点数で、浮動小数点数の大半は_冗長_です:
 行儀の良い重みテンソルの指数バイトは何度も繰り返されます。ZipNN はまさに
@@ -444,7 +447,7 @@ Neo の圧縮モデルを透過的に読み込めます。現実的なチェッ�
 通常、元のサイズの **60〜80 %** 程度に収まります（ランダム性の強いデータは
 あまり縮まず、低エントロピーの重みはもっと縮みます）。
 
-### <a id="dtype-coverage--the-interoperability-matrix"></a>dtype カバレッジと相互運用マトリクス
+### <a id="dtype-coverage--the-interoperability-matrix"></a>2. dtype カバレッジと相互運用マトリクス
 
 Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相互運用帯で
 圧縮します。圧縮ファイルの帯はメタデータに記録され
@@ -474,7 +477,7 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
   safetensors 表現を持たないため、`.safetensors` ファイルがこれらを運ぶことは
   ありません。
 
-### 使い方
+### 3. 使い方
 
 任意の `.safetensors` モデルを開くと、プレビューと情報テーブルの間に
 **ZipNN アートワークそのもののボタン**があります — 同梱 SVG は自前の
@@ -503,7 +506,7 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
 （または反転表示の解凍）を実行できます。実行中は — 単体・バッチ・デルタの
 いずれでも — ボタンは**円形の進捗リング**（バッチはパーセント付き）になります。
 
-### バッチ圧縮（フォルダ単位）
+### 4. バッチ圧縮（フォルダ単位）
 
 フォルダを選択（「ファイルを選択」）して**ボトムバーの ZipNN アートワークボタン**
 を押すか、フォルダカードのコーナーボタンを使うと、フォルダツリー内のすべての
@@ -531,7 +534,7 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
 複数フォルダはキューとして実行されます: 確認は 1 回、タスクは逐次、
 進捗表示も一度に 1 つです。
 
-### デルタ圧縮（ベースに対するファインチューン）
+### 5. デルタ圧縮（ベースに対するファインチューン）
 
 ファインチューンモデルはベースと大部分のバイトを共有しており、ZipNN は
 **差分だけ**を保存できます: 素の `.safetensors` モデルをちょうど 2 つ選択して
@@ -546,7 +549,7 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
 デルタにはファインチューン自身の SHA‑256 が記録されるため、
 復元はエンドツーエンドで検証されます。
 
-### <a id="the-engine"></a>エンジン: プリビルドの純 Rust コア
+### <a id="the-engine"></a>6. エンジン: プリビルドの純 Rust コア
 
 圧縮器は公式 Python パッケージのラッパーではなく、Neo 自前の**純 Rust
 エンジン**が形式を実行します: 上流の C 拡張は PyPI に Linux wheel が無く
@@ -605,7 +608,7 @@ codec は zenwebp（AGPL‑3.0）を使用 — 全文は [`native/NOTICE`](nativ
 
 <a id="what-changed"></a>
 
-## <img src="https://api.iconify.design/lucide/git-compare.svg?color=%23a855f7" width="28" height="28" align="middle" alt=""> 元版からの変更点
+## <img src="https://api.iconify.design/lucide/git-compare.svg?color=%23a855f7" width="34" height="34" align="middle" alt=""> 元版からの変更点
 
 この節は GPL‑3.0 ライセンスが求める通り、フォークの差分を明示します。
 比較の基準は [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
@@ -613,7 +616,7 @@ codec は zenwebp（AGPL‑3.0）を使用 — 全文は [`native/NOTICE`](nativ
 PrimeVue 依存そのものと、バッチスキャン機能です
 （[削除された機能: バッチスキャン](#removed-feature)参照）。
 
-### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="22" height="22" align="middle" alt=""> インターフェース
+### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="26" height="26" align="middle" alt=""> インターフェース
 
 | 領域                     | 元版                                                      | **Neo**                                                                                                                                                                                                                                                                                                            |
 | ------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -623,9 +626,9 @@ PrimeVue 依存そのものと、バッチスキャン機能です
 | 見た目と操作感           | 標準の PrimeVue サーフェス                                | **グラスモフィズム**（ぼかし・奥行き・マイクロインタラクション）、自動ダークモード                                                                                                                                                                                                                                 |
 | ダイアログ               | PrimeVue `Dialog`/`ContextMenu`                           | reka‑ui ダイアログ、ダイアログ毎のサイズ/位置、ドラッグ移動、アンカー付きコンテキストメニュー                                                                                                                                                                                                                      |
 | モデル詳細タブ           | Description + Metadata（生の safetensors `__metadata__`） | Description + **Information**: ノートの YAML front‑matter を解析した読み取り専用テーブル（作者・ベースモデル・ハッシュ・フォーマットと精度・モデルプラットフォーム・モデルページリンク・全プレビュー URL・未知のキーはそのまま表示）、フォールバックは生の `__metadata__`、加えて safetensors の**テンソルツリー** |
-| ロケール                 | English・中文                                             | English・中文・**日本語**（完全バンドル）                                                                                                                                                                                                                                                                          |
+| ロケール                 | English・中文                                             | English・中文（簡体＋**繁體**）・**日本語**（完全バンドル）                                                                                                                                                                                                                                                        |
 
-### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="22" height="22" align="middle" alt=""> バックエンドとエンジン
+### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="26" height="26" align="middle" alt=""> バックエンドとエンジン
 
 最深部の変更は UI の下にあります。元版は純 Python（バックエンド 7 モジュール・
 HTTP ルート 15 本）ですが、Neo は 16 モジュール・約 40 ルートへ成長し、
@@ -651,10 +654,10 @@ HTTP ルート 15 本）ですが、Neo は 16 モジュール・約 40 ルー�
 元版に対する機能面の追加 — Hugging Face / ModelScope へのアップロード、
 マルチハブ検索、ハッシュ識別、スマートコレクション、スター、複数選択、
 フォルダ作成、直接リンクダウンロード、空き容量ガード、Civitai ダウンロードの
-安全網、ギャラリープレビュー、日本語ロケール — は[機能](#features)で
+安全網、ギャラリープレビュー、日本語・繁體中文ロケール — は[機能](#features)で
 説明しており、すべて Neo 側の実装です。
 
-### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="22" height="22" align="middle" alt=""> パッケージ
+### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="26" height="26" align="middle" alt=""> パッケージ
 
 - **削除:** `primevue`・`@primevue/themes`・`lodash`・`dayjs`・`js-yaml`
   （最後の 1 つは元版でも実使用なし — YAML 処理は `yaml` が担っていました）。
@@ -676,14 +679,14 @@ HTTP ルート 15 本）ですが、Neo は 16 モジュール・約 40 ルー�
   ZipNN C ソースと CPython バージョン別 `.so` は、Rust コアへの置き換えと
   ともにすべて撤去済みです。
 
-### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="22" height="22" align="middle" alt=""> ツールバー/ボタンの役割
+### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="26" height="26" align="middle" alt=""> ツールバー/ボタンの役割
 
 マネージャーヘッダーは明示的なアイコン駆動アクションへ再設計されました:
 **フラット ⇄ フォルダレイアウト切替**・**衛生スキャン**・
 **隠しファイルの表示/非表示**・**更新**・**ダウンロード一覧**・
 **Hugging Face / ModelScope へのアップロード**。
 
-### <img src="https://api.iconify.design/lucide/folder-open.svg?color=%23f59e0b" width="22" height="22" align="middle" alt=""> ガラスアセットパック（フォルダアイコンと NO‑PREVIEW アート）
+### <img src="https://api.iconify.design/lucide/folder-open.svg?color=%23f59e0b" width="26" height="26" align="middle" alt=""> ガラスアセットパック（フォルダアイコンと NO‑PREVIEW アート）
 
 インターフェースは `assets/` の手作りグラスモフィズム アセットパックを
 使用します:
@@ -700,7 +703,7 @@ HTTP ルート 15 本）ですが、Neo は 16 モジュール・約 40 ルー�
 - **モデルハブのロゴ**（Civitai・Hugging Face・ModelScope）は
   **モデルページを開く**ボタンの背景になり、モデルの出所が一目で分かります。
 
-### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="22" height="22" align="middle" alt=""> ツールチェーン
+### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="26" height="26" align="middle" alt=""> ツールチェーン
 
 lint/format パイプラインは、フロントエンドに**ESLint 10 flat config** +
 **Prettier** + **Stylelint 17**、Python バックエンドに **Ruff** + **mypy**、
@@ -716,7 +719,7 @@ Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備え�
 
 <a id="removed-feature"></a>
 
-## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="28" height="28" align="middle" alt=""> 削除された機能: バッチスキャン
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 削除された機能: バッチスキャン
 
 **「モデル情報のバッチスキャン」**機能は削除されました。冗長だったためです:
 モデル詳細ウィンドウは、そのモデルの `__metadata__` を safetensors ヘッダから
@@ -746,7 +749,7 @@ Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備え�
 
 <a id="documentation"></a>
 
-## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="28" height="28" align="middle" alt=""> ドキュメント
+## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> ドキュメント
 
 それぞれ完結したステップバイステップの使い方ガイド:
 
@@ -772,7 +775,7 @@ Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備え�
 
 <a id="development"></a>
 
-## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> 開発
+## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="34" height="34" align="middle" alt=""> 開発
 
 Web バンドルの**ビルド**に必要なのは Node.js だけです。ComfyUI 内での実行に
 必要なのは Python のみ（Rust コアはプリビルド同梱）。
@@ -842,7 +845,7 @@ maturin + lipo、Windows は maturin/MSVC）。ワークスペース・テスト
 （フロントエンドは ESLint + Stylelint + Prettier、バックエンドは Ruff）と
 `pnpm typecheck` 全体を実行します。
 
-### 品質ゲート
+### 1. 品質ゲート
 
 **Fallow**（Rust 製・解析器に AI 不使用）はリポジトリを 1 つの依存グラフとして
 読み、未使用ファイル/export/型/依存・循環 import・クローングループ・複雑性の
@@ -865,7 +868,7 @@ CI は ERROR 級の指摘で失敗します。
 スモークし、abi3 成果物を CPython 3.10 と 3.13 で import 疎通し、pytest スイート
 全体と公式 `zipnn` クロス検証を Linux・Windows・macOS で実行します。
 
-### プロジェクト構成
+### 2. プロジェクト構成
 
 ```
 ├─ __init__.py            # ComfyUI エントリ: 依存インストール・ルート登録
@@ -902,7 +905,7 @@ CI は ERROR 級の指摘で失敗します。
 
 <a id="credits"></a>
 
-## <img src="https://api.iconify.design/lucide/heart-handshake.svg?color=%23ec4899" width="28" height="28" align="middle" alt=""> クレジットと帰属
+## <img src="https://api.iconify.design/lucide/heart-handshake.svg?color=%23ec4899" width="34" height="34" align="middle" alt=""> クレジットと帰属
 
 ComfyUI‑Model‑Manager‑Neo は、**[hayden‑cn](https://github.com/hayden-cn)** 氏の
 **[`ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)**
@@ -933,7 +936,7 @@ ZipNN 圧縮、HF/ModelScope アップロード、マルチハブ検索とハッ
 提供されます。ライセンスに従い、オリジナルの著作権表示とライセンス全文は
 [`LICENSE`](LICENSE) に保存されています。
 
-### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="22" height="22" align="middle" alt=""> Built with Qwen Studio
+### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="26" height="26" align="middle" alt=""> Built with Qwen Studio
 
 このフォークの大部分は **[Qwen Studio]** との緊密な協働で作られました:
 グラスモフィズム UI への再構築、Rust ネイティブコア、ZipNN 圧縮エンジン、
@@ -948,7 +951,7 @@ ZipNN 圧縮、HF/ModelScope アップロード、マルチハブ検索とハッ
 
 <a id="license"></a>
 
-## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="28" height="28" align="middle" alt=""> ライセンス
+## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="34" height="34" align="middle" alt=""> ライセンス
 
 **GPL‑3.0‑only** — 全文は [`LICENSE`](LICENSE) を参照してください。
 
@@ -964,7 +967,7 @@ Rust ネイティブコア（[`native/`](native/)）は、プレビュー WebP �
 
 <div align="center">
 
-**Neo が時間を節約してくれたなら、リポジトリへのスター <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> と、
+**Neo が時間を節約してくれたなら、リポジトリへのスター <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="19" height="19" align="middle" alt=""> と、
 [原作者](https://github.com/hayden-cn/ComfyUI-Model-Manager)への感謝をよろしくお願いします。**
 
 </div>

@@ -1,6 +1,6 @@
 <div align="center">
 
-# <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="34" height="34" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
+# <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
 
 ### 浏览 · 下载 · 上传 · 拖放 —— 优雅地管理你的模型。
 
@@ -13,7 +13,7 @@
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![CI](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/ci.yml/badge.svg?branch=main)
 ![Native core](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/native.yml/badge.svg?branch=main)
-![ZipNN format](https://img.shields.io/badge/ZipNN-format_0.5.4_cross--validated-0ea5e9.svg)
+![ZipNN](https://img.shields.io/badge/ZipNN-Rust_reimplementation-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)
@@ -28,8 +28,9 @@
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
 ![Ruff](https://img.shields.io/badge/Ruff-0.16.9-D7FF64.svg?logo=ruff&logoColor=black)
-![Node](https://img.shields.io/badge/Node-26_%C2%B7_build-339933.svg?logo=nodedotjs&logoColor=white)
+![Node](https://img.shields.io/badge/Node-26-339933.svg?logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
+![uv](https://img.shields.io/badge/uv-dev_%26_CI-DE5FE9.svg?logo=uv&logoColor=white)
 
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
@@ -38,7 +39,7 @@
 
 [English](README.md) · [日本語](README.ja.md) · **简体中文** · [繁體中文](README.zh-TW.md)
 
-![概览动画](demo-assets/hero.gif)
+![概览动画](demo-assets/hero.webm)
 
 </div>
 
@@ -54,14 +55,14 @@
 
 <a id="why-neo"></a>
 
-## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="28" height="28" align="middle" alt=""> Why Neo?
+## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="34" height="34" align="middle" alt=""> Why Neo?
 
 **ComfyUI‑Model‑Manager‑Neo** 继承了优秀的原版管理器，并从零开始重建了
 整个使用体验：
 
-**Neo 新增**
+**1. Neo 新增**
 
-- <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Rust 原生核心** —— 模型库扫描、哈希、safetensors 头部解析、张量树、
+- <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust 原生核心** —— 模型库扫描、哈希、safetensors 头部解析、张量树、
   文件夹监视、预览 WebP 编解码以及整个 ZipNN 引擎，都运行在仓库内附带的
   **预构建 Rust 扩展**中：四个平台各一个二进制，基于 Stable ABI 覆盖
   CPython 3.10 及以上版本。核心本身只需一次普通的 `import` 即可加载 ——
@@ -70,40 +71,41 @@
   库扫描冷启动快约 **7.5 倍**（热态低于 100 ms）、五种哈希记法**一遍**算完、
   65,000 张量的 MoE 张量树构建快约 **100 倍**、ZipNN 压缩无论模型多大
   **峰值内存都低于 1 GB**（证据见 [`docs/BENCH.md`](docs/BENCH.md)）。
-- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **经过验证的内存安全压缩** —— Rust 引擎通过 lint 禁止 `unsafe` 代码：
+- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **经过验证的内存安全压缩** —— Rust 引擎通过 lint 禁止 `unsafe` 代码：
   格式核心完全不含 `unsafe`，唯一需要它的边界（只读内存映射）经过了安全
   评审并有文档记录。引擎还由七个持续 fuzz 目标加固，每次还原都会与压缩时
   记录的 SHA‑256 校验。与官方 `zipnn` 0.5.4 包的格式兼容性是一项 CI 关卡，
   每次 push 都会双向交叉验证。
-- <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN 无损压缩** —— 就地压缩与解压 safetensors 模型（`.znn.safetensors`）、
+- <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **ZipNN 无损压缩** —— 就地压缩与解压 safetensors 模型（`.znn.safetensors`）、
   将整个文件夹批量打包为密封的 `<name>_DeltaZNN` 包、把微调模型相对其
   基础模型缩小为极小的**差分文件**。
-- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **上传到 Hugging Face / ModelScope** —— 把任意本地模型直接发布到 Hugging Face
+- <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **上传到 Hugging Face / ModelScope** —— 把任意本地模型直接发布到 Hugging Face
   或 ModelScope 仓库（需要时自动创建仓库，可选私有、附带相关资产并显示
   实时进度）。
-- <img src="https://api.iconify.design/lucide/radar.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **多 hub 搜索与哈希识别** —— 在同一个输入框中并行搜索 Hugging Face、
+- <img src="https://api.iconify.design/lucide/radar.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **多 hub 搜索与哈希识别** —— 在同一个输入框中并行搜索 Hugging Face、
   ModelScope 与 Civitai，并能用哈希把任意本地文件反查到 Civitai 目录。
-- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **多选** —— 勾选模型与文件夹卡片，一次性加入工作流或删除。
-- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt=""> **星标** —— 每张卡片都有星标开关；加星的条目永远排在最前。
-- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **创建文件夹** —— 文件夹视图中的「添加文件夹」按钮。
-- <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **直链下载** —— 粘贴原始 `.safetensors` / `.ckpt` / `.gguf` URL，选择目标
+- <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **多选** —— 勾选模型与文件夹卡片，一次性加入工作流或删除。
+- <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="19" height="19" align="middle" alt=""> **星标** —— 每张卡片都有星标开关；加星的条目永远排在最前。
+- <img src="https://api.iconify.design/lucide/folder-plus.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **创建文件夹** —— 文件夹视图中的「添加文件夹」按钮。
+- <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **直链下载** —— 粘贴原始 `.safetensors` / `.ckpt` / `.gguf` URL，选择目标
   文件夹，还可选自定义子文件夹。
-- <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **`hf_xet` 加速** —— Hugging Face 传输在可用时使用分块、去重的 Xet 协议。
-- <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **日语语言包** —— 在 English 与中文之外新增完整的日语语言包。界面语言
-  跟随 ComfyUI 自身的设置，地区/文字系统子标签（`ja-JP`、`zh-Hant-TW` 等）
-  会折叠到其基础语言。
+- <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf_xet` 加速** —— Hugging Face 传输在可用时使用分块、去重的 Xet 协议。
+- <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **日语与繁體中文语言包** —— 在 English 与简体中文之外，新增完整的日语
+  与繁體中文（zh-TW）语言包。界面语言跟随 ComfyUI 自身的设置；地区子标签
+  （`ja-JP` 等）折叠到其基础语言，Hant 文字系统标签（`zh-Hant`、
+  `zh-Hant-TW` 等）选择繁體中文包。
 
-**刷新与增强**
+**2. 刷新与增强**
 
-- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **玻璃拟态 UI** —— 半透明、带模糊与层次感的界面，自动跟随 ComfyUI 自身的
+- <img src="https://api.iconify.design/lucide/layers.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **玻璃拟态 UI** —— 半透明、带模糊与层次感的界面，自动跟随 ComfyUI 自身的
   浅色/深色配色。
-- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Reka-UI 全面刷新** —— PrimeVue 依赖已替换为轻量、无样式的 **[reka-ui]**
+- <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Reka-UI 全面刷新** —— PrimeVue 依赖已替换为轻量、无样式的 **[reka-ui]**
   原语、**Tailwind CSS v4** 与 **[Lucide]** 图标：一套读得懂、改得动的
   shadcn‑vue 风格组件。
-- <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **一流的节点图集成** —— 把模型拖到画布上即可生成或填充节点，把 embedding
+- <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **一流的节点图集成** —— 把模型拖到画布上即可生成或填充节点，把 embedding
   拖进文本区，加载预览图中内嵌的工作流。
-- <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **响应式** —— 面向桌面、移动与多屏环境设计。
-- <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **现代工具链** —— Vite 8（Rolldown）、TypeScript 6、ESLint 10 flat config、
+- <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **响应式** —— 面向桌面、移动与多屏环境设计。
+- <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **现代工具链** —— Vite 8（Rolldown）、TypeScript 6、ESLint 10 flat config、
   Prettier、Stylelint、Ruff、clippy、husky + lint‑staged。确定性的、
   lint 零警告的构建。
 
@@ -116,48 +118,48 @@
 
 <a id="screenshots"></a>
 
-## <img src="https://api.iconify.design/lucide/camera.svg?color=%238b5cf6" width="28" height="28" align="middle" alt=""> 截图
+## <img src="https://api.iconify.design/lucide/camera.svg?color=%238b5cf6" width="34" height="34" align="middle" alt=""> 截图
 
-### 平铺「模型」视图 —— 搜索、排序与网格大小调整
+### 1. 平铺「模型」视图 —— 搜索、排序与网格大小调整
 
-![平铺模型网格](demo-assets/view-flat.png)
+![平铺模型网格](demo-assets/view-flat.avif)
 
 **平铺**布局下的管理器窗口：玻璃质感模型卡片组成的网格（带预览、类型与
 大小标签）、搜索栏，以及类型 / 排序 / 卡片尺寸选择器。
 
-### 文件夹（资源管理器）视图 —— 浏览目录树
+### 2. 文件夹（资源管理器）视图 —— 浏览目录树
 
-![文件夹资源管理器视图](demo-assets/view-folders.png)
+![文件夹资源管理器视图](demo-assets/view-folders.avif)
 
 **文件夹**布局的第一层，带面包屑路径，以及指针停留时会自动打开的玻璃
 文件夹卡片动画。
 
-### 模型详情、编辑与 Hugging Face 上传
+### 3. 模型详情、编辑与 Hugging Face 上传
 
 |                                                                   |                                                                           |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| ![模型信息](demo-assets/model-info.png)                           | ![编辑模式](demo-assets/model-edit.png)                                   |
+| ![模型信息](demo-assets/model-info.avif)                          | ![编辑模式](demo-assets/model-edit.avif)                                  |
 | _模型信息：预览、基础信息表、Description 与 Information 标签页。_ | _编辑模式：类型下拉框、文件夹选择按钮、接受 `folder/name` 前缀的文件名。_ |
 
-|                                                                  |                                                                        |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| ![Hugging Face 上传](demo-assets/hf-upload.png)                  | ![日语界面](demo-assets/ja-model-info.png)                             |
-| _上传到 Hugging Face 的第 3 步：仓库 ID、创建时私有、目标路径。_ | _同一窗口的**日语**界面 —— 内置完整的 English / 中文 / 日本語语言包。_ |
+|                                                                  |                                                                               |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| ![Hugging Face 上传](demo-assets/hf-upload.avif)                 | ![日语界面](demo-assets/ja-model-info.avif)                                   |
+| _上传到 Hugging Face 的第 3 步：仓库 ID、创建时私有、目标路径。_ | _同一窗口的**日语**界面 —— 内置完整的 English / 中文（简繁）/ 日本語语言包。_ |
 
-### 模型名搜索与 safetensors 张量树
+### 4. 模型名搜索与 safetensors 张量树
 
 |                                                                                                |                                                                                          |
 | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| ![多平台搜索](demo-assets/search-columns.png)                                                  | ![张量树](demo-assets/tensor-tree.png)                                                   |
+| ![多平台搜索](demo-assets/search-columns.avif)                                                 | ![张量树](demo-assets/tensor-tree.avif)                                                  |
 | _一次查询、三个 hub：Hugging Face / ModelScope / Civitai 三列结果，带头像、下载数与深度链接。_ | _Information 标签页以可折叠的文件夹树渲染 safetensors 头部（Hugging Face 查看器风格）。_ |
 
-10 秒导览见 [`demo-assets/hero.gif`](demo-assets/hero.gif)。
+10 秒导览见 [`demo-assets/hero.webm`](demo-assets/hero.webm)。
 
 ---
 
 <a id="installation"></a>
 
-## <img src="https://api.iconify.design/lucide/rocket.svg?color=%2322c55e" width="28" height="28" align="middle" alt=""> 安装
+## <img src="https://api.iconify.design/lucide/rocket.svg?color=%2322c55e" width="34" height="34" align="middle" alt=""> 安装
 
 Neo 作为 ComfyUI 自定义节点运行。任选一种方式：
 
@@ -204,7 +206,7 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
 
 <a id="features"></a>
 
-## <img src="https://api.iconify.design/lucide/list-checks.svg?color=%233b82f6" width="28" height="28" align="middle" alt=""> 功能
+## <img src="https://api.iconify.design/lucide/list-checks.svg?color=%233b82f6" width="34" height="34" align="middle" alt=""> 功能
 
 <details open>
 <summary><b>浏览与整理</b></summary>
@@ -316,9 +318,8 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
 - **监视模型文件夹的外部更改**（默认关闭；网络挂载自动跳过）。
 - ZipNN 自动化：自动压缩 N 天未使用的模型、下载完成后自动压缩、prompt
   执行期间暂停下载。
-- 界面语言跟随 ComfyUI 的区域设置 —— 内置完整的 **English**、**中文**
-  与 **日本語**；地区/文字系统子标签（`ja-JP`、`zh-Hant-TW` 等）折叠到
-  其基础语言。
+- 内置完整的 **English**、**中文**（简体与繁體）与 **日本語**；地区子标签
+  （`ja-JP` 等）折叠到其基础语言，Hant 文字系统标签选择繁體中文包。
 
 </details>
 
@@ -326,7 +327,7 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
 
 <a id="search"></a>
 
-## <img src="https://api.iconify.design/lucide/search.svg?color=%2314b8a6" width="28" height="28" align="middle" alt=""> 模型搜索与多平台发现
+## <img src="https://api.iconify.design/lucide/search.svg?color=%2314b8a6" width="34" height="34" align="middle" alt=""> 模型搜索与多平台发现
 
 **创建下载任务**窗口不仅接受页面 URL：任何**不以** `https://` 开头的输入
 都会被当作模型名查询，在三个平台上并行搜索 —— **Hugging Face**（左列）、
@@ -376,7 +377,7 @@ clip skip、尺寸、基础模型与资源配方）。
 
 <a id="zipnn"></a>
 
-## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> ZipNN 无损压缩
+## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="34" height="34" align="middle" alt=""> ZipNN 无损压缩
 
 大型 `.safetensors` 检查点很快就会吃满磁盘。Neo 以
 [ZipNN](https://github.com/zipnn/zipnn) 格式**就地、无损**地压缩与解压
@@ -384,7 +385,7 @@ clip skip、尺寸、基础模型与资源配方）。
 核心**执行，并在 CI 中与官方 `zipnn` 0.5.4 包双向交叉验证，因此产物与
 更广泛的 ZipNN 生态保持可互换。
 
-### 工作原理
+### 1. 工作原理
 
 模型权重绝大部分是浮点数，而浮点数绝大部分是_冗余_的：表现良好的权重
 张量中，指数字节会反复出现。ZipNN 正是利用这一点。对每张量：
@@ -409,7 +410,7 @@ ZipNN 工具（以及打过 `zipnn_safetensors()` 补丁的加载器）所期望
 
 <a id="dtype-coverage--the-interoperability-matrix"></a>
 
-### dtype 覆盖与互操作矩阵
+### 2. dtype 覆盖与互操作矩阵
 
 Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 dtype**。
 压缩文件所属的带记录在元数据中（扩展带为 `znn_neo_extended="1"`），并
@@ -436,7 +437,7 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
 - `complex128` 与 `bcomplex32` 只存在于 codec 层（码 129/131），没有
   safetensors 表示 —— 任何 `.safetensors` 文件都承载不了它们。
 
-### 使用方法
+### 3. 使用方法
 
 打开任意 `.safetensors` 模型。在预览与信息表之间的空隙里，就是
 **ZipNN 图案本身构成的按钮** —— 随附 SVG 自带玻璃底板（含深色模式
@@ -459,7 +460,7 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
 即可压缩（或反色解压），无需打开模型，确认框完全相同。任何任务运行
 期间 —— 单个、批量或差分 —— 按钮显示**环形进度圈**（批量时带百分比）。
 
-### 批量压缩（整个文件夹）
+### 4. 批量压缩（整个文件夹）
 
 选中文件夹（「Select files」）后按下**底部栏的 ZipNN 图案按钮** —— 或
 使用文件夹卡片右上角的按钮 —— 文件夹树内所有 `.safetensors` 模型都会
@@ -483,7 +484,7 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
 
 多个文件夹按队列执行：一次确认、逐次任务、同一时间只有一个进度状态。
 
-### 差分压缩（微调相对基础模型）
+### 5. 差分压缩（微调相对基础模型）
 
 微调模型与它的基础模型共享大部分字节，ZipNN 可以只保存**差异**：恰好
 选中两个普通 `.safetensors` 模型，按下底部栏的 **ZipNN 差分压缩**。小
@@ -494,7 +495,7 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
 模型旁边，并撤走清空的差分文件夹。还原需要基础模型仍在，且差分文件
 记录了微调模型自身的 SHA‑256，因此还原全程可验证。
 
-### <a id="the-engine-a-prebuilt-pure-rust-core"></a>引擎：预构建的纯 Rust 核心
+### <a id="the-engine-a-prebuilt-pure-rust-core"></a>6. 引擎：预构建的纯 Rust 核心
 
 压缩器并非对官方 Python 包的封装，而是 Neo 自研的纯 Rust 引擎在运行该
 格式：上游 C 扩展在 PyPI 上没有 Linux wheel（`pip install zipnn` 需要
@@ -545,14 +546,14 @@ WebP 编解码使用 zenwebp（AGPL‑3.0）—— 全文见
 
 <a id="what-changed"></a>
 
-## <img src="https://api.iconify.design/lucide/git-compare.svg?color=%23a855f7" width="28" height="28" align="middle" alt=""> 与原版相比改变了什么
+## <img src="https://api.iconify.design/lucide/git-compare.svg?color=%23a855f7" width="34" height="34" align="middle" alt=""> 与原版相比改变了什么
 
 本节按 GPL‑3.0 许可证的要求明示 fork 的差异。比较基准为
 [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
 **v2.8.5**。功能被保留并扩展；被_移除_的只有两样：PrimeVue 依赖本身，
 以及批量扫描功能 —— 见[被移除的功能：批量扫描](#removed-feature)。
 
-### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="22" height="22" align="middle" alt=""> 界面
+### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="26" height="26" align="middle" alt=""> 界面
 
 | 区域           | 原版                                                      | **Neo**                                                                                                                                                                                                              |
 | -------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -562,9 +563,9 @@ WebP 编解码使用 zenwebp（AGPL‑3.0）—— 全文见
 | 观感           | 标准 PrimeVue 表面                                        | **玻璃拟态**（模糊、层次、微交互），自动深色模式                                                                                                                                                                     |
 | 对话框         | PrimeVue `Dialog`/`ContextMenu`                           | reka‑ui 对话框，逐对话框尺寸/位置、拖拽移动、带锚点的右键菜单                                                                                                                                                        |
 | 模型详情标签页 | Description + Metadata（原始 safetensors `__metadata__`） | Description + **Information**：解析笔记 YAML front‑matter 的只读表格（作者、基础模型、哈希、格式与精度、模型平台、模型页链接、所有预览 URL，未知键原样列出），回退为原始 `__metadata__`，外加 safetensors **张量树** |
-| 语言           | English、中文                                             | English、中文、**日本語**（完整语言包）                                                                                                                                                                              |
+| 语言           | English、中文                                             | English、中文（简体＋**繁體**）、**日本語**（完整语言包）                                                                                                                                                            |
 
-### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="22" height="22" align="middle" alt=""> 后端与引擎
+### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="26" height="26" align="middle" alt=""> 后端与引擎
 
 最深层的改变在界面之下。原版为纯 Python（7 个后端模块、15 条 HTTP
 路由）；Neo 成长为 16 个 Python 模块、约 40 条路由，并把所有热点路径移入
@@ -588,10 +589,10 @@ WebP 编解码使用 zenwebp（AGPL‑3.0）—— 全文见
 
 在原版之上的功能级新增 —— 上传到 Hugging Face 与 ModelScope、多 hub
 搜索、哈希识别、智能收藏、星标、多选、创建文件夹、直链下载、剩余空间
-保护、Civitai 下载安全网、图集预览、日语语言包 —— 已在[功能](#features)
+保护、Civitai 下载安全网、图集预览、日语与繁體中文语言包 —— 已在[功能](#features)
 中描述；全部为 Neo 侧的工作。
 
-### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="22" height="22" align="middle" alt=""> 依赖包
+### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="26" height="26" align="middle" alt=""> 依赖包
 
 - **移除：** `primevue`、`@primevue/themes`、`lodash`、`dayjs`、`js-yaml`
   （最后一个在原版中即已未被使用 —— YAML 工作一直由 `yaml` 承担）。
@@ -610,13 +611,13 @@ WebP 编解码使用 zenwebp（AGPL‑3.0）—— 全文见
   阶段曾随附的 vendored ZipNN C 源码及其按 CPython 版本划分的 `.so` 文件，
   在 Rust 核心就位后已全部移除。
 
-### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="22" height="22" align="middle" alt=""> 工具栏 / 按钮职责
+### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="26" height="26" align="middle" alt=""> 工具栏 / 按钮职责
 
 管理器头部被重新设计为明确的图标驱动操作：**平铺 ⇄ 文件夹布局切换**、
 **卫生扫描**、**显示/隐藏隐藏文件**、**刷新**、**下载列表**，以及
 **上传到 Hugging Face / ModelScope**。
 
-### <img src="https://api.iconify.design/lucide/folder-open.svg?color=%23f59e0b" width="22" height="22" align="middle" alt=""> 玻璃资产包（文件夹图标与无预览图案）
+### <img src="https://api.iconify.design/lucide/folder-open.svg?color=%23f59e0b" width="26" height="26" align="middle" alt=""> 玻璃资产包（文件夹图标与无预览图案）
 
 界面使用 `assets/` 中手工制作的玻璃拟态资产包：
 
@@ -631,7 +632,7 @@ WebP 编解码使用 zenwebp（AGPL‑3.0）—— 全文见
 - **模型 hub 标志**（Civitai、Hugging Face、ModelScope）作为**打开模型
   页**按钮的背景，模型来源一眼可辨。
 
-### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="22" height="22" align="middle" alt=""> 工具链
+### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="26" height="26" align="middle" alt=""> 工具链
 
 lint 与格式化流水线是一套约定俗成、配置完整的组合：前端 **ESLint 10
 flat config** + **Prettier** + **Stylelint 17**，Python 后端 **Ruff** +
@@ -646,7 +647,7 @@ flat config** + **Prettier** + **Stylelint 17**，Python 后端 **Ruff** +
 
 <a id="removed-feature"></a>
 
-## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="28" height="28" align="middle" alt=""> 被移除的功能：批量扫描
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 被移除的功能：批量扫描
 
 **「批量扫描模型信息」** 功能已被移除，因为它是冗余的：模型详情窗口
 直接从 safetensors 头部读取该模型的 `__metadata__`，连同文件旁的
@@ -672,7 +673,7 @@ Markdown 笔记一起呈现；没有预览的模型在网格中直接带上随�
 
 <a id="documentation"></a>
 
-## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="28" height="28" align="middle" alt=""> 文档
+## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> 文档
 
 逐步使用指南，每份都完整自足：
 
@@ -697,7 +698,7 @@ Markdown 笔记一起呈现；没有预览的模型在网格中直接带上随�
 
 <a id="development"></a>
 
-## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="28" height="28" align="middle" alt=""> 开发
+## <img src="https://api.iconify.design/lucide/terminal.svg?color=%230ea5e9" width="34" height="34" align="middle" alt=""> 开发
 
 **构建** Web 打包产物只需要 Node.js；在 ComfyUI 内运行扩展只需要
 Python（Rust 核心预构建随附）。
@@ -764,7 +765,7 @@ universal2、maturin/MSVC 生成 Windows）；[`native/README.md`](native/README
 **husky** 的 `pre-commit` 钩子会对暂存文件运行 **lint-staged**（前端
 ESLint + Stylelint + Prettier，后端 Ruff），外加完整的 `pnpm typecheck`。
 
-### 质量关卡
+### 1. 质量关卡
 
 **Fallow**（Rust 实现，分析器内不含 AI）把仓库读作一张依赖图，报告未
 使用的文件/export/类型/依赖、循环导入、克隆组与复杂度热点；代码树保持
@@ -786,7 +787,7 @@ ESLint + Stylelint + Prettier，后端 Ruff），外加完整的 `pnpm typecheck
 与 3.13 下 import abi3 产物，并在 Linux、Windows、macOS 上运行完整
 pytest 套件与官方 `zipnn` 交叉验证。
 
-### 项目结构
+### 2. 项目结构
 
 ```
 ├─ __init__.py            # ComfyUI 入口：安装依赖、注册路由
@@ -823,7 +824,7 @@ pytest 套件与官方 `zipnn` 交叉验证。
 
 <a id="credits"></a>
 
-## <img src="https://api.iconify.design/lucide/heart-handshake.svg?color=%23ec4899" width="28" height="28" align="middle" alt=""> 致谢与归属
+## <img src="https://api.iconify.design/lucide/heart-handshake.svg?color=%23ec4899" width="34" height="34" align="middle" alt=""> 致谢与归属
 
 ComfyUI‑Model‑Manager‑Neo 之所以存在，只因为
 **[hayden‑cn](https://github.com/hayden-cn)** 的
@@ -848,7 +849,7 @@ zstd huff0/FSE 规范（RFC 8878）与 FiniteStateEntropy（BSD‑2‑Clause）�
 [与原版相比改变了什么](#what-changed)）以相同的 GPL‑3.0 许可证提供。
 按许可证要求，原版版权声明与许可证全文保留在 [`LICENSE`](LICENSE) 中。
 
-### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="22" height="22" align="middle" alt=""> Built with Qwen Studio
+### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="26" height="26" align="middle" alt=""> Built with Qwen Studio
 
 本 fork 的很大一部分是在与 **[Qwen Studio]** 的紧密协作中完成的：玻璃
 拟态 UI 重建、Rust 原生核心、ZipNN 压缩引擎、hub 上传流程、可靠性与
@@ -862,7 +863,7 @@ zstd huff0/FSE 规范（RFC 8878）与 FiniteStateEntropy（BSD‑2‑Clause）�
 
 <a id="license"></a>
 
-## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="28" height="28" align="middle" alt=""> 许可证
+## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="34" height="34" align="middle" alt=""> 许可证
 
 **GPL‑3.0‑only** —— 全文见 [`LICENSE`](LICENSE)。
 
@@ -876,7 +877,7 @@ AGPL）。ComfyUI 是**本地**应用而非网络服务，因此 AGPL 的网络�
 
 <div align="center">
 
-**如果 Neo 为你节省了时间，请考虑给仓库点个星 <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="16" height="16" align="middle" alt="">，并感谢
+**如果 Neo 为你节省了时间，请考虑给仓库点个星 <img src="https://api.iconify.design/lucide/star.svg?color=%23eab308" width="19" height="19" align="middle" alt="">，并感谢
 [原作者](https://github.com/hayden-cn/ComfyUI-Model-Manager)。**
 
 </div>

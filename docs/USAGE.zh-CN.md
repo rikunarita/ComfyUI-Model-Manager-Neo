@@ -93,7 +93,7 @@ Node.js 也不需要编译器** —— 覆盖的平台见[引擎](#the-engine)�
 - **卡片尺寸** —— Extra Large / Large / Medium / Small，或**自定义尺寸**
   （带宽/高滑杆的对话框，持久化保存在 ComfyUI 设置中）。
 
-![平铺布局](../demo-assets/view-flat.png)
+![平铺布局](../demo-assets/view-flat.avif)
 
 ### 文件夹布局
 
@@ -102,7 +102,7 @@ Node.js 也不需要编译器** —— 覆盖的平台见[引擎](#the-engine)�
 右键模型弹出上下文菜单（**打开**）。窗口变窄时，中间层级先省略号化，
 工具栏改为纵向堆叠 —— 与平铺视图相同的响应式规则 —— 控件永远不会被裁掉。
 
-![文件夹布局](../demo-assets/view-folders.png)
+![文件夹布局](../demo-assets/view-folders.avif)
 
 搜索框旁边的一行提供**添加文件夹**（文件夹加号图标）：输入任意名称，
 文件夹就会创建在你正在浏览的目录内（以 `_ZNN` / `_DeltaZNN` 结尾的名称
@@ -148,11 +148,11 @@ Node.js 也不需要编译器** —— 覆盖的平台见[引擎](#the-engine)�
 
 卫生扫描把结果集中到一个对话框中，每个条目都经惯常的 Danger 确认后删除：
 
-![卫生扫描](../demo-assets/hygiene-scan.png)
+![卫生扫描](../demo-assets/hygiene-scan.avif)
 
 ## 5. 模型详情与编辑
 
-![模型详情](../demo-assets/model-info.png)
+![模型详情](../demo-assets/model-info.avif)
 
 窗口显示预览（有多个预览时为轮播）、基本信息表和两个标签页。
 
@@ -184,7 +184,7 @@ Node.js 也不需要编译器** —— 覆盖的平台见[引擎](#the-engine)�
   超大节点会对叶子分页，并提供明确的_全部显示_操作。树由 Rust 核心预先分组，
   因此即便数万张量的 MoE 头部也能立即打开。
 
-  ![张量树](../demo-assets/tensor-tree.png)
+  ![张量树](../demo-assets/tensor-tree.avif)
 
 - **打开模型页** —— 操作行中的按钮与卡片悬停列中的孪生按钮一样，
   只要笔记记录了平台，就以来源站（Civitai、Hugging Face 或 ModelScope）的
@@ -204,13 +204,13 @@ Node.js 也不需要编译器** —— 覆盖的平台见[引擎](#the-engine)�
 
 按**铅笔**进入编辑模式（窗口变成表单）：
 
-![编辑模式](../demo-assets/model-edit.png)
+![编辑模式](../demo-assets/model-edit.avif)
 
 - **Model Type** —— 下拉框只列出你的 ComfyUI 实际拥有文件夹的类型。
 - **Directory** —— 只读字段加**文件夹按钮**，后者打开一个嵌套的文件夹选择
   对话框，包含每个基础路径与子文件夹的树：
 
-  ![文件夹选择器](../demo-assets/folder-picker.png)
+  ![文件夹选择器](../demo-assets/folder-picker.avif)
 
 - **文件名** —— 接受**文件夹前缀**。输入 `subfolder/my-model`，保存时模型
   会被归档到 `…/models/unet/subfolder/`（缺失的文件夹会被创建）。
@@ -225,8 +225,6 @@ Node.js 也不需要编译器** —— 覆盖的平台见[引擎](#the-engine)�
 - **描述** —— 按提示文字旁的**编辑（铅笔）图标**打开 Markdown 文本域；
   文本域失焦时保存：
 
-  ![描述编辑器](../demo-assets/model-edit-description.png)
-
 - **保存 / 取消** —— 有未保存更改时取消会先询问确认。保存只发一个请求；
   所有变更（名称、类型、目录、预览、描述）按字段原子地应用。
 - **删除**（红色垃圾桶） —— 确认对话框之后删除模型**及**其预览与笔记。
@@ -237,8 +235,6 @@ Node.js 也不需要编译器** —— 覆盖的平台见[引擎](#the-engine)�
 
 ### 创建下载任务
 
-![创建下载任务](../demo-assets/download.png)
-
 1. 粘贴 **Civitai 模型页**、**Hugging Face repo/blob/tree**、
    **ModelScope 模型页**（`www.modelscope.ai`）或**直接文件链接**
    （`.safetensors`、`.ckpt`、`.gguf` 等），按 **Enter** 或搜索图标。
@@ -248,7 +244,7 @@ Node.js 也不需要编译器** —— 覆盖的平台见[引擎](#the-engine)�
 3. Civitai/HF 页面会解析出一个或多个**版本**与**文件**；在工具栏选版本，
    在编辑器里选文件。
 
-   ![解析结果](../demo-assets/download-resolved.png)
+   ![解析结果](../demo-assets/download-resolved.avif)
 
    版本行下方的编辑器**左侧放预览、右侧放图集条**，其下依次是文件选择 +
    下载、元数据编辑器和描述/信息标签页，因此无论窗口多窄都不会有内容
@@ -277,7 +273,7 @@ Enter 会（重新）执行名称搜索而不是解析过期的行。搜索进�
 **设置 → Model Manager Neo → 搜索**中隐藏平台、选择各平台的**排序方式**
 （默认为 Hugging Face 趋势、ModelScope 点赞、Civitai 评分最高）。
 
-![多平台搜索](../demo-assets/search-columns.png)
+![多平台搜索](../demo-assets/search-columns.avif)
 
 ### 下载计划与安全检查
 
@@ -322,7 +318,7 @@ Enter 会（重新）执行名称搜索而不是解析过期的行。搜索进�
 3. **选择模型** —— 该类型的网格；选中后目标路径会预填模型的相对路径。
 4. **上传**：
 
-   ![HF 上传表单](../demo-assets/hf-upload.png)
+   ![HF 上传表单](../demo-assets/hf-upload.avif)
 
    - **仓库 ID** —— `username/repo-name`。
    - **仓库不存在时创建为私有** —— _仅在创建时_生效；已存在的仓库保持
@@ -342,7 +338,7 @@ Enter 会（重新）执行名称搜索而不是解析过期的行。搜索进�
 | `哈希中…` | 在原生核心中计算本地 SHA256（数 GB 的模型可能需要几分钟）；**尚未发出任何字节** |
 | `上传中…` | 实际传输，带实时百分比                                                          |
 
-![HF 上传进度](../demo-assets/hf-upload-progress.png)
+![HF 上传进度](../demo-assets/hf-upload-progress.avif)
 
 ### 完成时可能出现的提示
 
@@ -370,16 +366,12 @@ Enter 会（重新）执行名称搜索而不是解析过期的行。搜索进�
   信息（强调色）。每条通知带有级别图标、着色左边条和右上角**关闭按钮**；
   它们堆叠在所有对话框之上的右上角，并在生命周期结束后自动消失。
 
-  ![通知](../demo-assets/toast-stack.png)
-
 - **所有预览都会保留。** 下载与保存会存储模型的每张预览图
   （`<name>.webp`、`<name>.preview.webp`、`<name>.preview2.webp` 等）。
 - **翻页。** 模型有多张预览时，预览区在查看和编辑模式下都显示 **`<` / `>`
   按钮**和 `i / n` 计数。
 - **灯箱。** 点击（轻触）预览即全屏打开；`<` / `>` 或方向键在图集内翻页，
   `Esc`、背景或关闭按钮退出。
-
-  ![灯箱](../demo-assets/lightbox.png)
 
 - **环境变量密钥。** 若 `private.key` 为空且导出了 `HF_TOKEN` /
   `CIVITAI_API_KEY` / `MODELSCOPE_API_TOKEN`，这些密钥会被自动采纳进
@@ -396,7 +388,7 @@ Enter 会（重新）执行名称搜索而不是解析过期的行。搜索进�
 文件夹的左上角显示圆形复选框；点击卡片变为勾选而不是打开。选中任意一项后，
 窗口底部立即出现批量操作栏：
 
-![选择模式](../demo-assets/selection-mode.png)
+![选择模式](../demo-assets/selection-mode.avif)
 
 - **加入工作流** —— 为每个选中的模型创建一个加载器节点；选中的_文件夹_
   递归贡献其中每个模型；
@@ -433,7 +425,7 @@ ZipNN 打包文件夹（`*_DeltaZNN`、旧式 `*_ZNN`）与普通文件夹永远
 **压缩后大小** / **占原始大小百分比**三行（压缩前大小在压缩时已记录进文件
 元数据）。
 
-![已压缩模型详情](../demo-assets/compressed-model.png)
+![已压缩模型详情](../demo-assets/compressed-model.avif)
 
 压缩文件遵循官方 ZipNN 布局（`znn_compressed_vectors` 元数据、Huffman 压缩
 张量 —— Rust 核心覆盖**所有** safetensors dtype，见下文_dtype 覆盖与互操作_），
@@ -507,7 +499,7 @@ Rust 核心压缩 **safetensors 0.8 定义的每个 dtype**（全部 22 种）�
 基础模型仍然存在，且增量文件记录了微调模型自己的 SHA‑256，因此还原全程
 可验证。
 
-![ZipNN 增量对话框](../demo-assets/zipnn-delta-dialog.png)
+![ZipNN 增量对话框](../demo-assets/zipnn-delta-dialog.avif)
 
 ## 11. 设置
 
@@ -562,10 +554,11 @@ ComfyUI **设置 → Model Manager Neo**：
 ## 12. 语言
 
 UI 跟随 ComfyUI 的区域设置（**设置 → ComfyUI → Locale**），并提供
-**English**、**中文**、**日本語**的完整语言包。区域/文字系统子标签
-（`ja-JP`、`zh-Hant-TW` 等）会折叠到其基础语言；其余情况回退到 English。
+**English**、**中文**（简体与繁體）、**日本語** 的完整语言包。地区子标签
+（`ja-JP` 等）折叠到其基础语言，Hant 文字系统标签（`zh-Hant`、`zh-Hant-TW`
+等）选择繁體中文包；其余情况回退到 English。
 
-![日本語 UI](../demo-assets/ja-model-info.png)
+![日本語 UI](../demo-assets/ja-model-info.avif)
 
 ## 13. 故障排查
 
@@ -582,6 +575,5 @@ UI 跟随 ComfyUI 的区域设置（**设置 → ComfyUI → Locale**），并�
 
 ## Screenshots（截图）
 
-本指南中的图片位于 [`demo-assets/`](../demo-assets/)。页头导览以两种形式附带：
-README 中的 GIF，以及由其导出的准无损源录像
-[`hero.webm`](../demo-assets/hero.webm)。
+本指南中的图片以 AVIF 静态图形式位于 [`demo-assets/`](../demo-assets/)。
+页头导览为几乎无损的录像 [`hero.webm`](../demo-assets/hero.webm)。
