@@ -477,7 +477,10 @@ def batch_process_folder(
     into the bundle folder `<parent>/<name>_DeltaZNN` (previews/notes follow;
     directories the batch emptied are removed, so `X` is replaced by
     `X_DeltaZNN`). Model-type roots keep themselves and get the bundle inside
-    (`T/T_DeltaZNN`).
+    (`T/T_DeltaZNN`). Already-compressed models left in place outside bundle
+    sub-trees (single-model button, auto-compress, older versions) MOVE into
+    the bundle untouched - no re-compression - so the sealed bundle gathers
+    every ZipNN content and no compressed straggler survives beside it.
 
     decompress: the exact mirror - bundle content moves back to the folder the
     bundle was named after, delta files (`*_delta_*.znn` inside
@@ -494,22 +497,40 @@ def batch_process_folder(
         if os.path.exists(bundle):
             raise RuntimeError(f"target already exists: {os.path.basename(bundle)}")
         files = _walk_files(folder, "compress", mm)
-        total = max(1, len(files))
-        for index, path in enumerate(files):
-            target = _compress_target(path, folder, bundle)
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            opts = {"threads": 0, "paranoid": bool(paranoid)}
-            _run_native_job_sync(
-                mm,
-                task_id,
-                lambda p=path, t=target, o=opts: mm.zipnn_compress(p, t, o),
-                f"batch-compress {os.path.basename(path)}",
-            )
-            mm.move_with_sidecars(path, target)
-            os.remove(path)
+        # Already-compressed models left IN PLACE (single-model button, the
+        # auto-compress settings, or pre-bundle versions) are ZipNN content
+        # too, and the sealed-bundle model wants them inside the bundle: the
+        # decompress walk sees every `.znn.safetensors`, and dropping the ones
+        # that live inside a bundle sub-tree leaves exactly the in-place set.
+        # They MOVE (no re-compression); the bundle accepts `*.znn.*`.
+        in_place = [
+            p
+            for p in _walk_files(folder, "decompress", mm)
+            if p.endswith(ZNN_SUFFIX) and _locate_bundle(p, folder) is None
+        ]
+        work = files + in_place
+        total = max(1, len(work))
+        for index, path in enumerate(work):
+            if path.endswith(ZNN_SUFFIX):
+                target = utils.join_path(bundle, os.path.relpath(path, folder))
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                os.replace(path, target)
+                mm.move_with_sidecars(path, target)
+            else:
+                target = _compress_target(path, folder, bundle)
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                opts = {"threads": 0, "paranoid": bool(paranoid)}
+                _run_native_job_sync(
+                    mm,
+                    task_id,
+                    lambda p=path, t=target, o=opts: mm.zipnn_compress(p, t, o),
+                    f"batch-compress {os.path.basename(path)}",
+                )
+                mm.move_with_sidecars(path, target)
+                os.remove(path)
             progress(index + 1, total, "files")
         _prune_empty_dirs(folder, remove_root=not is_type_root)
-        return {"files": len(files), "folder": bundle}
+        return {"files": len(work), "folder": bundle}
 
     files = _walk_files(folder, "decompress", mm)
     total = max(1, len(files))
