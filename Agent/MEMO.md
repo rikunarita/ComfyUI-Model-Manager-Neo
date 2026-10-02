@@ -287,9 +287,14 @@ PixelLayout::Rgba8, w, h).encode()`、still decode = `oneshot::decode_rgba`（�
   profraw が出ない（`[train] done` の 37 ms 後）。単一 arch の PE（Windows）/
   ELF（Linux）では再現しない → **macOS は非 PGO 出荷**。macOS ホスト無しでは
   デバッグ不能なので推測修正は禁止（再評価 = upstream 修正後に arm64 単一 arch から）。
-- **PGO プロファイルは決定論的に再現する**: train.py のシード固定により G2 の
-  数値群（7,618 / 1,052 / 13.81 % / znn_codec 877）が run #106・#107・出荷
-  ビルドの 3 箇所で完全一致。missing 内訳の新クラス（#107 判明）: rayon の
+- **PGO プロファイルは決定論的に再現する — ただし「関数集合と missing 比率」
+  の意味で**: train.py のシード固定により G2 の形状数値（7,618 / 1,052 /
+  13.81 % / znn_codec 877）は run #106・#107 ×2・#108 ×2 の 5 セルで完全一致。
+  **Total count は ±0.1 % 一致**（同一 run の 2 ジョブ間でも ~0.08 % ずれる —
+  #107: 992,358 / #108: 1,080,225。rayon の並列分割/ワークスティーリング順が
+  ランナーで変わりうるため。G2 の count 条件が `> 0` のみなのはこのため）。
+  train.py の重み付け改訂は count を意図どおり動かす（#107→#108 +6.7 % =
+  scan 系増量の反映証明）。missing 内訳の新クラス（#107 判明）: rayon の
   `in_worker_cold` / `in_worker_cross` 分裂変種 = use ビルド側で新規生成される
   コールド経路複製（良性）。
 - **共有ランナーの A/B 計測: round 0 は両側とも冷間・短時間窓は二峰分散**
@@ -300,6 +305,16 @@ PixelLayout::Rgba8, w, h).encode()`、still decode = `oneshot::decode_rgba`（�
   定常 round 2 は ×0.99）。**対策（恒久）**: ラウンド別生サンプル
   （`roundsA`/`roundsB`）を JSON と job summary の両方へ記録し、解釈は必ず
   ラウンド別表で行う。N=5（3→5 へ増量）。
+- **min-of-N 判定は共有ランナーで使えない（run #108 で確定・判定 = 側別中央値）**:
+  #108 の compress min ×0.7575 は「a の外れ値ラウンド 4 vs b の外れ値
+  ラウンド 3」の比で、退行ではなかった（clean round 1 同士は ×0.9992・
+  hash は全ラウンド ±0.4 %・側内変動は最大 2.2 倍）。min 判定は 2 run 連続で
+  アーティファクト（#107 scan ×0.349 / #108 compress ×0.7575・scan ×5.0302）を
+  生んだため、**G1 判定 = 側別中央値比**（Plan‑2 §2.2 の原定義）、min/best は
+  参考並記、REGRESSION WATCH も中央値 < 0.95。**steal ゲートはこのノイズ級を
+  捕まえられない**（#108 は破棄 0 で通過 — バースト的な割当/スケジュール干渉は
+  /proc/stat の steal に現れない）。hash（±0.4 % の安定対照）とラウンド別表が
+  唯一の判別手段。実装 = `train.py::summarize_workloads()`（BENCH §13.6）。
 
 ### 4.2 フロントエンド / V8
 
@@ -593,3 +608,4 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
 
 | 第 22 | 2026‑10‑01 | **run #106 の G2 失敗を根因解析して再校正 + Plan‑2 Step 4（出荷ビルドの PGO 化）を配線**。(1) **#106 の位置づけ**: native run #106 は pgo-measure のみ赤（G2: missing 13.81 % ≥ 1 %）で**他の全ジョブは緑 = Step 1（lld 化）の CI 実走検証が完了**（native-test 3OS が apt ステップなしで緑・integration/abi3/size-budget/fuzz-smoke 緑）。pgo-measure 自身も計装ビルド・train・merge・baseline+PGO 両 zigbuild・サイズゲートまで全成功（ランナーは高速: build-linux 2.4 分・pgo-measure は G2 まで 2.3 分）。(2) **根因 = しきい値の較正誤り**（プロファイル no-op ではない）: 警告 1,052 件を全件分類 = ジェネリック実体化 518 + クロージャ 254 + 計装時完全インライン関数のアウトオブライン復元 485（§4.1 の新項目に恒久記録）。Total count 1.21e9 が適用の陽性証拠。旧 <1 % は dev プロファイル実験（0.055 %）由来で release+fat LTO に不適。(3) **修正**: `scripts/pgo/g2_check.py` 新設（4 条件 = Total functions ≥1000 / Total count >0 / missing <50 % / znn_codec プローブ ≥100。**run #106 の実データ再構成で PASS + mutation 5 ケースで検出力を実証**）+ pgo-measure の G2 ステップ差し替え + merge へ `show --all-functions` ダンプ追加 + 計装ビルドへ `MM_CORE_COMMIT` 付与（バージョン定数の乖離源除去）。(4) **Step 4 配線**（ユーザ指示「G1 未達でも突き進む」= Plan‑2 版数 1.2 に決定記録）: native-build-linux へ三段階（計装 host ビルド → train → merge）+ `--pgo` zigbuild + **恒久 G2**、mac/win へ `--pgo-train`（maturin `--pgo`、`src/pgo.rs` 実読で cwd/PATH/llvm-profdata 解決/profraw ゼロ bail を一次確認 → `pgo-command` の相対パスと `llvm-tools-preview` 3 ジョブ追加が正しいと確定）、aarch64 は非 PGO の根拠コメント。universal2 × PGO の §4.4 三択判断は CI 実走で消化（拒否なら macOS のみ非 PGO へ戻す = 1 行 revert）。(5) 文書: Plan‑2 版数 1.2 + G2 定義 + Step 3/4 マーク + R2、native/README PGO 節（出荷組み込み済み・G2 再校正）、scripts/pgo/README（g2_check.py・恒久ゲート化）。ゲート: ruff 緑・prettier 緑・YAML + 埋め込み bash/python 構文検証・g2_check 実データ/mutation 検証。**CI 実走（pgo-measure の G1 初产出 + PGO 出荷ビルド 3 平台 + universal2 判断）は次ターンでユーザが確認を指示**。 |
 | 第 23 | 2026‑10‑01 | **run #107 の実測消化（G1 初产出 = PASS）+ macOS universal2×PGO の判断 (c) 実行 + 計測プロトコル改善**。(1) **#107 の結果**: pgo-measure 緑（G2 再校正が機能: 13.81 % < 50 % + 陽性プローブ全通過）・native-build-linux 緑（三段階 PGO + 恒久 G2・4,122,976 B = +0.30 %）・native-build-windows 緑（maturin --pgo 完走）・**native-build-macos 赤**（下記）→ integration/size-budget/publish は skip。(2) **G1 初実測 = PASS**: compress ×1.126 / decompress ×2.417 / hash ×1.001 / scan ×0.349（steal 破棄 0・汚染 0）。ラウンド別解析で min 比の実体を特定: **両側 round 0 = 冷間ペアの比較**で、定常（round 2）は compress ×1.007 / decompress ×1.000 / scan ×0.990 へ収束。scan ×0.349 は**側内分散 2.1 倍のラウンド選択アーティファクト**（真の退行ではない）。コールドスタート改善（初回解凍 81→196 MB/s）は PGO の配置最適化の既知の強みと整合し、ユーザ可視の利得として記録。(3) **macOS 失敗の根因**: 計装 universal2 wheel のビルド ✓・train.py 全 30 セクション完走 ✓（"done in 5.612 s"）の後、**インタプリタ終了時のプロファイルランタイム flush で SIGSEGV**（37 ms 後）→ profraw 生成不能・最適化リビルド未到達。単一 arch PE/ELF では再現しない fat dylib 特有の障害。macOS ホスト無しではデバッグ不能 → **§4.4 判断 (c) を実行: macOS は非 PGO 出荷**（native.yml へ証拠コメント、1 ステップ revert）。(4) **恒久対策**: train.py `--measure` の JSON へ `roundsA`/`roundsB`（ラウンド別生サンプル）追加 + job summary へラウンド別表を常設出力 + N=3→5 + REGRESSION WATCH 行（ratio < 0.95 の情報表示）+ train.py トレーニングの scan 系重み付け増（cold×5 + warm×20・hygiene/walk×5 = R7 緩和）。ローカルスモーク: debug .so 再ビルド（環境はターン間で全消失していたため §2.2/§2.3 手順で再構築）→ train 完走 27.8 s + measure 完走 + summary スニペット実走検証。(5) **文書**: BENCH §13（ラウンド別全データ・G2 再現性表・サイズ・macOS 判断・但し書き = Step 5 の BENCH 項目完了）、Plan‑2 版数 1.3（§4.4 決定記録・Step 3 完了 [x]・R7 顕在化記録・付録 A 改訂）、native/README（macOS 非 PGO 節 + Windows 実走確認）、scripts/pgo/README（重み付け注記）。**次ターン: #108（[pgo-measure] マーカー付き）の全緑確認 → ユーザが dev→main マージ**。 |
+| 第 24 | 2026‑10‑01 | **run #108 の全緑確認（Step 4 の dev 側完了）+ G1 判定統計を min → 中央値へ改訂**。(1) **#108 = 15 ジョブ中 14 success + publish-native-bin のみ skip**（`refs/heads/main` 限定 = 設計どおり）。linux PGO 三段階 + 恒久 G2 緑（4,123,808 B）・**macOS 非 PGO（判断 (c)）が緑 = SIGSEGV 再現なし**（fat x86_64+arm64・2 分 41 秒）・Windows maturin `--pgo` 三段階完走（3,738,624 B・train 11.9 s）・aarch64 3,526,008 B。G3 = size-budget 4 本 18,118,520 B ≤ 20 MB（FAT は内容検出で 10 MB 予算）・G4 = run 全体 9 分 21 秒 ≤ 20 分・G5 = native-test の apt ゼロ・G6 = L5 GATE 12 項目 PASS + fuzz-smoke + abi3-import 3.10/3.13 + integration 3 OS（linux L5 / macOS 212 passed / Windows 211 passed — すべて `0.3.0+a451adc96` = テストされた成果物 = 出荷される成果物）。CI #197 も緑。(2) **G1 の min 判定が 2 run 連続でアーティファクトを产出** → 判定統計を側別中央値へ改訂（Plan‑2 §2.2 の定義に実装を一致させたもの・版数 1.4）。#108 の compress min ×0.7575（REGRESSION WATCH 発火）は退行ではなく、**min を作ったラウンドが両側で違う**（a = round 4 の 208.27 / b = round 3 の 157.77）ための比だった。反証は 4 点: 同一バイナリの側内変動が最大 2.2 倍（scan 5 倍）・clean round 1 同士は ×0.9992（#107 定常 ×1.007 と一致）・hash が全 5 ラウンド ±0.4 % 以内（ランナー全体の劣化ではなく微小窓のスケジューリングノイズ）・steal ゲート 0 破棄（/proc/stat の steal はこのノイズを捉えない）。中央値では compress ×1.1064 / decompress ×1.1158 / scan ×1.0115 / hash ×0.9992 となり、min ×5.0302 だった scan も収束。実装 = `summarize_workloads()` 新設（min/中央値/best の 3 統計 + `ratioMed`/`ratioBest` 追加・`ratio` は `ratioMin` の別名として後方互換）+ native.yml のレポート表と WATCH を中央値化。#108 実データ再構成で PASS を確認し、埋め込み python を実 JSON で実行検証した。(3) **G2 の決定論の主張を限定**: 5 セル（#106/#107 ×2/#108 ×2）で profiled functions 7,618・missing 1,052（13.81 %）・znn_codec 877 は完全一致するが、**Total count は同一 run の 2 ジョブ間でも ~0.08 % ずれる**（#107: 992,358 / #108: 1,080,225）。BENCH §13.2 の表を丸め値（1.20e9）から実数値へ更新した。#107 → #108 の +6.7 % は train.py の scan 重み付け増が効いた証拠。(4) 文書: BENCH §13.6（サイズ表・ラウンド別全データ・4 点の反証・恒久対策）+ §13.2 更新、Plan‑2 版数 1.4（状態行・§2.2 G1・付録 A‑3 の自己矛盾修正「スループットの最小は最悪窓」・Step 4 完了条件の dev 側達成・Step 5 の BENCH 項チェック）、native/README・scripts/pgo/README の判定統計記述。**次ターン: #109（中央値判定の初実走）の確認 → ユーザが dev→main マージ → publish-native-bin の bot コミット確認で Step 4 完了**。 |

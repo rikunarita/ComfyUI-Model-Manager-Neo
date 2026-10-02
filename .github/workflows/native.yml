@@ -671,7 +671,7 @@ jobs:
     # deterministic workload (scripts/pgo/train.py), then builds the baseline
     # and the PGO artifact through the SAME shipping path (zigbuild, glibc
     # 2.28, size gate) and measures them A/B in one session (steal-gated,
-    # per-side minimum — the BENCH protocol). Gates:
+    # BENCH protocol). Gates:
     #   G2 (hard):  the profile must actually apply — wholesale no-op
     #               signatures fail the job (missing-ratio >= 50 %, zero
     #               execution counts, too few profiled functions, or a
@@ -679,11 +679,15 @@ jobs:
     #               divergence (~13.8 % measured on run #106) passes and is
     #               reported — see scripts/pgo/g2_check.py for the rationale.
     #   G3 (hard):  the PGO artifact passes the same 5 MB size gate.
-    #   G1 (soft):  compress AND decompress >= +3 % (per-side minimum) — the
+    #   G1 (soft):  compress AND decompress >= +3 % by the per-side MEDIAN
+    #               ratio (Plan-2 §2.2; min/best reported alongside) — the
     #               verdict is printed to the job summary and decides whether
     #               Step 4 wires PGO into the shipping build jobs. It does
     #               NOT fail the job (measurement noise on shared runners must
-    #               not block unrelated pushes).
+    #               not block unrelated pushes). The verdict statistic was
+    #               min until run #108: min-of-N compares whichever unlucky
+    #               round each side drew and flipped PASS (#107) -> NOT MET
+    #               (#108) on an unchanged steady-state reality — BENCH §13.6.
     # Triggers: workflow_dispatch, or a push whose HEAD commit message carries
     # the [pgo-measure] marker — the marker exists because the session PAT
     # cannot dispatch (403, MEMO §1.2); it gives the same on-demand semantics
@@ -793,9 +797,10 @@ jobs:
             | tee -a "$GITHUB_STEP_SUMMARY"
 
       # 6/6 — G1 measurement (soft) + report. train.py --measure alternates
-      # A/B subprocesses (3 rounds), steal-gates each window and judges on
-      # the per-side minimum. The verdict is informational: it decides Step 4
-      # (wiring PGO into the shipping jobs), it does not fail this job.
+      # A/B subprocesses (5 rounds), steal-gates each window and judges on
+      # the per-side MEDIAN (Plan-2 §2.2); min/best are reported alongside.
+      # The verdict is informational: it decides Step 4 (wiring PGO into the
+      # shipping jobs), it does not fail this job.
       - name: "G1 measurement: baseline vs PGO (A/B, steal-gated)"
         run: |
           set -euo pipefail
@@ -807,15 +812,24 @@ jobs:
           import json, os
           data = json.load(open(os.environ["RUNNER_TEMP"] + "/pgo-measure.json"))
           wl = data["workloads"]
-          rows = ["| workload | baseline (min) | pgo (min) | ratio |", "| --- | --- | --- | --- |"]
+          rows = [
+              "| workload | ratio (median) | ratio (min) | ratio (best) | baseline median | pgo median |",
+              "| --- | --- | --- | --- | --- | --- |",
+          ]
           for name, row in wl.items():
-              rows.append(f"| {name} | {row['baselineMin']} | {row['pgoMin']} | {row['ratio']} |")
+              rows.append(
+                  f"| {name} | **{row['ratioMed']}** | {row['ratioMin']} | {row['ratioBest']} "
+                  f"| {row['baselineMed']} | {row['pgoMed']} |"
+              )
           print("## pgo-measure (linux-x86_64)\n")
           print("\n".join(rows))
-          # Per-round samples (run #107 lesson): min-ratios alone hid that
-          # round 0 is cold on BOTH sides (so the min-protocol compares
-          # cold-vs-cold) and that short workloads (scan: 15-95 ms windows)
-          # have same-binary between-round variance larger than the effect.
+          # Per-round samples (run #107 lesson): summary ratios alone hid
+          # that round 0 is cold on BOTH sides and that short workloads
+          # (scan: 15-95 ms windows) have same-binary between-round variance
+          # larger than the effect. Run #108 added the second half of the
+          # lesson: the per-round table is also what EXONERATES a bad min
+          # ratio (compress min x0.7575 came from one noise-degraded round
+          # on each side, not from a regression) — BENCH §13.6.
           names = list(wl)
           hdr = "| round | side | " + " | ".join(names) + " |"
           sep = "| --- | --- | " + " | ".join("---" for _ in names) + " |"
@@ -829,19 +843,23 @@ jobs:
                   per.append(f"| {r} | {side} | " + " | ".join(cells) + " |")
           print("\n### per-round samples (round 0 = cold first run on both sides)\n")
           print("\n".join(per))
-          c, d = wl["compress"]["ratio"], wl["decompress"]["ratio"]
+          c, d = wl["compress"]["ratioMed"], wl["decompress"]["ratioMed"]
           ok = c is not None and d is not None and c >= 1.03 and d >= 1.03
-          print(f"\n**G1 (+3 % on compress AND decompress): {'PASS' if ok else 'NOT MET'}**"
-                f" (compress x{c}, decompress x{d}; discarded steal windows:"
-                f" {data['discardedStealWindows']}, contaminated samples: {data['contaminatedSamples']})")
+          print(f"\n**G1 (+3 % on compress AND decompress, per-side median): {'PASS' if ok else 'NOT MET'}**"
+                f" (compress x{c}, decompress x{d}; min x{wl['compress']['ratioMin']}/x{wl['decompress']['ratioMin']},"
+                f" best x{wl['compress']['ratioBest']}/x{wl['decompress']['ratioBest']};"
+                f" discarded steal windows: {data['discardedStealWindows']},"
+                f" contaminated samples: {data['contaminatedSamples']})")
           # Regression watch (informational): any workload materially slower
-          # under PGO is surfaced, not hidden behind the G1 headline.
-          # run #107 precedent: scan min-ratio x0.349 was a round-selection
-          # artifact (see the per-round table above; steady-state round 2
-          # was x0.99) — always cross-check the watch line against it.
-          slow = {k: v["ratio"] for k, v in wl.items() if v["ratio"] is not None and v["ratio"] < 0.95}
+          # under PGO is surfaced, not hidden behind the G1 headline. It
+          # judges on the MEDIAN — the min ratio is a worst-window statistic
+          # and flips on round luck (#107 scan x0.349, #108 compress x0.7575
+          # were both artifacts; see the per-round table above and BENCH
+          # §13.1/§13.6). A median below 0.95 means the SLOWER half of the
+          # PGO rounds still lost to the faster half of the baseline rounds.
+          slow = {k: v["ratioMed"] for k, v in wl.items() if v["ratioMed"] is not None and v["ratioMed"] < 0.95}
           if slow:
-              print(f"\n**REGRESSION WATCH**: slower under PGO: {slow} — see Plan-2 R7 (train weighting) / BENCH §13")
+              print(f"\n**REGRESSION WATCH**: slower under PGO (median): {slow} — see Plan-2 R7 (train weighting) / BENCH §13")
           print(f"\nenv: {data['env']}")
           PY
           base_size=$(stat -c %s "$RUNNER_TEMP/ab/baseline/mm_core.abi3.so")

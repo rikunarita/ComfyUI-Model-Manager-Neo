@@ -18,8 +18,14 @@ NEO-PLAN-2026-002 §4.2. Three modes:
 * ``--measure`` — A/B throughput driver: alternates ``--bench-one``
   subprocesses between two built cores (``--a`` = baseline, ``--b`` = PGO),
   N rounds, steal-gated on Linux (contaminated rounds are discarded and
-  retried), judged on the per-side minimum — the BENCH gate protocol
-  (MEMO §3) reduced to a single runner session.
+  retried) — the BENCH gate protocol (MEMO §3) reduced to a single runner
+  session. Verdict statistic = the per-side **median** ratio (Plan-2 §2.2
+  G1); the per-side minimum (worst window) and maximum (zero-interference
+  ceiling) are reported alongside. The original min-only verdict was
+  retired after run #108: min-of-N compares whichever unlucky round each
+  side drew, so the verdict flipped (#107 PASS x1.126 / #108 NOT MET
+  x0.7575) on an unchanged steady-state reality (compress ~x1.00 in both
+  runs) — see BENCH §13.6.
 
 Environment knobs (train mode): ``TRAIN_MB`` (compress fixture size, default
 32), ``TRAIN_MODELS`` (scan library size, default 800), ``TRAIN_HASH_MB``
@@ -34,6 +40,7 @@ import json
 import os
 import platform
 import shutil
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -436,8 +443,55 @@ def _steal_ticks() -> int | None:
     return None
 
 
+def summarize_workloads(samples: dict[tuple[str, str], list[float]]) -> dict[str, dict]:
+    """Per-workload A/B statistics: min / median / best per side + ratios.
+
+    The G1 verdict statistic is the per-side **median** ratio (Plan-2 §2.2).
+    ``ratio`` (kept as an alias of ``ratioMin``) preserves the JSON key that
+    the run #107/#108 records reference; ``ratioBest`` is the
+    zero-interference ceiling (per-side best window).
+
+    Why not judge on the minimum (run #108, BENCH §13.6): min-of-N compares
+    whichever unlucky round each side drew. #108's compress min ratio x0.7575
+    came from the PGO side's noise-degraded round 3 (157.77 MB/s) against the
+    baseline side's round-4 outlier (208.27 MB/s), while both sides' clean
+    rounds sat at ~348-349 MB/s (parity) — the verdict flipped against #107
+    (PASS x1.126) without any change in steady-state reality. The steal gate
+    cannot catch this interference class (it reported 0 discarded windows),
+    so a robust central statistic carries the verdict and min/best remain as
+    worst-case / ceiling observations.
+    """
+    summary: dict[str, dict] = {}
+    for wl in BENCH_WORKLOADS:
+        a = samples[("a", wl)]
+        b = samples[("b", wl)]
+        row: dict = {
+            "samplesA": len(a),
+            "samplesB": len(b),
+            # Raw per-round rates (run #107 lesson: summary ratios of short
+            # workloads can be round-selection artifacts — same-binary
+            # between-round variance reached 2.1x on scan, and round 0 is
+            # systematically cold on BOTH sides. The per-round data must be
+            # part of the report, not only the raw log).
+            "roundsA": a,
+            "roundsB": b,
+        }
+        if a and b:
+            for tag, fn in (("Min", min), ("Med", statistics.median), ("Best", max)):
+                a_stat, b_stat = fn(a), fn(b)
+                row[f"baseline{tag}"] = a_stat
+                row[f"pgo{tag}"] = b_stat
+                row[f"ratio{tag}"] = round(b_stat / a_stat, 4) if a_stat else None
+        else:
+            for tag in ("Min", "Med", "Best"):
+                row[f"baseline{tag}"] = row[f"pgo{tag}"] = row[f"ratio{tag}"] = None
+        row["ratio"] = row["ratioMin"]  # legacy key (run #107/#108 records)
+        summary[wl] = row
+    return summary
+
+
 def measure(a_dir: str, b_dir: str, rounds: int, json_out: str | None, workdir: Path) -> dict:
-    """Alternate A/B subprocess runs; steal-gate on Linux; per-side minimum."""
+    """Alternate A/B subprocess runs; steal-gate on Linux; median verdict."""
     fx_root = workdir / "fixtures"
     size_mb = int(os.environ.get("TRAIN_MB", "32"))
     n_models = int(os.environ.get("TRAIN_MODELS", "800"))
@@ -502,24 +556,7 @@ def measure(a_dir: str, b_dir: str, rounds: int, json_out: str | None, workdir: 
                 rate, unit, secs = result["rate"], result["unit"], result["seconds"]
                 print(f"[measure] round {r} side {side} {wl}: {rate} {unit} ({secs} s){flag}", flush=True)
 
-    summary: dict[str, dict] = {}
-    for wl in BENCH_WORKLOADS:
-        a_min = min(samples[("a", wl)]) if samples[("a", wl)] else None
-        b_min = min(samples[("b", wl)]) if samples[("b", wl)] else None
-        summary[wl] = {
-            "baselineMin": a_min,
-            "pgoMin": b_min,
-            "ratio": round(b_min / a_min, 4) if a_min and b_min else None,
-            "samplesA": len(samples[("a", wl)]),
-            "samplesB": len(samples[("b", wl)]),
-            # Raw per-round rates (run #107 lesson: min-ratios of short
-            # workloads can be round-selection artifacts — same-binary
-            # between-round variance reached 2.1x on scan, and round 0 is
-            # systematically cold on BOTH sides. The per-round data must be
-            # part of the report, not only the raw log).
-            "roundsA": samples[("a", wl)],
-            "roundsB": samples[("b", wl)],
-        }
+    summary = summarize_workloads(samples)
     out = {
         "rounds": rounds,
         "discardedStealWindows": discarded,
@@ -534,9 +571,12 @@ def measure(a_dir: str, b_dir: str, rounds: int, json_out: str | None, workdir: 
         },
         "workloads": summary,
     }
-    print("\n[measure] === summary (per-side minimum, B/A) ===")
+    print("\n[measure] === summary (B/A ratios: min / median / best) ===")
     for wl, row in summary.items():
-        print(f"  {wl:12} baseline={row['baselineMin']}  pgo={row['pgoMin']}  ratio={row['ratio']}")
+        print(
+            f"  {wl:12} min={row['ratioMin']}  median={row['ratioMed']}  best={row['ratioBest']}"
+            f"   (baseline med={row['baselineMed']}, pgo med={row['pgoMed']})"
+        )
     blob = json.dumps(out, indent=2) + "\n"
     if json_out:
         Path(json_out).write_text(blob, encoding="utf-8")

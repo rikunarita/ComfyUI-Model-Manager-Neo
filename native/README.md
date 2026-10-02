@@ -256,13 +256,16 @@ linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の�
   アウトオブライン復元 485）は通過し、真の no-op（~100 %）・空プロファイル・
   別ワークスペース由来は失敗します。別途 `pgo-measure` ジョブ
   （workflow_dispatch / `[pgo-measure]` コミットマーカーで起動）が
-  baseline との A/B 計測（steal ゲート・側別最小値）で
-  G1（compress/decompress +3 %）を job summary へレポートします。
+  baseline との A/B 計測（steal ゲート・**側別中央値での判定** —
+  min/best は参考並記。run #108 で min 判定のノイズ脆弱性を実証したため
+  Plan‑2 版数 1.4 で改訂 — BENCH §13.6）で G1（compress/decompress +3 %）を
+  job summary へレポートします。
 - **Windows**: ピン留めの maturin 1.15.0 が `--pgo` をネイティブ
   サポート（計装 wheel → 一時 venv で `pgo-command` 実行 → 最適化リビルド
   の三段階）。`pyproject.toml` の `pgo-command` が train.py を呼び、
-  `build-native.sh --pgo-train` が `--pgo` を透過します。run #107 で
-  MSVC 経路の三段階が完走することを実走確認済みです。
+  `build-native.sh --pgo-train` が `--pgo` を透過します。run #107/#108 で
+  MSVC 経路の三段階が完走することを実走確認済みです
+  （#108 出荷 = 3,738,624 B）。
 - **macOS universal2 = 非 PGO（Plan-2 §4.4 判断 (c)、run #107 で実証）**:
   maturin `--pgo` は計装 universal2 wheel のビルドとトレーニング実行には
   成功しましたが（train.py が全 30 セクション完走・"done in 5.612 s"）、
@@ -272,6 +275,8 @@ linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の�
   では再現しません。macOS ホスト無しではデバッグ不能（推測での修正は
   しない — Plan-2 の原則）のため、macOS は非 PGO 出荷とします。
   将来的な選択肢は arm64 単一 arch の PGO ビルド（要 upstream 修正待ち）。
+  **run #108 で非 PGO 経路の緑を実走確認済み**（fat x86_64 + arm64・
+  6,730,080 B・SIGSEGV 再現なし・2 分 41 秒）。
 - **linux-aarch64 は PGO 対象外**: クロスコンパイルかつ ARM ランナーが
   無く、x86_64 プロファイルの流用は arch 非互換のため禁止（Plan‑2 §4.5）。
 - **プロファイルはコミットしません**: ビルド毎生成（ドリフトゼロ・

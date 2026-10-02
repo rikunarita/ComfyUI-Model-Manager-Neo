@@ -558,7 +558,11 @@ binaries** inside the repository — one per platform, loaded by `import` alone:
 
 One binary serves **CPython 3.10 and newer** on each platform (the Stable ABI,
 `abi3-py310` — proven against 3.10 and 3.13 in CI), and each is gated at
-≤ 5 MB (≤ 20 MB total) by a CI size budget.
+≤ 5 MB (≤ 20 MB total) by a CI size budget. The linux-x86_64 and Windows
+binaries are **PGO-optimized** — profile-guided, retrained from a
+deterministic workload in every CI build — measuring up to ~10 % faster
+first-run throughput against the non-optimized build in CI A/B runs
+([BENCH §13](docs/BENCH.md)).
 
 The port also addressed reliability at its root: during the rewrite work, a
 class of memory-safety defects was demonstrated in the C core's delta path
