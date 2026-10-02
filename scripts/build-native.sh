@@ -1,7 +1,20 @@
 #!/usr/bin/env bash
 # Build the distributable mm_core native artifacts (Agent/Plan.md §3.3, §4.2.1).
 #
-#   scripts/build-native.sh --target <tag> [--size-gate]
+#   scripts/build-native.sh --target <tag> [--size-gate] [--pgo <profdata> | --pgo-train]
+#
+# PGO (NEO-PLAN-2026-002):
+#   --pgo <profdata>  linux targets only: link the SHIPPED artifact against a
+#                     pre-merged LLVM profile (instrumented build + training
+#                     are orchestrated by the caller — see the pgo-measure job
+#                     in .github/workflows/native.yml and scripts/pgo/README.md).
+#                     Adds -Cllvm-args=-pgo-warn-missing-function so a stale /
+#                     mismatched profile shows up as countable warnings (the
+#                     CI asserts their ratio, gate G2).
+#   --pgo-train       macOS / Windows only: hand `--pgo` to maturin, which
+#                     runs its three-phase flow (instrumented wheel into a
+#                     temporary venv -> [tool.maturin] pgo-command training ->
+#                     optimized rebuild).
 #
 # Targets (= native/native-bin/ layout):
 #   linux-x86_64      cargo zigbuild x86_64-unknown-linux-gnu.<glibc floor>   -> mm_core.abi3.so
@@ -44,15 +57,32 @@ export MM_CORE_COMMIT
 
 TARGET=""
 SIZE_GATE=0
+PGO_PROFDATA=""
+PGO_TRAIN=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
     --size-gate) SIZE_GATE=1; shift ;;
+    --pgo) PGO_PROFDATA="$2"; shift 2 ;;
+    --pgo-train) PGO_TRAIN=1; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
-[[ -n "$TARGET" ]] || { echo "usage: build-native.sh --target <tag> [--size-gate]" >&2; exit 2; }
+[[ -n "$TARGET" ]] || { echo "usage: build-native.sh --target <tag> [--size-gate] [--pgo <profdata> | --pgo-train]" >&2; exit 2; }
+[[ -z "$PGO_PROFDATA" || "$PGO_TRAIN" -eq 0 ]] || { echo "--pgo and --pgo-train are mutually exclusive" >&2; exit 2; }
+if [[ -n "$PGO_PROFDATA" ]]; then
+  case "$TARGET" in
+    linux-*) [[ -f "$PGO_PROFDATA" ]] || { echo "profile not found: $PGO_PROFDATA" >&2; exit 2; } ;;
+    *) echo "--pgo <profdata> is linux-only (macOS/Windows use --pgo-train via maturin)" >&2; exit 2 ;;
+  esac
+fi
+if [[ "$PGO_TRAIN" -eq 1 ]]; then
+  case "$TARGET" in
+    macos-* | windows-*) ;;
+    *) echo "--pgo-train is macOS/Windows-only (linux uses --pgo <profdata>)" >&2; exit 2 ;;
+  esac
+fi
 
 log() { printf '== %s\n' "$*"; }
 
@@ -99,8 +129,13 @@ finish() {
 build_linux() {
   local arch="$1"
   local triple="${arch}-unknown-linux-gnu.${GLIBC_FLOOR}"
+  local -a pgo_env=()
+  if [[ -n "$PGO_PROFDATA" ]]; then
+    log "PGO: -Cprofile-use=$PGO_PROFDATA (+ warn-missing-function for the G2 gate)"
+    pgo_env=(env "RUSTFLAGS=-Cprofile-use=$PGO_PROFDATA -Cllvm-args=-pgo-warn-missing-function")
+  fi
   log "cargo zigbuild --release --target $triple -p mm-core"
-  (cd "$NATIVE_DIR" && cargo zigbuild --release --target "$triple" -p mm-core)
+  (cd "$NATIVE_DIR" && "${pgo_env[@]+"${pgo_env[@]}"}" cargo zigbuild --release --target "$triple" -p mm-core)
   local out_dir="$BIN_ROOT/linux-${arch}"
   mkdir -p "$out_dir"
   cp "$NATIVE_DIR/target/${arch}-unknown-linux-gnu/release/libmm_core.so" "$out_dir/mm_core.abi3.so"
@@ -113,8 +148,10 @@ build_macos_universal2() {
     exit 1
   }
   rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null 2>&1 || true
+  local -a pgo_flag=()
+  [[ "$PGO_TRAIN" -eq 1 ]] && pgo_flag=(--pgo) && log "PGO: maturin --pgo (pgo-command trains in a temporary venv)"
   log "maturin build --release --target universal2-apple-darwin"
-  (cd "$NATIVE_DIR" && maturin build --release --target universal2-apple-darwin --out target/wheels)
+  (cd "$NATIVE_DIR" && maturin build --release --target universal2-apple-darwin --out target/wheels "${pgo_flag[@]+"${pgo_flag[@]}"}")
   local wheel
   wheel="$(ls -t "$NATIVE_DIR"/target/wheels/mm_core-*-cp310-abi3-*universal2.whl | head -1)"
   local out_dir="$BIN_ROOT/macos-universal2"
@@ -150,8 +187,10 @@ build_windows() {
     CYGWIN*|MINGW*|MSYS*|Windows_NT) ;;
     *) echo "windows-x86_64 (MSVC) must be built on Windows (see header)" >&2; exit 1 ;;
   esac
+  local -a pgo_flag=()
+  [[ "$PGO_TRAIN" -eq 1 ]] && pgo_flag=(--pgo) && log "PGO: maturin --pgo (pgo-command trains in a temporary venv)"
   log "maturin build --release (MSVC)"
-  (cd "$NATIVE_DIR" && maturin build --release --out target/wheels)
+  (cd "$NATIVE_DIR" && maturin build --release --out target/wheels "${pgo_flag[@]+"${pgo_flag[@]}"}")
   local wheel
   wheel="$(ls -t "$NATIVE_DIR"/target/wheels/mm_core-*-cp310-abi3-win_amd64.whl | head -1)"
   local out_dir="$BIN_ROOT/windows-x86_64"

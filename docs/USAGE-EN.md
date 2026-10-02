@@ -530,12 +530,12 @@ as prebuilt binaries inside the repository (`native/native-bin/`) and loaded by
 a plain `import` — **no `pip install`, no C compiler, no network, no waiting**,
 on every covered platform:
 
-| Platform                      | Artifact                                      | Requirements                             |
-| ----------------------------- | --------------------------------------------- | ---------------------------------------- |
-| Linux x86_64                  | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+) |
-| Linux aarch64                 | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                             |
-| macOS (Intel & Apple Silicon) | `native-bin/macos-universal2/mm_core.abi3.so` | one fat binary, macOS 11+                |
-| Windows x86_64                | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC‑built                               |
+| Platform                      | Artifact                                      | Requirements                                           |
+| ----------------------------- | --------------------------------------------- | ------------------------------------------------------ |
+| Linux x86_64                  | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+)               |
+| Linux aarch64                 | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                                           |
+| macOS (Intel & Apple Silicon) | `native-bin/macos-universal2/mm_core.abi3.so` | one fat binary — Intel macOS 10.12+, Apple Silicon 11+ |
+| Windows x86_64                | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC‑built                                             |
 
 One binary per platform serves **CPython 3.10 and newer** (the Python Stable
 ABI). Interoperability with the official format is a CI gate, not a promise:

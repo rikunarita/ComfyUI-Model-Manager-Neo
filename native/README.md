@@ -126,7 +126,7 @@ native/
 ├─ Cargo.toml                 # [workspace] resolver=2、共通 profile / lints
 ├─ Cargo.lock                 # ピン留め（コミット対象、Plan §7 R9）
 ├─ pyproject.toml             # maturin ビルド定義（wheel は開発・CI 検証用）
-├─ .cargo/config.toml         # mold リンカー設定（Linux ネイティブビルドのみ）
+├─ .cargo/config.toml         # リンカー方針の記録（rust-lld 既定・target 節は空）
 ├─ rustfmt.toml               # 安定オプションのみ（stable ツールチェーンが正）
 ├─ clippy.toml                # msrv + doc-valid-idents
 ├─ crates/
@@ -159,31 +159,28 @@ native/
 rustup toolchain install stable   # rustfmt / clippy コンポーネント込み
 ```
 
-### 2. mold リンカー（Linux ネイティブビルドのみ、Plan §3.4.1）
+### 2. リンカー（rust‑lld 既定 — 追加インストール不要、NEO‑PLAN‑2026‑002 Step 1）
 
-`.cargo/config.toml` が Linux ターゲットのネイティブビルドに
-`clang` + `-fuse-ld=mold` を設定します。クロスビルド（cargo-zigbuild）は
-zig 側 LLD を使うため mold の影響を受けません（ビルドは成功し、成果物の
-glibc 下限も zig が決定します。zig 由来の無害な
-`ignoring deprecated linker optimization setting` 警告が出ることがあります）。
+Linux ネイティブビルドは **rustc 同梱の rust‑lld** を使います
+（Rust 1.90 以降、`x86_64-unknown-linux-gnu` の既定リンカー）。
+旧 mold 設定（`.cargo/config.toml` の `linker = "clang"` +
+`-fuse-ld=mold`）は 2026‑10‑01 に撤去しました — インストール手順は
+もう何もありません（CI の apt ステップも撤去済み。2026‑09‑30 の
+ミラーハング事故の障害面そのものが消滅しました）。
 
-```bash
-# Ubuntu 24.04 / Debian 12+
-sudo apt-get install -y clang mold
-# mold パッケージが ld.mold を PATH に提供しない場合:
-sudo ln -sf "$(command -v mold)" /usr/local/bin/ld.mold
-```
-
-**clang が使えない環境でのフォールバック**: `.cargo/config.toml` の
-`linker = "clang"` を外し（または一時的にファイルを退避し）、gcc で
-`-B` 方式を使います:
-
-```bash
-RUSTFLAGS="-C link-arg=-B/usr/lib/mold" cargo build --release
-```
-
-macOS（ld‑prime）と Windows（link.exe）はプラットフォーム既定リンカーを
-使用します（mold は ELF 専用）。
+- **aarch64 ネイティブ開発ビルド**: rust‑lld はまだ既定でないため、
+  システム既定リンカーが使われます。lld を明示したい場合のみ
+  `RUSTFLAGS="-C linker-features=+lld"` を各自で（配布成果物は
+  zigbuild 経路なので影響しません）。
+- **クロスビルド（cargo‑zigbuild）**: zig 側 LLD が使われ、成果物の
+  glibc 下限（2.28）も zig が決定します。zig 由来の無害な
+  `ignoring deprecated linker optimization setting` 警告が出ることがあります。
+- **macOS（ld‑prime）と Windows（link.exe）**はプラットフォーム既定
+  リンカーを使用します。
+- **fuzz（nightly・別ワークスペース）**: cargo の config 探索で
+  `native/.cargo/config.toml` を拾いますが、target 節が無いため
+  nightly 既定の rust‑lld が使われます（ASan ランタイムは rustc が
+  compiler‑rt を同梱するためリンカーに依存しません）。
 
 ### 3. クロスビルド用（Linux ホストから glibc 2.28 ターゲット）
 
@@ -229,7 +226,61 @@ scripts/build-native.sh --target linux-x86_64 --size-gate
 scripts/build-native.sh --target linux-aarch64 --size-gate
 scripts/build-native.sh --target macos-universal2 --size-gate   # macOS ホスト
 scripts/build-native.sh --target windows-x86_64 --size-gate     # Windows ホスト
+
+# PGO 版（NEO-PLAN-2026-002 — 下記「PGO」節参照）:
+scripts/build-native.sh --target linux-x86_64 --size-gate --pgo /path/merged.profdata
+scripts/build-native.sh --target windows-x86_64 --size-gate --pgo-train  # maturin --pgo（Windows）
+# macOS universal2 は非 PGO 出荷（run #107 実証による §4.4 判断(c) — 下記 PGO 節）
 ```
+
+## PGO（プロファイル誘導最適化 — NEO‑PLAN‑2026‑002）
+
+配布バイナリの実行時最適化として、計装ベースの PGO が **linux-x86_64 /
+Windows の出荷ビルドに組み込み済み**です（macOS universal2 と
+linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の根拠は
+[`../Agent/Plan-2.md`](../Agent/Plan-2.md)）。
+
+- **トレーナ**: [`scripts/pgo/train.py`](../scripts/pgo/train.py) —
+  stdlib + mm_core + tests/harness のみの決定論的ワークロード
+  （圧縮/解凍/デルタ/スキャン/ハッシュ/ヘッダ/テンソルツリー/WebP の
+  全 API 表面）。計装ビルドに対して実行すると `.profraw` を生成します。
+  使い方とローカル再現手順は [`scripts/pgo/README.md`](../scripts/pgo/README.md)。
+- **Linux x86_64**: `native-build-linux` ジョブが出荷ビルド毎に
+  計装ビルド（ホスト native）→ train → `llvm-profdata merge`
+  （`llvm-tools-preview` component）→ `build-native.sh --pgo <profdata>`
+  （zigbuild + `-Cprofile-use` + `-Cllvm-args=-pgo-warn-missing-function`）
+  の三段階を実行し、**恒久 G2 ゲート**（`scripts/pgo/g2_check.py`）で
+  プロファイルの no-op 化を機械検出します。G2 のしきい値は run #106 の
+  実測で再校正済み: fat-LTO + PGO インライナの良性乖離（計測値 13.81 % =
+  ジェネリック実体化 518 + クロージャ 254 + 計装時完全インライン関数の
+  アウトオブライン復元 485）は通過し、真の no-op（~100 %）・空プロファイル・
+  別ワークスペース由来は失敗します。別途 `pgo-measure` ジョブ
+  （workflow_dispatch / `[pgo-measure]` コミットマーカーで起動）が
+  baseline との A/B 計測（steal ゲート・**側別中央値での判定** —
+  min/best は参考並記。run #108 で min 判定のノイズ脆弱性を実証したため
+  Plan‑2 版数 1.4 で改訂 — BENCH §13.6）で G1（compress/decompress +3 %）を
+  job summary へレポートします。
+- **Windows**: ピン留めの maturin 1.15.0 が `--pgo` をネイティブ
+  サポート（計装 wheel → 一時 venv で `pgo-command` 実行 → 最適化リビルド
+  の三段階）。`pyproject.toml` の `pgo-command` が train.py を呼び、
+  `build-native.sh --pgo-train` が `--pgo` を透過します。run #107/#108 で
+  MSVC 経路の三段階が完走することを実走確認済みです
+  （#108 出荷 = 3,738,624 B）。
+- **macOS universal2 = 非 PGO（Plan-2 §4.4 判断 (c)、run #107 で実証）**:
+  maturin `--pgo` は計装 universal2 wheel のビルドとトレーニング実行には
+  成功しましたが（train.py が全 30 セクション完走・"done in 5.612 s"）、
+  **プロセス終了時のプロファイルランタイム書き出し段階で SIGSEGV** し、
+  最適化リビルドに到達できませんでした。計装済み FAT dylib 特有の
+  障害で、Windows（単一 arch PE）と Linux（単一 arch ELF・自前三段階）
+  では再現しません。macOS ホスト無しではデバッグ不能（推測での修正は
+  しない — Plan-2 の原則）のため、macOS は非 PGO 出荷とします。
+  将来的な選択肢は arm64 単一 arch の PGO ビルド（要 upstream 修正待ち）。
+  **run #108 で非 PGO 経路の緑を実走確認済み**（fat x86_64 + arm64・
+  6,730,080 B・SIGSEGV 再現なし・2 分 41 秒）。
+- **linux-aarch64 は PGO 対象外**: クロスコンパイルかつ ARM ランナーが
+  無く、x86_64 プロファイルの流用は arch 非互換のため禁止（Plan‑2 §4.5）。
+- **プロファイルはコミットしません**: ビルド毎生成（ドリフトゼロ・
+  肥大ゼロ。Plan‑2 §4.6）。
 
 ビルド成果物の検査（arch / glibc 下限 / libpython 非依存 / Mach‑O fat / PE）は、
 readelf・lipo 等の無い環境でも
