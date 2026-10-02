@@ -758,6 +758,118 @@ async def test_batch_folder_native_roundtrip(prompt_server, model_lib, monkeypat
 
 
 @pytest.mark.asyncio
+async def test_batch_compress_collects_in_place_compressed_models(prompt_server, model_lib, monkeypatch):
+    """Option 1 (2026-10-02): in-place `.znn.safetensors` outside bundle
+    sub-trees MOVE into the batch bundle (no re-compression), so no compressed
+    straggler folder survives beside the bundle and the round trip stays
+    byte-exact."""
+    mm = _native_core_or_skip()
+    compress_mod = _compress_mod()
+    ck = model_lib / "checkpoints"
+
+    def seed_inplace(folder, tag):
+        folder.mkdir(parents=True, exist_ok=True)
+        src = folder / f"{tag}.safetensors"
+        write_safetensors(src, {"w": ("BF16", [256, 128], synth_bf16(256 * 128, 7, low_entropy=True))})
+        dst = folder / f"{tag}.znn.safetensors"
+        compress_mod._run_native_job_sync(
+            mm, None, lambda: mm.zipnn_compress(str(src), str(dst), {"threads": 0, "paranoid": False}), "seed"
+        )
+        src.unlink()
+        return dst
+
+    # plain model at the root + an in-place compressed one inside a subfolder
+    write_safetensors(ck / "p.safetensors", {"w": ("BF16", [256, 128], synth_bf16(256 * 128, 8, low_entropy=True))})
+    inplace = seed_inplace(ck / "Anime", "a")
+    (ck / "Anime" / "a.znn.webp").write_bytes(b"img")
+    before = _tree_state(ck)
+
+    compress, payload = await _post(
+        prompt_server, BATCH_ROUTE, {"mode": "compress", "type": "checkpoints", "pathIndex": 0, "folder": "."}
+    )
+    assert payload["success"] is True, payload
+    task_id = payload["data"]["taskId"]
+    assert await _wait_task(compress, task_id) == "complete", _events(prompt_server)
+    complete = _events(prompt_server)[-1][1]
+    assert complete["stats"]["files"] == 2, complete["stats"]
+
+    bundle = ck / "checkpoints_DeltaZNN"
+    assert (bundle / "p.znn.safetensors").is_file()
+    assert (bundle / "Anime" / "a.znn.safetensors").is_file(), "in-place model moved into the bundle"
+    assert (bundle / "Anime" / "a.znn.webp").is_file(), "sidecars follow the moved model"
+    assert not (ck / "Anime").exists(), "the emptied subfolder is pruned"
+    assert not inplace.exists()
+
+    # round trip: auto on the bundle restores both, in-place one back in place
+    prompt_server.sent.clear()
+    compress, payload = await _post(
+        prompt_server,
+        BATCH_ROUTE,
+        {"mode": "auto", "type": "checkpoints", "pathIndex": 0, "folder": "checkpoints_DeltaZNN"},
+    )
+    assert payload["success"] is True, payload
+    assert await _wait_task(compress, payload["data"]["taskId"]) == "complete", _events(prompt_server)
+    assert _tree_state(ck) == before, "batch round trip restores the tree byte-exactly"
+
+
+@pytest.mark.asyncio
+async def test_batch_auto_on_legacy_in_place_root_still_decompresses_in_place(prompt_server, model_lib, monkeypatch):
+    """The Option-1 collect set must NOT flip the documented legacy route: a
+    type root holding ONLY in-place compressed models auto-resolves to
+    decompress-in-place (no bundle is created)."""
+    mm = _native_core_or_skip()
+    compress_mod = _compress_mod()
+    ck = model_lib / "checkpoints"
+    src = ck / "legacy.safetensors"
+    write_safetensors(src, {"w": ("BF16", [256, 128], synth_bf16(256 * 128, 9, low_entropy=True))})
+    znn = ck / "legacy.znn.safetensors"
+    compress_mod._run_native_job_sync(
+        mm, None, lambda: mm.zipnn_compress(str(src), str(znn), {"threads": 0, "paranoid": False}), "seed"
+    )
+    src.unlink()
+
+    compress, payload = await _post(
+        prompt_server, BATCH_ROUTE, {"mode": "auto", "type": "checkpoints", "pathIndex": 0, "folder": "."}
+    )
+    assert payload["success"] is True, payload
+    assert await _wait_task(compress, payload["data"]["taskId"]) == "complete", _events(prompt_server)
+    complete = _events(prompt_server)[-1][1]
+    assert complete["mode"] == "decompress", complete
+    assert (ck / "legacy.safetensors").is_file()
+    assert not (ck / "checkpoints_DeltaZNN").exists(), "legacy in-place roots decompress where they are"
+
+
+@pytest.mark.asyncio
+async def test_batch_compress_inplace_only_subfolder_moves_to_bundle(prompt_server, model_lib, monkeypatch):
+    """Explicit compress on a non-root folder whose only content is in-place
+    compressed models: they move into the sibling bundle (Option 1), the
+    emptied folder is pruned."""
+    mm = _native_core_or_skip()
+    compress_mod = _compress_mod()
+    ck = model_lib / "checkpoints"
+    sub = ck / "sub"
+    sub.mkdir()
+    src = sub / "s.safetensors"
+    write_safetensors(src, {"w": ("BF16", [256, 128], synth_bf16(256 * 128, 10, low_entropy=True))})
+    compress_mod._run_native_job_sync(
+        mm,
+        None,
+        lambda: mm.zipnn_compress(str(src), str(sub / "s.znn.safetensors"), {"threads": 0, "paranoid": False}),
+        "seed",
+    )
+    src.unlink()
+
+    compress, payload = await _post(
+        prompt_server, BATCH_ROUTE, {"mode": "compress", "type": "checkpoints", "pathIndex": 0, "folder": "sub"}
+    )
+    assert payload["success"] is True, payload
+    assert await _wait_task(compress, payload["data"]["taskId"]) == "complete", _events(prompt_server)
+    bundle = ck / "sub_DeltaZNN"
+    assert (bundle / "s.znn.safetensors").is_file()
+    assert not sub.exists(), "the emptied subfolder is pruned"
+
+
+@pytest.mark.asyncio
 async def test_batch_folder_with_delta_files_native(prompt_server, model_lib, monkeypatch):
     """A bundle holding a delta file batch-decompresses through the native
     delta job (base resolved beside the bundle, sidecar removed)."""
