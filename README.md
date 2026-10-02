@@ -13,17 +13,21 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![CI](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/ci.yml/badge.svg?branch=main)
 ![Native core](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/native.yml/badge.svg?branch=main)
+![ZipNN format](https://img.shields.io/badge/ZipNN-format_0.5.4_cross--validated-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B_%C2%B7_edition_2024-DEA584.svg?logo=rust&logoColor=black)
 ![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3-229988.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D.svg?logo=vuedotjs&logoColor=white)
+![reka-ui](https://img.shields.io/badge/reka--ui-2-16A353.svg?logo=rekaui&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8.svg?logo=tailwindcss&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8_%C2%B7_Rolldown-646CFF.svg?logo=vite&logoColor=white)
 ![ESLint](https://img.shields.io/badge/ESLint-10-4B32C3.svg?logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
+![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
+![Ruff](https://img.shields.io/badge/Ruff-0.16.9-D7FF64.svg?logo=ruff&logoColor=black)
 ![Node](https://img.shields.io/badge/Node-26_%C2%B7_build-339933.svg?logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
 
@@ -68,15 +72,20 @@ the experience from the ground up:
   parsing, the tensor tree, the folder watcher, the preview WebP codec and the
   entire ZipNN engine run in a **prebuilt Rust extension** that ships inside the
   repository: four platforms, one binary each, CPython 3.10 and newer through
-  the Stable ABI — **no compiler, no pip install, no network access** at setup
-  time. Measured against the pure‑Python original: a 5,000‑model library scan
+  the Stable ABI. The core itself loads with a plain `import` — **no compiler,
+  no pip package, no download** (the extension's four Python hub dependencies
+  are installed automatically on first launch). Measured against the
+  pure‑Python original: a 5,000‑model library scan
   about **7.5× faster** cold (under 100 ms warm), five hash notations computed
   in **one pass**, a 65,000‑tensor MoE tensor tree built about **100× faster**,
   and ZipNN compression that stays **under 1 GB of peak RAM** no matter how
   large the model is (evidence: [`docs/BENCH.md`](docs/BENCH.md)).
-- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **Verified, memory‑safe compression** — the Rust engine is written without
-  `unsafe` code, hardened with seven continuous fuzzing targets, and every
-  restore is checked against the SHA‑256 recorded at compression time.
+- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **Verified, memory‑safe compression** — the Rust engine denies `unsafe`
+  code by lint: the format core contains none at all, and the one boundary
+  that needs it (a read‑only memory map) is safety‑reviewed and
+  documented. It is hardened with seven continuous fuzzing targets, and
+  every restore is checked against the SHA‑256 recorded at compression
+  time.
   Format compatibility with the official `zipnn` 0.5.4 package is a CI gate
   that runs on every push, in both directions.
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN lossless compression** — compress and decompress safetensors models
@@ -185,7 +194,7 @@ Then **restart ComfyUI**. The Python dependencies (`huggingface_hub`, `hf_xet`,
 The web bundle ships prebuilt in [`web/`](web) and the Rust core ships prebuilt
 in [`native/native-bin/`](native/native-bin), so neither Node.js nor a compiler
 is required to _run_ the extension — a plain `import` loads the core (platform
-coverage: see [the engine table](#the-engine-a-prebuilt-pure-rust-core)).
+coverage: see [the engine table](#the-engine)).
 
 Open the manager from the top‑bar **“Model Manager Neo”** button, the sidebar,
 the `Extensions → Model Manager Neo` menu, or the command palette.
@@ -538,6 +547,8 @@ base and retires the now‑empty delta folder. Restoration needs the base model,
 and the delta records the fine‑tune's own SHA‑256 so the restore is verified
 end to end.
 
+<a id="the-engine"></a>
+
 ### The engine: a prebuilt pure‑Rust core
 
 The compressor is **not** the official Python package: `zipnn`'s C extension has
@@ -549,12 +560,12 @@ format core, seven continuous fuzzing targets, a byte‑identical differential
 history against the original C implementation) and ships it as **prebuilt abi3
 binaries** inside the repository — one per platform, loaded by `import` alone:
 
-| Platform                      | Artifact                                      | Requirements                             |
-| ----------------------------- | --------------------------------------------- | ---------------------------------------- |
-| Linux x86_64                  | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+) |
-| Linux aarch64                 | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                             |
-| macOS (Intel & Apple Silicon) | `native-bin/macos-universal2/mm_core.abi3.so` | one fat binary, macOS 11+                |
-| Windows x86_64                | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC‑built                               |
+| Platform                      | Artifact                                      | Requirements                                     |
+| ----------------------------- | --------------------------------------------- | ------------------------------------------------ |
+| Linux x86_64                  | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+)         |
+| Linux aarch64                 | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                                     |
+| macOS (Intel & Apple Silicon) | `native-bin/macos-universal2/mm_core.abi3.so` | one fat binary — Intel 10.12+, Apple Silicon 11+ |
+| Windows x86_64                | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC‑built                                       |
 
 One binary serves **CPython 3.10 and newer** on each platform (the Stable ABI,
 `abi3-py310` — proven against 3.10 and 3.13 in CI), and each is gated at
@@ -623,12 +634,12 @@ the PrimeVue dependency itself, and the batch‑scan feature — see
 The deepest changes are below the UI. The original is pure Python (7 backend
 modules, 15 HTTP routes); Neo grows to 16 Python modules and roughly 40 routes,
 and moves every hot path into a prebuilt Rust extension (`native/`, PyO3 over
-the Stable ABI — see [the engine table](#the-engine-a-prebuilt-pure-rust-core)).
+the Stable ABI — see [the engine table](#the-engine)).
 A pure‑Python fallback survives only where a degraded answer beats an error:
 
 | Area                  | Original                                                                            | **Neo**                                                                                                                                                                  |
 | --------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Model listing         | Python `os.walk` per request                                                        | Rust parallel walk + a persistent front‑matter index that survives restarts (5,000‑model scan ~7.5× faster cold, ~100 ms warm; entry‑for‑entry golden‑tested)            |
+| Model listing         | recursive Python `os.scandir` per request                                           | Rust parallel walk + a persistent front‑matter index that survives restarts (5,000‑model scan ~7.5× faster cold, ~100 ms warm; entry‑for‑entry golden‑tested)            |
 | Model detail route    | header parsing ran **on the event loop** — a huge MoE header froze the whole server | executor‑backed, Rust‑parsed; the server stays responsive                                                                                                                |
 | Hashing               | one `hashlib` SHA‑256 loop                                                          | five notations (`SHA256`/`AutoV1`/`AutoV2`/`CRC32`/`BLAKE3`) in **one** streaming pass                                                                                   |
 | Download verification | full re‑read after completion                                                       | inline digest fed by the write loop — zero extra I/O — keeping the Civitai SHA‑256 gate                                                                                  |
@@ -639,6 +650,7 @@ A pure‑Python fallback survives only where a degraded answer beats an error:
 | Folder watching       | —                                                                                   | optional native `notify` watcher (default off): per‑type refresh in ~1.5 s, network mounts skipped, watch‑budget exhaustion degrades to the 30 s TTL refresh             |
 | Library hygiene       | —                                                                                   | orphaned sidecar / empty‑folder sweep with bulk cleanup                                                                                                                  |
 | Upload preflight      | —                                                                                   | duplicate‑detection hashing for HF/ModelScope uploads runs in the native core (GIL released)                                                                             |
+| Distribution          | the prebuilt web bundle is fetched from GitHub Releases on first launch             | the web bundle ships prebuilt in `web/` and the Rust core in `native/native-bin/` — first launch fetches nothing beyond the four Python dependencies                     |
 
 Feature‑level additions on top of the original — upload to Hugging Face and
 ModelScope, multi‑hub search, hash identify, smart collections, stars,
@@ -648,20 +660,25 @@ described in [Features](#features); every one of them is Neo‑side work.
 
 ### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="22" height="22" align="middle" alt=""> Packages
 
-- **Removed:** `primevue`, `@primevue/themes`, `lodash`, `dayjs`, `js-yaml`.
+- **Removed:** `primevue`, `@primevue/themes`, `lodash`, `dayjs`, `js-yaml`
+  (the last was already unused in the original — its YAML work was done by
+  `yaml`).
 - **Added / replaced:** `reka-ui`, `@lucide/vue`, `es-toolkit` (← lodash),
-  `date-fns` (← dayjs), `yaml` (← js-yaml), `vue-sonner` (toasts),
-  `class-variance-authority`, `clsx`, `tailwind-merge`.
+  `date-fns` (← dayjs), `vue-sonner` (toasts), `class-variance-authority`,
+  `clsx`, `tailwind-merge`.
 - **Upgraded:** Vite 5 → **8** (Rolldown), TypeScript 5 → **6**, Vue i18n 9 →
-  **11**, markdown‑it 14 → **15**, `@vueuse/core` 11 → **15**.
+  **11**, markdown‑it 14 → **15**, `@vueuse/core` 11 → **15**, `yaml` 2.6 →
+  **2.9**.
 - **Python:** added `huggingface_hub` + `hf_xet` + `modelscope_hub` (the
   original required only `markdownify`); an asyncio task pool replacing the old
   thread pool; a shared aiohttp client replacing every direct blocking
   `requests` call.
 - **Rust:** added the `native/` workspace (`znn-codec` format core + `mm-core`
-  PyO3 bindings) shipping as prebuilt abi3 binaries — the extension itself
-  installs no compiled Python package, and the vendored ZipNN C sources and
-  their per‑CPython‑version `.so` files are gone.
+  PyO3 bindings) shipping as prebuilt abi3 binaries — the extension installs
+  no compiled Python package at all. ZipNN compression is entirely Neo-side
+  work (the original never shipped it); the vendored ZipNN C sources and their
+  per‑CPython‑version `.so` files that an earlier development stage of
+  this fork carried were removed once the Rust core replaced them.
 
 ### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="22" height="22" align="middle" alt=""> Toolbar / button roles
 

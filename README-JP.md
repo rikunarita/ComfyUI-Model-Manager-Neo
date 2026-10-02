@@ -13,17 +13,21 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![CI](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/ci.yml/badge.svg?branch=main)
 ![Native core](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/native.yml/badge.svg?branch=main)
+![ZipNN format](https://img.shields.io/badge/ZipNN-format_0.5.4_cross--validated-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B_%C2%B7_edition_2024-DEA584.svg?logo=rust&logoColor=black)
 ![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3-229988.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D.svg?logo=vuedotjs&logoColor=white)
+![reka-ui](https://img.shields.io/badge/reka--ui-2-16A353.svg?logo=rekaui&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8.svg?logo=tailwindcss&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8_%C2%B7_Rolldown-646CFF.svg?logo=vite&logoColor=white)
 ![ESLint](https://img.shields.io/badge/ESLint-10-4B32C3.svg?logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
+![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
+![Ruff](https://img.shields.io/badge/Ruff-0.16.9-D7FF64.svg?logo=ruff&logoColor=black)
 ![Node](https://img.shields.io/badge/Node-26_%C2%B7_build-339933.svg?logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
 
@@ -66,14 +70,18 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **Rust ネイティブコア** — ライブラリスキャン・ハッシュ・safetensors ヘッダ
   解析・テンソルツリー・フォルダ監視・プレビュー WebP codec・ZipNN エンジン
   全体が、リポジトリ同梱の**プリビルド Rust 拡張**で動きます（4 プラットフォーム・
-  各 1 バイナリ、Stable ABI により CPython 3.10 以降に対応 — セットアップ時に
-  **コンパイラも pip もネットワークも不要**）。純 Python の元実装との実測比較:
+  各 1 バイナリ、Stable ABI により CPython 3.10 以降に対応）。コア自体は素の
+  `import` だけでロードされます — **コア単体にコンパイラも pip パッケージも
+  ダウンロードも不要**です（拡張機能の Python ハブ依存 4 点は従来どおり
+  初回起動時に自動インストールされます）。純 Python の元実装との実測比較:
   5,000 モデルのスキャンがコールドで約 **7.5 倍**高速（ウォームは 100 ms 未満）、
   5 表記のハッシュを **1 パス**で計算、65,000 テンソルの MoE テンソルツリー構築が
   約 **100 倍**高速、ZipNN 圧縮はモデルの大きさを問わず**ピーク RAM 1 GB 未満**
   （証跡: [`docs/BENCH.md`](docs/BENCH.md)）。
-- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **検証付きでメモリ安全な圧縮** — Rust エンジンは `unsafe` なしで実装され、
-  7 本の継続的ファジングターゲットで強化されています。復元のたびに、圧縮時に
+- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="16" height="16" align="middle" alt=""> **検証付きでメモリ安全な圧縮** — Rust エンジンは lint で `unsafe` を
+  deny しています: フォーマット中核は `unsafe` ゼロ、必要となる唯一の境界
+  （読み取り専用のメモリマップ）は SAFETY レビュー済みで文書化されています。
+  7 本の継続的ファジングターゲットで強化され、復元のたびに、圧縮時に
   記録した SHA‑256 との照合が走ります。公式 `zipnn` 0.5.4 とのフォーマット互換は
   約束ではなく CI ゲートです — push のたびに双方向でクロス検証されます。
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="16" height="16" align="middle" alt=""> **ZipNN 可逆圧縮** — safetensors モデルをその場で圧縮/解凍
@@ -534,12 +542,12 @@ Linux wheel が無く、`pip install zipnn` はソースからのコンパイル
 **プリビルド abi3 バイナリ**として配布します — プラットフォームごとに 1 本、
 ロードは `import` だけ:
 
-| プラットフォーム               | 成果物                                        | 要件                                      |
-| ------------------------------ | --------------------------------------------- | ----------------------------------------- |
-| Linux x86_64                   | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+） |
-| Linux aarch64                  | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                              |
-| macOS（Intel & Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 1 本の fat binary、macOS 11+              |
-| Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC ビルド                               |
+| プラットフォーム               | 成果物                                        | 要件                                                 |
+| ------------------------------ | --------------------------------------------- | ---------------------------------------------------- |
+| Linux x86_64                   | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+）            |
+| Linux aarch64                  | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                                         |
+| macOS（Intel & Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 1 本の fat binary — Intel 10.12+ / Apple Silicon 11+ |
+| Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC ビルド                                          |
 
 各プラットフォームの 1 バイナリが **CPython 3.10 以降**すべてに対応します
 （Stable ABI、`abi3-py310` — CI で 3.10 と 3.13 に対して実証）。サイズは
@@ -611,7 +619,7 @@ HTTP ルート 15 本）ですが、Neo は 16 モジュール・約 40 ルー�
 
 | 領域                   | 元版                                                                         | **Neo**                                                                                                                                                                            |
 | ---------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| モデル一覧             | リクエスト毎の Python `os.walk`                                              | Rust 並列 walk + 再起動をまたぐ永続 front‑matter インデックス（5,000 モデルのスキャンがコールドで約 7.5 倍、ウォーム約 100 ms。エントリ単位のゴールデンテスト済み）                |
+| モデル一覧             | リクエスト毎の再帰 Python `os.scandir`                                       | Rust 並列 walk + 再起動をまたぐ永続 front‑matter インデックス（5,000 モデルのスキャンがコールドで約 7.5 倍、ウォーム約 100 ms。エントリ単位のゴールデンテスト済み）                |
 | モデル詳細ルート       | ヘッダ解析が**イベントループ上**で実行 — 巨大 MoE ヘッダでサーバー全体が停止 | executor 経由 + Rust 解析でサーバーは応答性を維持                                                                                                                                  |
 | ハッシュ               | `hashlib` SHA‑256 ループ 1 本                                                | 5 表記（`SHA256`/`AutoV1`/`AutoV2`/`CRC32`/`BLAKE3`）を**1 パス**のストリーミングで                                                                                                |
 | ダウンロード検証       | 完了後のフル再読込                                                           | 書込ループが供給するインラインダイジェスト — 追加 I/O ゼロ — Civitai SHA‑256 ゲートは維持                                                                                          |
@@ -622,6 +630,7 @@ HTTP ルート 15 本）ですが、Neo は 16 モジュール・約 40 ルー�
 | フォルダ監視           | —                                                                            | 任意のネイティブ `notify` watcher（既定 OFF）: 種別単位で約 1.5 秒の更新、ネットワークマウントはスキップ、inotify 予算枯渇は 30 秒 TTL 更新へデグレード                            |
 | ライブラリ衛生         | —                                                                            | 孤立サイドカー/空フォルダの一斉検査と一括削除                                                                                                                                      |
 | アップロード preflight | —                                                                            | HF/ModelScope アップロードの重複検出ハッシュをネイティブコアで実行（GIL 解放）                                                                                                     |
+| 配布                   | プリビルドの web バンドルを初回起動時に GitHub Releases からダウンロード     | web バンドルは `web/` に、Rust コアは `native/native-bin/` に同梱 — 初回起動時の取得は Python 依存 4 点のみ                                                                        |
 
 元版に対する機能面の追加 — Hugging Face / ModelScope へのアップロード、
 マルチハブ検索、ハッシュ識別、スマートコレクション、スター、複数選択、
@@ -631,21 +640,25 @@ HTTP ルート 15 本）ですが、Neo は 16 モジュール・約 40 ルー�
 
 ### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="22" height="22" align="middle" alt=""> パッケージ
 
-- **削除:** `primevue`・`@primevue/themes`・`lodash`・`dayjs`・`js-yaml`。
+- **削除:** `primevue`・`@primevue/themes`・`lodash`・`dayjs`・`js-yaml`
+  （最後の 1 つは元版でも実使用なし — YAML 処理は `yaml` が担っていました）。
 - **追加 / 置換:** `reka-ui`・`@lucide/vue`・`es-toolkit`（← lodash）・
-  `date-fns`（← dayjs）・`yaml`（← js-yaml）・`vue-sonner`（トースト）・
+  `date-fns`（← dayjs）・`vue-sonner`（トースト）・
   `class-variance-authority`・`clsx`・`tailwind-merge`。
 - **更新:** Vite 5 → **8**（Rolldown）、TypeScript 5 → **6**、Vue i18n 9 →
-  **11**、markdown‑it 14 → **15**、`@vueuse/core` 11 → **15**。
+  **11**、markdown‑it 14 → **15**、`@vueuse/core` 11 → **15**、`yaml` 2.6 →
+  **2.9**。
 - **Python:** `huggingface_hub` + `hf_xet` + `modelscope_hub` を追加
   （元版の必須は `markdownify` のみ）。旧スレッドプールに代わる asyncio
   タスクプール、ブロッキング `requests` 呼び出しをすべて置き換える共有
   aiohttp クライアント。
 - **Rust:** `native/` ワークスペース（`znn-codec` フォーマットコア +
   `mm-core` PyO3 バインディング）を追加し、プリビルド abi3 バイナリとして
-  同梱 — 拡張機能自体はコンパイル済み Python パッケージを一切インストール
-  しません。vendored ZipNN C ソースと CPython バージョン別 `.so` は
-  消滅しました。
+  同梱 — 拡張機能はコンパイル済み Python パッケージを一切インストール
+  しません。ZipNN 圧縮はすべて Neo 側の実装です（フォーク元には同梱されて
+  いませんでした）。本フォークの開発期間中に一時的に同梱していた vendored
+  ZipNN C ソースと CPython バージョン別 `.so` は、Rust コアへの置き換えと
+  ともにすべて撤去済みです。
 
 ### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="22" height="22" align="middle" alt=""> ツールバー/ボタンの役割
 
