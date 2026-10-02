@@ -530,7 +530,10 @@ Select folders (“Select files”) and press the **ZipNN artwork button in the
 bottom bar** — or use the corner button on a folder card — and every
 `.safetensors` model inside the folder tree is compressed (previews and notes
 follow their models) and **moved into the bundle folder `<name>_DeltaZNN`**;
-the original folder disappears once it empties. A `*_DeltaZNN` bundle is
+the original folder disappears once it empties. Models that are already
+compressed in place (single-model button, auto-compress settings, or older
+versions) join the bundle as they are - moved, not re-compressed - so no
+compressed straggler remains beside it. A `*_DeltaZNN` bundle is
 sealed:
 
 - only ZipNN content (`*.znn.*` models, `*.znn` delta files) may ever be placed
