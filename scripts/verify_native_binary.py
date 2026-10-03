@@ -14,6 +14,12 @@ Pure-stdlib container parsing (no readelf/objdump on minimal hosts or CI):
 * PE (windows-x86_64): machine must be x86_64; the ONLY python import
   allowed is the stable-ABI forwarder ``python3.dll``.
 
+The four ``<tag>t`` abi3t variants (NEO-PLAN-2026-003: linux-x86_64t /
+linux-aarch64t / macos-universal2t / windows-x86_64t — the PEP 803
+free-threaded stable ABI) go through the SAME container checks: the trailing
+``t`` is stripped for the architecture expectations (PEP 803 changes the ABI,
+not the file format — the checks are tag-orthogonal).
+
 Usage: verify_native_binary.py <tag> <file> [--glibc-floor 2.28]
 Exit code 0 = all checks passed; the JSON report is printed either way.
 """
@@ -40,6 +46,16 @@ CPU_TYPE_ARM64 = 0x0100000C
 IMAGE_FILE_MACHINE_AMD64 = 0x8664
 
 
+def _base_tag(tag: str) -> str:
+    """Strip the abi3t ``t`` suffix (NEO-PLAN-2026-003 Step 2).
+
+    ``linux-x86_64t`` and ``linux-x86_64`` share every container-level
+    expectation (same ELF class, same e_machine, same glibc floor) — the t
+    suffix selects the PEP 803 ABI flavour, not the file format.
+    """
+    return tag[:-1] if tag.endswith("t") else tag
+
+
 def _glibc_key(v: str) -> tuple[int, ...]:
     return tuple(int(x) for x in re.findall(r"\d+", v))
 
@@ -50,7 +66,8 @@ def check_elf(data: bytes, tag: str, glibc_floor: str) -> tuple[bool, dict]:
     if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
         return False, {"format": "elf64", "error": "not a little-endian ELF64 file"}
     e_machine = struct.unpack_from("<H", data, 18)[0]
-    expected = EM_X86_64 if tag == "linux-x86_64" else EM_AARCH64 if tag == "linux-aarch64" else None
+    base = _base_tag(tag)
+    expected = EM_X86_64 if base == "linux-x86_64" else EM_AARCH64 if base == "linux-aarch64" else None
     report["e_machine"] = e_machine
     if expected is not None and e_machine != expected:
         report["error"] = f"e_machine {e_machine} != expected {expected} for {tag}"
@@ -131,7 +148,7 @@ def check_macho(data: bytes, tag: str) -> tuple[bool, dict]:
         return False, {"format": "macho", "error": f"unknown magic {magic:#x}"}
     report: dict[str, object] = {"format": "macho", "archs": [f"{a:#x}" for a in archs]}
     ok = True
-    if tag == "macos-universal2":
+    if _base_tag(tag) == "macos-universal2":
         missing = [n for n, t in (("x86_64", CPU_TYPE_X86_64), ("arm64", CPU_TYPE_ARM64)) if t not in archs]
         if missing:
             report["error"] = f"universal2 missing slices: {missing}"

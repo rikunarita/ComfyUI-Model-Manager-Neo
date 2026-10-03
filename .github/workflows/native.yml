@@ -4,10 +4,15 @@
 #                  (Linux links with rustc's bundled rust-lld — the default
 #                  since Rust 1.90; no apt toolchain is installed any more,
 #                  NEO-PLAN-2026-002 Step 1)
-#   native-build-* abi3 artifacts for every platform tag (5 rust targets:
-#                  linux x86_64 + aarch64 via cargo-zigbuild glibc 2.28,
-#                  windows x86_64 MSVC, macOS universal2 = both darwin archs),
-#                  per-binary size-budget gate + import smoke on each OS
+#   native-build-* the stable-ABI artifacts for every platform tag in BOTH
+#                  flavours (NEO-PLAN-2026-003): abi3 (GIL builds, floor
+#                  abi3-py312) and abi3t (<tag>t, PEP 803 — free-threaded
+#                  CPython 3.15+, non-PGO per D2, host 3.15.0-rc.2 per D4),
+#                  over the same 5 rust targets: linux x86_64 + aarch64 via
+#                  cargo-zigbuild glibc 2.28, windows x86_64 MSVC, macOS
+#                  universal2 = both darwin archs; per-binary size-budget
+#                  gate + import smoke on each OS (the t smokes run on the
+#                  3.15 GIL AND the free-threaded interpreter)
 #   abi3-import    the linux artifact imported by CPython 3.12 AND 3.14
 #                  (proves the abi3-py312 single-binary claim — the floor was
 #                  raised from 3.10 by NEO-PLAN-2026-003 Step 1)
@@ -118,13 +123,16 @@ jobs:
       # really drop pyo3/extension-module (a workspace-level `features = [...]`
       # on the pyo3 dependency would silently pin it on and break the test link
       # the moment mm-core gains tests that touch #[pyfunction] items) AND, since
-      # NEO-PLAN-2026-003 Step 1 moved the abi3 floor out of the workspace pin
-      # into mm-core's `stable-abi` feature, the test mode must also be
+      # NEO-PLAN-2026-003 moved the abi3 floor out of the workspace pin into
+      # mm-core's `stable-abi` feature, the test mode must also be
       # stable-ABI-free (version-specific libpython link) while the default
-      # (shipping) mode must carry exactly `abi3-py312`. cargo tree -e features
+      # (shipping) mode carries exactly `abi3-py312`. The third axis is `ft`
+      # (abi3t-py315, PEP 803): it must enable extension-module + abi3t-py315
+      # and NEVER plain abi3 — enabling abi3 and abi3t together would make the
+      # produced flavour host-dependent (Plan-3 §2-3/R6). cargo tree -e features
       # does not render crate-level feature edges reliably, so the resolved
       # feature set is read from cargo metadata.
-      - name: Verify the pyo3 feature toggles (extension-module / stable-abi)
+      - name: Verify the pyo3 feature toggles (extension-module / stable-abi / ft)
         if: runner.os == 'Linux'
         run: |
           python3 - <<'PY'
@@ -144,15 +152,30 @@ jobs:
 
           default = pyo3_features([])
           tests = pyo3_features(["--no-default-features"])
+          ft = pyo3_features(["-p", "mm-core", "--no-default-features", "--features", "extension-module,ft"])
+          # --- default (shipping GIL flavor): extension-module + abi3-py312, no abi3t
           if "extension-module" not in default:
               sys.exit("BUG: pyo3/extension-module missing from default features")
           if "abi3-py312" not in default:
               sys.exit("BUG: pyo3/abi3-py312 missing from default features (mm-core/stable-abi)")
+          if {"abi3-py313", "abi3-py314", "abi3-py315"} & default:
+              sys.exit("BUG: default features raise the abi3 floor above py312")
+          if any(f.startswith("abi3t") for f in default):
+              sys.exit("BUG: abi3t leaks into the default (GIL) feature set")
+          # --- test mode: bare pyo3 (version-specific libpython link)
           if "extension-module" in tests:
               sys.exit("BUG: pyo3/extension-module leaks into --no-default-features")
           if any(f.startswith("abi3") for f in tests):
               sys.exit("BUG: --no-default-features must be stable-ABI-free (version-specific test link)")
-          print("pyo3 feature toggles verified (default = extension-module + abi3-py312; test mode = neither)")
+          # --- ft mode (abi3t): extension-module + abi3t-py315, and NEVER plain abi3
+          if "extension-module" not in ft:
+              sys.exit("BUG: pyo3/extension-module missing from the ft feature set")
+          if "abi3t-py315" not in ft:
+              sys.exit("BUG: pyo3/abi3t-py315 missing from the ft feature set (mm-core/ft)")
+          if "abi3" in ft or any(f.startswith("abi3-py3") for f in ft):
+              sys.exit("BUG: abi3 and abi3t must never be enabled together (host-dependent flavor, Plan-3 R6)")
+          print("pyo3 feature toggles verified (default = extension-module + abi3-py312; "
+                "test mode = bare; ft = extension-module + abi3t-py315, abi3-free)")
           PY
 
       # mm-core's test harness must link libpython, so it is tested without
@@ -269,12 +292,60 @@ jobs:
           uv pip install --system pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
           python -m pytest tests -q
 
+      # NEO-PLAN-2026-003 Step 2: the abi3t (PEP 803) artifacts for
+      # free-threaded CPython 3.15+ — NON-PGO (D2: the LLVM profile runtime is
+      # unvalidated on free-threaded hosts; the GIL-side PGO above is untouched)
+      # and built with the EXCLUSIVE feature set (--no-default-features
+      # --features extension-module,ft — never abi3+abi3t together, Plan-3
+      # §2-3/R6). Host = 3.15.0-rc.2 GIL (PyO3 requires host >= target; D4
+      # pins the rc until the 3.15 final lands in the runner manifest — the
+      # ABI froze at rc1, so the final is a label-only swap).
+      - uses: actions/setup-python@v7
+        id: py315
+        with:
+          python-version: "3.15.0-rc.2"
+
+      - name: Build linux-x86_64t (glibc 2.28 floor, abi3t, non-PGO)
+        run: ./scripts/build-native.sh --target linux-x86_64t --size-gate
+
+      # linux-aarch64t stays NON-PGO like its GIL sibling (cross-arch profile
+      # reuse is forbidden, Plan-2 §4.5) — and like all <tag>t targets (D2).
+      - name: Build linux-aarch64t (glibc 2.28 floor, abi3t, non-PGO)
+        run: ./scripts/build-native.sh --target linux-aarch64t --size-gate
+
+      - name: Verify the glibc floor (abi3t artifacts, max referenced GLIBC <= 2.28)
+        run: |
+          for f in native/native-bin/linux-x86_64t/mm_core.abi3t.so native/native-bin/linux-aarch64t/mm_core.abi3t.so; do
+            max=$(readelf -V "$f" | grep -oE 'GLIBC_2\.[0-9]+' | sort -Vu | tail -1)
+            echo "$f -> ${max:-none}"
+            highest=$(printf '%s\nGLIBC_2.28\n' "${max:-GLIBC_2.0}" | sort -Vu | tail -1)
+            if [ "$highest" != "GLIBC_2.28" ]; then
+              echo "glibc floor violated by $f: $max"; exit 1
+            fi
+          done
+
+      - uses: actions/setup-python@v7
+        id: py315t
+        with:
+          python-version: "3.15.0-rc.2"
+          freethreaded: true
+
+      # PEP 803: an abi3t artifact loads on BOTH 3.15+ builds — smoke both
+      # flavours (the ft leg also asserts the GIL is really disabled, so a
+      # mis-installed GIL interpreter cannot pass as the free-threaded one).
+      - name: Import smoke (linux-x86_64t artifact, CPython 3.15 GIL + free-threaded)
+        run: |
+          PYTHONPATH=native/native-bin/linux-x86_64t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/linux-x86_64t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
+
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-linux
           path: |
             native/native-bin/linux-x86_64/mm_core.abi3.so
             native/native-bin/linux-aarch64/mm_core.abi3.so
+            native/native-bin/linux-x86_64t/mm_core.abi3t.so
+            native/native-bin/linux-aarch64t/mm_core.abi3t.so
 
   native-build-macos:
     # Ghost-run guard — see native-test.
@@ -331,10 +402,41 @@ jobs:
         run: |
           PYTHONPATH=native/native-bin/macos-universal2 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
+      # NEO-PLAN-2026-003 Step 2: abi3t universal2 (non-PGO like the macOS GIL
+      # side — Plan-2 §4.4; D2). Host 3.15.0-rc.2 (D4). The wheel naming check
+      # of Plan-3 R4 is done by build-native.sh's cp315*abi3t* glob + the
+      # .abi3t.so extraction (both fail loudly on a mismatch).
+      - uses: actions/setup-python@v7
+        id: py315
+        with:
+          python-version: "3.15.0-rc.2"
+
+      - name: Build macos-universal2t (maturin, abi3t, both archs + lipo)
+        run: ./scripts/build-native.sh --target macos-universal2t --size-gate
+
+      - name: Verify universal2t fat binary
+        run: lipo -info native/native-bin/macos-universal2t/mm_core.abi3t.so
+
+      - uses: actions/setup-python@v7
+        id: py315t
+        with:
+          python-version: "3.15.0-rc.2"
+          freethreaded: true
+
+      - name: Import smoke (macos-universal2t artifact, CPython 3.15 GIL + free-threaded arm64)
+        run: |
+          PYTHONPATH=native/native-bin/macos-universal2t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15 arm64):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/macos-universal2t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t arm64):', mm_core.api_version(), mm_core.core_version())"
+
+      # Two tag directories (not a bare file) so the download-artifact LCA
+      # keeps the tag segments — the windows/macos shapes must stay
+      # distinguishable for the size-budget and publish staging (Plan-3 §3.4).
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-macos
-          path: native/native-bin/macos-universal2/mm_core.abi3.so
+          path: |
+            native/native-bin/macos-universal2/mm_core.abi3.so
+            native/native-bin/macos-universal2t/mm_core.abi3t.so
 
   native-build-windows:
     # Ghost-run guard — see native-test.
@@ -378,10 +480,36 @@ jobs:
         run: |
           PYTHONPATH=native/native-bin/windows-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
+      # NEO-PLAN-2026-003 Step 2: abi3t (non-PGO — D2; the GIL side keeps
+      # maturin --pgo above). Host 3.15.0-rc.2 (D4). PEP 803 keeps the plain
+      # .pyd name on Windows, so the t artifact is separated ONLY by its
+      # windows-x86_64t directory (Plan-3 R7: the upload below carries the
+      # directory structure and the publish staging is directory-tag-first).
+      - uses: actions/setup-python@v7
+        id: py315
+        with:
+          python-version: "3.15.0-rc.2"
+
+      - name: Build windows-x86_64t (MSVC, abi3t, non-PGO)
+        run: ./scripts/build-native.sh --target windows-x86_64t --size-gate
+
+      - uses: actions/setup-python@v7
+        id: py315t
+        with:
+          python-version: "3.15.0-rc.2"
+          freethreaded: true
+
+      - name: Import smoke (windows-x86_64t artifact, CPython 3.15 GIL + free-threaded)
+        run: |
+          PYTHONPATH=native/native-bin/windows-x86_64t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/windows-x86_64t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
+
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-windows
-          path: native/native-bin/windows-x86_64/mm_core.pyd
+          path: |
+            native/native-bin/windows-x86_64/mm_core.pyd
+            native/native-bin/windows-x86_64t/mm_core.pyd
 
   abi3-import:
     timeout-minutes: 60
