@@ -1,0 +1,96 @@
+# Actions cache hygiene (NEO-PLAN-2026-003 cleanup).
+#
+# The repository cache cap is 10 GB per repository on every plan, and caches are
+# scoped per ref. Two consequences bit this repo on 2026-10-03, when the cap was
+# at 9.65 GiB (96.5%):
+#
+#   * a `pull_request` run caches into `refs/pull/N/merge`, which GitHub
+#     documents as restorable ONLY by re-runs of that same PR. PR #29 alone held
+#     2.51 GiB of entries nothing could ever read again after the merge, and a
+#     release tag run (`refs/tags/v*`) is dead the same way;
+#   * a restore-key fallback refreshes `last_accessed_at`, so those dead entries
+#     survive the LRU eviction while live branch caches get thrown out -- which
+#     is what deleted the weekly fuzz-long cache (7 ASan nightly targets then
+#     rebuild cold).
+#
+# native.yml / fuzz-long.yml now only WRITE caches from main and dev
+# (rust-cache `save-if`), which stops the growth. This workflow reclaims what is
+# already dead instead of waiting for GitHub's 7-day rule:
+#
+#   pull_request closed -> drop that PR's whole `refs/pull/N/merge` scope (the
+#                          pattern from the "Managing caches" docs)
+#   weekly / on demand  -> drop every `refs/pull/*` and `refs/tags/*` scope plus
+#                          superseded rust-cache key generations (each Cargo
+#                          bump leaves the previous generation behind, 2.06 GiB
+#                          of it here)
+#
+# Deleting a cache is never destructive: the worst case is one colder build.
+name: cache-cleanup
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "40 3 * * 0" # Sundays 03:40 UTC, ahead of fuzz-long (18:00 UTC)
+  workflow_dispatch:
+    inputs:
+      older_than_days:
+        description: "Also drop entries unused for at least this many days (0 = off)"
+        default: "0"
+        type: choice
+        options: ["0", "3", "5", "7"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-cleanup
+  cancel-in-progress: false
+
+jobs:
+  prune-closed-pull-request:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      # Deleting cache entries over REST needs Actions write; GITHUB_TOKEN is
+      # already in the step environment, the script reads it from there.
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Prune this PR's cache scope
+        env:
+          SWEEP_REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: python scripts/actions_cache_sweep.py --ref "$SWEEP_REF"
+
+  sweep:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Sweep dead scopes and superseded generations
+        run: |
+          set -euo pipefail
+          extra=()
+          days="${{ github.event.inputs.older_than_days || '0' }}"
+          if [[ "$days" != "0" ]]; then
+            extra+=(--older-than-days "$days")
+          fi
+          # The ${extra+...} guard keeps the empty-array expansion safe under
+          # `set -u` (the bash 3.2 lesson from scripts/build-native.sh).
+          python scripts/actions_cache_sweep.py ${extra+"${extra[@]}"}
