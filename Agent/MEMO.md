@@ -464,6 +464,37 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
   1239 MB/s vs legacy sha256 単体 1442 MB/s）— 実益はループ除去・経路統一・
   GIL 解放。チャンク毎 `report_progress(PHASE_HASH)` の扱いが設計判断
   （Plan T1）。
+- **`EXTENSION_SUFFIXES` = 拡張子の flavour 行列（native run 37121494488 の
+  失敗 4 で実測・CPython 一次ソースで確定）**: `_imp.extension_suffixes()` は
+  `_PyImport_DynLoadFiletab` そのもの（`Python/import.c`
+  `imp_extension_suffixes_impl`）で、POSIX の実体は `Python/dynload_shlib.c` —
+  **`.abi3*` 項は `#ifndef Py_GIL_DISABLED` の内側、`.abi3t*` 項は無条件**。
+  `FileFinder._find_spec` は `name + suffix` しか照合しない
+  （`Lib/importlib/_bootstrap_external.py:1386-1395`）ので、free-threaded 3.15
+  では `mm_core.abi3.so` を `mm_core` としても `mm_core.abi3` としても解決できず
+  `ModuleNotFoundError` になる（= ローダーの reason は
+  「import mm_core failed: No module named 'mm_core'」）。実測値:
+  - 3.12.15 GIL → `.cpython-312-x86_64-linux-gnu.so` / **`.abi3.so`** / `.so`
+  - 3.13.16t ft → `.cpython-313t-…so` / **`.abi3.so`** / `.so`
+  - 3.14.8t ft → `.cpython-314t-…so` / **`.abi3.so`** / `.so`
+  - 3.15.0rc2 GIL → `.cpython-315-…so` / `.abi3-x86_64-linux-gnu.so` /
+    **`.abi3.so`** / `.abi3t-x86_64-linux-gnu.so` / **`.abi3t.so`** / `.so`
+  - 3.15.0rc2t ft → `.cpython-315t-…so` / `.abi3t-x86_64-linux-gnu.so` /
+    **`.abi3t.so`** / `.so`（**`.abi3.so` が消える**）
+- **`Py_GIL_DISABLED` ガードは 3.15 で入った**（v3.13.9 / v3.14.0 の
+  `dynload_shlib.c` を実読 = ガード無し・`.abi3t` 項も無し）。つまり
+  3.13t/3.14t は `.abi3.so` を**受理してしまう** = GIL 専用拡張が dlopen まで
+  届く。ローダーが ft<3.15 を「abi3t requires 3.15+」で**早期拒否**する根拠は
+  ここにある（「解決できないから」ではなく「解決できてしまうから危ない」）。
+  逆に **GIL 3.15 は両 family を併記**するので、abi3-import の
+  「3.15 GIL × abi3t 成果物」セルは成立する（run 37121494488 で緑）。
+- **Windows には family 差がファイル名に存在しない**: `Python/dynload_win.c` は
+  `PYD_TAGGED_SUFFIX` / `PYD_UNTAGGED_SUFFIX` の 2 項のみ
+  （`Include/internal/pycore_importdl.h` v3.15.0rc2 実読:
+  `.cp315[t]-win_amd64.pyd` / `.pyd`・`PYD_THREADING_TAG` が
+  `Py_GIL_DISABLED` で `t`）。よって Windows の flavour 分離は
+  **ディレクトリ名（`<tag>` vs `<tag>t`）だけ**が担い、`.abi3*` は永遠に無い。
+  テストやステージングで「ABI タグ付きファイル名」を前提にできるのは POSIX のみ。
 
 ### 4.4 ファジング
 
@@ -537,8 +568,42 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
   緑だった → `pytest.raises` 化。同型: loop/アニメ ICC 保持は Python 側
   未固定で `loop = 0` / `icc = b""` ハードコード mutation が全テストを通過した
   → 接合部テスト追加で捕捉を実証）。
+- **`sys.version_info` の monkeypatch はサードパーティの import 時分岐に漏れる**
+  （native run 37121494488 の失敗 4 調査で実証・第 28 セッション）:
+  `test_phase0_native_loader.py` の autouse ピン（GIL 3.12 偽装）下で aiohttp が
+  **初回** import されると、`aiohttp/client_ws.py` の import 時分岐
+  `if sys.version_info >= (3, 13)` が偽になって `typing_extensions.TypeVar`
+  経路へ入り、実 3.15 ホストでは `AttributeError: attribute '__default__' of
+'typing.TypeVar' objects is not writable`（typing_extensions.py:1754
+  `_set_default`）で死ぬ。**一度壊れると回収不能**で、以降のテストは
+  半初期化の aiohttp を掴み `TypeError: ClientTimeout.__init__() got an
+unexpected keyword argument 'total'`（client.py:253）で全滅する。CI が
+  無事だったのは**収集順の偶然**（アルファベット先頭の
+  `test_phase0_a1_model_info_route.py` がピンなしで先に import していた）で、
+  `pytest tests/test_phase0_native_loader.py` の単独実行なら 3.15.0rc2t で
+  12 本中 11 本が失敗した。**恒久対策**: ピンを持つテストモジュールは、
+  モジュール import 時（=どの fixture よりも前）に必要なサードパーティを
+  `importlib.import_module()` でウォームアップしておく（F401 を避け、意図を
+  コメントで固定できるため import 文より呼び出し形を推奨）。
+- **実 import 機構に触れるテストは「偽装した解釈系」で走らせてはいけない**
+  （同 run の失敗 4 = 本体・第 28 セッション）: ピンが差し替えるのは Python 層の
+  属性だけで、`EXTENSION_SUFFIXES` / `FileFinder` / `dlopen` は**本物の解釈系の
+  まま**。よって「ピン後の tag で実成果物を import させる」テストは、実ホストが
+  ピンと違う flavour のときに**成果物側が完全に正しいのに必ず落ちる**。
+  さらに skip ガードを実成果物の存在チェックにしていると、CI のステージングが
+  **全 tag ディレクトリを展開する**（native-bin-linux は 4 tag 丸ごと）ため
+  他 flavour の成果物が存在してしまい、ガードが発火しないまま assert へ進む。
+  **教訓（3 点セット）**: 実 import を行うテストは (1) 実ホストの信号で走らせる
+  （`_use_real_interpreter` パターン = モジュール import 時に
+  `_REAL_VERSION`/`_REAL_ABIFLAGS`/`_REAL_GIL_DISABLED` を退避 → テスト内で
+  `_force_interpreter` により再設定。monkeypatch の undo は逆順なので
+  二重 setattr でも元の値へ戻る）、(2) 期待ファイル名をハードコードせず
+  flavour（`is_free_threaded()`）から導出する、(3) tag が None の skip には
+  `tag_rejection_reason()` を出して「成果物不足」と「解釈系非対応」を区別する。
+  副次利得: floor 未満ホスト（GIL 3.11 等）でピンが tag を捏造し、実 import が
+  未定義シンボルで失敗する潜在の誤検出も同時に消えた。
 
-## 5. 現状と残件（2026‑10‑03 第 27 セッション時点）
+## 5. 現状と残件（2026‑10‑03 第 28 セッション時点）
 
 - **Phase 0–7 完了（CI 実走緑まで確認済み）+ Phase 8 実装完了**
   （**残 = 完了条件の Win/macOS 脚と v0.3.0 公開作業 — ユーザ専任**。
@@ -669,6 +734,61 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
   経路（PGO 三段階・G2・aarch64・glibc floor・loader pytest）も t ステップ
   直前まで緑。修正は 3 独立コミット（fix(ci) ×2 + fix(build)）+ 本記録。
 
+- **Plan‑3 後始末(2): dev run（native）37121494488 = 18 ジョブ中 17 success、
+  残る 1 失敗を根因解析して修正（2026‑10‑03 第 28 セッション — 修正の CI 実走
+  確認は次ターン・ユーザ）**: ①②③（zig pin / bash 3.2 ガード / toggle ゲート）は
+  **すべて解消を確認** — native‑test ×3・native‑build‑linux/macos/windows・
+  abi3‑import 4 セル・size‑budget・fuzz‑smoke・integration の GIL 3 セルが緑。
+  失敗は `integration (ubuntu-latest, native-bin-linux, linux-x86_64t,
+3.15.0-rc.2, true)` の **pytest 1 本のみ**
+  （`1 failed, 218 passed, 1 skipped`）=
+  `tests/test_phase0_native_loader.py::test_load_finds_prebuilt_and_handshakes`。
+  **根因はテスト側で、ローダーも abi3t 成果物も無罪**（同セルの他 218 本は
+  実ローダ経由で `linux-x86_64t/mm_core.abi3t.so` を使い切っている）。連鎖は
+  5 段: (a) autouse ピンが `sys.version_info=(3,12,7)`/`abiflags=''`/
+  `Py_GIL_DISABLED=0` を偽装 → (b) `platform_tag()` が `linux-x86_64t` でなく
+  `linux-x86_64` を返す → (c) プローブ名が `mm_core.abi3.so` ハードコード →
+  (d) **native-bin-linux アーティファクトは 4 tag 丸ごと**（artifact
+  11273309005 を DL して確認）で Stage step が全部展開するため
+  `native-bin/linux-x86_64/mm_core.abi3.so` が実在し skip ガードが発火しない →
+  (e) free-threaded 3.15 の `EXTENSION_SUFFIXES` に `.abi3.so` が無い
+  （§4.3 の行列・`Python/dynload_shlib.c` の `#ifndef Py_GIL_DISABLED`）ので
+  `import mm_core` が `ModuleNotFoundError` → `load()` は reason
+  「import mm_core failed: No module named 'mm_core'」で False = **正しく拒否した
+  のは load() で、誤っていたのはアサート**。**再現は CI と同一材料で完全一致**:
+  同一 SHA(09993fb) の `git archive` + 実 CI バイナリ 4 本 + CPython
+  3.15.0rc2 free-threaded + pytest 9.1.1 + CI と同一依存（aiohttp 3.14.3 /
+  pyyaml 6.0.3 は sdist ビルド、pillow 12.3.0 は cp315t wheel）で
+  `1 failed, 218 passed, 1 skipped, 26 warnings`（CI ログと一字一句同じ）+
+  reason() 実測。陽性対照として GIL 3.12.15 が同一の `mm_core.abi3.so` を
+  正常 import（api_version 6 / `0.3.0+09993fbc3`）。**修正は 2 独立コミット**:
+  (1) `test(loader)` — `_REAL_*` 退避 + `_use_real_interpreter()` の逃避口を
+  新設し、handshake テストを実ホスト解釈系で走らせてプローブ名を flavour 準拠
+  （`is_free_threaded()` → `mm_core.abi3t.so` / `mm_core.abi3.so`）へ。
+  GIL ホストでは family 文字列も tag も従来と完全同一なので
+  ubuntu‑GIL/macos/windows の挙動は不変（windows は `.pyd` のため従来どおり
+  skip = 2 skipped 維持）。`core.__file__` の family 一致と
+  `diagnostics()["freeThreaded"]` の一致をアサート追加。回帰テスト
+  `test_extension_suffixes_enforce_the_flavour_split` を新設し、機構を
+  **5 flavour 実測**で固定（3.12.15 GIL / 3.13.16t / 3.14.8t / 3.15.0rc2 GIL /
+  3.15.0rc2t — 全て単独 PASS）。skip 文言は tag None 時に
+  `tag_rejection_reason()` を出す形へ改善。(2) `test(loader)` — ピンが
+  サードパーティの import 時分岐に漏れる地雷の除去（§4.5・モジュール
+  import 時の `importlib.import_module("aiohttp.web")` ウォームアップ。
+  修正前は 3.15.0rc2t での単独実行が 12 本中 11 失敗、修正後は 4 解釈系で
+  12 passed）。**検証**: 修正後のフルスイートは 3.15.0rc2t / 3.12.15 とも
+  **220 passed / 1 skipped**（skip = numpy 不在の test_phase4_dtypes、t セル
+  設計どおり）・loader 単独は 3.15.0rc2 GIL 12 passed / 3.14.8t 11 passed +
+  1 skipped（tag None）・ruff 0.16.9 check + format 緑。**Gemini 由来の
+  「3.15.0rc3 / lazy‑import リリースブロッカー」情報は本件と無関係**を確認 —
+  upstream に `v3.15.0rc3` タグは実在するが `actions/python-versions` の
+  versions‑manifest.json は今も `3.15.0-rc.2` が最新で setup‑python は rc.3 を
+  インストールできず、失敗は拡張子テーブル 100 %。**前セッションの残リスク
+  「t セルの aiohttp/pyyaml sdist 依存」は発火しなかった**（runner 上で
+  13.19 s でビルド完了）。D4（`3.15`/`3.15t` 表記への振替）は manifest 着弾
+  待ちのまま。次ターン: この 2 コミットの CI 実走確認 → ユーザが dev→main
+  マージ。
+
 ## 6. セッション タイムライン（圧縮版 — 逐語原文は `git show 88b5e9c:Agent/MEMO.md`）
 
 「第 N」は旧 MEMO のセッション番号（Plan 等の「MEMO 第 8 セッション」参照は
@@ -712,3 +832,4 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
 | 第 25 | 2026‑10‑02 | **Plan‑2 実装完了の収束: 最終バグ精査 + run #109 消化 + ユーザ文書の事実精度修正 + 整理再確認**。(1) **精査（バグなし）**: train.py / g2_check.py / build-native.sh / native.yml（PGO 三段階 + 恒久 G2 + pgo-measure）/ .cargo/config.toml / native/pyproject.toml を全面レビュー — ruff 0.16.9（CI ピン版）check+format 緑・3 ワークフローの YAML 構文緑・bash -n 緑・g2_check.py は mutation 5 変種を全検出 + run #109 実データ形状（missing 13.81 %）で PASS・build-native.sh の `--pgo` RUSTFLAGS 配線（safe な空配列展開イディオム）は空/非空配列とも実測正常。(2) **run #109 確認（API でジョブ一覧 + artifact `pgo-measure-report` を直接取得）**: native 14 success + publish skip（main 限定 = 設計どおり）・CI #198 緑。pgo-measure の**中央値判定が初実走で機能**し、**G1 = 高速ランナーで NOT MET（パリティ）**: compress 定常 ~765 MB/s（#108 の ~2.2 倍）かつ SHA‑NI 無し（hash ~748 MB/s = #108 比 ×0.63）の異質インスタンス — compress ×0.9937 / decompress ×0.996 / scan ×1.0127 / hash ×1.004、負値なし・REGRESSION WATCH（<0.95）非発火・round 0 にコールドペナルティ無し（フロントエンド余裕が PGO の配置利得を吸収 = #107/#108 の遅いランナークラスではコールド一貫 +10 % が引き続き有効）。G2 の決定論的形状（7,618 / 1,052 / 13.81 % / 877）は 3 run 連続で完全再現（pgo-build.log の実カウント = 1,052）。**採用判定は不変**（revert 条件「PGO が負値」に該当なし）→ BENCH §13.7 に全記録 + Plan‑2 v1.5 収束（状態行「実装完了」・§2.2 G1 行へ #109 追記・Step 1/2/4/5 完了条件 [x]・版数履歴の 1.0 孤立行修復・付録 A‑1 追記）。(3) **ユーザ文書の事実精度修正（README×2 + USAGE×3 — すべて一次検証付き）**: unsafe の表述をスコープ正確化（「written without unsafe」→ lint deny + フォーマット中核ゼロ + 唯一の境界 = レビュー済み read‑only mmap〔delta.rs / safetensors_io.rs の 2 箇所・同一パターン〕）/ vendored ZipNN の帰属修正（**フォーク元 v2.8.5 に ZipNN は存在しない**ことを grep で確認 = ZipNN は全体が Neo 側実装。Packages 項を書き直し）/ yaml の来歴（upstream で実使用は yaml 2.6.0・js-yaml は宣言のみ未使用 → yaml を Upgraded 側へ移動）/ 「os.walk per request」→ 再帰 os.scandir（upstream manager.py 実読）/ **macOS 床の実測精密化**（main の実物 fat バイナリを LC_VERSION_MIN_MACOSX / LC_BUILD_VERSION まで直接パース: x86_64 スライス = 10.12・arm64 スライス = 11.0 → 全文書「Intel 10.12+ / Apple Silicon 11+」へ）/ web 配布機構の差分を「What changed」へ追加（元版 = 初回起動時に GitHub Releases から dist.tar.gz 取得・Neo = リポジトリ同梱 = 起動時のアセット取得ゼロ）/ バッジ充実（reka‑ui 2・Stylelint 17・Ruff 0.16.9・ZipNN format 0.5.4 cross‑validated — pnpm‑lock 8.3.1/4.3.3/6.0.3 等・pyproject・CI ピンと全照合）。(4) **整理の再確認（追加削除なし）**: 第 20 セッションの退役ハーネス削除（bench 9 本・scripts/l2・docs/upstream・znn-cli・json-bench）後に残る全ファイルを再走査し、残存ファイルはすべて CI・文書・ランタイムから参照されることを確認（cross_check.py ← k15.mjs --cross-check・json-bench.txt ← BENCH §2・results/_.json ← BENCH 逐語引用・verify_native_binary.py ← native/README・proptest-regressions ← L1）。GitHub Actions 系はユーザ指示により保持。demo-assets/ はユーザ領域のため不変。(5) **次ターン（ユーザ専任）**: dev→main マージ → publish‑native‑bin の bot コミット確認 → マージ後初回の日曜 18:00 UTC fuzz‑long 緑（または dispatch）を確認後に R5 の apt ステップ削除を別コミットで。 |
 | 第 26 | 2026‑10‑03 | **Plan‑3（NEO‑PLAN‑2026‑003）Steps 1–5 を一括実装（各 Step 独立コミット: c5ffa7e / fcdf540 / 07a4d05 / 0ca9847 / 本コミット）**: floor 3.12（abi3‑py312）+ abi3t 8 本体制（`<tag>t`・PEP 803）+ ローダー ft ルーティング/floor ガード + CI 拡張（abi3‑import 4 セル / size‑budget 40 MB 目安〔D1〕/ publish ディレクトリタグ優先 / integration ubuntu t セル〔D3〕）+ 文書・バッジ・記録。一次確認: pyo3 両 feature のホスト依存挙動（guide 実読）・PEP 803 の EXTENSION_SUFFIXES を実解釈系 3.15.0rc2 GIL/ft で実測・setup‑python は rc 版に `freethreaded:` 入力（t サフィックス非対応）・PyPI cp315t 実査（aiohttp/pyyaml 無し → t セルは sdist ビルド、失敗時は縮小の予備方針つき）・maturin wheel glob は `cp315*abi3t*` で命名揺れ耐性。ローカル検証: ruff/mypy/pytest 3.12.15（85+135skip）・staging simulation 5 PASS・cargo スタブ・bash ‑n・prettier。**CI 実走確認は次ターン（ユーザ）**。 |
 | 第 27 | 2026‑10‑03 | **Plan‑3 の dev run（native）37113439219 が 3 失敗 → 全根因を実証付きで特定し修正（+潜在ゲート誤検出 1 件を発見・修正）**。① linux t ビルド「Failed to find zig」= py315 setup‑python 切替で cargo‑zigbuild の探索 ②`python3 -m ziglang` が喪失、③PATH `zig` は ziglang wheel に shim が無く（console script は `python‑zig` のみ）永久不発 → **ツールチェイン導入時に site‑packages 実体を解決し `CARGO_ZIGBUILD_ZIG_COMMAND` を `$GITHUB_ENV` へ pin**（locate.rs の env 契約 = 非空+実在パス、wrapper.rs が同変数を再エクスポートするため 1 pin でジョブ全体を網羅 — 双方実読）。実測: 実 wheel インストールに対し CI と同一スニペットで解決+version、pin のみ・`python3 -m ziglang` 破綻下で cargo zigbuild が `x86_64-unknown-linux-gnu.2.28` を完走し readelf で GLIBC_2.28 floor を確認。② macOS GIL universal2「feat[_]: unbound variable」（line 195）= bash 3.2 は空配列が**ダブルクォート内でも** unbound（linux 5.2/git‑bash 無影響・t ビルド未到達のままジョブ死亡）→ log 3 箇所を `${feat[*]+"${feat[*]}"}` へ統一（実行行 166/196/246 と同イディオム）。実測: **GNU ソースから bash 3.2.57 を自ビルド**してクラッシュ行を再現 → 修正版は空/非空/空白含み要素で正常、`bash -n` は 3.2.57+5.2 双方緑、スタブ cargo + ダミー .so でスクリプト実体（4 ターゲット × GIL/ft）を 3.2.57/5.2 双方で完走。③ native‑test toggle ゲート ft 軸「unexpected argument '-p'」= **cargo metadata に -p セレクタは無い**（cargo 1.99 実測・CI では check=True が stderr を吞み traceback しか残らず）→ `--features mm-core/extension-module,mm-core/ft` 修飾形へ + helper が cargo stderr を surface。④ **潜在誤検出の発見（③の実測解決中に判明）**: pyo3 0.29.2 の abi3‑pyXY は**上向きチェーン**（abi3‑py312 ⇒ py313 ⇒ py314 ⇒ py315 ⇒ 素の abi3・pyo3+pyo3‑ffi Cargo.toml 実読）で、floor = 有効化された最小 pyXY（pyo3‑build‑config `get_abi3_version()` の昇順スキャンを実読）→ Step‑2 の「default に abi3‑py313/314/315 が居たら BUG」は ft 軸を直し次第**必ず誤発火**する状態だった。「最小有効 minor == 12（default）/ == 15（ft）」形へ置換し、ゲート実走 PASS（実ワークスペース・cargo 1.99）+ 合成負例 9 ケース（floor 上昇/低下/欠落・abi3t 漏れ・stable‑abi 欠落・R6 混合・abi3t 将来チェーン 2 種）で検出力を実証。**同 run の陽性確認**: windows は t ビルド（実タグ `cp315-abi3.abi3t-win_amd64.whl`）+ 3.15 GIL/ft import smoke まで全緑 → R4 実証解消。linux GIL 経路も t ステップ直前まで緑。skip 連鎖（abi3‑import/size‑budget/integration/publish）は 3 失敗の下流 = 修正で自動回復の見込み。pgo‑measure は python を切替えないため無関係（pin 不要）。commits: fix(ci) zig pin / fix(build) bash 3.2 ガード / fix(ci) ゲート修正 + docs(MEMO/Plan‑3)。**修正の CI 実走確認は次ターン（ユーザ）**。 |
+| 第 28 | 2026‑10‑03 | **run 37121494488（native #134）= 18 ジョブ中 17 success。前セッションの 3 修正（zig pin / bash 3.2 ガード / toggle ゲート）がすべて実走で解消したことを確認し、残る 1 失敗を根因解析して修正**。失敗は `integration (ubuntu-latest, native-bin-linux, linux-x86_64t, 3.15.0-rc.2, true)` の pytest 1 本のみ（`1 failed, 218 passed, 1 skipped`）= `test_load_finds_prebuilt_and_handshakes`。**根因はテスト側でローダーも abi3t 成果物も無罪**（同セルの他 218 本は実ローダ経由で `linux-x86_64t/mm_core.abi3t.so` を使い切っている）。連鎖 5 段: ① autouse `_supported_interpreter_baseline` が `sys.version_info=(3,12,7)`/`abiflags=''`/`Py_GIL_DISABLED=0` を偽装 → ② `platform_tag()` が `linux-x86_64t` でなく `linux-x86_64` を返す → ③ プローブ名が `mm_core.abi3.so` ハードコード（Phase 0 以来）→ ④ **native-bin-linux アーティファクトは 4 tag 丸ごと**（artifact 11273309005 を DL して実査: linux-x86_64 / linux-aarch64 / linux-x86_64t / linux-aarch64t）で Stage step が全部展開するため `native-bin/linux-x86_64/mm_core.abi3.so` が実在し skip ガードが発火しない → ⑤ free-threaded 3.15 の `EXTENSION_SUFFIXES` = `['.cpython-315t-…so', '.abi3t-x86_64-linux-gnu.so', '.abi3t.so', '.so']` に **`.abi3.so` が無い**（一次ソース = CPython v3.15.0rc2 `Python/dynload_shlib.c`: `.abi3*` 項は `#ifndef Py_GIL_DISABLED` の内側・`.abi3t*` 項は無条件。`FileFinder._find_spec` は `name + suffix` しか照合しない = `_bootstrap_external.py:1386-1395`）ので `import mm_core` が `ModuleNotFoundError` → `load()` は reason「import mm_core failed: No module named 'mm_core'」で False = **正しく拒否したのは load() で、誤っていたのはアサート**。**再現は CI と同一材料で完全一致**: 同一 SHA(09993fb) の `git archive` + 実 CI バイナリ 4 本 + CPython 3.15.0rc2 free-threaded（uv/python-build-standalone。actions/python-versions 版は GLIBC_2.38 要求で sandbox の 2.36 では起動しないため、そちらは同梱 `pyconfig.h` の `Py_GIL_DISABLED 1`/`SOABI_PLATFORM "x86_64-linux-gnu"` と CPython ソースで接合確認）+ pytest 9.1.1 + CI と同一依存（aiohttp 3.14.3 / pyyaml 6.0.3 は sdist ビルド、pillow 12.3.0 は cp315t wheel）→ `1 failed, 218 passed, 1 skipped, 26 warnings`（CI ログと完全一致）+ reason() を実測。陽性対照 = GIL 3.12.15 が同一の `mm_core.abi3.so` を正常 import（api_version 6 / `0.3.0+09993fbc3`）。セル別計算も一致: ubuntu-GIL 220 passed / macos 219+1 / windows 218+2（同テストは `.pyd` vs ハードコード `.abi3.so` で元々 skip）/ ubuntu-t 218+1failed+1skip（skip = numpy 不在の test_phase4_dtypes、t セル設計どおり）。**修正は 2 独立コミット**: (1) `_REAL_VERSION`/`_REAL_ABIFLAGS`/`_REAL_GIL_DISABLED`/`_REAL_FREE_THREADED` をモジュール import 時に退避し `_use_real_interpreter(monkeypatch)` でピンを実ホスト値へ再設定する逃避口を新設、handshake テストをそれで走らせてプローブ名を flavour 準拠（`is_free_threaded()` → `mm_core.abi3t.so` / `mm_core.abi3.so`）へ。GIL ホストでは family 文字列も tag も従来と完全同一なので ubuntu-GIL/macos/windows の挙動は不変（windows は従来どおり skip = 2 skipped 維持）。`core.__file__` の family 一致 + `diagnostics()["freeThreaded"]` 一致をアサート追加。副次利得 = floor 未満ホスト（GIL 3.11 等）でピンが tag を捏造して実 import が未定義シンボルで死ぬ潜在の誤検出も消失（tag None → `tag_rejection_reason()` 付き skip）。回帰テスト `test_extension_suffixes_enforce_the_flavour_split` を新設し、機構を **5 flavour 実測**で固定（3.12.15 GIL / 3.13.16t / 3.14.8t / 3.15.0rc2 GIL / 3.15.0rc2t すべて単独 PASS。実測で判明した重要事実 = **`Py_GIL_DISABLED` ガードは 3.15 で入った**ので 3.13t/3.14t は `.abi3.so` を受理してしまう〔v3.13.9/v3.14.0 の `dynload_shlib.c` 実読〕= ローダーの「abi3t requires 3.15+」早期拒否の根拠は「解決できない」ではなく「解決できてしまうから危ない」。逆に GIL 3.15 は両 family を併記するので abi3-import の「3.15 GIL × abi3t」セルは成立。Windows は `dynload_win.c` + `Include/internal/pycore_importdl.h` 実読で `.pyd` 2 項のみ = family 差がファイル名に存在せず、flavour 分離はディレクトリ名だけが担う)。(2) **調査中に見つけた潜在地雷の除去（別コミット）**: ピンは `sys.version_info` を差し替えるだけなのでサードパーティの import 時分岐にも漏れる — aiohttp `client_ws.py` の `>= (3, 13)` が偽になり `typing_extensions.TypeVar` 経路へ入って、実 3.15 ホストでは `AttributeError: attribute '__default__' of 'typing.TypeVar' objects is not writable`（typing_extensions.py:1754）で死亡、以後は半初期化 aiohttp を掴み `TypeError: ClientTimeout.__init__() got an unexpected keyword argument 'total'`（client.py:253）で全滅（回収不能）。CI が無事だったのは収集順の偶然（アルファベット先頭の `test_phase0_a1_model_info_route.py` がピンなしで先に import）で、`pytest tests/test_phase0_native_loader.py` 単独実行なら 3.15.0rc2t で 12 本中 11 本が失敗することを実証 → モジュール import 時の `importlib.import_module("aiohttp.web")` ウォームアップで除去（修正後は 4 解釈系で単独 12 passed）。**検証**: 修正後フルスイート = 3.15.0rc2t / 3.12.15 とも **220 passed / 1 skipped**、loader 単独 = 3.15.0rc2 GIL 12 passed / 3.14.8t 11 passed + 1 skipped、ruff 0.16.9 check + format 緑。**Gemini 由来の「3.15.0rc3 / lazy‑import リリースブロッカー」情報は本件と無関係**を確認: upstream に `v3.15.0rc3` タグは実在するが `actions/python-versions` の versions‑manifest.json は今も `3.15.0-rc.2` が最新で setup‑python は rc.3 をインストールできず（D4 のピンは現状維持が正解）、失敗は拡張子テーブル 100 %。**前セッションの残リスク「t セルの aiohttp/pyyaml sdist 依存」は発火しなかった**（runner 上で 13.19 s ビルド完了）。§4.3 に flavour×拡張子行列、§4.5 にピン漏れと「実 import 機構を触るテストは偽装解釈系で走らせない」の 3 点セットを恒久記録。Plan‑3 v1.4。**次ターン: この 2 コミットの CI 実走確認 → ユーザが dev→main マージ**。 |
