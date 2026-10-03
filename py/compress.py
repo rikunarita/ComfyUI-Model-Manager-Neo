@@ -462,6 +462,19 @@ def _walk_files(folder: str, mode: str, mm: Any) -> list[str]:
     return [str(p) for p in json.loads(mm.walk_models(folder, opts))]
 
 
+def _in_place_compressed(folder: str, mm: Any) -> list[str]:
+    """In-place compressed models outside bundle sub-trees.
+
+    The decompress walk sees every ``.znn.safetensors``; dropping the ones that
+    live inside a bundle sub-tree leaves exactly the in-place set (single-model
+    button, auto-compress settings, older versions). Single source of truth for
+    the Option-1 collect set (batch job) AND the route's compress guard.
+    """
+    return [
+        p for p in _walk_files(folder, "decompress", mm) if p.endswith(ZNN_SUFFIX) and _locate_bundle(p, folder) is None
+    ]
+
+
 def batch_process_folder(
     folder: str,
     mode: str,
@@ -503,11 +516,7 @@ def batch_process_folder(
         # decompress walk sees every `.znn.safetensors`, and dropping the ones
         # that live inside a bundle sub-tree leaves exactly the in-place set.
         # They MOVE (no re-compression); the bundle accepts `*.znn.*`.
-        in_place = [
-            p
-            for p in _walk_files(folder, "decompress", mm)
-            if p.endswith(ZNN_SUFFIX) and _locate_bundle(p, folder) is None
-        ]
+        in_place = _in_place_compressed(folder, mm)
         work = files + in_place
         total = max(1, len(work))
         for index, path in enumerate(work):
@@ -1115,7 +1124,10 @@ class ZipNNRoutes:
                     }
                 )
             files = _walk_files(folder, "compress", mm)
-            if not files:
+            # Option 1: a folder whose only content is in-place compressed
+            # models is a valid compress target too (they move into the
+            # bundle untouched), so the guard must consider both sets.
+            if not files and not _in_place_compressed(folder, mm):
                 return web.json_response({"success": False, "error": "no .safetensors files to compress"})
             # Every compressed file MOVES into `<name>_DeltaZNN`; model-type
             # roots get the bundle inside themselves (a sibling of a type root

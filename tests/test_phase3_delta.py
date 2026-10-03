@@ -771,18 +771,20 @@ async def test_batch_compress_collects_in_place_compressed_models(prompt_server,
         folder.mkdir(parents=True, exist_ok=True)
         src = folder / f"{tag}.safetensors"
         write_safetensors(src, {"w": ("BF16", [256, 128], synth_bf16(256 * 128, 7, low_entropy=True))})
+        plain_hash = hashlib.sha256(src.read_bytes()).hexdigest()
         dst = folder / f"{tag}.znn.safetensors"
         compress_mod._run_native_job_sync(
             mm, None, lambda: mm.zipnn_compress(str(src), str(dst), {"threads": 0, "paranoid": False}), "seed"
         )
         src.unlink()
-        return dst
+        return dst, plain_hash
 
     # plain model at the root + an in-place compressed one inside a subfolder
     write_safetensors(ck / "p.safetensors", {"w": ("BF16", [256, 128], synth_bf16(256 * 128, 8, low_entropy=True))})
-    inplace = seed_inplace(ck / "Anime", "a")
+    p_hash = hashlib.sha256((ck / "p.safetensors").read_bytes()).hexdigest()
+    inplace, seed_hash = seed_inplace(ck / "Anime", "a")
     (ck / "Anime" / "a.znn.webp").write_bytes(b"img")
-    before = _tree_state(ck)
+    webp_hash = hashlib.sha256((ck / "Anime" / "a.znn.webp").read_bytes()).hexdigest()
 
     compress, payload = await _post(
         prompt_server, BATCH_ROUTE, {"mode": "compress", "type": "checkpoints", "pathIndex": 0, "folder": "."}
@@ -800,7 +802,11 @@ async def test_batch_compress_collects_in_place_compressed_models(prompt_server,
     assert not (ck / "Anime").exists(), "the emptied subfolder is pruned"
     assert not inplace.exists()
 
-    # round trip: auto on the bundle restores both, in-place one back in place
+    # round trip: auto on the bundle decompresses every bundle member back to
+    # plain models - the moved in-place file included: it is bundle CONTENT
+    # now, so it restores as the plain model it was seeded from (sidecar
+    # re-based onto the plain name). The tree therefore converges to the
+    # all-plain form, not to the mixed pre-batch form.
     prompt_server.sent.clear()
     compress, payload = await _post(
         prompt_server,
@@ -809,7 +815,12 @@ async def test_batch_compress_collects_in_place_compressed_models(prompt_server,
     )
     assert payload["success"] is True, payload
     assert await _wait_task(compress, payload["data"]["taskId"]) == "complete", _events(prompt_server)
-    assert _tree_state(ck) == before, "batch round trip restores the tree byte-exactly"
+    state = dict(_tree_state(ck))
+    assert state == {
+        "p.safetensors": p_hash,
+        "Anime/a.safetensors": seed_hash,
+        "Anime/a.webp": webp_hash,
+    }, state
 
 
 @pytest.mark.asyncio
