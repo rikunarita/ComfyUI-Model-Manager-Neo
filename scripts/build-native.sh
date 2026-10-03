@@ -162,7 +162,10 @@ build_linux() {
     log "PGO: -Cprofile-use=$PGO_PROFDATA (+ warn-missing-function for the G2 gate)"
     pgo_env=(env "RUSTFLAGS=-Cprofile-use=$PGO_PROFDATA -Cllvm-args=-pgo-warn-missing-function")
   fi
-  log "cargo zigbuild --release --target $triple -p mm-core ${feat[*]}"
+  # ${feat[*]+...} — bash 3.2 (macOS /bin/bash) treats an EMPTY array as
+  # unbound under `set -u`; the +-guard is the same idiom as the invocation
+  # below (verified against bash 3.2.57 + 5.2).
+  log "cargo zigbuild --release --target $triple -p mm-core ${feat[*]+"${feat[*]}"}"
   (cd "$NATIVE_DIR" && "${pgo_env[@]+"${pgo_env[@]}"}" cargo zigbuild --release --target "$triple" -p mm-core ${feat[@]+"${feat[@]}"})
   local out_dir="$BIN_ROOT/linux-${arch}${tag_suffix}"
   mkdir -p "$out_dir"
@@ -192,7 +195,8 @@ build_macos_universal2() {
     feat=(--no-default-features --features ft)
     log "flavour: abi3t (ft feature; non-PGO — Plan-3 D2; host Python >= 3.15 required)"
   fi
-  log "maturin build --release --target universal2-apple-darwin ${feat[*]}"
+  # ${feat[*]+...} — bash 3.2 empty-array guard (see build_linux).
+  log "maturin build --release --target universal2-apple-darwin ${feat[*]+"${feat[*]}"}"
   (cd "$NATIVE_DIR" && maturin build --release --target universal2-apple-darwin --out target/wheels ${pgo_flag[@]+"${pgo_flag[@]}"} ${feat[@]+"${feat[@]}"})
   local wheel
   wheel="$(ls -t "$NATIVE_DIR"/target/wheels/$wheel_glob | head -1)"
@@ -242,7 +246,8 @@ build_windows() {
     feat=(--no-default-features --features ft)
     log "flavour: abi3t (ft feature; non-PGO — Plan-3 D2; host Python >= 3.15 required)"
   fi
-  log "maturin build --release (MSVC) ${feat[*]}"
+  # ${feat[*]+...} — bash 3.2 empty-array guard (see build_linux).
+  log "maturin build --release (MSVC) ${feat[*]+"${feat[*]}"}"
   (cd "$NATIVE_DIR" && maturin build --release --out target/wheels ${pgo_flag[@]+"${pgo_flag[@]}"} ${feat[@]+"${feat[@]}"})
   local wheel
   wheel="$(ls -t "$NATIVE_DIR"/target/wheels/$wheel_glob | head -1)"
