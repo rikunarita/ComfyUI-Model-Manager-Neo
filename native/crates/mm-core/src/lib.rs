@@ -18,7 +18,10 @@
 //!
 //! Binding facts (Plan §3.2, §3.3):
 //!
-//! * **abi3-py310**: one binary per platform covers CPython 3.10 and newer,
+//! * **abi3-py312**: one binary per platform covers CPython 3.12 and newer
+//!   (the `stable-abi` feature); free-threaded CPython 3.15+ is served by the
+//!   sibling **abi3t-py315** artifacts (the `ft` feature, PEP 803 — the two
+//!   flavours are mutually exclusive, enforced by the CI toggle gate),
 //! * long-running APIs never hold the GIL — jobs run on dedicated Rust
 //!   threads and the Python side polls atomics (Plan §4.3),
 //! * `panic = "unwind"` (workspace release profile): panics are caught at the
@@ -81,16 +84,17 @@ fn core_version_string() -> String {
 
 /// The native core of ComfyUI-Model-Manager-Neo.
 ///
-/// Built with the CPython Stable ABI (abi3-py310): this single binary serves
-/// CPython 3.10 and newer. Phase 2 exposed the ZipNN safetensors jobs,
-/// Phase 3 the delta jobs + batch primitives; Phase 4 extended the dtype
-/// coverage INSIDE the codec (no new functions — `api_version` stayed 3);
-/// Phase 5 (`api_version` 4) adds the scan / hygiene / safetensors-header /
-/// hash surface (`scan_models`, `scan_hygiene`, `safetensors_header`,
-/// `hash_file`, `hasher_new`/`update`/`finalize`) + the persistent front-matter
-/// index (the later phases of the refresh plan, Agent/Plan.md); Phase 6
-/// (`api_version` 5) adds the display tensor tree and the optional library
-/// watcher.
+/// Built with the CPython Stable ABI (abi3-py312): this single binary serves
+/// CPython 3.12 and newer. The free-threaded flavour (`abi3t-py315`, PEP 803)
+/// is a separate artifact per platform tag. Phase 2 exposed the ZipNN
+/// safetensors jobs, Phase 3 the delta jobs + batch primitives; Phase 4
+/// extended the dtype coverage INSIDE the codec (no new functions —
+/// `api_version` stayed 3); Phase 5 (`api_version` 4) adds the scan / hygiene
+/// / safetensors-header / hash surface (`scan_models`, `scan_hygiene`,
+/// `safetensors_header`, `hash_file`, `hasher_new`/`update`/`finalize`) + the
+/// persistent front-matter index (the later phases of the refresh plan);
+/// Phase 6 (`api_version` 5) adds the display tensor tree and the optional
+/// library watcher.
 #[pymodule]
 mod mm_core {
     use pyo3::prelude::*;
