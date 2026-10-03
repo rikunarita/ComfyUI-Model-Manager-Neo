@@ -53,8 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      # Deleting cache entries over REST needs Actions write; GITHUB_TOKEN is
-      # already in the step environment, the script reads it from there.
+      # Deleting cache entries over REST needs Actions write.
       actions: write
       contents: read
     steps:
@@ -66,6 +65,12 @@ jobs:
 
       - name: Prune this PR's cache scope
         env:
+          # The runner does NOT export GITHUB_TOKEN into step environments on
+          # its own -- it is reachable only through the secrets/github.token
+          # expression contexts, so every script step has to pass it here
+          # (run #1 of this workflow failed with "no credentials" before it
+          # did). resolve_token() in the script reads exactly this name.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SWEEP_REF: refs/pull/${{ github.event.pull_request.number }}/merge
         run: python scripts/actions_cache_sweep.py --ref "$SWEEP_REF"
 
@@ -84,6 +89,8 @@ jobs:
           python-version: "3.12"
 
       - name: Sweep dead scopes and superseded generations
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           extra=()
