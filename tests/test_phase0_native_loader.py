@@ -27,6 +27,20 @@ from pathlib import Path
 import pytest
 from harness import REPO_ROOT, import_ext
 
+# Warm the third-party imports that ``py.*`` performs at MODULE scope, BEFORE
+# any test below can pin ``sys.version_info``. aiohttp branches on it at import
+# time (``client_ws.py``: ``>= (3, 13)`` -> ``typing.TypeVar``, else ->
+# ``typing_extensions.TypeVar``), so an aiohttp import that happens UNDER the
+# faked GIL-3.12 baseline takes the typing_extensions path and dies on a real
+# 3.15 host: ``AttributeError: attribute '__default__' of 'typing.TypeVar'
+# objects is not writable`` — and every later test in the file then fails on a
+# poisoned, half-initialised aiohttp (``TypeError: ClientTimeout.__init__() got
+# an unexpected keyword argument 'total'``). CI only ever escaped this because
+# an alphabetically earlier test file imports aiohttp first: a collection-order
+# accident, not a guarantee (reproduced on 3.15.0rc2t with
+# ``pytest tests/test_phase0_native_loader.py`` alone — 11 of 12 tests failed).
+importlib.import_module("aiohttp.web")
+
 
 @pytest.fixture(autouse=True)
 def _isolate_loader_state(monkeypatch):
