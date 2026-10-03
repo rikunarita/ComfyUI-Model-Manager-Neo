@@ -3,13 +3,18 @@ handshake, diagnostics.
 
 Written against the loader's public surface: ``platform_tag`` / ``load`` /
 ``available`` / ``core`` / ``core_if_enabled`` / ``reason`` / ``core_version``
-/ ``diagnostics``. Phase 8 removed the ``MM_NATIVE`` switch: ``load()`` never
-raises, it reports ``available() is False`` + ``reason()``, and the ZipNN
-routes turn that into their actionable error (covered in test_phase2_routes).
+/ ``diagnostics`` — plus, since NEO-PLAN-2026-003, the interpreter-flavour
+surface ``is_free_threaded`` / ``tag_rejection_reason`` (abi3t ``<tag>t``
+routing and the GIL-3.12 / free-threaded-3.15 floor guards). Phase 8 removed
+the ``MM_NATIVE`` switch: ``load()`` never raises, it reports
+``available() is False`` + ``reason()``, and the ZipNN routes turn that into
+their actionable error (covered in test_phase2_routes).
 The loader caches its attempt in module state, so every test reloads
 ``mmneo_py.native``; an autouse fixture restores ``sys.path`` and
 ``sys.modules["mm_core"]`` because ``load()`` appends the binary directory to
-the import path.
+the import path, and a second autouse fixture pins a SUPPORTED interpreter
+baseline (GIL 3.12) so the floor guards cannot make these assertions depend
+on the interpreter that happens to run pytest.
 """
 
 from __future__ import annotations
@@ -51,6 +56,58 @@ def _fresh_native():
 def _point_extension_at(tmp_path: Path) -> None:
     config = import_ext("config")
     config.extension_uri = str(tmp_path)
+
+
+class _VersionInfo(tuple):
+    """A constructible stand-in for ``sys.version_info``.
+
+    CPython's real object is a structseq whose type refuses instantiation
+    ("cannot create 'sys.version_info' instances"), so the loader tests fake
+    the interpreter version with a plain tuple subclass that also carries the
+    ``major``/``minor``/``micro`` attributes.
+    """
+
+    def __new__(cls, major: int, minor: int, micro: int, releaselevel: str = "final", serial: int = 0):
+        self = super().__new__(cls, (major, minor, micro, releaselevel, serial))
+        self.major, self.minor, self.micro = major, minor, micro
+        self.releaselevel, self.serial = releaselevel, serial
+        return self
+
+
+def _force_interpreter(monkeypatch, *, version=(3, 12, 7), free_threaded=False, abiflags=None):
+    """Monkeypatch the three interpreter signals the loader reads.
+
+    ``version`` is ``(major, minor, micro)``; ``free_threaded`` drives the
+    ``Py_GIL_DISABLED`` sysconfig value (1/0); ``abiflags`` overrides
+    ``sys.abiflags`` (default: ``"t"`` when free_threaded, ``""`` otherwise).
+    Passing the two flavour signals independently exercises BOTH OR-paths of
+    ``is_free_threaded()`` (Plan-3 §3.3)."""
+    import sysconfig
+
+    major, minor, micro = version
+    monkeypatch.setattr(sys, "version_info", _VersionInfo(major, minor, micro))
+    flags = ("t" if free_threaded else "") if abiflags is None else abiflags
+    monkeypatch.setattr(sys, "abiflags", flags, raising=False)
+    gil_disabled = 1 if free_threaded else 0
+    real_get_config_var = sysconfig.get_config_var
+    monkeypatch.setattr(
+        sysconfig,
+        "get_config_var",
+        lambda name: gil_disabled if name == "Py_GIL_DISABLED" else real_get_config_var(name),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _supported_interpreter_baseline(monkeypatch):
+    """Pin every test here to a SUPPORTED GIL-3.12 interpreter.
+
+    The floor guards (NEO-PLAN-2026-003) make ``platform_tag()`` / ``load()``
+    depend on the RUNNING interpreter — without this pin the assertions below
+    would flip on a 3.11 host (floor rejection instead of a tag) or on a
+    free-threaded host (``<tag>t``). Tests that exercise other interpreter
+    states override the signals again through ``_force_interpreter``.
+    """
+    _force_interpreter(monkeypatch, version=(3, 12, 7))
 
 
 def test_platform_tag_mapping(monkeypatch):
@@ -183,3 +240,109 @@ def test_foreign_sys_modules_mm_core_is_rejected(tmp_path):
     assert "does not originate" in (native.reason() or "")
     # The foreign module is not ours to evict — it must stay untouched.
     assert sys.modules.get("mm_core") is foreign
+
+
+def test_free_threaded_detection_and_t_tags(monkeypatch):
+    """NEO-PLAN-2026-003: free-threaded 3.15+ is served by ``<tag>t`` (abi3t,
+    PEP 803) on every platform — via BOTH detection signals — while the GIL
+    build of the SAME 3.15 interpreter stays on the plain ``<tag>`` (the abi3
+    artifacts load there too; double-shipping is avoided, Plan-3 §2-2)."""
+    import platform
+
+    native = _fresh_native()
+    cases = [
+        (("Linux", "x86_64"), "linux-x86_64t"),
+        (("Linux", "aarch64"), "linux-aarch64t"),
+        (("Windows", "AMD64"), "windows-x86_64t"),
+        (("Darwin", "arm64"), "macos-universal2t"),
+    ]
+    for (system, machine), expected in cases:
+        monkeypatch.setattr(platform, "system", lambda s=system: s)
+        monkeypatch.setattr(platform, "machine", lambda m=machine: m)
+        # Signal path 1: the Py_GIL_DISABLED build flag (abiflags empty —
+        # Windows free-threaded builds have no sys.abiflags at all).
+        _force_interpreter(monkeypatch, version=(3, 15, 0), free_threaded=True, abiflags="")
+        assert native.is_free_threaded() is True, system
+        assert native.platform_tag() == expected, system
+        # Signal path 2: sys.abiflags "t" with Py_GIL_DISABLED reporting 0.
+        _force_interpreter(monkeypatch, version=(3, 15, 0), free_threaded=False, abiflags="t")
+        assert native.is_free_threaded() is True, system
+        assert native.platform_tag() == expected, system
+    # The GIL build of 3.15 keeps the abi3 family.
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+    _force_interpreter(monkeypatch, version=(3, 15, 0))
+    assert native.is_free_threaded() is False
+    assert native.platform_tag() == "linux-x86_64"
+    assert native.tag_rejection_reason() is None
+
+
+def test_free_threaded_below_315_degrades_with_reason(monkeypatch, tmp_path):
+    """abi3t exists only from 3.15 (PEP 803): free-threaded 3.13/3.14 have NO
+    artifact family — the plain abi3 binaries must not be served to them (a
+    free-threaded build cannot load them; CPython raises on the attempt). The
+    loader converts that into the degrade contract: None tag + reason()."""
+    import platform
+
+    for version in ((3, 13, 2), (3, 14, 0)):
+        native = _fresh_native()
+        monkeypatch.setattr(platform, "system", lambda: "Linux")
+        monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+        _force_interpreter(monkeypatch, version=version, free_threaded=True)
+        assert native.platform_tag() is None, version
+        assert "abi3t requires 3.15+" in (native.tag_rejection_reason() or "")
+        _point_extension_at(tmp_path)
+        assert native.load() is False
+        reason = native.reason() or ""
+        assert "abi3t requires 3.15+" in reason, reason
+        assert "free-threaded" in reason, reason
+        assert native.available() is False and native.core() is None
+
+
+def test_gil_floor_guard_degrades_with_reason(monkeypatch, tmp_path):
+    """GIL < 3.12 (the abi3-py312 floor): refuse BEFORE the import attempt —
+    on an older interpreter the 3.12 stable-ABI binary fails with unreadable
+    undefined-symbol errors, so the loader reports the floor instead
+    (Plan-3 §3.3/R8). 3.12 itself is served."""
+    import platform
+
+    native = _fresh_native()
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+    _force_interpreter(monkeypatch, version=(3, 11, 9))
+    assert native.platform_tag() is None
+    assert "abi3-py312 floor" in (native.tag_rejection_reason() or "")
+    _point_extension_at(tmp_path)
+    assert native.load() is False
+    reason = native.reason() or ""
+    assert "3.12+" in reason and "abi3-py312" in reason, reason
+
+    # The floor version itself is supported (boundary: 3.12.0).
+    native = _fresh_native()
+    _force_interpreter(monkeypatch, version=(3, 12, 0))
+    assert native.platform_tag() == "linux-x86_64"
+    assert native.tag_rejection_reason() is None
+
+    # 3.10 (the former floor, EOL 2026-10-01) is rejected too.
+    native = _fresh_native()
+    _force_interpreter(monkeypatch, version=(3, 10, 11))
+    assert native.platform_tag() is None
+    assert "abi3-py312 floor" in (native.tag_rejection_reason() or "")
+
+
+def test_diagnostics_reports_free_threaded(monkeypatch):
+    """diagnostics() grows the ``freeThreaded`` key (Plan-3 §3.3) so bug
+    reports can tell the flavour the loader routed on."""
+    import platform
+
+    native = _fresh_native()
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
+    _force_interpreter(monkeypatch, version=(3, 15, 0), free_threaded=True)
+    diag = native.diagnostics()
+    assert diag["freeThreaded"] is True
+    assert diag["platformTag"] == "linux-x86_64t"
+    _force_interpreter(monkeypatch, version=(3, 12, 7))
+    diag = native.diagnostics()
+    assert diag["freeThreaded"] is False
+    assert diag["platformTag"] == "linux-x86_64"
