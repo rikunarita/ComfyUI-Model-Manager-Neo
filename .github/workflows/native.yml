@@ -417,6 +417,11 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-linux
+          # Verification-only: on `main` the publish job commits these eight
+          # binaries into native/native-bin/, and the downstream jobs of THIS
+          # run consume them within minutes. The 90-day default had accumulated
+          # 396 live artifacts / 0.80 GiB (measured 2026-10-03, ~120 MiB/day).
+          retention-days: 7
           path: |
             native/native-bin/linux-x86_64/mm_core.abi3.so
             native/native-bin/linux-aarch64/mm_core.abi3.so
@@ -514,6 +519,8 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-macos
+          # Verification-only, 7 days — see the native-bin-linux upload.
+          retention-days: 7
           path: |
             native/native-bin/macos-universal2/mm_core.abi3.so
             native/native-bin/macos-universal2t/mm_core.abi3t.so
@@ -591,6 +598,8 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-windows
+          # Verification-only, 7 days — see the native-bin-linux upload.
+          retention-days: 7
           path: |
             native/native-bin/windows-x86_64/mm_core.pyd
             native/native-bin/windows-x86_64t/mm_core.pyd
