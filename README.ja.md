@@ -17,9 +17,9 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ![ZipNN](https://img.shields.io/badge/ZipNN-Rust_reimplementation-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB.svg?logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B_%C2%B7_edition_2024-DEA584.svg?logo=rust&logoColor=black)
-![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3-229988.svg)
+![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3--py312-229988.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D.svg?logo=vuedotjs&logoColor=white)
 ![reka-ui](https://img.shields.io/badge/reka--ui-2-16A353.svg?logo=rekaui&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
@@ -69,7 +69,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust ネイティブコア** — ライブラリスキャン・ハッシュ・safetensors ヘッダ
   解析・テンソルツリー・フォルダ監視・プレビュー WebP codec・ZipNN エンジン
   全体が、リポジトリ同梱の**プリビルド Rust 拡張**で動きます（4 プラットフォーム・
-  各 1 バイナリ、Stable ABI により CPython 3.10 以降に対応）。コア自体は素の
+  各 1 バイナリ、Stable ABI により CPython 3.12 以降に対応）。コア自体は素の
   `import` だけでロードされます — **コア単体にコンパイラも pip パッケージも
   ダウンロードも不要**です（拡張機能の Python ハブ依存 4 点は従来どおり
   初回起動時に自動インストールされます）。純 Python の元実装との実測比較:
@@ -570,8 +570,8 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
 | macOS（Intel & Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 1 本の fat binary — Intel 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC ビルド                                          |
 
-各プラットフォームの 1 バイナリが **CPython 3.10 以降**すべてに対応します
-（Stable ABI、`abi3-py310` — CI で 3.10 と 3.13 に対して実証）。サイズは
+各プラットフォームの 1 バイナリが **CPython 3.12 以降**すべてに対応します
+（Stable ABI、`abi3-py312` — CI で 3.12 と 3.14 に対して実証）。サイズは
 CI の予算ゲートが 1 本 ≤ 5 MB（合計 ≤ 20 MB）に抑えます。linux-x86_64 と
 Windows のバイナリは **PGO 最適化済み**です — CI ビルド毎に決定論的
 ワークロードから再トレーニングされるプロファイル誘導最適化で、非最適化
@@ -862,12 +862,12 @@ CI は ERROR 級の指摘で失敗します。
 出荷コードからの devDependency / Node core import なし）をゲートします。
 
 **Ruff**（`pyproject.toml [tool.ruff]`）がバックエンドの lint/format
-（target `py310`・行長 120・精選ルールセット）、**mypy** が静的型を検査します。
+（target `py312`・行長 120・精選ルールセット）、**mypy** が静的型を検査します。
 
 **CI** は push のたびに上記すべてに加え、フロントエンド計測ゲート
 （`scripts/bench/front/k15.mjs`）を実行し、`native` ワークフローが 4
 プラットフォームの成果物をビルドし、サイズ予算を強制し、7 本の fuzz ターゲットを
-スモークし、abi3 成果物を CPython 3.10 と 3.13 で import 疎通し、pytest スイート
+スモークし、abi3 成果物を CPython 3.12 と 3.14 で import 疎通し、pytest スイート
 全体と公式 `zipnn` クロス検証を Linux・Windows・macOS で実行します。
 
 ### 2. プロジェクト構成

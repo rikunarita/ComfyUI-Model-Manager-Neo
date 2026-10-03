@@ -8,8 +8,9 @@
 #                  linux x86_64 + aarch64 via cargo-zigbuild glibc 2.28,
 #                  windows x86_64 MSVC, macOS universal2 = both darwin archs),
 #                  per-binary size-budget gate + import smoke on each OS
-#   abi3-import    the linux artifact imported by CPython 3.10 AND 3.13
-#                  (proves the abi3-py310 single-binary claim, Plan §3.2)
+#   abi3-import    the linux artifact imported by CPython 3.12 AND 3.14
+#                  (proves the abi3-py312 single-binary claim — the floor was
+#                  raised from 3.10 by NEO-PLAN-2026-003 Step 1)
 #   size-budget    <= 5 MB per binary (per arch slice; the macOS universal2 fat
 #                  binary is detected by its FAT_MAGIC and gets a doubled 10 MB
 #                  file budget) and <= 20 MB total across all artifacts
@@ -94,7 +95,7 @@ jobs:
       # pyo3's build script wants a Python interpreter present.
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       # No linker toolchain is installed here on purpose (NEO-PLAN-2026-002
       # Step 1): Linux builds link with rustc's bundled rust-lld, the default
@@ -113,13 +114,17 @@ jobs:
       - name: cargo test (pure-Rust crates)
         run: cargo test --workspace --exclude mm-core
 
-      # Guard the feature toggle itself: `--no-default-features` must really
-      # drop pyo3/extension-module (a workspace-level `features = [...]` on
-      # the pyo3 dependency would silently pin it on and break the test link
-      # the moment mm-core gains tests that touch #[pyfunction] items).
-      # cargo tree -e features does not render crate-level feature edges
-      # reliably, so the resolved feature set is read from cargo metadata.
-      - name: Verify the extension-module toggle toggles
+      # Guard the feature toggles themselves: `--no-default-features` must
+      # really drop pyo3/extension-module (a workspace-level `features = [...]`
+      # on the pyo3 dependency would silently pin it on and break the test link
+      # the moment mm-core gains tests that touch #[pyfunction] items) AND, since
+      # NEO-PLAN-2026-003 Step 1 moved the abi3 floor out of the workspace pin
+      # into mm-core's `stable-abi` feature, the test mode must also be
+      # stable-ABI-free (version-specific libpython link) while the default
+      # (shipping) mode must carry exactly `abi3-py312`. cargo tree -e features
+      # does not render crate-level feature edges reliably, so the resolved
+      # feature set is read from cargo metadata.
+      - name: Verify the pyo3 feature toggles (extension-module / stable-abi)
         if: runner.os == 'Linux'
         run: |
           python3 - <<'PY'
@@ -141,11 +146,13 @@ jobs:
           tests = pyo3_features(["--no-default-features"])
           if "extension-module" not in default:
               sys.exit("BUG: pyo3/extension-module missing from default features")
+          if "abi3-py312" not in default:
+              sys.exit("BUG: pyo3/abi3-py312 missing from default features (mm-core/stable-abi)")
           if "extension-module" in tests:
               sys.exit("BUG: pyo3/extension-module leaks into --no-default-features")
-          if not {"abi3-py310"} <= tests:
-              sys.exit("BUG: abi3-py310 must stay enabled in every mode")
-          print("extension-module toggle verified (on by default, off for tests, abi3 always on)")
+          if any(f.startswith("abi3") for f in tests):
+              sys.exit("BUG: --no-default-features must be stable-ABI-free (version-specific test link)")
+          print("pyo3 feature toggles verified (default = extension-module + abi3-py312; test mode = neither)")
           PY
 
       # mm-core's test harness must link libpython, so it is tested without
@@ -181,7 +188,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       # Plan Phase 7 T4: uv replaces pip in the CI layer (drop-in
       # `uv pip install --system` against the setup-python interpreter).
@@ -247,7 +254,7 @@ jobs:
             fi
           done
 
-      - name: Import smoke (linux-x86_64 artifact, CPython 3.11)
+      - name: Import smoke (linux-x86_64 artifact, CPython 3.12)
         run: |
           PYTHONPATH=native/native-bin/linux-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
@@ -289,7 +296,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       # Plan Phase 7 T4: uv replaces pip in the CI layer.
       - uses: astral-sh/setup-uv@v10.2.0
@@ -320,7 +327,7 @@ jobs:
       - name: Verify universal2 fat binary
         run: lipo -info native/native-bin/macos-universal2/mm_core.abi3.so
 
-      - name: Import smoke (CPython 3.11 arm64)
+      - name: Import smoke (CPython 3.12 arm64)
         run: |
           PYTHONPATH=native/native-bin/macos-universal2 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
@@ -351,7 +358,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       # Plan Phase 7 T4: uv replaces pip in the CI layer.
       - uses: astral-sh/setup-uv@v10.2.0
@@ -367,7 +374,7 @@ jobs:
       - name: Build windows-x86_64 (MSVC, PGO)
         run: ./scripts/build-native.sh --target windows-x86_64 --size-gate --pgo-train
 
-      - name: Import smoke (CPython 3.11)
+      - name: Import smoke (CPython 3.12)
         run: |
           PYTHONPATH=native/native-bin/windows-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
@@ -378,14 +385,16 @@ jobs:
 
   abi3-import:
     timeout-minutes: 60
-    # One binary, every CPython >= 3.10: prove it on the oldest and a current
-    # interpreter (Plan §3.2 abi3-py310 claim).
+    # One binary, every CPython >= 3.12: prove it on the floor and on a current
+    # interpreter (NEO-PLAN-2026-003 Step 1: the abi3-py312 single-binary claim;
+    # the floor is the oldest supported interpreter and 3.14 is the newest
+    # stable on the runner manifest).
     runs-on: ubuntu-latest
     needs: native-build-linux
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.12", "3.14"]
     steps:
       - uses: actions/setup-python@v7
         with:
@@ -486,7 +495,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       # Plan Phase 7 T4: uv replaces pip in the CI layer. The torch CPU wheel
       # (~200 MB) install below is where uv's resolve+install speedup and the
@@ -711,7 +720,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - uses: astral-sh/setup-uv@v10.2.0
         with:

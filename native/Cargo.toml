@@ -2,7 +2,10 @@
 #
 # Layout:
 #   crates/znn-codec   pure-Rust ZipNN codec (no Python dependency)
-#   crates/mm-core     PyO3 extension module `mm_core` (abi3-py310)
+#   crates/mm-core     PyO3 extension module `mm_core` (abi3-py312 —
+#                      NEO-PLAN-2026-003: floor raised from abi3-py310;
+#                      CPython 3.10 hit EOL 2026-10-01 and 3.12 is ComfyUI's
+#                      documented support floor)
 #
 # Release profile: `panic = "unwind"` is REQUIRED (PyO3 catches panics at the
 # boundary and turns them into Python exceptions; `abort` would kill the whole
@@ -31,7 +34,17 @@ repository = "https://github.com/rikunarita/ComfyUI-Model-Manager-Neo"
 # behaviour). A workspace-level `features = ["extension-module", ...]` would
 # be inherited unconditionally by `pyo3 = { workspace = true }` and the crate
 # toggle could never turn it off (verified with `cargo tree -e features`).
-pyo3 = { version = "0.29.2", features = ["abi3-py310"] }
+#
+# NEO-PLAN-2026-003 Step 1: no `abi3*` features here either — the former
+# workspace-pinned `abi3-py310` moved into mm-core's own `stable-abi` feature
+# (now `abi3-py312`). The stable-ABI flavour must stay EXCLUSIVELY owned by
+# mm-core's feature axes (`stable-abi` = abi3-py312 for GIL builds, `ft` =
+# abi3t-py315 for free-threaded 3.15+, Step 2): enabling `abi3` and `abi3t`
+# together makes the produced flavour host-dependent (abi3 below a 3.15 host,
+# abi3t at/above it — PyO3 building-and-distribution guide), which a workspace
+# pin would silently do for every build mode. The native-test toggle gate
+# verifies the exclusivity from `cargo metadata` on every run.
+pyo3 = { version = "0.29.2" }
 
 # Phase 1 (znn-codec format core) — versions re-verified against the
 # crates.io API on 2026-09-23 (Plan §3.7 catalog):

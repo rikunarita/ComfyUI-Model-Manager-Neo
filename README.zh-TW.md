@@ -16,9 +16,9 @@
 ![ZipNN](https://img.shields.io/badge/ZipNN-Rust_reimplementation-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB.svg?logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B_%C2%B7_edition_2024-DEA584.svg?logo=rust&logoColor=black)
-![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3-229988.svg)
+![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3--py312-229988.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D.svg?logo=vuedotjs&logoColor=white)
 ![reka-ui](https://img.shields.io/badge/reka--ui-2-16A353.svg?logo=rekaui&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
@@ -65,7 +65,7 @@
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust 原生核心** —— 模型庫掃描、雜湊、safetensors 頭部解析、張量樹、
   資料夾監視、預覽 WebP 編解碼以及整個 ZipNN 引擎，都執行在儲存庫內附帶的
   **預建置 Rust 擴充套件**中：四個平台各一個二進位，基於 Stable ABI 覆蓋
-  CPython 3.10 及以上版本。核心本身只需一次普通的 `import` 即可載入 ——
+  CPython 3.12 及以上版本。核心本身只需一次普通的 `import` 即可載入 ——
   **不需要編譯器、不需要 pip 包、不需要下載**（擴充套件的四個 Python hub 相依
   仍會在首次啟動時自動安裝）。與純 Python 原版的實測對比：5,000 個模型的
   庫掃描冷啟動快約 **7.5 倍**（熱態低於 100 ms）、五種雜湊記法**一遍**算完、
@@ -513,8 +513,8 @@ Rust 核心以兩個互操作帶壓縮 **safetensors 0.8 定義的全部 22 種 
 | macOS（Intel 與 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 單個 fat 二進位 —— Intel 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC 建置                                           |
 
-每個平台的一個二進位即可服務 **CPython 3.10 及以上**所有版本（Stable
-ABI、`abi3-py310` —— 已在 CI 中針對 3.10 與 3.13 實證），且每個二進位都
+每個平台的一個二進位即可服務 **CPython 3.12 及以上**所有版本（Stable
+ABI、`abi3-py312` —— 已在 CI 中針對 3.12 與 3.14 實證），且每個二進位都
 受 ≤ 5 MB（合計 ≤ 20 MB）的 CI 尺寸預算關卡約束。linux-x86_64 與
 Windows 的二進位經過 **PGO 最佳化** —— Profile-Guided Optimization，每次
 CI 建置都從確定性工作負載重新訓練；CI A/B 實測相對未最佳化建置的初回執行
@@ -780,12 +780,12 @@ ESLint + Stylelint + Prettier，後端 Ruff），外加完整的 `pnpm typecheck
 程式碼不匯入 devDependency 與 Node core）。
 
 **Ruff**（`pyproject.toml [tool.ruff]`）負責後端 lint 與格式化（目標
-`py310`、行寬 120、精選規則集），其上再由 **mypy** 檢查靜態類型。
+`py312`、行寬 120、精選規則集），其上再由 **mypy** 檢查靜態類型。
 
 **CI** 在每次 push 時執行以上全部，外加前端測量關卡
 （`scripts/bench/front/k15.mjs`）；`native` 工作流建置四個平台的產物、
-強制執行尺寸預算、對全部七個 fuzz 目標做 smoke fuzz、在 CPython 3.10
-與 3.13 下 import abi3 產物，並在 Linux、Windows、macOS 上執行完整
+強制執行尺寸預算、對全部七個 fuzz 目標做 smoke fuzz、在 CPython 3.12
+與 3.14 下 import abi3 產物，並在 Linux、Windows、macOS 上執行完整
 pytest 套件與官方 `zipnn` 交叉驗證。
 
 ### 2. 專案結構

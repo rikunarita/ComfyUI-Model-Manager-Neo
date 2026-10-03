@@ -16,9 +16,9 @@
 ![ZipNN](https://img.shields.io/badge/ZipNN-Rust_reimplementation-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB.svg?logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B_%C2%B7_edition_2024-DEA584.svg?logo=rust&logoColor=black)
-![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3-229988.svg)
+![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3--py312-229988.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D.svg?logo=vuedotjs&logoColor=white)
 ![reka-ui](https://img.shields.io/badge/reka--ui-2-16A353.svg?logo=rekaui&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
@@ -65,7 +65,7 @@
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust 原生核心** —— 模型库扫描、哈希、safetensors 头部解析、张量树、
   文件夹监视、预览 WebP 编解码以及整个 ZipNN 引擎，都运行在仓库内附带的
   **预构建 Rust 扩展**中：四个平台各一个二进制，基于 Stable ABI 覆盖
-  CPython 3.10 及以上版本。核心本身只需一次普通的 `import` 即可加载 ——
+  CPython 3.12 及以上版本。核心本身只需一次普通的 `import` 即可加载 ——
   **不需要编译器、不需要 pip 包、不需要下载**（扩展的四个 Python hub 依赖
   仍会在首次启动时自动安装）。与纯 Python 原版的实测对比：5,000 个模型的
   库扫描冷启动快约 **7.5 倍**（热态低于 100 ms）、五种哈希记法**一遍**算完、
@@ -513,8 +513,8 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
 | macOS（Intel 与 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 单个 fat 二进制 —— Intel 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC 构建                                           |
 
-每个平台的一个二进制即可服务 **CPython 3.10 及以上**所有版本（Stable
-ABI、`abi3-py310` —— 已在 CI 中针对 3.10 与 3.13 实证），且每个二进制都
+每个平台的一个二进制即可服务 **CPython 3.12 及以上**所有版本（Stable
+ABI、`abi3-py312` —— 已在 CI 中针对 3.12 与 3.14 实证），且每个二进制都
 受 ≤ 5 MB（合计 ≤ 20 MB）的 CI 尺寸预算关卡约束。linux-x86_64 与
 Windows 的二进制经过 **PGO 优化** —— Profile-Guided Optimization，每次
 CI 构建都从确定性工作负载重新训练；CI A/B 实测相对未优化构建的初回运行
@@ -780,12 +780,12 @@ ESLint + Stylelint + Prettier，后端 Ruff），外加完整的 `pnpm typecheck
 代码不导入 devDependency 与 Node core）。
 
 **Ruff**（`pyproject.toml [tool.ruff]`）负责后端 lint 与格式化（目标
-`py310`、行宽 120、精选规则集），其上再由 **mypy** 检查静态类型。
+`py312`、行宽 120、精选规则集），其上再由 **mypy** 检查静态类型。
 
 **CI** 在每次 push 时运行以上全部，外加前端测量关卡
 （`scripts/bench/front/k15.mjs`）；`native` 工作流构建四个平台的产物、
-强制执行尺寸预算、对全部七个 fuzz 目标做 smoke fuzz、在 CPython 3.10
-与 3.13 下 import abi3 产物，并在 Linux、Windows、macOS 上运行完整
+强制执行尺寸预算、对全部七个 fuzz 目标做 smoke fuzz、在 CPython 3.12
+与 3.14 下 import abi3 产物，并在 Linux、Windows、macOS 上运行完整
 pytest 套件与官方 `zipnn` 交叉验证。
 
 ### 2. 项目结构

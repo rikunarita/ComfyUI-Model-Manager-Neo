@@ -132,7 +132,7 @@ native/
 ├─ crates/
 │  ├─ znn-codec/              # 純 Rust ZipNN コーデック（Python 非依存。
 │  │                          #   src/ インライン単体 + tests/ 統合 + fuzz/ L3）
-│  └─ mm-core/                # PyO3 拡張モジュール `mm_core`（abi3-py310）
+│  └─ mm-core/                # PyO3 拡張モジュール `mm_core`（abi3-py312）
 └─ native-bin/                # 配布用プリビルド成果物（native-bin/README.md 参照）
 ```
 
@@ -140,8 +140,10 @@ native/
 
 - **edition 2024 / resolver 2**、`rust-version = "1.85"`（edition 2024 の下限。
   PyO3 の MSRV は 1.83 で、clippy.toml の msrv は Cargo.toml と揃えて 1.85）。
-- **abi3-py310**: 1 バイナリで CPython 3.10 以降をカバー（リポジトリの
-  `requires-python >= 3.10` と整合）。
+- **abi3-py312**: 1 バイナリで CPython 3.12 以降をカバー（リポジトリの
+  `requires-python >= 3.12` と整合。NEO‑PLAN‑2026‑003 で floor を 3.10 → 3.12 へ
+  引き上げ — CPython 3.10 は 2026‑10‑01 に EOL 到達済み・ComfyUI の文書化
+  サポート下限が 3.12）。
 - **`panic = "unwind"` 固定**（release profile）: パニックは PyO3 境界で捕捉され
   Python 例外になる。`abort` は ComfyUI プロセスを殺すため禁止。
 - **lint**: `clippy::pedantic = warn`（CI は `-D warnings` なので実質 deny）、

@@ -544,7 +544,7 @@ on every covered platform:
 | macOS (Intel & Apple Silicon) | `native-bin/macos-universal2/mm_core.abi3.so` | one fat binary — Intel macOS 10.12+, Apple Silicon 11+ |
 | Windows x86_64                | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC‑built                                             |
 
-One binary per platform serves **CPython 3.10 and newer** (the Python Stable
+One binary per platform serves **CPython 3.12 and newer** (the Python Stable
 ABI). Interoperability with the official format is a CI gate, not a promise:
 every push cross‑validates against the official pip `zipnn` 0.5.4 (both
 directions). On a platform outside the table the extension still installs —

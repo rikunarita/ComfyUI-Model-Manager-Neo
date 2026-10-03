@@ -467,7 +467,7 @@ Rust 核心压缩 **safetensors 0.8 定义的每个 dtype**（全部 22 种）�
 | macOS（Intel 与 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 单个 fat 二进制 —— Intel macOS 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC 构建                                                 |
 
-每个平台一个二进制即支持 **CPython 3.10 及更新版本**（Python Stable ABI）。
+每个平台一个二进制即支持 **CPython 3.12 及更新版本**（Python Stable ABI）。
 与官方格式的互操作是 CI 关卡而非口头承诺：每次 push 都会与官方 pip
 `zipnn` 0.5.4 双向交叉验证。在表格之外的平台上扩展仍然可以安装 ——
 浏览、下载和哈希回退到纯 Python 路径 —— 而 ZipNN 操作和预览重编码会在

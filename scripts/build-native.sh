@@ -153,7 +153,7 @@ build_macos_universal2() {
   log "maturin build --release --target universal2-apple-darwin"
   (cd "$NATIVE_DIR" && maturin build --release --target universal2-apple-darwin --out target/wheels "${pgo_flag[@]+"${pgo_flag[@]}"}")
   local wheel
-  wheel="$(ls -t "$NATIVE_DIR"/target/wheels/mm_core-*-cp310-abi3-*universal2.whl | head -1)"
+  wheel="$(ls -t "$NATIVE_DIR"/target/wheels/mm_core-*-cp312-abi3-*universal2.whl | head -1)"
   local out_dir="$BIN_ROOT/macos-universal2"
   mkdir -p "$out_dir"
   extract_from_wheel "$wheel" ".abi3.so" "$out_dir/mm_core.abi3.so"
@@ -192,7 +192,7 @@ build_windows() {
   log "maturin build --release (MSVC)"
   (cd "$NATIVE_DIR" && maturin build --release --out target/wheels "${pgo_flag[@]+"${pgo_flag[@]}"}")
   local wheel
-  wheel="$(ls -t "$NATIVE_DIR"/target/wheels/mm_core-*-cp310-abi3-win_amd64.whl | head -1)"
+  wheel="$(ls -t "$NATIVE_DIR"/target/wheels/mm_core-*-cp312-abi3-win_amd64.whl | head -1)"
   local out_dir="$BIN_ROOT/windows-x86_64"
   mkdir -p "$out_dir"
   # NOTE: mm_core.pyd, NOT mm_core.abi3.pyd — Windows CPython only recognises

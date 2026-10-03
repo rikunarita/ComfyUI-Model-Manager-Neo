@@ -548,7 +548,7 @@ Information タブは**Neo Extended** バッジ（相互運用を説明するツ
 | macOS（Intel & Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 1 本の fat binary — Intel macOS 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC ビルド                                                |
 
-プラットフォーム毎の 1 バイナリが **CPython 3.10 以降**すべてに対応します
+プラットフォーム毎の 1 バイナリが **CPython 3.12 以降**すべてに対応します
 （Python Stable ABI）。公式フォーマットとの相互運用は約束ではなく CI ゲート
 です: push のたびに公式 pip `zipnn` 0.5.4 と双方向でクロス検証されます。
 表の外側のプラットフォームでも拡張機能はインストールできます — 閲覧・
