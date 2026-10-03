@@ -355,6 +355,75 @@ mm-core/extension-module,mm-core/ft`）。副次教訓: ゲート helper の
   実測（5.2 でも同一）— 実行行の `${feat[@]+"${feat[@]}"}` と同じイディオムで
   統一した。macOS ステップの shell は `/bin/bash -e {0}`（= 3.2.57）。
 
+- **Actions キャッシュは「ref 単位スコープ × 10 GB/repo」— 納品形が
+  dev→PR→main だと 1 サイクルで 3 コピー保存され、既定のままでは必ず詰まる**
+  （2026‑10‑03 実測: 9.65 GiB / **96.5 %**・37 件 = `GET /actions/cache/usage` の
+  `active_caches_size_in_bytes 10,360,823,055`。一覧 API は 38 件で usage は
+  ~5 分遅れる）:
+  - **スコープ規則**（Dependency caching reference 実読）: 復元の検索順は
+    「現ブランチ → default branch」、PR run は加えて base branch。
+    **PR run が作ったキャッシュは `refs/pull/N/merge` に入り、その PR の
+    再実行からしか復元できない**（base からも他の PR からも不可）= マージ後は
+    純粋な死蔵。**タグ run も同様**（「異なるタグ名で作られたキャッシュは
+    復元できない」）→ `on: push: tags: ["v*"]` はリリースごとに ~2.4 GiB の
+    死蔵を作る。実測内訳: main 5.153 GiB / 18 件・refs/pull/29/merge
+    **2.505 GiB / 10 件**（PR #29 は 13:33 マージ済み）・dev 1.991 GiB / 10 件。
+    同一キーの 3 重保存も実測（`v0-rust-native-test-Linux-x64-2c4d122c-412e313b`
+    = main 624.07 MiB / pull 624.07 MiB / dev 550.63 MiB）。
+  - **restore-key フォールバックは `last_accessed_at` を更新する**ので、死蔵が
+    LRU eviction（「last access が古い順に削除」）を生き残り、代わりに live な
+    ブランチキャッシュが消える。実証: **fuzz‑long #7**（2026‑09‑27 main・7 ジョブ
+    全 success・rust‑cache post 成功）が保存した `v0-rust-fuzz-*` が 6 日後の
+    一覧に存在しない（7 日無アクセス消去の期限 10‑04 より前）= **evict 済み**。
+    旧世代 6 件も 13:34 のフォールバック復元で last_accessed が更新され、
+    evict されにくい位置に居座っていた。
+  - **rust‑cache のキー世代**: 末尾ハッシュは「全 Cargo.toml/Cargo.lock・
+    rust‑toolchain・.cargo/config.toml + env-vars のハッシュ」（action.yml
+    `add-rust-environment-hash-key`）→ 依存を触るたびに世代が増え、旧世代は
+    exact match 不可能なまま残る（実測 2.061 GiB / 6 件）。
+    cleanup.ts の `rmExcept` は**名前ベース**（末尾 `-$hash` を落として keep 集合と
+    照合）なので、PGO の計測ビルド（`RUSTFLAGS=-Cprofile-generate`）と本ビルドは
+    別 fingerprint で同居し**両方キャッシュされる** = native‑build‑linux 556 MiB の
+    主要因（`cache-targets: "false"` にすれば registry のみになるが、cold ビルドの
+    実測が無いので保留 = 1 run で計測してから判断）。
+  - **対策① = `Swatinem/rust-cache@v2` の `save-if`**（v2 の dist/save.js 実読:
+    `const save = getInput("save-if").toLowerCase() || "true"` →
+    `save === "true"` のときだけ保存し、それ以外は post step が即 return。
+    **restore は `main: dist/restore.js` で常時実行**）。本リポジトリの式は
+    `github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' ||
+github.ref == 'refs/heads/dev')`（7 箇所: native.yml の native‑test /
+    native‑build‑linux / ‑macos / ‑windows / fuzz‑smoke / pgo‑measure +
+    fuzz‑long.yml の fuzz）。schedule は default branch 上で走るので
+    `github.ref == 'refs/heads/main'` = 保存される（週次 7×3 h の ASan ビルドが
+    cold にならない）。`!= 'pull_request'` は native.yml の concurrency 注記にある
+    ghost PR run（`github.ref` が `refs/heads/main` を返した実例）を main スコープの
+    書き込みから外すため。PR/tag run の復元は default branch フォールバックで
+    効くので速度は落ちない（PR run の restore 実測 0.1–0.5 min）。
+  - **対策② = 能動的 prune**（公式ドキュメント "Managing caches → Force deleting
+    cache entries" が「eviction より速い間隔で消すワークフローを置け」と明記し、
+    `pull_request: closed` + `permissions: actions: write` の定型を出している）:
+    `scripts/actions_cache_sweep.py`（stdlib のみ）+ `.github/workflows/cache-cleanup.yml`
+    （PR クローズ時に当該 `refs/pull/N/merge` / 週次 03:40 UTC + dispatch で
+    pull・tags・世代落ち）。**削除は非破壊**（最悪でも 1 回 cold build、run は
+    失敗しない）。REST の delete 上限は 400/min。
+  - **上限の引き上げは現状不可**: `GET /repos/.../actions/cache/storage-limit` →
+    **HTTP 402 "Please ensure your account has a valid payment method on file"**
+    （10 GB 超は Pro/Team/Enterprise + 支払方法 + opt‑in の従量課金、
+    50 GB ≈ $2.80/月 — 2025‑11‑20 changelog）。**cache の 10 GB/repo は公開
+    リポジトリにも適用される**（本リポジトリで eviction が実測されている）。
+  - 試算（実測エントリサイズの合計）: 1 サイクル = main 3.09 + dev 1.99 +
+    PR 0.21 + fuzz‑long 0.49 ≈ **5.8 GiB**、世代落ち 2.06 を足すと 7.84 GiB =
+    **10 GB は「1.2 サイクル分」しか無い**。save‑if 後は定常 5.57 GiB
+    （PR/tag 由来の増加分ゼロ）+ 即時 prune 16 件 / 4.566 GiB で
+    **22 件 / 5.083 GiB（50.8 %）**へ。
+  - **artifacts は別枠**: `upload-artifact` の既定保持は **90 日**で、live
+    396 件 / 0.797 GiB・直近 ~120 MiB/日（内訳 native‑bin‑linux 332.7 /
+    ‑macos 305.5 / ‑windows 177.8 MiB = 実質 100 % がこの 3 種）。検証専用
+    （同一 run の下流が数分以内に download・main では publish bot がコミット）
+    なので **7 日**へ短縮。fuzz‑crashes / pgo‑measure‑report は 0.00–0.10 MiB の
+    証拠物件なので据え置き。公開リポジトリでは artifact 枠は実測上効いていない
+    （Free の 500 MB 相当を超えても upload 成功）。
+
 ### 4.2 フロントエンド / V8
 
 - **C2 comparator の計測事実（bench ゲートで機械固定）**: V8 は**既定 options の
@@ -603,7 +672,7 @@ unexpected keyword argument 'total'`（client.py:253）で全滅する。CI が
   副次利得: floor 未満ホスト（GIL 3.11 等）でピンが tag を捏造し、実 import が
   未定義シンボルで失敗する潜在の誤検出も同時に消えた。
 
-## 5. 現状と残件（2026‑10‑03 第 28 セッション時点）
+## 5. 現状と残件（2026‑10‑03 第 29 セッション時点）
 
 - **Phase 0–7 完了（CI 実走緑まで確認済み）+ Phase 8 実装完了**
   （**残 = 完了条件の Win/macOS 脚と v0.3.0 公開作業 — ユーザ専任**。
@@ -789,6 +858,60 @@ unexpected keyword argument 'total'`（client.py:253）で全滅する。CI が
   待ちのまま。次ターン: この 2 コミットの CI 実走確認 → ユーザが dev→main
   マージ。
 
+- **Plan‑3 の CI 全緑 + publish 8 本を確認し、Actions キャッシュ逼迫
+  （96.5 %）を根因解析して対策（2026‑10‑03 第 29 セッション — 恒久記録は
+  §4.1 の末尾ブロック）**:
+  ① **CI 全緑を確認** — dev push #135/#224・PR #29 の #136/#225・main push
+  #137/#226 の **4 run すべて success**（native 18/18・CI 緑）= v1.4 の
+  2 修正（実ホスト解釈系での handshake 検証 + ピン漏れ除去）が実走で解消。
+  ② **publish‑native‑bin の bot コミット `208a3ff` を確認** =
+  `native/native-bin/` に **8 本**（linux‑x86_64 3.93 / linux‑aarch64 3.36 /
+  linux‑x86_64t 3.96 / linux‑aarch64t 3.36 / macos‑universal2 6.43 /
+  macos‑universal2t 6.43 / windows‑x86_64 3.55 / windows‑x86_64t 3.96 MiB・
+  合計 **34.98 MiB** = D1 の 40 MB 目安内、FAT 2 本も 10 MB 予算内、
+  本別 5 MB ハード予算内）→ **Plan‑3 の実装 + 公開パイプラインは完了**。
+  ③ **ユーザ報告の「キャッシュ上限」を解析**: 9.65 GiB / 96.5 %（37 件）の
+  根因は「ref 単位スコープ × dev→PR→main の 3 重保存」+「PR/tag スコープの
+  死蔵（PR #29 分 2.505 GiB）」+「世代落ち 2.061 GiB」で、**LRU eviction は
+  既に発動**（fuzz‑long #7 のキャッシュが消滅）。即時 prune **16 件 /
+  4.566 GiB**（pull 10 + main 旧世代 6、fuzz‑smoke 500 MiB は現行世代なので
+  保持）→ **22 件 / 5.083 GiB（50.8 %）**。構造対策は 3 独立コミット =
+  `save-if`（rust‑cache 7 箇所を main/dev の非 PR イベント限定に）/
+  `cache-cleanup.yml` + `scripts/actions_cache_sweep.py`（PR クローズ時 +
+  週次 sweep）/ native‑bin‑* の `retention-days: 7`。上限引き上げは
+  **HTTP 402（支払方法なし）で不可**を実測。
+  ④ **D4 は依然として実行不可**を再実測: CPython の最新タグは `v3.15.0rc3`、
+  **PEP 790 = rc3 実績 2026‑10‑02 / final 予定 2026‑10‑09**（前セッションで
+  ユーザ提示の情報が PEP 本体と一致）、`actions/python-versions` の
+  versions‑manifest.json は今も `3.15.0-rc.2`（`stable=False`・ft 13 本）が
+  最新。**振替対象を精密化** = native.yml の `python-version: "3.15.0-rc.2"`
+  **9 箇所**（L353/377/459/470/538/546/586/589/721）+ コメント 5 箇所
+  （L10/347/453/531/571）。ft セルは `freethreaded: true` 側で切替わるので
+  **`3.15t` という文字列は書かない**（Plan‑3 の「`3.15`/`3.15t`」表記より
+  実装は単純 — Plan‑3 v1.5 の D4 節に反映）。
+  **検証**: actionlint 1.7.12 / prettier 3.9.9 `--check .` / ruff 0.16.9
+  check + format --check / YAML パース緑・PyYAML で 7 箇所の save‑if 文字列と
+  5 つの upload‑artifact を実読・pytest 86 passed + 135 skipped（native binary
+  無しの dev worktree 由来）・sweep スクリプトは実リポジトリへ dry‑run 3 種
+  （既定 = nothing to prune / `--ref refs/heads/dev` = 10 件 1.991 GiB 選択 /
+  `--older-than-days 5` = 0 件）。
+  ⑤ **この 4 コミットの CI 実走確認まで完了**（push `4e92a4d` →
+  **native #138 = 18 ジョブ中 16 success + 2 skipped**〔publish‑native‑bin と
+  pgo‑measure は dev で skip = 設計どおり〕・**CI #227 = success**）。
+  native‑test (ubuntu) のジョブログで save‑if の実挙動を確認:
+  `save-if: true`（折り返しスカラーの式が正しくブール文字列へ評価された証拠）・
+  `Cache hit for: v0-rust-native-test-Linux-x64-2c4d122c-412e313b`
+  （624 MB・full match: true）・post step は **`Cache up-to-date.`**
+  （exact hit なので新規保存なし = `isCacheUpToDate()` の短絡）。
+  **run 後の一覧は 22 件 / 5.083 GiB のまま = 新規エントリ 0 件**
+  （`refs/pull/*` 0・`refs/tags/*` 0）。`save-if: false` 側（PR run）は
+  次回の dev→main PR で確認できる。
+  **次ターン（ユーザ）**: dev→main マージ → PR クローズ時に cache‑cleanup の
+  `prune-closed-pull-request` が走ることを確認（save‑if で PR は元々保存しないので
+  「nothing to prune」が正解の出力）→ 以降は D4（3.15 final の manifest 着弾後）と
+  Plan‑2 R5（fuzz‑long の apt ステップ削除）。v0.3.0 のタグ打ち時は save‑if が
+  「タグ run がキャッシュを保存しない」ことを保証する。
+
 ## 6. セッション タイムライン（圧縮版 — 逐語原文は `git show 88b5e9c:Agent/MEMO.md`）
 
 「第 N」は旧 MEMO のセッション番号（Plan 等の「MEMO 第 8 セッション」参照は
@@ -833,3 +956,4 @@ unexpected keyword argument 'total'`（client.py:253）で全滅する。CI が
 | 第 26 | 2026‑10‑03 | **Plan‑3（NEO‑PLAN‑2026‑003）Steps 1–5 を一括実装（各 Step 独立コミット: c5ffa7e / fcdf540 / 07a4d05 / 0ca9847 / 本コミット）**: floor 3.12（abi3‑py312）+ abi3t 8 本体制（`<tag>t`・PEP 803）+ ローダー ft ルーティング/floor ガード + CI 拡張（abi3‑import 4 セル / size‑budget 40 MB 目安〔D1〕/ publish ディレクトリタグ優先 / integration ubuntu t セル〔D3〕）+ 文書・バッジ・記録。一次確認: pyo3 両 feature のホスト依存挙動（guide 実読）・PEP 803 の EXTENSION_SUFFIXES を実解釈系 3.15.0rc2 GIL/ft で実測・setup‑python は rc 版に `freethreaded:` 入力（t サフィックス非対応）・PyPI cp315t 実査（aiohttp/pyyaml 無し → t セルは sdist ビルド、失敗時は縮小の予備方針つき）・maturin wheel glob は `cp315*abi3t*` で命名揺れ耐性。ローカル検証: ruff/mypy/pytest 3.12.15（85+135skip）・staging simulation 5 PASS・cargo スタブ・bash ‑n・prettier。**CI 実走確認は次ターン（ユーザ）**。 |
 | 第 27 | 2026‑10‑03 | **Plan‑3 の dev run（native）37113439219 が 3 失敗 → 全根因を実証付きで特定し修正（+潜在ゲート誤検出 1 件を発見・修正）**。① linux t ビルド「Failed to find zig」= py315 setup‑python 切替で cargo‑zigbuild の探索 ②`python3 -m ziglang` が喪失、③PATH `zig` は ziglang wheel に shim が無く（console script は `python‑zig` のみ）永久不発 → **ツールチェイン導入時に site‑packages 実体を解決し `CARGO_ZIGBUILD_ZIG_COMMAND` を `$GITHUB_ENV` へ pin**（locate.rs の env 契約 = 非空+実在パス、wrapper.rs が同変数を再エクスポートするため 1 pin でジョブ全体を網羅 — 双方実読）。実測: 実 wheel インストールに対し CI と同一スニペットで解決+version、pin のみ・`python3 -m ziglang` 破綻下で cargo zigbuild が `x86_64-unknown-linux-gnu.2.28` を完走し readelf で GLIBC_2.28 floor を確認。② macOS GIL universal2「feat[_]: unbound variable」（line 195）= bash 3.2 は空配列が**ダブルクォート内でも** unbound（linux 5.2/git‑bash 無影響・t ビルド未到達のままジョブ死亡）→ log 3 箇所を `${feat[*]+"${feat[*]}"}` へ統一（実行行 166/196/246 と同イディオム）。実測: **GNU ソースから bash 3.2.57 を自ビルド**してクラッシュ行を再現 → 修正版は空/非空/空白含み要素で正常、`bash -n` は 3.2.57+5.2 双方緑、スタブ cargo + ダミー .so でスクリプト実体（4 ターゲット × GIL/ft）を 3.2.57/5.2 双方で完走。③ native‑test toggle ゲート ft 軸「unexpected argument '-p'」= **cargo metadata に -p セレクタは無い**（cargo 1.99 実測・CI では check=True が stderr を吞み traceback しか残らず）→ `--features mm-core/extension-module,mm-core/ft` 修飾形へ + helper が cargo stderr を surface。④ **潜在誤検出の発見（③の実測解決中に判明）**: pyo3 0.29.2 の abi3‑pyXY は**上向きチェーン**（abi3‑py312 ⇒ py313 ⇒ py314 ⇒ py315 ⇒ 素の abi3・pyo3+pyo3‑ffi Cargo.toml 実読）で、floor = 有効化された最小 pyXY（pyo3‑build‑config `get_abi3_version()` の昇順スキャンを実読）→ Step‑2 の「default に abi3‑py313/314/315 が居たら BUG」は ft 軸を直し次第**必ず誤発火**する状態だった。「最小有効 minor == 12（default）/ == 15（ft）」形へ置換し、ゲート実走 PASS（実ワークスペース・cargo 1.99）+ 合成負例 9 ケース（floor 上昇/低下/欠落・abi3t 漏れ・stable‑abi 欠落・R6 混合・abi3t 将来チェーン 2 種）で検出力を実証。**同 run の陽性確認**: windows は t ビルド（実タグ `cp315-abi3.abi3t-win_amd64.whl`）+ 3.15 GIL/ft import smoke まで全緑 → R4 実証解消。linux GIL 経路も t ステップ直前まで緑。skip 連鎖（abi3‑import/size‑budget/integration/publish）は 3 失敗の下流 = 修正で自動回復の見込み。pgo‑measure は python を切替えないため無関係（pin 不要）。commits: fix(ci) zig pin / fix(build) bash 3.2 ガード / fix(ci) ゲート修正 + docs(MEMO/Plan‑3)。**修正の CI 実走確認は次ターン（ユーザ）**。 |
 | 第 28 | 2026‑10‑03 | **run 37121494488（native #134）= 18 ジョブ中 17 success。前セッションの 3 修正（zig pin / bash 3.2 ガード / toggle ゲート）がすべて実走で解消したことを確認し、残る 1 失敗を根因解析して修正**。失敗は `integration (ubuntu-latest, native-bin-linux, linux-x86_64t, 3.15.0-rc.2, true)` の pytest 1 本のみ（`1 failed, 218 passed, 1 skipped`）= `test_load_finds_prebuilt_and_handshakes`。**根因はテスト側でローダーも abi3t 成果物も無罪**（同セルの他 218 本は実ローダ経由で `linux-x86_64t/mm_core.abi3t.so` を使い切っている）。連鎖 5 段: ① autouse `_supported_interpreter_baseline` が `sys.version_info=(3,12,7)`/`abiflags=''`/`Py_GIL_DISABLED=0` を偽装 → ② `platform_tag()` が `linux-x86_64t` でなく `linux-x86_64` を返す → ③ プローブ名が `mm_core.abi3.so` ハードコード（Phase 0 以来）→ ④ **native-bin-linux アーティファクトは 4 tag 丸ごと**（artifact 11273309005 を DL して実査: linux-x86_64 / linux-aarch64 / linux-x86_64t / linux-aarch64t）で Stage step が全部展開するため `native-bin/linux-x86_64/mm_core.abi3.so` が実在し skip ガードが発火しない → ⑤ free-threaded 3.15 の `EXTENSION_SUFFIXES` = `['.cpython-315t-…so', '.abi3t-x86_64-linux-gnu.so', '.abi3t.so', '.so']` に **`.abi3.so` が無い**（一次ソース = CPython v3.15.0rc2 `Python/dynload_shlib.c`: `.abi3*` 項は `#ifndef Py_GIL_DISABLED` の内側・`.abi3t*` 項は無条件。`FileFinder._find_spec` は `name + suffix` しか照合しない = `_bootstrap_external.py:1386-1395`）ので `import mm_core` が `ModuleNotFoundError` → `load()` は reason「import mm_core failed: No module named 'mm_core'」で False = **正しく拒否したのは load() で、誤っていたのはアサート**。**再現は CI と同一材料で完全一致**: 同一 SHA(09993fb) の `git archive` + 実 CI バイナリ 4 本 + CPython 3.15.0rc2 free-threaded（uv/python-build-standalone。actions/python-versions 版は GLIBC_2.38 要求で sandbox の 2.36 では起動しないため、そちらは同梱 `pyconfig.h` の `Py_GIL_DISABLED 1`/`SOABI_PLATFORM "x86_64-linux-gnu"` と CPython ソースで接合確認）+ pytest 9.1.1 + CI と同一依存（aiohttp 3.14.3 / pyyaml 6.0.3 は sdist ビルド、pillow 12.3.0 は cp315t wheel）→ `1 failed, 218 passed, 1 skipped, 26 warnings`（CI ログと完全一致）+ reason() を実測。陽性対照 = GIL 3.12.15 が同一の `mm_core.abi3.so` を正常 import（api_version 6 / `0.3.0+09993fbc3`）。セル別計算も一致: ubuntu-GIL 220 passed / macos 219+1 / windows 218+2（同テストは `.pyd` vs ハードコード `.abi3.so` で元々 skip）/ ubuntu-t 218+1failed+1skip（skip = numpy 不在の test_phase4_dtypes、t セル設計どおり）。**修正は 2 独立コミット**: (1) `_REAL_VERSION`/`_REAL_ABIFLAGS`/`_REAL_GIL_DISABLED`/`_REAL_FREE_THREADED` をモジュール import 時に退避し `_use_real_interpreter(monkeypatch)` でピンを実ホスト値へ再設定する逃避口を新設、handshake テストをそれで走らせてプローブ名を flavour 準拠（`is_free_threaded()` → `mm_core.abi3t.so` / `mm_core.abi3.so`）へ。GIL ホストでは family 文字列も tag も従来と完全同一なので ubuntu-GIL/macos/windows の挙動は不変（windows は従来どおり skip = 2 skipped 維持）。`core.__file__` の family 一致 + `diagnostics()["freeThreaded"]` 一致をアサート追加。副次利得 = floor 未満ホスト（GIL 3.11 等）でピンが tag を捏造して実 import が未定義シンボルで死ぬ潜在の誤検出も消失（tag None → `tag_rejection_reason()` 付き skip）。回帰テスト `test_extension_suffixes_enforce_the_flavour_split` を新設し、機構を **5 flavour 実測**で固定（3.12.15 GIL / 3.13.16t / 3.14.8t / 3.15.0rc2 GIL / 3.15.0rc2t すべて単独 PASS。実測で判明した重要事実 = **`Py_GIL_DISABLED` ガードは 3.15 で入った**ので 3.13t/3.14t は `.abi3.so` を受理してしまう〔v3.13.9/v3.14.0 の `dynload_shlib.c` 実読〕= ローダーの「abi3t requires 3.15+」早期拒否の根拠は「解決できない」ではなく「解決できてしまうから危ない」。逆に GIL 3.15 は両 family を併記するので abi3-import の「3.15 GIL × abi3t」セルは成立。Windows は `dynload_win.c` + `Include/internal/pycore_importdl.h` 実読で `.pyd` 2 項のみ = family 差がファイル名に存在せず、flavour 分離はディレクトリ名だけが担う)。(2) **調査中に見つけた潜在地雷の除去（別コミット）**: ピンは `sys.version_info` を差し替えるだけなのでサードパーティの import 時分岐にも漏れる — aiohttp `client_ws.py` の `>= (3, 13)` が偽になり `typing_extensions.TypeVar` 経路へ入って、実 3.15 ホストでは `AttributeError: attribute '__default__' of 'typing.TypeVar' objects is not writable`（typing_extensions.py:1754）で死亡、以後は半初期化 aiohttp を掴み `TypeError: ClientTimeout.__init__() got an unexpected keyword argument 'total'`（client.py:253）で全滅（回収不能）。CI が無事だったのは収集順の偶然（アルファベット先頭の `test_phase0_a1_model_info_route.py` がピンなしで先に import）で、`pytest tests/test_phase0_native_loader.py` 単独実行なら 3.15.0rc2t で 12 本中 11 本が失敗することを実証 → モジュール import 時の `importlib.import_module("aiohttp.web")` ウォームアップで除去（修正後は 4 解釈系で単独 12 passed）。**検証**: 修正後フルスイート = 3.15.0rc2t / 3.12.15 とも **220 passed / 1 skipped**、loader 単独 = 3.15.0rc2 GIL 12 passed / 3.14.8t 11 passed + 1 skipped、ruff 0.16.9 check + format 緑。**Gemini 由来の「3.15.0rc3 / lazy‑import リリースブロッカー」情報は本件と無関係**を確認: upstream に `v3.15.0rc3` タグは実在するが `actions/python-versions` の versions‑manifest.json は今も `3.15.0-rc.2` が最新で setup‑python は rc.3 をインストールできず（D4 のピンは現状維持が正解）、失敗は拡張子テーブル 100 %。**前セッションの残リスク「t セルの aiohttp/pyyaml sdist 依存」は発火しなかった**（runner 上で 13.19 s ビルド完了）。§4.3 に flavour×拡張子行列、§4.5 にピン漏れと「実 import 機構を触るテストは偽装解釈系で走らせない」の 3 点セットを恒久記録。Plan‑3 v1.4。**次ターン: この 2 コミットの CI 実走確認 → ユーザが dev→main マージ**。 |
+| 第 29 | 2026‑10‑03 | **Plan‑3 の CI 全緑 + publish 8 本を確認し、Actions キャッシュ逼迫（9.65 GiB / 96.5 %）を根因解析して 3 コミットで対策**。(1) **CI 確認**: dev push #135/#224・PR #29 の #136/#225・main push #137/#226 の 4 run すべて success（native 18/18）= v1.4 の 2 修正が実走で解消。(2) **publish‑native‑bin の bot コミット `208a3ff`**: `native/native-bin/` に 8 本（abi3 4 + abi3t 4・合計 **34.98 MiB** = D1 の 40 MB 目安内、FAT 2 本 6.43 MiB も 10 MB 予算内）→ Plan‑3 の実装 + 公開パイプライン完了。(3) **キャッシュ逼迫の根因（一次ソース = GitHub 公式 Dependency caching reference / Managing caches・rust‑cache v2 の action.yml + dist/save.js + cleanup.ts・REST 実測）**: キャッシュは **ref 単位スコープ × 10 GB/repo（全プラン共通）**で、納品形 dev→PR→main が同一キーを **3 コピー**保存（実測: `v0-rust-native-test-Linux-x64-2c4d122c-412e313b` が main/pull 各 624.07 MiB + dev 550.63 MiB）。**PR run の分は `refs/pull/N/merge` スコープに入り「その PR の再実行からしか復元できない」*_ため PR #29 マージ後は 2.505 GiB が完全死蔵、タグ run も同型（`tags: ["v*"]` で v0.3.0 ごとに ~2.4 GiB 増える見込みだった）。**restore‑key フォールバックは `last_accessed_at` を更新する**ので死蔵が LRU eviction を生き残り live が消える = 実証として **fuzz‑long #7（2026‑09‑27 main・全 success）の `v0-rust-fuzz-*` が 6 日後に消滅**（7 日消去の期限より前）。rust‑cache のキー末尾は全 Cargo.toml/lock のハッシュなので世代落ち 6 件 2.061 GiB が残置（cleanup.ts の `rmExcept` は名前ベース照合のため PGO 計測ビルドと本ビルドが両方キャッシュされる = native‑build‑linux 556 MiB の主因）。**上限引き上げは `GET /actions/cache/storage-limit` → HTTP 402「支払方法なし」で不可**。(4) **対策**: ①即時 prune 16 件 / **4.566 GiB**（pull 10 + main 旧世代 6・fuzz‑smoke 500 MiB は現行世代で保持）→ **22 件 / 5.083 GiB（50.8 %）**、②`Swatinem/rust-cache@v2` の **`save-if`**（dist/save.js は `save === "true"` のときだけ保存し restore は常時）に `github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')` を渡す（7 箇所。schedule は default branch 上なので保存される = 週次 ASan が cold にならない。`!= 'pull_request'` は concurrency 注記の ghost PR run 対策）、③公式 "Force deleting cache entries" パターンの **`cache-cleanup.yml` + `scripts/actions_cache_sweep.py`**（PR クローズ時に当該スコープ / 週次 03:40 UTC + dispatch で pull・tags・世代落ち。削除は非破壊）、④native‑bin‑_ の **`retention-days: 7`**（live 396 件 / 0.797 GiB・~120 MiB/日の 100 % がこの 3 種。fuzz‑crashes / pgo‑measure‑report は 0.00–0.10 MiB の証拠なので据え置き）。試算: save‑if 前の定常 5.78 GiB + 世代落ち 2.06 = 7.84 GiB（10 GB は「1.2 サイクル分」）→ 後は定常 5.57 GiB。(5) **D4 は依然実行不可**を再実測: CPython 最新タグ `v3.15.0rc3`・**PEP 790 = rc3 実績 2026‑10‑02 / final 予定 2026‑10‑09**・`actions/python-versions` manifest は今も `3.15.0-rc.2`（stable=False・ft 13 本）。振替対象を精密化 = native.yml の `python-version: "3.15.0-rc.2"` **9 箇所** + コメント 5 箇所で、ft セルは `freethreaded: true` 側で切替わるため **`3.15t` という文字列は書かない**（Plan‑3 v1.5 の D4 節に反映）。**検証**: actionlint 1.7.12 / prettier 3.9.9 `--check .` / ruff 0.16.9 check+format / YAML パース + PyYAML 実読（save‑if 7 箇所・upload‑artifact 5 箇所）/ pytest 86 passed + 135 skipped / sweep スクリプトの実リポジトリ dry‑run 3 種（既定 = nothing to prune・`--ref refs/heads/dev` = 10 件 1.991 GiB・`--older-than-days 5` = 0 件）。(6) **CI 実走確認まで完了**: push `4e92a4d` → **native #138 = 16 success + 2 skipped**（publish‑native‑bin / pgo‑measure は dev で skip = 設計どおり）・**CI #227 = success**。native‑test (ubuntu) のジョブログで save‑if の実挙動を確認 = `save-if: true`（式がブール文字列へ評価された証拠）・`Cache hit for: v0-rust-native-test-Linux-x64-2c4d122c-412e313b`（624 MB・full match: true）・post step は **`Cache up-to-date.`**（exact hit なので新規保存なし）。**run 後も 22 件 / 5.083 GiB = 新規エントリ 0 件**（`refs/pull/*` 0・`refs/tags/*` 0）。save‑if=false 側（PR run）は次回の dev→main PR で確認可。**次ターン（ユーザ）**: dev→main マージ → PR クローズ時の cache‑cleanup 確認 → 以降 D4 と Plan‑2 R5。 |

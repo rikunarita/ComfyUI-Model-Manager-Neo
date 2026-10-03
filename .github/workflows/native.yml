@@ -98,9 +98,34 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      # Cache WRITE policy (NEO-PLAN-2026-003 cleanup) — authoritative comment,
+      # the other rust-cache steps below just point here.
+      #
+      # Actions caches are scoped per ref and the repository cap is 10 GB, so
+      # saving on every ref made ONE delivery cycle (dev push -> PR -> main
+      # push) store the same keys three times, plus a fourth copy on every
+      # release tag. A `pull_request` run's cache lands in the refs/pull/N/merge
+      # scope, which GitHub documents as restorable ONLY by re-runs of that same
+      # PR — after the merge it is dead weight until eviction. Measured
+      # 2026-10-03: 9.65 GiB of 10 GiB used, 2.51 GiB of it from the
+      # already-merged PR #29, and the weekly fuzz-long cache had already been
+      # LRU-evicted to make room (its jobs then rebuild ASan nightly from
+      # scratch). So: write only from the two long-lived branches, on the
+      # trusted non-PR events (push / schedule / workflow_dispatch — the
+      # `!= 'pull_request'` term also keeps the late-materialized ghost PR run
+      # documented in the concurrency note above from writing into main's
+      # scope).
+      #
+      # RESTORE IS UNAFFECTED: `save-if: false` only skips the post-step save
+      # (rust-cache dist/save.js returns early), and the cache lookup falls back
+      # to the default branch, so PR/tag/feature runs still start warm from
+      # main's entries.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
+          save-if: >-
+            ${{ github.event_name != 'pull_request' &&
+            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       # pyo3's build script wants a Python interpreter present.
       - uses: actions/setup-python@v7
@@ -234,9 +259,13 @@ jobs:
           # llvm-profdata for the PGO merge below (NEO-PLAN-2026-002 Step 4).
           components: llvm-tools-preview
 
+      # Cache write policy — see native-test.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
+          save-if: >-
+            ${{ github.event_name != 'pull_request' &&
+            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       - uses: actions/setup-python@v7
         with:
@@ -388,6 +417,11 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-linux
+          # Verification-only: on `main` the publish job commits these eight
+          # binaries into native/native-bin/, and the downstream jobs of THIS
+          # run consume them within minutes. The 90-day default had accumulated
+          # 396 live artifacts / 0.80 GiB (measured 2026-10-03, ~120 MiB/day).
+          retention-days: 7
           path: |
             native/native-bin/linux-x86_64/mm_core.abi3.so
             native/native-bin/linux-aarch64/mm_core.abi3.so
@@ -408,9 +442,13 @@ jobs:
           # llvm-tools-preview removed with the macOS non-PGO decision
           # (run #107 evidence — see the build step comment below).
 
+      # Cache write policy — see native-test.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
+          save-if: >-
+            ${{ github.event_name != 'pull_request' &&
+            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       - uses: actions/setup-python@v7
         with:
@@ -481,6 +519,8 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-macos
+          # Verification-only, 7 days — see the native-bin-linux upload.
+          retention-days: 7
           path: |
             native/native-bin/macos-universal2/mm_core.abi3.so
             native/native-bin/macos-universal2t/mm_core.abi3t.so
@@ -501,9 +541,13 @@ jobs:
           # llvm-profdata for maturin --pgo (resolved from the rustc sysroot).
           components: llvm-tools-preview
 
+      # Cache write policy — see native-test.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
+          save-if: >-
+            ${{ github.event_name != 'pull_request' &&
+            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       - uses: actions/setup-python@v7
         with:
@@ -554,6 +598,8 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-windows
+          # Verification-only, 7 days — see the native-bin-linux upload.
+          retention-days: 7
           path: |
             native/native-bin/windows-x86_64/mm_core.pyd
             native/native-bin/windows-x86_64t/mm_core.pyd
@@ -868,9 +914,15 @@ jobs:
         with:
           components: rust-src
 
+      # Cache write policy — see native-test. (The 7 x 3 h fuzz-long workflow
+      # caches the same workspace under its own job key; its schedule runs on
+      # the default branch, so it keeps writing there.)
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native/crates/znn-codec/fuzz
+          save-if: >-
+            ${{ github.event_name != 'pull_request' &&
+            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       - name: Install mold + clang (sanitizer linking)
         # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
@@ -952,9 +1004,13 @@ jobs:
           targets: x86_64-unknown-linux-gnu
           components: llvm-tools-preview
 
+      # Cache write policy — see native-test.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
+          save-if: >-
+            ${{ github.event_name != 'pull_request' &&
+            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       - uses: actions/setup-python@v7
         with:
