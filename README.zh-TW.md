@@ -18,7 +18,8 @@
 
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB.svg?logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B_%C2%B7_edition_2024-DEA584.svg?logo=rust&logoColor=black)
-![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3--py312-229988.svg)
+![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3--py312_%2B_abi3t--py315-229988.svg)
+![Free-threaded](https://img.shields.io/badge/CPython-3.15%2B_free--threaded_%28abi3t%29-229988.svg?logo=python&logoColor=white)
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D.svg?logo=vuedotjs&logoColor=white)
 ![reka-ui](https://img.shields.io/badge/reka--ui-2-16A353.svg?logo=rekaui&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
@@ -64,8 +65,9 @@
 
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust 原生核心** —— 模型庫掃描、雜湊、safetensors 頭部解析、張量樹、
   資料夾監視、預覽 WebP 編解碼以及整個 ZipNN 引擎，都執行在儲存庫內附帶的
-  **預建置 Rust 擴充套件**中：四個平台各一個二進位，基於 Stable ABI 覆蓋
-  CPython 3.12 及以上版本。核心本身只需一次普通的 `import` 即可載入 ——
+  **預建置 Rust 擴充套件**中：四個平台 × 兩種 Stable ABI 風味（GIL 建置用 abi3 =
+  CPython 3.12 及以上，自由執行緒建置用 abi3t = CPython 3.15 及以上、PEP 803），
+  各一個二進位。核心本身只需一次普通的 `import` 即可載入 ——
   **不需要編譯器、不需要 pip 包、不需要下載**（擴充套件的四個 Python hub 相依
   仍會在首次啟動時自動安裝）。與純 Python 原版的實測對比：5,000 個模型的
   庫掃描冷啟動快約 **7.5 倍**（熱態低於 100 ms）、五種雜湊記法**一遍**算完、
@@ -503,22 +505,30 @@ Rust 核心以兩個互操作帶壓縮 **safetensors 0.8 定義的全部 22 種 
 從原始碼編譯），Neo 把這份編譯完全移出你的機器。格式被移植到 Rust
 （[`native/crates/znn-codec`](native/crates/znn-codec)：格式核心無
 `unsafe` 程式碼、七個持續 fuzz 目標、與原始 C 實現位元組一致的差分記錄），
-並以**預建置 abi3 二進位**形式隨儲存庫分發 —— 每個平台一個，僅靠
-`import` 載入：
+並以**預建置 abi3 / abi3t 二進位**形式隨儲存庫分發 —— 每個平台 × 每種
+Stable ABI 風味一個，僅靠 `import` 載入：
 
-| 平台                            | 產物                                          | 要求                                                |
-| ------------------------------- | --------------------------------------------- | --------------------------------------------------- |
-| Linux x86_64                    | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+）           |
-| Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                                        |
-| macOS（Intel 與 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 單個 fat 二進位 —— Intel 10.12+ / Apple Silicon 11+ |
-| Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC 建置                                           |
+| 平台                            | 產物                                            | 要求                                                |
+| ------------------------------- | ----------------------------------------------- | --------------------------------------------------- |
+| Linux x86_64                    | `native-bin/linux-x86_64/mm_core.abi3.so`       | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+）           |
+| Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                        |
+| macOS（Intel 與 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so`   | 單個 fat 二進位 —— Intel 10.12+ / Apple Silicon 11+ |
+| Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC 建置                                           |
+| Linux x86_64（自由執行緒）      | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28，自由執行緒 CPython 3.15+              |
+| Linux aarch64（自由執行緒）     | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28，自由執行緒 CPython 3.15+              |
+| macOS（自由執行緒）             | `native-bin/macos-universal2t/mm_core.abi3t.so` | 單個 fat 二進位，自由執行緒 CPython 3.15+           |
+| Windows x86_64（自由執行緒）    | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC 建置，自由執行緒 CPython 3.15+                 |
 
 每個平台的一個二進位即可服務 **CPython 3.12 及以上**所有版本（Stable
-ABI、`abi3-py312` —— 已在 CI 中針對 3.12 與 3.14 實證），且每個二進位都
-受 ≤ 5 MB（合計 ≤ 20 MB）的 CI 尺寸預算關卡約束。linux-x86_64 與
-Windows 的二進位經過 **PGO 最佳化** —— Profile-Guided Optimization，每次
+ABI、`abi3-py312` —— 已在 CI 中針對 3.12 與 3.14 實證）；自由執行緒建置則由
+**abi3t** 孿生產物服務（`abi3t-py315`、PEP 803 —— 已在 CI 中針對 3.15 的
+GIL/自由執行緒兩種建置實證），載入器會自動選擇（自由執行緒直譯器無法載入普通
+abi3 二進位；3.15+ 的 GIL 建置繼續使用普通產物）。每個二進位都受 ≤ 5 MB 的
+CI 尺寸預算關卡約束（八個二進位的合計以 40 MB 目安管理）。linux-x86_64 與
+Windows 的 GIL 二進位經過 **PGO 最佳化** —— Profile-Guided Optimization，每次
 CI 建置都從確定性工作負載重新訓練；CI A/B 實測相對未最佳化建置的初回執行
-吞吐最高約快 10 %（[BENCH §13](docs/BENCH.md)）。
+吞吐最高約快 10 %（[BENCH §13](docs/BENCH.md)）；abi3t 二進位現階段以非 PGO
+方式發布（NEO-PLAN-2026-003 D2）。
 
 這次移植也從根源上改善了可靠性：在重寫過程中，C 核心的差分路徑被實證
 存在一類記憶體安全缺陷（特定輸入長度下的確定性崩潰、非整數倍塊上的越界
@@ -607,7 +617,7 @@ WebP 編解碼使用 zenwebp（AGPL‑3.0）—— 全文見
   需要 `markdownify`）；以 asyncio 任務池取代舊執行緒池；以共享 aiohttp
   客戶端取代所有直接阻塞的 `requests` 呼叫。
 - **Rust：** 新增 `native/` 工作區（`znn-codec` 格式核心 + `mm-core` PyO3
-  繫結），以預建置 abi3 二進位分發 —— 擴充套件本身不安裝任何編譯型 Python
+  繫結），以預建置 abi3 / abi3t 二進位分發 —— 擴充套件本身不安裝任何編譯型 Python
   包。ZipNN 壓縮完全由 Neo 側實現（原版從未提供）；本 fork 在開發早期
   階段曾隨附的 vendored ZipNN C 原始碼及其按 CPython 版本劃分的 `.so` 檔案，
   在 Rust 核心就位後已全部移除。
@@ -783,10 +793,11 @@ ESLint + Stylelint + Prettier，後端 Ruff），外加完整的 `pnpm typecheck
 `py312`、行寬 120、精選規則集），其上再由 **mypy** 檢查靜態類型。
 
 **CI** 在每次 push 時執行以上全部，外加前端測量關卡
-（`scripts/bench/front/k15.mjs`）；`native` 工作流建置四個平台的產物、
-強制執行尺寸預算、對全部七個 fuzz 目標做 smoke fuzz、在 CPython 3.12
-與 3.14 下 import abi3 產物，並在 Linux、Windows、macOS 上執行完整
-pytest 套件與官方 `zipnn` 交叉驗證。
+（`scripts/bench/front/k15.mjs`）；`native` 工作流建置八個平台產物
+（四個 abi3 + 四個 abi3t）、強制執行尺寸預算、對全部七個 fuzz 目標做
+smoke fuzz、在 CPython 3.12 與 3.14 下 import abi3 產物、在 3.15 的
+GIL/自由執行緒兩種建置下 import abi3t 產物，並在 Linux、Windows、macOS 上
+執行完整 pytest 套件（含自由執行緒 3.15t 單元）與官方 `zipnn` 交叉驗證。
 
 ### 2. 專案結構
 

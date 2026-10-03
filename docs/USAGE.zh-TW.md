@@ -460,14 +460,20 @@ Rust 核心壓縮 **safetensors 0.8 定義的每個 dtype**（全部 22 種）�
 在每個受支援的平台上都**無需 `pip install`、無需 C 編譯器、無需聯網、
 無需等待**：
 
-| 平台                            | 產物                                          | 要求                                                      |
-| ------------------------------- | --------------------------------------------- | --------------------------------------------------------- |
-| Linux x86_64                    | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+）                 |
-| Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                                              |
-| macOS（Intel 與 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 單個 fat 二進位 —— Intel macOS 10.12+ / Apple Silicon 11+ |
-| Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC 建置                                                 |
+| 平台                            | 產物                                            | 要求                                                      |
+| ------------------------------- | ----------------------------------------------- | --------------------------------------------------------- |
+| Linux x86_64                    | `native-bin/linux-x86_64/mm_core.abi3.so`       | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+）                 |
+| Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                              |
+| macOS（Intel 與 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so`   | 單個 fat 二進位 —— Intel macOS 10.12+ / Apple Silicon 11+ |
+| Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC 建置                                                 |
+| Linux x86_64（自由執行緒）      | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28，自由執行緒 CPython 3.15+                    |
+| Linux aarch64（自由執行緒）     | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28，自由執行緒 CPython 3.15+                    |
+| macOS（自由執行緒）             | `native-bin/macos-universal2t/mm_core.abi3t.so` | 單個 fat 二進位，自由執行緒 CPython 3.15+                 |
+| Windows x86_64（自由執行緒）    | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC 建置，自由執行緒 CPython 3.15+                       |
 
-每個平台一個二進位即支援 **CPython 3.12 及更新版本**（Python Stable ABI）。
+每個平台一個二進位即支援 **CPython 3.12 及更新版本**（Python Stable ABI）；
+自由執行緒建置由 `<tag>t` 的 **abi3t** 二進位支援（CPython 3.15+、PEP 803），
+載入器會自動選擇 —— 自由執行緒直譯器無法載入普通 abi3 二進位。
 與官方格式的互操作是 CI 關卡而非口頭承諾：每次 push 都會與官方 pip
 `zipnn` 0.5.4 雙向交叉驗證。在表格之外的平台上擴充套件仍然可以安裝 ——
 瀏覽、下載和雜湊回退到純 Python 路徑 —— 而 ZipNN 操作和預覽重編碼會在
@@ -563,16 +569,17 @@ UI 跟隨 ComfyUI 的區域設定（**設定 → ComfyUI → Locale**），並�
 
 ## 13. 疑難排解
 
-| 症狀                                    | 原因 / 解決辦法                                                                                                                                                     |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 管理器按鈕不見了                        | 前端沒有註冊擴充套件 —— 檢查 ComfyUI 日誌中的匯入錯誤，並確認資料夾名為 `ComfyUI-Model-Manager-Neo`                                                                 |
-| `Hugging Face token not set`            | 在設定（或 `HF_TOKEN`）中配置權杖後重新開啟對話方塊                                                                                                                 |
-| 下載一直不開始                          | URL 可能需要鑑權（Civitai 受限模型）—— 設定 Civitai 金鑰；任務行會顯示伺服器的錯誤文字                                                                              |
-| 「Failed to update model: PathIndex …」 | 所選類型在這臺機器上沒有資料夾 —— 從下拉框中另選類型                                                                                                                |
-| UI 沒有樣式 / 灰色方塊                  | 你看到的是過期的 `web/` 打包產物；用 `pnpm build` 重新建置（僅開發時需要）                                                                                          |
-| 預覽顯示 NO PREVIEW                     | 模型沒有預覽檔案；在編輯模式中設定一張                                                                                                                              |
-| ZipNN 報告「原生核心不可用: …」         | 訊息中帶有載入器給出的確切原因：平台不在[引擎表](#the-engine)之內，或 `native/native-bin/<tag>` 二進位缺失/損壞（重新克隆儲存庫）。瀏覽與下載不受影響，仍可正常使用 |
-| 動畫預覽失去了動畫                      | Rust 核心之前的版本儲存的預覽被凍結在第一幀；重新儲存預覽（編輯模式）會將其重編碼為動畫 WebP                                                                        |
+| 症狀                                        | 原因 / 解決辦法                                                                                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 管理器按鈕不見了                            | 前端沒有註冊擴充套件 —— 檢查 ComfyUI 日誌中的匯入錯誤，並確認資料夾名為 `ComfyUI-Model-Manager-Neo`                                                                 |
+| `Hugging Face token not set`                | 在設定（或 `HF_TOKEN`）中配置權杖後重新開啟對話方塊                                                                                                                 |
+| 下載一直不開始                              | URL 可能需要鑑權（Civitai 受限模型）—— 設定 Civitai 金鑰；任務行會顯示伺服器的錯誤文字                                                                              |
+| 「Failed to update model: PathIndex …」     | 所選類型在這臺機器上沒有資料夾 —— 從下拉框中另選類型                                                                                                                |
+| UI 沒有樣式 / 灰色方塊                      | 你看到的是過期的 `web/` 打包產物；用 `pnpm build` 重新建置（僅開發時需要）                                                                                          |
+| 預覽顯示 NO PREVIEW                         | 模型沒有預覽檔案；在編輯模式中設定一張                                                                                                                              |
+| ZipNN 報告「原生核心不可用: …」             | 訊息中帶有載入器給出的確切原因：平台不在[引擎表](#the-engine)之內，或 `native/native-bin/<tag>` 二進位缺失/損壞（重新克隆儲存庫）。瀏覽與下載不受影響，仍可正常使用 |
+| 自由執行緒 Python 3.13/3.14 上 ZipNN 不可用 | abi3t（自由執行緒 Stable ABI，PEP 803）僅從 CPython 3.15 起存在 —— 通知會準確顯示這一原因。請改用 GIL 建置（3.12+）或自由執行緒 3.15+；瀏覽與下載不受影響           |
+| 動畫預覽失去了動畫                          | Rust 核心之前的版本儲存的預覽被凍結在第一幀；重新儲存預覽（編輯模式）會將其重編碼為動畫 WebP                                                                        |
 
 ## Screenshots（截圖）
 

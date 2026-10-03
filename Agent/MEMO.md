@@ -499,7 +499,7 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
   未固定で `loop = 0` / `icc = b""` ハードコード mutation が全テストを通過した
   → 接合部テスト追加で捕捉を実証）。
 
-## 5. 現状と残件（2026‑10‑02 第 25 セッション時点）
+## 5. 現状と残件（2026‑10‑03 第 26 セッション時点）
 
 - **Phase 0–7 完了（CI 実走緑まで確認済み）+ Phase 8 実装完了**
   （**残 = 完了条件の Win/macOS 脚と v0.3.0 公開作業 — ユーザ専任**。
@@ -574,6 +574,33 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
   schedule は default branch 限定〕またはユーザ dispatch の緑確認後に
   別コミット）のみ。
 
+- **Plan‑3（NEO‑PLAN‑2026‑003）Steps 1–5 実装完了（2026‑10‑03 第 26 セッション —
+  CI 実走確認は次ターン・ユーザ）**: floor 3.12 化（abi3‑py312・requires‑python・
+  ruff py312・mypy 3.12・uv.lock revision 5・CI 解釈系 ×7・abi3‑import 3.12/3.14）→
+  ft feature と `<tag>t` ビルド経路（build‑native.sh 8 ターゲット・toggle ゲート 3 軸・
+  build ×3 へ host 3.15.0‑rc.2 の t ビルド + GIL/ft 両フレーバ smoke・ディレクトリ構造
+  upload）→ ローダー（is_free_threaded・`<tag>t` ルーティング・GIL 3.12 / ft 3.15 の
+  floor ガード・diagnostics.freeThreaded・テスト +4）→ CI 拡張（abi3‑import 4 セル・
+  size‑budget = found 8 ハード + 本別 5/10 MB ハード + 合計 40 MB 目安〔D1・超過は
+  warning のみ〕・publish 8 エントリ = ディレクトリタグ優先 staging〔R7: bare .pyd 拒否〕・
+  integration の ubuntu t セル = 3.15.0‑rc.2t × フル pytest〔D3〕、torch/tsc/L5 脚は
+  GIL セル限定へ条件変更）→ 文書・バッジ（README×4・USAGE×4・native/README・
+  pgo README・Plan‑3 v1.2 状態更新）。commits: c5ffa7e / fcdf540 / 07a4d05 /
+  0ca9847 / Step5。**ローカル実測**: ruff 0.16.9(py312)・mypy 3.12・pytest 3.12.15 =
+  85 passed/135 skipped・publish staging simulation 5 シナリオ PASS・cargo スタブで
+  t フラグ/ガード実測・**実解釈系 3.15.0rc2 GIL/ft でローダー実測**（ft →
+  `linux‑x86_64t`・GIL 3.15 → `linux‑x86_64`・3.11 → floor reason。EXTENSION_SUFFIXES
+  が PEP 803 予告どおり = GIL 3.15 は .abi3.so/.abi3t.so 両対応・3.15t は .abi3t.so
+  のみ）。**一次確認の追加**: pyo3 は abi3+abi3t 同時有効でエラーにならずホスト依存
+  flavour 化（guide v0.29.2 実読 → clippy --all-features は host 3.12 で abi3 側として
+  コンパイル可）・setup‑python の t サフィックスは rc 版に非対応 → `freethreaded: true`
+  入力を使用・PyPI 実査（2026‑10‑03）: pillow/numpy/multidict/yarl/propcache に
+  cp315t wheel あり、**aiohttp/pyyaml は無し** → t integration セルは sdist ビルド依存
+  （ubuntu ランナーの gcc。失敗時は当該セルの依存縮小か smoke 降格を別コミットで —
+  R3 緩和の類推）。**残件（ユーザ専任）**: dev CI 実走確認 → dev→main マージ →
+  publish bot の 8 本コミット確認 → D4（3.15 final が manifest 着弾後 `3.15`/`3.15t`
+  表記へ別コミット振替）。Plan‑2 R5（fuzz‑long の apt 削除）は残件のまま。
+
 ## 6. セッション タイムライン（圧縮版 — 逐語原文は `git show 88b5e9c:Agent/MEMO.md`）
 
 「第 N」は旧 MEMO のセッション番号（Plan 等の「MEMO 第 8 セッション」参照は
@@ -615,3 +642,4 @@ sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャ�
 | 第 23 | 2026‑10‑01 | **run #107 の実測消化（G1 初产出 = PASS）+ macOS universal2×PGO の判断 (c) 実行 + 計測プロトコル改善**。(1) **#107 の結果**: pgo-measure 緑（G2 再校正が機能: 13.81 % < 50 % + 陽性プローブ全通過）・native-build-linux 緑（三段階 PGO + 恒久 G2・4,122,976 B = +0.30 %）・native-build-windows 緑（maturin --pgo 完走）・**native-build-macos 赤**（下記）→ integration/size-budget/publish は skip。(2) **G1 初実測 = PASS**: compress ×1.126 / decompress ×2.417 / hash ×1.001 / scan ×0.349（steal 破棄 0・汚染 0）。ラウンド別解析で min 比の実体を特定: **両側 round 0 = 冷間ペアの比較**で、定常（round 2）は compress ×1.007 / decompress ×1.000 / scan ×0.990 へ収束。scan ×0.349 は**側内分散 2.1 倍のラウンド選択アーティファクト**（真の退行ではない）。コールドスタート改善（初回解凍 81→196 MB/s）は PGO の配置最適化の既知の強みと整合し、ユーザ可視の利得として記録。(3) **macOS 失敗の根因**: 計装 universal2 wheel のビルド ✓・train.py 全 30 セクション完走 ✓（"done in 5.612 s"）の後、**インタプリタ終了時のプロファイルランタイム flush で SIGSEGV**（37 ms 後）→ profraw 生成不能・最適化リビルド未到達。単一 arch PE/ELF では再現しない fat dylib 特有の障害。macOS ホスト無しではデバッグ不能 → **§4.4 判断 (c) を実行: macOS は非 PGO 出荷**（native.yml へ証拠コメント、1 ステップ revert）。(4) **恒久対策**: train.py `--measure` の JSON へ `roundsA`/`roundsB`（ラウンド別生サンプル）追加 + job summary へラウンド別表を常設出力 + N=3→5 + REGRESSION WATCH 行（ratio < 0.95 の情報表示）+ train.py トレーニングの scan 系重み付け増（cold×5 + warm×20・hygiene/walk×5 = R7 緩和）。ローカルスモーク: debug .so 再ビルド（環境はターン間で全消失していたため §2.2/§2.3 手順で再構築）→ train 完走 27.8 s + measure 完走 + summary スニペット実走検証。(5) **文書**: BENCH §13（ラウンド別全データ・G2 再現性表・サイズ・macOS 判断・但し書き = Step 5 の BENCH 項目完了）、Plan‑2 版数 1.3（§4.4 決定記録・Step 3 完了 [x]・R7 顕在化記録・付録 A 改訂）、native/README（macOS 非 PGO 節 + Windows 実走確認）、scripts/pgo/README（重み付け注記）。**次ターン: #108（[pgo-measure] マーカー付き）の全緑確認 → ユーザが dev→main マージ**。 |
 | 第 24 | 2026‑10‑01 | **run #108 の全緑確認（Step 4 の dev 側完了）+ G1 判定統計を min → 中央値へ改訂**。(1) **#108 = 15 ジョブ中 14 success + publish-native-bin のみ skip**（`refs/heads/main` 限定 = 設計どおり）。linux PGO 三段階 + 恒久 G2 緑（4,123,808 B）・**macOS 非 PGO（判断 (c)）が緑 = SIGSEGV 再現なし**（fat x86_64+arm64・2 分 41 秒）・Windows maturin `--pgo` 三段階完走（3,738,624 B・train 11.9 s）・aarch64 3,526,008 B。G3 = size-budget 4 本 18,118,520 B ≤ 20 MB（FAT は内容検出で 10 MB 予算）・G4 = run 全体 9 分 21 秒 ≤ 20 分・G5 = native-test の apt ゼロ・G6 = L5 GATE 12 項目 PASS + fuzz-smoke + abi3-import 3.10/3.13 + integration 3 OS（linux L5 / macOS 212 passed / Windows 211 passed — すべて `0.3.0+a451adc96` = テストされた成果物 = 出荷される成果物）。CI #197 も緑。(2) **G1 の min 判定が 2 run 連続でアーティファクトを产出** → 判定統計を側別中央値へ改訂（Plan‑2 §2.2 の定義に実装を一致させたもの・版数 1.4）。#108 の compress min ×0.7575（REGRESSION WATCH 発火）は退行ではなく、**min を作ったラウンドが両側で違う**（a = round 4 の 208.27 / b = round 3 の 157.77）ための比だった。反証は 4 点: 同一バイナリの側内変動が最大 2.2 倍（scan 5 倍）・clean round 1 同士は ×0.9992（#107 定常 ×1.007 と一致）・hash が全 5 ラウンド ±0.4 % 以内（ランナー全体の劣化ではなく微小窓のスケジューリングノイズ）・steal ゲート 0 破棄（/proc/stat の steal はこのノイズを捉えない）。中央値では compress ×1.1064 / decompress ×1.1158 / scan ×1.0115 / hash ×0.9992 となり、min ×5.0302 だった scan も収束。実装 = `summarize_workloads()` 新設（min/中央値/best の 3 統計 + `ratioMed`/`ratioBest` 追加・`ratio` は `ratioMin` の別名として後方互換）+ native.yml のレポート表と WATCH を中央値化。#108 実データ再構成で PASS を確認し、埋め込み python を実 JSON で実行検証した。(3) **G2 の決定論の主張を限定**: 5 セル（#106/#107 ×2/#108 ×2）で profiled functions 7,618・missing 1,052（13.81 %）・znn_codec 877 は完全一致するが、**Total count は同一 run の 2 ジョブ間でも ~0.08 % ずれる**（#107: 992,358 / #108: 1,080,225）。BENCH §13.2 の表を丸め値（1.20e9）から実数値へ更新した。#107 → #108 の +6.7 % は train.py の scan 重み付け増が効いた証拠。(4) 文書: BENCH §13.6（サイズ表・ラウンド別全データ・4 点の反証・恒久対策）+ §13.2 更新、Plan‑2 版数 1.4（状態行・§2.2 G1・付録 A‑3 の自己矛盾修正「スループットの最小は最悪窓」・Step 4 完了条件の dev 側達成・Step 5 の BENCH 項チェック）、native/README・scripts/pgo/README の判定統計記述。**次ターン: #109（中央値判定の初実走）の確認 → ユーザが dev→main マージ → publish-native-bin の bot コミット確認で Step 4 完了**。 |
 | 第 25 | 2026‑10‑02 | **Plan‑2 実装完了の収束: 最終バグ精査 + run #109 消化 + ユーザ文書の事実精度修正 + 整理再確認**。(1) **精査（バグなし）**: train.py / g2_check.py / build-native.sh / native.yml（PGO 三段階 + 恒久 G2 + pgo-measure）/ .cargo/config.toml / native/pyproject.toml を全面レビュー — ruff 0.16.9（CI ピン版）check+format 緑・3 ワークフローの YAML 構文緑・bash -n 緑・g2_check.py は mutation 5 変種を全検出 + run #109 実データ形状（missing 13.81 %）で PASS・build-native.sh の `--pgo` RUSTFLAGS 配線（safe な空配列展開イディオム）は空/非空配列とも実測正常。(2) **run #109 確認（API でジョブ一覧 + artifact `pgo-measure-report` を直接取得）**: native 14 success + publish skip（main 限定 = 設計どおり）・CI #198 緑。pgo-measure の**中央値判定が初実走で機能**し、**G1 = 高速ランナーで NOT MET（パリティ）**: compress 定常 ~765 MB/s（#108 の ~2.2 倍）かつ SHA‑NI 無し（hash ~748 MB/s = #108 比 ×0.63）の異質インスタンス — compress ×0.9937 / decompress ×0.996 / scan ×1.0127 / hash ×1.004、負値なし・REGRESSION WATCH（<0.95）非発火・round 0 にコールドペナルティ無し（フロントエンド余裕が PGO の配置利得を吸収 = #107/#108 の遅いランナークラスではコールド一貫 +10 % が引き続き有効）。G2 の決定論的形状（7,618 / 1,052 / 13.81 % / 877）は 3 run 連続で完全再現（pgo-build.log の実カウント = 1,052）。**採用判定は不変**（revert 条件「PGO が負値」に該当なし）→ BENCH §13.7 に全記録 + Plan‑2 v1.5 収束（状態行「実装完了」・§2.2 G1 行へ #109 追記・Step 1/2/4/5 完了条件 [x]・版数履歴の 1.0 孤立行修復・付録 A‑1 追記）。(3) **ユーザ文書の事実精度修正（README×2 + USAGE×3 — すべて一次検証付き）**: unsafe の表述をスコープ正確化（「written without unsafe」→ lint deny + フォーマット中核ゼロ + 唯一の境界 = レビュー済み read‑only mmap〔delta.rs / safetensors_io.rs の 2 箇所・同一パターン〕）/ vendored ZipNN の帰属修正（**フォーク元 v2.8.5 に ZipNN は存在しない**ことを grep で確認 = ZipNN は全体が Neo 側実装。Packages 項を書き直し）/ yaml の来歴（upstream で実使用は yaml 2.6.0・js-yaml は宣言のみ未使用 → yaml を Upgraded 側へ移動）/ 「os.walk per request」→ 再帰 os.scandir（upstream manager.py 実読）/ **macOS 床の実測精密化**（main の実物 fat バイナリを LC_VERSION_MIN_MACOSX / LC_BUILD_VERSION まで直接パース: x86_64 スライス = 10.12・arm64 スライス = 11.0 → 全文書「Intel 10.12+ / Apple Silicon 11+」へ）/ web 配布機構の差分を「What changed」へ追加（元版 = 初回起動時に GitHub Releases から dist.tar.gz 取得・Neo = リポジトリ同梱 = 起動時のアセット取得ゼロ）/ バッジ充実（reka‑ui 2・Stylelint 17・Ruff 0.16.9・ZipNN format 0.5.4 cross‑validated — pnpm‑lock 8.3.1/4.3.3/6.0.3 等・pyproject・CI ピンと全照合）。(4) **整理の再確認（追加削除なし）**: 第 20 セッションの退役ハーネス削除（bench 9 本・scripts/l2・docs/upstream・znn-cli・json-bench）後に残る全ファイルを再走査し、残存ファイルはすべて CI・文書・ランタイムから参照されることを確認（cross_check.py ← k15.mjs --cross-check・json-bench.txt ← BENCH §2・results/*.json ← BENCH 逐語引用・verify_native_binary.py ← native/README・proptest-regressions ← L1）。GitHub Actions 系はユーザ指示により保持。demo-assets/ はユーザ領域のため不変。(5) **次ターン（ユーザ専任）**: dev→main マージ → publish‑native‑bin の bot コミット確認 → マージ後初回の日曜 18:00 UTC fuzz‑long 緑（または dispatch）を確認後に R5 の apt ステップ削除を別コミットで。 |
+| 第 26 | 2026‑10‑03 | **Plan‑3（NEO‑PLAN‑2026‑003）Steps 1–5 を一括実装（各 Step 独立コミット: c5ffa7e / fcdf540 / 07a4d05 / 0ca9847 / 本コミット）**: floor 3.12（abi3‑py312）+ abi3t 8 本体制（`<tag>t`・PEP 803）+ ローダー ft ルーティング/floor ガード + CI 拡張（abi3‑import 4 セル / size‑budget 40 MB 目安〔D1〕/ publish ディレクトリタグ優先 / integration ubuntu t セル〔D3〕）+ 文書・バッジ・記録。一次確認: pyo3 両 feature のホスト依存挙動（guide 実読）・PEP 803 の EXTENSION_SUFFIXES を実解釈系 3.15.0rc2 GIL/ft で実測・setup‑python は rc 版に `freethreaded:` 入力（t サフィックス非対応）・PyPI cp315t 実査（aiohttp/pyyaml 無し → t セルは sdist ビルド、失敗時は縮小の予備方針つき）・maturin wheel glob は `cp315*abi3t*` で命名揺れ耐性。ローカル検証: ruff/mypy/pytest 3.12.15（85+135skip）・staging simulation 5 PASS・cargo スタブ・bash ‑n・prettier。**CI 実走確認は次ターン（ユーザ）**。 |

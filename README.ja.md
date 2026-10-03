@@ -19,7 +19,8 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB.svg?logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B_%C2%B7_edition_2024-DEA584.svg?logo=rust&logoColor=black)
-![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3--py312-229988.svg)
+![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3--py312_%2B_abi3t--py315-229988.svg)
+![Free-threaded](https://img.shields.io/badge/CPython-3.15%2B_free--threaded_%28abi3t%29-229988.svg?logo=python&logoColor=white)
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D.svg?logo=vuedotjs&logoColor=white)
 ![reka-ui](https://img.shields.io/badge/reka--ui-2-16A353.svg?logo=rekaui&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
@@ -68,8 +69,9 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust ネイティブコア** — ライブラリスキャン・ハッシュ・safetensors ヘッダ
   解析・テンソルツリー・フォルダ監視・プレビュー WebP codec・ZipNN エンジン
-  全体が、リポジトリ同梱の**プリビルド Rust 拡張**で動きます（4 プラットフォーム・
-  各 1 バイナリ、Stable ABI により CPython 3.12 以降に対応）。コア自体は素の
+  全体が、リポジトリ同梱の**プリビルド Rust 拡張**で動きます（4 プラットフォーム ×
+  Stable ABI 2 フレーバ: GIL build は abi3 = CPython 3.12 以降、フリースレッド build は
+  abi3t = CPython 3.15 以降・PEP 803、各 1 バイナリ）。コア自体は素の
   `import` だけでロードされます — **コア単体にコンパイラも pip パッケージも
   ダウンロードも不要**です（拡張機能の Python ハブ依存 4 点は従来どおり
   初回起動時に自動インストールされます）。純 Python の元実装との実測比較:
@@ -560,23 +562,32 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
 移植され（[`native/crates/znn-codec`](native/crates/znn-codec):
 フォーマット中核に `unsafe` なし、7 本の継続的ファジングターゲット、
 オリジナル C 実装とのバイト同一差分検証の経歴）、リポジトリ同梱の
-**プリビルド abi3 バイナリ**として出荷されます — プラットフォームごとに 1 本、
-ロードは `import` だけ:
+**プリビルド abi3 / abi3t バイナリ**として出荷されます — プラットフォーム ×
+Stable ABI フレーバごとに 1 本、ロードは `import` だけ:
 
-| プラットフォーム               | 成果物                                        | 要件                                                 |
-| ------------------------------ | --------------------------------------------- | ---------------------------------------------------- |
-| Linux x86_64                   | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+）            |
-| Linux aarch64                  | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                                         |
-| macOS（Intel & Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so` | 1 本の fat binary — Intel 10.12+ / Apple Silicon 11+ |
-| Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC ビルド                                          |
+| プラットフォーム                 | 成果物                                          | 要件                                                 |
+| -------------------------------- | ----------------------------------------------- | ---------------------------------------------------- |
+| Linux x86_64                     | `native-bin/linux-x86_64/mm_core.abi3.so`       | glibc ≥ 2.28（Debian 10 / Ubuntu 20.04+）            |
+| Linux aarch64                    | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                         |
+| macOS（Intel & Apple Silicon）   | `native-bin/macos-universal2/mm_core.abi3.so`   | 1 本の fat binary — Intel 10.12+ / Apple Silicon 11+ |
+| Windows x86_64                   | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC ビルド                                          |
+| Linux x86_64（フリースレッド）   | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28・フリースレッド CPython 3.15+           |
+| Linux aarch64（フリースレッド）  | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28・フリースレッド CPython 3.15+           |
+| macOS（フリースレッド）          | `native-bin/macos-universal2t/mm_core.abi3t.so` | 1 本の fat binary・フリースレッド CPython 3.15+      |
+| Windows x86_64（フリースレッド） | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC ビルド・フリースレッド CPython 3.15+            |
 
 各プラットフォームの 1 バイナリが **CPython 3.12 以降**すべてに対応します
-（Stable ABI、`abi3-py312` — CI で 3.12 と 3.14 に対して実証）。サイズは
-CI の予算ゲートが 1 本 ≤ 5 MB（合計 ≤ 20 MB）に抑えます。linux-x86_64 と
-Windows のバイナリは **PGO 最適化済み**です — CI ビルド毎に決定論的
+（Stable ABI、`abi3-py312` — CI で 3.12 と 3.14 に対して実証）。
+フリースレッド build は **abi3t** の双子（`abi3t-py315`・PEP 803 — CI で
+3.15 の GIL/フリースレッド両 build に対して実証）が対応し、ローダーが自動で
+選びます（フリースレッド解釈系は通常の abi3 バイナリをロードできず、3.15+ の
+GIL build は従来どおり通常バイナリを使います）。サイズは CI の予算ゲートが
+1 本 ≤ 5 MB に抑えます（8 本の合計は 40 MB の目安で管理）。linux-x86_64 と
+Windows の GIL バイナリは **PGO 最適化済み**です — CI ビルド毎に決定論的
 ワークロードから再トレーニングされるプロファイル誘導最適化で、非最適化
 ビルドとの CI A/B 計測により初回実行スループット最大 ~10 % 向上
-（[BENCH §13](docs/BENCH.md)）。
+（[BENCH §13](docs/BENCH.md)）。abi3t バイナリは v1 では非 PGO で出荷します
+（NEO-PLAN-2026-003 D2）。
 
 この移植は信頼性も根本から改善しました: 書き換え作業の過程で、C コアの
 デルタ経路にメモリ安全欠陥の一クラスが実証されていました（特定の入力長での
@@ -674,7 +685,7 @@ HTTP ルート 15 本）ですが、Neo は 16 モジュール・約 40 ルー�
   タスクプール、ブロッキング `requests` 呼び出しをすべて置き換える共有
   aiohttp クライアント。
 - **Rust:** `native/` ワークスペース（`znn-codec` フォーマットコア +
-  `mm-core` PyO3 バインディング）を追加し、プリビルド abi3 バイナリとして
+  `mm-core` PyO3 バインディング）を追加し、プリビルド abi3 / abi3t バイナリとして
   同梱 — 拡張機能はコンパイル済み Python パッケージを一切インストール
   しません。ZipNN 圧縮はすべて Neo 側の実装です（フォーク元には同梱されて
   いませんでした）。本フォークの開発期間中に一時的に同梱していた vendored
@@ -865,10 +876,12 @@ CI は ERROR 級の指摘で失敗します。
 （target `py312`・行長 120・精選ルールセット）、**mypy** が静的型を検査します。
 
 **CI** は push のたびに上記すべてに加え、フロントエンド計測ゲート
-（`scripts/bench/front/k15.mjs`）を実行し、`native` ワークフローが 4
-プラットフォームの成果物をビルドし、サイズ予算を強制し、7 本の fuzz ターゲットを
-スモークし、abi3 成果物を CPython 3.12 と 3.14 で import 疎通し、pytest スイート
-全体と公式 `zipnn` クロス検証を Linux・Windows・macOS で実行します。
+（`scripts/bench/front/k15.mjs`）を実行し、`native` ワークフローが 8
+プラットフォーム成果物（abi3 ×4 + abi3t ×4）をビルドし、サイズ予算を強制し、
+7 本の fuzz ターゲットをスモークし、abi3 成果物を CPython 3.12 と 3.14 で・
+abi3t 成果物を 3.15 の GIL/フリースレッド両 build で import 疎通し、pytest スイート
+全体（フリースレッド 3.15t セルを含む）と公式 `zipnn` クロス検証を
+Linux・Windows・macOS で実行します。
 
 ### 2. プロジェクト構成
 

@@ -537,15 +537,22 @@ as prebuilt binaries inside the repository (`native/native-bin/`) and loaded by
 a plain `import` — **no `pip install`, no C compiler, no network, no waiting**,
 on every covered platform:
 
-| Platform                      | Artifact                                      | Requirements                                           |
-| ----------------------------- | --------------------------------------------- | ------------------------------------------------------ |
-| Linux x86_64                  | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+)               |
-| Linux aarch64                 | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                                           |
-| macOS (Intel & Apple Silicon) | `native-bin/macos-universal2/mm_core.abi3.so` | one fat binary — Intel macOS 10.12+, Apple Silicon 11+ |
-| Windows x86_64                | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC‑built                                             |
+| Platform                       | Artifact                                        | Requirements                                           |
+| ------------------------------ | ----------------------------------------------- | ------------------------------------------------------ |
+| Linux x86_64                   | `native-bin/linux-x86_64/mm_core.abi3.so`       | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+)               |
+| Linux aarch64                  | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                           |
+| macOS (Intel & Apple Silicon)  | `native-bin/macos-universal2/mm_core.abi3.so`   | one fat binary — Intel macOS 10.12+, Apple Silicon 11+ |
+| Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC‑built                                             |
+| Linux x86_64 (free-threaded)   | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28 · free-threaded CPython 3.15+             |
+| Linux aarch64 (free-threaded)  | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28 · free-threaded CPython 3.15+             |
+| macOS (free-threaded)          | `native-bin/macos-universal2t/mm_core.abi3t.so` | one fat binary · free-threaded CPython 3.15+           |
+| Windows x86_64 (free-threaded) | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC-built · free-threaded CPython 3.15+               |
 
 One binary per platform serves **CPython 3.12 and newer** (the Python Stable
-ABI). Interoperability with the official format is a CI gate, not a promise:
+ABI); free-threaded builds are served by the `<tag>t` **abi3t** binaries
+(CPython 3.15+, PEP 803), which the loader picks automatically — a
+free-threaded interpreter cannot load the plain abi3 ones.
+Interoperability with the official format is a CI gate, not a promise:
 every push cross‑validates against the official pip `zipnn` 0.5.4 (both
 directions). On a platform outside the table the extension still installs —
 browsing, downloading and hashing degrade to their pure‑Python paths — while
@@ -661,16 +668,17 @@ bundle; anything else falls back to English.
 
 ## 13. Troubleshooting
 
-| Symptom                                           | Cause / fix                                                                                                                                                                                                               |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The manager button is missing                     | the frontend did not register the extension — check the ComfyUI log for an import error, and that the folder is named `ComfyUI-Model-Manager-Neo`                                                                         |
-| `Hugging Face token not set`                      | set the token in Settings (or `HF_TOKEN`) and reopen the dialog                                                                                                                                                           |
-| A download never starts                           | the URL may need authentication (Civitai gated models) — set the Civitai key; the task row shows the server's error text                                                                                                  |
-| “Failed to update model: PathIndex …”             | the selected type has no folder on this machine — pick a type from the dropdown                                                                                                                                           |
-| The UI looks unstyled / grey boxes                | you are looking at a stale `web/` bundle; rebuild with `pnpm build` (only needed when developing)                                                                                                                         |
-| Preview shows NO PREVIEW                          | the model has no preview file; set one in edit mode                                                                                                                                                                       |
-| ZipNN reports “the native core is unavailable: …” | the message carries the loader's exact reason: a platform outside the [engine table](#the-engine), or a missing/corrupt `native/native-bin/<tag>` binary (re‑clone the repository). Browsing and downloading keep working |
-| An animated preview lost its animation            | previews saved by versions before the Rust core were frozen to their first frame; re‑saving the preview (edit mode) re‑encodes it as an animated WebP                                                                     |
+| Symptom                                                | Cause / fix                                                                                                                                                                                                               |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The manager button is missing                          | the frontend did not register the extension — check the ComfyUI log for an import error, and that the folder is named `ComfyUI-Model-Manager-Neo`                                                                         |
+| `Hugging Face token not set`                           | set the token in Settings (or `HF_TOKEN`) and reopen the dialog                                                                                                                                                           |
+| A download never starts                                | the URL may need authentication (Civitai gated models) — set the Civitai key; the task row shows the server's error text                                                                                                  |
+| “Failed to update model: PathIndex …”                  | the selected type has no folder on this machine — pick a type from the dropdown                                                                                                                                           |
+| The UI looks unstyled / grey boxes                     | you are looking at a stale `web/` bundle; rebuild with `pnpm build` (only needed when developing)                                                                                                                         |
+| Preview shows NO PREVIEW                               | the model has no preview file; set one in edit mode                                                                                                                                                                       |
+| ZipNN reports “the native core is unavailable: …”      | the message carries the loader's exact reason: a platform outside the [engine table](#the-engine), or a missing/corrupt `native/native-bin/<tag>` binary (re‑clone the repository). Browsing and downloading keep working |
+| ZipNN is unavailable on free-threaded Python 3.13/3.14 | abi3t (the free-threaded Stable ABI, PEP 803) exists only from CPython 3.15 — the toast carries exactly this reason. Run a GIL build (3.12+) or free-threaded 3.15+; browsing and downloading keep working                |
+| An animated preview lost its animation                 | previews saved by versions before the Rust core were frozen to their first frame; re‑saving the preview (edit mode) re‑encodes it as an animated WebP                                                                     |
 
 ## Screenshots
 
