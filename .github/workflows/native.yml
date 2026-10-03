@@ -141,30 +141,52 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           python3 - <<'PY'
-          import json, subprocess, sys
+          import json, re, subprocess, sys
 
           def pyo3_features(extra):
-              out = subprocess.run(
+              # No check=True: cargo's own stderr goes to the job log before
+              # the exit — with capture_output+check a malformed invocation
+              # shows up as a bare Python traceback and hides the real error.
+              proc = subprocess.run(
                   ["cargo", "metadata", "--format-version", "1", *extra],
-                  capture_output=True, text=True, check=True,
-              ).stdout
-              meta = json.loads(out)
+                  capture_output=True, text=True,
+              )
+              if proc.returncode != 0:
+                  sys.stderr.write(proc.stderr)
+                  sys.exit(f"BUG: cargo metadata {' '.join(extra) or '(no extra args)'} "
+                           f"exited with {proc.returncode}")
+              meta = json.loads(proc.stdout)
               names = {p["id"]: p["name"] for p in meta["packages"]}
               for node in meta["resolve"]["nodes"]:
                   if names.get(node["id"]) == "pyo3":
                       return set(node["features"])
               sys.exit("BUG: pyo3 missing from the resolve graph")
 
+          def abi3_floors(features, prefix):
+              # pyo3 0.29.2 (the locked version) chains the abi3[t]-pyXY
+              # features UPWARD — enabling abi3-py312 transitively enables
+              # abi3-py313/314/315 and bare abi3 (pyo3 + pyo3-ffi Cargo.toml) —
+              # and pyo3-build-config get_abi3[t]_version() reads the floor as
+              # the LOWEST activated pyXY. So "floor == py312" is "lowest
+              # activated minor == 12", NOT "no higher abi3-py3XX present".
+              return sorted(int(m[1]) for f in features
+                            if (m := re.fullmatch(prefix + r"py3(\d+)", f)))
+
           default = pyo3_features([])
           tests = pyo3_features(["--no-default-features"])
-          ft = pyo3_features(["-p", "mm-core", "--no-default-features", "--features", "extension-module,ft"])
-          # --- default (shipping GIL flavor): extension-module + abi3-py312, no abi3t
+          # cargo metadata has NO -p/--package selector (unlike build commands);
+          # package/feature-qualified names scope the ft axis to mm-core — the
+          # only workspace member that has these features and the only pyo3
+          # dependent, so the resolve graph cannot unify anything else in.
+          ft = pyo3_features(["--no-default-features",
+                              "--features", "mm-core/extension-module,mm-core/ft"])
+          # --- default (shipping GIL flavor): extension-module + abi3 floor EXACTLY py312, no abi3t
           if "extension-module" not in default:
               sys.exit("BUG: pyo3/extension-module missing from default features")
-          if "abi3-py312" not in default:
-              sys.exit("BUG: pyo3/abi3-py312 missing from default features (mm-core/stable-abi)")
-          if {"abi3-py313", "abi3-py314", "abi3-py315"} & default:
-              sys.exit("BUG: default features raise the abi3 floor above py312")
+          floors = abi3_floors(default, "abi3-")
+          if not floors or floors[0] != 12:
+              sys.exit(f"BUG: default features must floor the abi3 at exactly py312 "
+                       f"(mm-core/stable-abi; activated abi3-py3XX minors: {floors or 'none'})")
           if any(f.startswith("abi3t") for f in default):
               sys.exit("BUG: abi3t leaks into the default (GIL) feature set")
           # --- test mode: bare pyo3 (version-specific libpython link)
@@ -172,15 +194,17 @@ jobs:
               sys.exit("BUG: pyo3/extension-module leaks into --no-default-features")
           if any(f.startswith("abi3") for f in tests):
               sys.exit("BUG: --no-default-features must be stable-ABI-free (version-specific test link)")
-          # --- ft mode (abi3t): extension-module + abi3t-py315, and NEVER plain abi3
+          # --- ft mode (abi3t): extension-module + abi3t floor EXACTLY py315, and NEVER plain abi3
           if "extension-module" not in ft:
               sys.exit("BUG: pyo3/extension-module missing from the ft feature set")
-          if "abi3t-py315" not in ft:
-              sys.exit("BUG: pyo3/abi3t-py315 missing from the ft feature set (mm-core/ft)")
+          t_floors = abi3_floors(ft, "abi3t-")
+          if not t_floors or t_floors[0] != 15:
+              sys.exit(f"BUG: ft must floor the abi3t at exactly py315 "
+                       f"(mm-core/ft; activated abi3t-py3XX minors: {t_floors or 'none'})")
           if "abi3" in ft or any(f.startswith("abi3-py3") for f in ft):
               sys.exit("BUG: abi3 and abi3t must never be enabled together (host-dependent flavor, Plan-3 R6)")
-          print("pyo3 feature toggles verified (default = extension-module + abi3-py312; "
-                "test mode = bare; ft = extension-module + abi3t-py315, abi3-free)")
+          print("pyo3 feature toggles verified (default = extension-module + abi3 floor py312; "
+                "test mode = bare; ft = extension-module + abi3t floor py315, abi3-free)")
           PY
 
       # mm-core's test harness must link libpython, so it is tested without
