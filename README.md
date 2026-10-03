@@ -608,7 +608,7 @@ guideline. The linux-x86_64 and Windows GIL binaries are **PGO-optimized** —
 profile-guided, retrained from a deterministic workload in every CI build —
 measuring up to ~10 % faster first-run throughput against the non-optimized
 build in CI A/B runs ([BENCH §13](docs/BENCH.md)); the abi3t binaries ship
-non-PGO for now (NEO-PLAN-2026-003 D2).
+non-PGO for now.
 
 The port also addressed reliability at its root: during the rewrite work, a
 class of memory-safety defects was demonstrated in the C core's delta path
