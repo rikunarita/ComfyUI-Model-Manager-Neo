@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build the distributable mm_core native artifacts (Agent/Plan.md §3.3, §4.2.1).
+# Build the distributable mm_core native artifacts (refresh-plan §3.3, §4.2.1 —
+# the plan documents live in the git history).
 #
 #   scripts/build-native.sh --target <tag> [--size-gate] [--pgo <profdata> | --pgo-train]
 #
