@@ -35,14 +35,28 @@ class ApiKey:
         # Try to migrate api key from user setting
         if not os.path.exists(self._cache_file):
             try:
+                # The Hugging Face setting ID was renamed when the display
+                # name was unified to "Hugging Face" (the ID is the key
+                # ComfyUI persists under, so the historical entry has to be
+                # read too - a key stored by the fork origin or an older
+                # build would otherwise be orphaned while the Civitai key
+                # next to it migrates fine).
+                huggingface = utils.get_setting_value(request, "api_key.huggingface")
+                huggingface_legacy = utils.get_setting_value(request, "api_key.huggingface_legacy")
                 self._store = {
                     "civitai": utils.get_setting_value(request, "api_key.civitai"),
-                    "huggingface": utils.get_setting_value(request, "api_key.huggingface"),
+                    "huggingface": huggingface or huggingface_legacy,
                 }
                 self._update()
                 # Remove api key from user setting (migration complete)
                 utils.set_setting_value(request, "api_key.civitai", None)
                 utils.set_setting_value(request, "api_key.huggingface", None)
+                if huggingface_legacy:
+                    # Only clear the historical entry when a value was
+                    # actually consumed from it: a side-by-side installed
+                    # original extension may still be waiting to run its
+                    # own migration against that key.
+                    utils.set_setting_value(request, "api_key.huggingface_legacy", None)
             except Exception as e:
                 # Reading the user settings can fail (e.g. ComfyUI's security
                 # check answers 401): skip the migration and start from an

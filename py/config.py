@@ -7,6 +7,13 @@ setting_key = {
     "api_key": {
         "civitai": "ModelManager.APIKey.Civitai",
         "huggingface": "ModelManager.APIKey.Hugging Face",
+        # Historical ID of the Hugging Face key: the fork origin (and Neo
+        # releases before the 2026-09-19 display-name unification) persisted
+        # it WITHOUT the space. The ID is the key ComfyUI stores the value
+        # under, so the first-run migration reads it as a fallback - the same
+        # doctrine as the `ModelManager.Scan.*` IDs below. Read-only: nothing
+        # registers this ID any more.
+        "huggingface_legacy": "ModelManager.APIKey.HuggingFace",
     },
     "download": {
         "max_task_count": "ModelManager.Download.MaxTaskCount",
