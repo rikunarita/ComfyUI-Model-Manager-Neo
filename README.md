@@ -16,9 +16,10 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
 ![ZipNN](https://img.shields.io/badge/ZipNN-Rust_reimplementation-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB.svg?logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B_%C2%B7_edition_2024-DEA584.svg?logo=rust&logoColor=black)
-![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3-229988.svg)
+![PyO3](https://img.shields.io/badge/PyO3-0.29_%C2%B7_abi3--py312_%2B_abi3t--py315-229988.svg)
+![Free-threaded](https://img.shields.io/badge/CPython-3.15%2B_free--threaded_%28abi3t%29-229988.svg?logo=python&logoColor=white)
 ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D.svg?logo=vuedotjs&logoColor=white)
 ![reka-ui](https://img.shields.io/badge/reka--ui-2-16A353.svg?logo=rekaui&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
@@ -69,8 +70,9 @@ the experience from the ground up:
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust native core** — library scanning, hashing, safetensors header
   parsing, the tensor tree, the folder watcher, the preview WebP codec and the
   entire ZipNN engine run in a **prebuilt Rust extension** that ships inside the
-  repository: four platforms, one binary each, CPython 3.10 and newer through
-  the Stable ABI. The core itself loads with a plain `import` — **no compiler,
+  repository: four platforms × two Stable-ABI flavours — abi3 for GIL builds
+  (CPython 3.12 and newer) and abi3t for free-threaded builds (CPython 3.15+,
+  PEP 803) — one binary each. The core itself loads with a plain `import` — **no compiler,
   no pip package, no download** (the extension's four Python hub dependencies
   are installed automatically on first launch). Measured against the
   pure‑Python original: a 5,000‑model library scan
@@ -580,23 +582,33 @@ PyPI (`pip install zipnn` compiles from source), so Neo moves that compilation
 off your machine entirely. The format is ported to Rust
 ([`native/crates/znn-codec`](native/crates/znn-codec): no `unsafe` code in the
 format core, seven continuous fuzzing targets, a byte‑identical differential
-history against the original C implementation) and ships as **prebuilt abi3
-binaries** inside the repository — one per platform, loaded by `import` alone:
+history against the original C implementation) and ships as **prebuilt abi3 / abi3t
+binaries** inside the repository — one per platform and Stable-ABI flavour,
+loaded by `import` alone:
 
-| Platform                      | Artifact                                      | Requirements                                     |
-| ----------------------------- | --------------------------------------------- | ------------------------------------------------ |
-| Linux x86_64                  | `native-bin/linux-x86_64/mm_core.abi3.so`     | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+)         |
-| Linux aarch64                 | `native-bin/linux-aarch64/mm_core.abi3.so`    | glibc ≥ 2.28                                     |
-| macOS (Intel & Apple Silicon) | `native-bin/macos-universal2/mm_core.abi3.so` | one fat binary — Intel 10.12+, Apple Silicon 11+ |
-| Windows x86_64                | `native-bin/windows-x86_64/mm_core.pyd`       | MSVC‑built                                       |
+| Platform                       | Artifact                                        | Requirements                                     |
+| ------------------------------ | ----------------------------------------------- | ------------------------------------------------ |
+| Linux x86_64                   | `native-bin/linux-x86_64/mm_core.abi3.so`       | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+)         |
+| Linux aarch64                  | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                     |
+| macOS (Intel & Apple Silicon)  | `native-bin/macos-universal2/mm_core.abi3.so`   | one fat binary — Intel 10.12+, Apple Silicon 11+ |
+| Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC‑built                                       |
+| Linux x86_64 (free-threaded)   | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28 · free-threaded CPython 3.15+       |
+| Linux aarch64 (free-threaded)  | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28 · free-threaded CPython 3.15+       |
+| macOS (free-threaded)          | `native-bin/macos-universal2t/mm_core.abi3t.so` | one fat binary · free-threaded CPython 3.15+     |
+| Windows x86_64 (free-threaded) | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC-built · free-threaded CPython 3.15+         |
 
-One binary serves **CPython 3.10 and newer** on each platform (the Stable ABI,
-`abi3-py310` — proven against 3.10 and 3.13 in CI), and each is gated at
-≤ 5 MB (≤ 20 MB total) by a CI size budget. The linux-x86_64 and Windows
-binaries are **PGO-optimized** — profile-guided, retrained from a
-deterministic workload in every CI build — measuring up to ~10 % faster
-first-run throughput against the non-optimized build in CI A/B runs
-([BENCH §13](docs/BENCH.md)).
+One binary serves **CPython 3.12 and newer** on each platform (the Stable ABI,
+`abi3-py312` — proven against 3.12 and 3.14 in CI); free-threaded builds are
+served by the **abi3t** twins (`abi3t-py315`, PEP 803 — proven against both
+3.15 builds in CI), which the loader picks automatically and which a
+free-threaded interpreter requires (it cannot load the plain abi3 binaries —
+the GIL build of 3.15+ keeps using those). Every artifact is gated at ≤ 5 MB
+by the CI size budget, with the eight-binary total held against a 40 MB
+guideline. The linux-x86_64 and Windows GIL binaries are **PGO-optimized** —
+profile-guided, retrained from a deterministic workload in every CI build —
+measuring up to ~10 % faster first-run throughput against the non-optimized
+build in CI A/B runs ([BENCH §13](docs/BENCH.md)); the abi3t binaries ship
+non-PGO for now (NEO-PLAN-2026-003 D2).
 
 The port also addressed reliability at its root: during the rewrite work, a
 class of memory-safety defects was demonstrated in the C core's delta path
@@ -697,7 +709,7 @@ described in [Features](#features); every one of them is Neo‑side work.
   thread pool; a shared aiohttp client replacing every direct blocking
   `requests` call.
 - **Rust:** added the `native/` workspace (`znn-codec` format core + `mm-core`
-  PyO3 bindings) shipping as prebuilt abi3 binaries — the extension installs
+  PyO3 bindings) shipping as prebuilt abi3 / abi3t binaries — the extension installs
   no compiled Python package at all. ZipNN compression is entirely Neo-side
   work (the original never shipped it); the vendored ZipNN C sources and their
   per‑CPython‑version `.so` files that an earlier development stage of
@@ -885,14 +897,15 @@ unused exports, zero duplication**, and CI fails on any ERROR‑level finding.
 orphans, no devDependency or Node core imports from shipped code).
 
 **Ruff** (`pyproject.toml [tool.ruff]`) lints and formats the backend (target
-`py310`, line length 120, a curated rule set), with **mypy** checking static
+`py312`, line length 120, a curated rule set), with **mypy** checking static
 types on top.
 
 **CI** runs all of the above on every push, plus the frontend measurement gate
-(`scripts/bench/front/k15.mjs`), and the `native` workflow builds the four
-platform artifacts, enforces the size budget, smoke‑fuzzes all seven targets,
-imports the abi3 artifact under CPython 3.10 and 3.13, and runs the full pytest
-suite plus the official‑`zipnn` cross‑validation on Linux, Windows and macOS.
+(`scripts/bench/front/k15.mjs`), and the `native` workflow builds the eight
+platform artifacts (four abi3 + four abi3t), enforces the size budget, smoke‑fuzzes all seven targets,
+imports the abi3 artifact under CPython 3.12 and 3.14 and the abi3t artifact
+under both 3.15 builds (GIL and free-threaded), and runs the full pytest
+suite — including a free-threaded 3.15t cell — plus the official‑`zipnn` cross‑validation on Linux, Windows and macOS.
 
 ### 2. Project structure
 

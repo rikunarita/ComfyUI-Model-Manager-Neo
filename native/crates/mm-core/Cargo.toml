@@ -1,6 +1,6 @@
 [package]
 name = "mm-core"
-description = "PyO3 native core of ComfyUI-Model-Manager-Neo (module name: mm_core, abi3-py310)"
+description = "PyO3 native core of ComfyUI-Model-Manager-Neo (module name: mm_core, abi3-py312)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -27,9 +27,30 @@ serde_json = { workspace = true }
 [features]
 # `cargo test -p mm-core` must run WITHOUT default features: linking the test
 # harness against an `extension-module` build fails (no libpython is linked by
-# design). CI: `cargo test -p mm-core --no-default-features`.
-default = ["extension-module"]
+# design). CI: `cargo test -p mm-core --no-default-features` — since
+# NEO-PLAN-2026-003 that mode is also stable-ABI-FREE (the abi3 floor moved
+# from a workspace pin into `stable-abi` below), so the test harness links the
+# version-specific libpython of the CI interpreter.
+default = ["extension-module", "stable-abi"]
 extension-module = ["pyo3/extension-module"]
+# GIL-build Stable ABI floor (NEO-PLAN-2026-003 Step 1: py310 -> py312 —
+# CPython 3.10 reached EOL on 2026-10-01 and ComfyUI's documented support
+# floor is 3.12). PyO3 requires host >= target for abi3 builds, so the CI
+# build/test interpreters are >= 3.12 in the same commit. MUST NOT be enabled
+# together with `ft` (abi3t-py315): enabling both makes the artifact flavour
+# host-dependent (Plan-3 §2-3); the native-test toggle gate enforces this.
+stable-abi = ["pyo3/abi3-py312"]
+# abi3t flavour (PEP 803) — NEO-PLAN-2026-003 Step 2: the Stable ABI for
+# free-threaded builds, floor Python 3.15. Built EXCLUSIVELY — never together
+# with `stable-abi`: enabling both makes the produced flavour host-dependent
+# (abi3 below a 3.15 host, abi3t at/above it — PyO3 building-and-distribution
+# guide; Plan-3 §2-3). The BUILD HOST must be Python >= 3.15 (PyO3 host >=
+# target; CI pins 3.15.0-rc.2 until the final lands in the runner manifest —
+# Plan-3 D4). Artifacts land in native-bin/<tag>t/ (mm_core.abi3t.so, or
+# mm_core.pyd on Windows) and load on BOTH the free-threaded AND the GIL
+# build of CPython 3.15+; the GIL floor stays on the `stable-abi` artifacts
+# (free-threaded builds cannot load plain abi3 — PEP 803 runtime check).
+ft = ["pyo3/abi3t-py315"]
 
 [lints]
 workspace = true

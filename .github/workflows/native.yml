@@ -4,29 +4,40 @@
 #                  (Linux links with rustc's bundled rust-lld — the default
 #                  since Rust 1.90; no apt toolchain is installed any more,
 #                  NEO-PLAN-2026-002 Step 1)
-#   native-build-* abi3 artifacts for every platform tag (5 rust targets:
-#                  linux x86_64 + aarch64 via cargo-zigbuild glibc 2.28,
-#                  windows x86_64 MSVC, macOS universal2 = both darwin archs),
-#                  per-binary size-budget gate + import smoke on each OS
-#   abi3-import    the linux artifact imported by CPython 3.10 AND 3.13
-#                  (proves the abi3-py310 single-binary claim, Plan §3.2)
-#   size-budget    <= 5 MB per binary (per arch slice; the macOS universal2 fat
-#                  binary is detected by its FAT_MAGIC and gets a doubled 10 MB
-#                  file budget) and <= 20 MB total across all artifacts
-#                  (Plan §3.3 / R6)
+#   native-build-* the stable-ABI artifacts for every platform tag in BOTH
+#                  flavours (NEO-PLAN-2026-003): abi3 (GIL builds, floor
+#                  abi3-py312) and abi3t (<tag>t, PEP 803 — free-threaded
+#                  CPython 3.15+, non-PGO per D2, host 3.15.0-rc.2 per D4),
+#                  over the same 5 rust targets: linux x86_64 + aarch64 via
+#                  cargo-zigbuild glibc 2.28, windows x86_64 MSVC, macOS
+#                  universal2 = both darwin archs; per-binary size-budget
+#                  gate + import smoke on each OS (the t smokes run on the
+#                  3.15 GIL AND the free-threaded interpreter)
+#   abi3-import    the linux artifacts imported across the support matrix:
+#                  abi3 under CPython 3.12 AND 3.14 (the abi3-py312 single-
+#                  binary claim, floor raised from 3.10 by NEO-PLAN-2026-003)
+#                  + abi3t under BOTH 3.15 builds (GIL and free-threaded —
+#                  the PEP 803 load table's two columns)
+#   size-budget    <= 5 MB per binary (per arch slice; the macOS universal2
+#                  fat binaries are detected by their FAT_MAGIC and get a
+#                  doubled 10 MB file budget), all 8 artifacts present (the
+#                  shape contract: 4 abi3 + 4 abi3t) and the 40 MB total
+#                  GUIDELINE (Plan-3 D1: an overage warns in the job summary,
+#                  it does not block the run)
 #
 # Permanent quality gates (Plan §5.3):
 #   fuzz-smoke     L3 cargo-fuzz smoke (7 targets x 60 s, ASan)
 #   integration    L4/L5 — the full pytest suite against the built artifact
 #                  on all three OSes + the official pip-zipnn 0.5.4
-#                  cross-validation on ubuntu (Phase 2)
+#                  cross-validation on ubuntu (Phase 2) + the free-threaded
+#                  ubuntu cell (3.15t against the abi3t artifact, Plan-3 D3)
 # The transition-era L2 golden differential (native-diff, vs the bundled
 # prebuilt C core) was retired in Phase 8 together with third_party/; the
 # committed evidence stays under scripts/bench/results/ (l2_*.json).
 # Artifacts are verification only on PR/dev runs; on `main` the
-# publish-native-bin job commits the four platform binaries back into
-# `native/native-bin/` (Plan §5.3 / Phase 8 distribution: a fresh clone must
-# work with no compiler, no pip and no network - K16).
+# publish-native-bin job commits the eight platform binaries (4 abi3 + 4
+# abi3t) back into `native/native-bin/` (Plan §5.3 / Phase 8 distribution: a
+# fresh clone must work with no compiler, no pip and no network - K16).
 name: native
 
 on:
@@ -94,7 +105,7 @@ jobs:
       # pyo3's build script wants a Python interpreter present.
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       # No linker toolchain is installed here on purpose (NEO-PLAN-2026-002
       # Step 1): Linux builds link with rustc's bundled rust-lld, the default
@@ -113,39 +124,87 @@ jobs:
       - name: cargo test (pure-Rust crates)
         run: cargo test --workspace --exclude mm-core
 
-      # Guard the feature toggle itself: `--no-default-features` must really
-      # drop pyo3/extension-module (a workspace-level `features = [...]` on
-      # the pyo3 dependency would silently pin it on and break the test link
-      # the moment mm-core gains tests that touch #[pyfunction] items).
-      # cargo tree -e features does not render crate-level feature edges
-      # reliably, so the resolved feature set is read from cargo metadata.
-      - name: Verify the extension-module toggle toggles
+      # Guard the feature toggles themselves: `--no-default-features` must
+      # really drop pyo3/extension-module (a workspace-level `features = [...]`
+      # on the pyo3 dependency would silently pin it on and break the test link
+      # the moment mm-core gains tests that touch #[pyfunction] items) AND, since
+      # NEO-PLAN-2026-003 moved the abi3 floor out of the workspace pin into
+      # mm-core's `stable-abi` feature, the test mode must also be
+      # stable-ABI-free (version-specific libpython link) while the default
+      # (shipping) mode carries exactly `abi3-py312`. The third axis is `ft`
+      # (abi3t-py315, PEP 803): it must enable extension-module + abi3t-py315
+      # and NEVER plain abi3 — enabling abi3 and abi3t together would make the
+      # produced flavour host-dependent (Plan-3 §2-3/R6). cargo tree -e features
+      # does not render crate-level feature edges reliably, so the resolved
+      # feature set is read from cargo metadata.
+      - name: Verify the pyo3 feature toggles (extension-module / stable-abi / ft)
         if: runner.os == 'Linux'
         run: |
           python3 - <<'PY'
-          import json, subprocess, sys
+          import json, re, subprocess, sys
 
           def pyo3_features(extra):
-              out = subprocess.run(
+              # No check=True: cargo's own stderr goes to the job log before
+              # the exit — with capture_output+check a malformed invocation
+              # shows up as a bare Python traceback and hides the real error.
+              proc = subprocess.run(
                   ["cargo", "metadata", "--format-version", "1", *extra],
-                  capture_output=True, text=True, check=True,
-              ).stdout
-              meta = json.loads(out)
+                  capture_output=True, text=True,
+              )
+              if proc.returncode != 0:
+                  sys.stderr.write(proc.stderr)
+                  sys.exit(f"BUG: cargo metadata {' '.join(extra) or '(no extra args)'} "
+                           f"exited with {proc.returncode}")
+              meta = json.loads(proc.stdout)
               names = {p["id"]: p["name"] for p in meta["packages"]}
               for node in meta["resolve"]["nodes"]:
                   if names.get(node["id"]) == "pyo3":
                       return set(node["features"])
               sys.exit("BUG: pyo3 missing from the resolve graph")
 
+          def abi3_floors(features, prefix):
+              # pyo3 0.29.2 (the locked version) chains the abi3[t]-pyXY
+              # features UPWARD — enabling abi3-py312 transitively enables
+              # abi3-py313/314/315 and bare abi3 (pyo3 + pyo3-ffi Cargo.toml) —
+              # and pyo3-build-config get_abi3[t]_version() reads the floor as
+              # the LOWEST activated pyXY. So "floor == py312" is "lowest
+              # activated minor == 12", NOT "no higher abi3-py3XX present".
+              return sorted(int(m[1]) for f in features
+                            if (m := re.fullmatch(prefix + r"py3(\d+)", f)))
+
           default = pyo3_features([])
           tests = pyo3_features(["--no-default-features"])
+          # cargo metadata has NO -p/--package selector (unlike build commands);
+          # package/feature-qualified names scope the ft axis to mm-core — the
+          # only workspace member that has these features and the only pyo3
+          # dependent, so the resolve graph cannot unify anything else in.
+          ft = pyo3_features(["--no-default-features",
+                              "--features", "mm-core/extension-module,mm-core/ft"])
+          # --- default (shipping GIL flavor): extension-module + abi3 floor EXACTLY py312, no abi3t
           if "extension-module" not in default:
               sys.exit("BUG: pyo3/extension-module missing from default features")
+          floors = abi3_floors(default, "abi3-")
+          if not floors or floors[0] != 12:
+              sys.exit(f"BUG: default features must floor the abi3 at exactly py312 "
+                       f"(mm-core/stable-abi; activated abi3-py3XX minors: {floors or 'none'})")
+          if any(f.startswith("abi3t") for f in default):
+              sys.exit("BUG: abi3t leaks into the default (GIL) feature set")
+          # --- test mode: bare pyo3 (version-specific libpython link)
           if "extension-module" in tests:
               sys.exit("BUG: pyo3/extension-module leaks into --no-default-features")
-          if not {"abi3-py310"} <= tests:
-              sys.exit("BUG: abi3-py310 must stay enabled in every mode")
-          print("extension-module toggle verified (on by default, off for tests, abi3 always on)")
+          if any(f.startswith("abi3") for f in tests):
+              sys.exit("BUG: --no-default-features must be stable-ABI-free (version-specific test link)")
+          # --- ft mode (abi3t): extension-module + abi3t floor EXACTLY py315, and NEVER plain abi3
+          if "extension-module" not in ft:
+              sys.exit("BUG: pyo3/extension-module missing from the ft feature set")
+          t_floors = abi3_floors(ft, "abi3t-")
+          if not t_floors or t_floors[0] != 15:
+              sys.exit(f"BUG: ft must floor the abi3t at exactly py315 "
+                       f"(mm-core/ft; activated abi3t-py3XX minors: {t_floors or 'none'})")
+          if "abi3" in ft or any(f.startswith("abi3-py3") for f in ft):
+              sys.exit("BUG: abi3 and abi3t must never be enabled together (host-dependent flavor, Plan-3 R6)")
+          print("pyo3 feature toggles verified (default = extension-module + abi3 floor py312; "
+                "test mode = bare; ft = extension-module + abi3t floor py315, abi3-free)")
           PY
 
       # mm-core's test harness must link libpython, so it is tested without
@@ -181,7 +240,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       # Plan Phase 7 T4: uv replaces pip in the CI layer (drop-in
       # `uv pip install --system` against the setup-python interpreter).
@@ -190,7 +249,25 @@ jobs:
           enable-cache: true
 
       - name: Install cross toolchain (pinned, Plan §3.3)
-        run: uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0 maturin==1.15.0
+        run: |
+          set -euo pipefail
+          uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0 maturin==1.15.0
+          # Pin zig for cargo-zigbuild NOW, while this step's python3 (3.12)
+          # still owns the ziglang package. cargo-zigbuild's lookup order is
+          # CARGO_ZIGBUILD_ZIG_COMMAND -> `python3 -m ziglang` -> `zig` on PATH
+          # (0.23.4 src/zig/locate.rs), and the py315 setup-python step below
+          # re-points python3 at an interpreter WITHOUT ziglang; the ziglang
+          # wheel also installs no `zig` shim on PATH (its only console script
+          # is `python-zig`), so without this pin every <tag>t zigbuild fails
+          # with "Failed to find zig". The resolved binary is exactly what
+          # `python3 -m ziglang` execs (ziglang/__main__.py), and the generated
+          # linker wrappers re-export CARGO_ZIGBUILD_ZIG_COMMAND themselves
+          # (0.23.4 src/zig/wrapper.rs), so one job-wide env var covers both
+          # the wrapper generation and every later compiler invocation.
+          ZIG_BIN="$(python3 -c 'import os, ziglang; print(os.path.join(os.path.dirname(ziglang.__file__), "zig"))')"
+          [[ -x "$ZIG_BIN" ]] || { echo "ziglang binary missing or not executable: $ZIG_BIN" >&2; exit 1; }
+          "$ZIG_BIN" version
+          echo "CARGO_ZIGBUILD_ZIG_COMMAND=$ZIG_BIN" >> "$GITHUB_ENV"
 
       # NEO-PLAN-2026-002 Step 4: the linux-x86_64 artifact is PGO-optimized.
       # Three phases in one job (profile generated per build, never committed —
@@ -247,7 +324,7 @@ jobs:
             fi
           done
 
-      - name: Import smoke (linux-x86_64 artifact, CPython 3.11)
+      - name: Import smoke (linux-x86_64 artifact, CPython 3.12)
         run: |
           PYTHONPATH=native/native-bin/linux-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
@@ -262,12 +339,60 @@ jobs:
           uv pip install --system pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
           python -m pytest tests -q
 
+      # NEO-PLAN-2026-003 Step 2: the abi3t (PEP 803) artifacts for
+      # free-threaded CPython 3.15+ — NON-PGO (D2: the LLVM profile runtime is
+      # unvalidated on free-threaded hosts; the GIL-side PGO above is untouched)
+      # and built with the EXCLUSIVE feature set (--no-default-features
+      # --features extension-module,ft — never abi3+abi3t together, Plan-3
+      # §2-3/R6). Host = 3.15.0-rc.2 GIL (PyO3 requires host >= target; D4
+      # pins the rc until the 3.15 final lands in the runner manifest — the
+      # ABI froze at rc1, so the final is a label-only swap).
+      - uses: actions/setup-python@v7
+        id: py315
+        with:
+          python-version: "3.15.0-rc.2"
+
+      - name: Build linux-x86_64t (glibc 2.28 floor, abi3t, non-PGO)
+        run: ./scripts/build-native.sh --target linux-x86_64t --size-gate
+
+      # linux-aarch64t stays NON-PGO like its GIL sibling (cross-arch profile
+      # reuse is forbidden, Plan-2 §4.5) — and like all <tag>t targets (D2).
+      - name: Build linux-aarch64t (glibc 2.28 floor, abi3t, non-PGO)
+        run: ./scripts/build-native.sh --target linux-aarch64t --size-gate
+
+      - name: Verify the glibc floor (abi3t artifacts, max referenced GLIBC <= 2.28)
+        run: |
+          for f in native/native-bin/linux-x86_64t/mm_core.abi3t.so native/native-bin/linux-aarch64t/mm_core.abi3t.so; do
+            max=$(readelf -V "$f" | grep -oE 'GLIBC_2\.[0-9]+' | sort -Vu | tail -1)
+            echo "$f -> ${max:-none}"
+            highest=$(printf '%s\nGLIBC_2.28\n' "${max:-GLIBC_2.0}" | sort -Vu | tail -1)
+            if [ "$highest" != "GLIBC_2.28" ]; then
+              echo "glibc floor violated by $f: $max"; exit 1
+            fi
+          done
+
+      - uses: actions/setup-python@v7
+        id: py315t
+        with:
+          python-version: "3.15.0-rc.2"
+          freethreaded: true
+
+      # PEP 803: an abi3t artifact loads on BOTH 3.15+ builds — smoke both
+      # flavours (the ft leg also asserts the GIL is really disabled, so a
+      # mis-installed GIL interpreter cannot pass as the free-threaded one).
+      - name: Import smoke (linux-x86_64t artifact, CPython 3.15 GIL + free-threaded)
+        run: |
+          PYTHONPATH=native/native-bin/linux-x86_64t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/linux-x86_64t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
+
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-linux
           path: |
             native/native-bin/linux-x86_64/mm_core.abi3.so
             native/native-bin/linux-aarch64/mm_core.abi3.so
+            native/native-bin/linux-x86_64t/mm_core.abi3t.so
+            native/native-bin/linux-aarch64t/mm_core.abi3t.so
 
   native-build-macos:
     # Ghost-run guard — see native-test.
@@ -289,7 +414,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       # Plan Phase 7 T4: uv replaces pip in the CI layer.
       - uses: astral-sh/setup-uv@v10.2.0
@@ -320,14 +445,45 @@ jobs:
       - name: Verify universal2 fat binary
         run: lipo -info native/native-bin/macos-universal2/mm_core.abi3.so
 
-      - name: Import smoke (CPython 3.11 arm64)
+      - name: Import smoke (CPython 3.12 arm64)
         run: |
           PYTHONPATH=native/native-bin/macos-universal2 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
+      # NEO-PLAN-2026-003 Step 2: abi3t universal2 (non-PGO like the macOS GIL
+      # side — Plan-2 §4.4; D2). Host 3.15.0-rc.2 (D4). The wheel naming check
+      # of Plan-3 R4 is done by build-native.sh's cp315*abi3t* glob + the
+      # .abi3t.so extraction (both fail loudly on a mismatch).
+      - uses: actions/setup-python@v7
+        id: py315
+        with:
+          python-version: "3.15.0-rc.2"
+
+      - name: Build macos-universal2t (maturin, abi3t, both archs + lipo)
+        run: ./scripts/build-native.sh --target macos-universal2t --size-gate
+
+      - name: Verify universal2t fat binary
+        run: lipo -info native/native-bin/macos-universal2t/mm_core.abi3t.so
+
+      - uses: actions/setup-python@v7
+        id: py315t
+        with:
+          python-version: "3.15.0-rc.2"
+          freethreaded: true
+
+      - name: Import smoke (macos-universal2t artifact, CPython 3.15 GIL + free-threaded arm64)
+        run: |
+          PYTHONPATH=native/native-bin/macos-universal2t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15 arm64):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/macos-universal2t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t arm64):', mm_core.api_version(), mm_core.core_version())"
+
+      # Two tag directories (not a bare file) so the download-artifact LCA
+      # keeps the tag segments — the windows/macos shapes must stay
+      # distinguishable for the size-budget and publish staging (Plan-3 §3.4).
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-macos
-          path: native/native-bin/macos-universal2/mm_core.abi3.so
+          path: |
+            native/native-bin/macos-universal2/mm_core.abi3.so
+            native/native-bin/macos-universal2t/mm_core.abi3t.so
 
   native-build-windows:
     # Ghost-run guard — see native-test.
@@ -351,7 +507,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       # Plan Phase 7 T4: uv replaces pip in the CI layer.
       - uses: astral-sh/setup-uv@v10.2.0
@@ -367,58 +523,118 @@ jobs:
       - name: Build windows-x86_64 (MSVC, PGO)
         run: ./scripts/build-native.sh --target windows-x86_64 --size-gate --pgo-train
 
-      - name: Import smoke (CPython 3.11)
+      - name: Import smoke (CPython 3.12)
         run: |
           PYTHONPATH=native/native-bin/windows-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
+
+      # NEO-PLAN-2026-003 Step 2: abi3t (non-PGO — D2; the GIL side keeps
+      # maturin --pgo above). Host 3.15.0-rc.2 (D4). PEP 803 keeps the plain
+      # .pyd name on Windows, so the t artifact is separated ONLY by its
+      # windows-x86_64t directory (Plan-3 R7: the upload below carries the
+      # directory structure and the publish staging is directory-tag-first).
+      - uses: actions/setup-python@v7
+        id: py315
+        with:
+          python-version: "3.15.0-rc.2"
+
+      - name: Build windows-x86_64t (MSVC, abi3t, non-PGO)
+        run: ./scripts/build-native.sh --target windows-x86_64t --size-gate
+
+      - uses: actions/setup-python@v7
+        id: py315t
+        with:
+          python-version: "3.15.0-rc.2"
+          freethreaded: true
+
+      - name: Import smoke (windows-x86_64t artifact, CPython 3.15 GIL + free-threaded)
+        run: |
+          PYTHONPATH=native/native-bin/windows-x86_64t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/windows-x86_64t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
 
       - uses: actions/upload-artifact@v7
         with:
           name: native-bin-windows
-          path: native/native-bin/windows-x86_64/mm_core.pyd
+          path: |
+            native/native-bin/windows-x86_64/mm_core.pyd
+            native/native-bin/windows-x86_64t/mm_core.pyd
 
   abi3-import:
     timeout-minutes: 60
-    # One binary, every CPython >= 3.10: prove it on the oldest and a current
-    # interpreter (Plan §3.2 abi3-py310 claim).
+    # One binary per flavour, every CPython at/above its floor — both single-
+    # binary claims proven on the runner matrix (NEO-PLAN-2026-003):
+    #   abi3  (linux-x86_64, floor abi3-py312): 3.12 (the floor) + 3.14 (the
+    #         newest stable on the runner manifest) — this job's classic
+    #         "oldest + current" design, moved up from 3.10/3.13.
+    #   abi3t (linux-x86_64t, floor 3.15, PEP 803): BOTH 3.15 builds — the GIL
+    #         and the free-threaded one — because the howto's load table has
+    #         exactly these two columns (a free-threaded build cannot load
+    #         plain abi3; both builds load abi3t). D4: pinned to 3.15.0-rc.2
+    #         until the final lands in the runner manifest (the ABI froze at
+    #         rc1, so the swap is label-only).
     runs-on: ubuntu-latest
     needs: native-build-linux
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.13"]
+        include:
+          - python-version: "3.12"
+            freethreaded: false
+            tag: linux-x86_64
+          - python-version: "3.14"
+            freethreaded: false
+            tag: linux-x86_64
+          - python-version: "3.15.0-rc.2"
+            freethreaded: false
+            tag: linux-x86_64t
+          - python-version: "3.15.0-rc.2"
+            freethreaded: true
+            tag: linux-x86_64t
     steps:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
+          freethreaded: ${{ matrix.freethreaded }}
 
       - uses: actions/download-artifact@v8
         with:
           name: native-bin-linux
           path: native-bin
 
-      - name: Import the abi3 artifact
+      - name: Import the stable-ABI artifact for this flavour
         run: |
-          PYTHONPATH=native-bin/linux-x86_64 python - <<'PY'
+          PYTHONPATH=native-bin/${{ matrix.tag }} python - <<'PY'
           import sys
           import mm_core
 
           assert mm_core.api_version() == 6, mm_core.api_version()
-          # v6 = Phase 7 T7's preview WebP codec must be present in the abi3 binary.
+          # v6 = Phase 7 T7's preview WebP codec must be present in the binary.
           assert all(
               hasattr(mm_core, n)
               for n in ("webp_decode", "webp_decode_animation", "webp_encode", "webp_encode_animation")
           )
-          print(f"abi3 import OK on CPython {sys.version.split()[0]}: {mm_core.core_version()}")
+          gil = sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True
+          print(f"import OK on CPython {sys.version.split()[0]} (gil_enabled={gil}): {mm_core.core_version()}")
           PY
 
   size-budget:
     timeout-minutes: 60
-    # Plan §3.3 / R6: <= 5 MB per binary, <= 20 MB for the whole native-bin.
-    # The macOS universal2 artifact is a FAT binary (x86_64 + arm64 = two
-    # architecture slices), so its per-file budget is doubled — each slice is
-    # within the single-binary 5 MB budget (build-native.sh gates the thinned
-    # slices on the macOS runner; lipo is unavailable on this ubuntu job). The
-    # 20 MB TOTAL across all four artifacts is the real repo-bloat guard (R6).
+    # HARD gates (Plan §3.3 / R6): <= 5 MB per binary, and `found = 8` — the
+    # shape contract of the distribution (4 abi3 + 4 abi3t, NEO-PLAN-2026-003),
+    # not a size statement. The macOS universal2 artifacts (abi3 AND abi3t) are
+    # FAT binaries holding TWO architecture slices (x86_64 + arm64), so the
+    # per-file budget is doubled for them — each slice is within the single-
+    # binary 5 MB budget (build-native.sh gates the thinned slices on the macOS
+    # runner; lipo is unavailable on this ubuntu job). The FAT files are
+    # detected by content (FAT_MAGIC 0xcafebabe / FAT_MAGIC_64 0xcafebabf,
+    # big-endian on disk) rather than by path — the downloaded artifact's
+    # directory layout is not guaranteed to carry the `macos-universal2`
+    # segment.
+    # The TOTAL is the 40 MB GUIDELINE of Plan-3 D1 (user decision 2026-10-03:
+    # advisory, not absolute): an overage emits a ::warning:: annotation plus a
+    # job-summary line with the measured total and the overage — the run stays
+    # green. The measured total is recorded in the job summary on EVERY run
+    # (MEMO tracks the trend, R5). The old 20 MB hard total is physically
+    # unreachable with 8 binaries (the 4 abi3 ones alone measured 18.1 MB).
     runs-on: ubuntu-latest
     needs: [native-build-linux, native-build-macos, native-build-windows]
     steps:
@@ -434,14 +650,6 @@ jobs:
           found=0
           while IFS= read -r f; do
             size=$(stat -c %s "$f")
-            # A macOS universal2 artifact is a FAT Mach-O holding TWO
-            # architecture slices (x86_64 + arm64), so Plan §3.3's "<= 5 MB per
-            # binary" applies per SLICE and the fat file gets a doubled budget.
-            # Detect it by content (FAT_MAGIC 0xcafebabe / FAT_MAGIC_64
-            # 0xcafebabf, big-endian on disk) rather than by path — the
-            # downloaded artifact's directory layout is not guaranteed to carry
-            # the `macos-universal2` segment. build-native.sh additionally gates
-            # each thinned slice at the single-binary budget on the macOS runner.
             budget=5242880
             magic=$(od -An -tx1 -N4 "$f" | tr -d ' ')
             case "$magic" in
@@ -453,8 +661,18 @@ jobs:
             found=$((found + 1))
           done < <(find artifacts -type f \( -name '*.so' -o -name '*.pyd' \) | sort)
           echo "binaries: $found, total: $total bytes"
-          if [ "$found" -lt 4 ]; then echo "expected 4 platform binaries, found $found"; exit 1; fi
-          if [ "$total" -gt 20971520 ]; then echo "TOTAL OVER BUDGET (>20 MB)"; exit 1; fi
+          if [ "$found" -lt 8 ]; then echo "expected 8 platform binaries (4 abi3 + 4 abi3t), found $found"; exit 1; fi
+          {
+            echo "## native-bin size report"
+            echo ""
+            echo "binaries: **$found** (shape contract: 8) — total: **$total bytes** (guideline: <= 40 MB, Plan-3 D1)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          guideline=41943040
+          if [ "$total" -gt "$guideline" ]; then
+            over=$(( (total - guideline) * 100 / guideline ))
+            echo "::warning::native-bin total ${total} B exceeds the 40 MB guideline by ${over}% (Plan-3 D1 — advisory, non-blocking)"
+            echo "**OVER GUIDELINE** (> 40 MB by ${over}%) — advisory only (D1); the per-binary budgets above are the hard gates." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   integration:
     timeout-minutes: 60
@@ -466,6 +684,10 @@ jobs:
     # reference-writer cross-check (phase4) and the L5 gate re-runs against
     # the UPSTREAM pip zipnn 0.5.4 (source-built on the runner) — the
     # mechanical proof that Neo's files are official-compatible (Plan §5.1 L5).
+    # NEO-PLAN-2026-003 D3 adds the free-threaded ubuntu cell (3.15t against
+    # the abi3t artifact): the FULL suite as the no-GIL soak, while the torch/
+    # tsc/L5 legs stay in the GIL ubuntu cell (no cp315t wheels — the
+    # conditions below key on the cell's tag, not its OS).
     needs: [native-build-linux, native-build-windows, native-build-macos]
     strategy:
       fail-fast: false
@@ -474,19 +696,38 @@ jobs:
           - os: ubuntu-latest
             artifact: native-bin-linux
             tag: linux-x86_64
+            python-version: "3.12"
           - os: windows-latest
             artifact: native-bin-windows
             tag: windows-x86_64
+            python-version: "3.12"
           - os: macos-latest
             artifact: native-bin-macos
             tag: macos-universal2
+            python-version: "3.12"
+          # NEO-PLAN-2026-003 D3 — the free-threaded soak cell: the FULL pytest
+          # suite under 3.15t against the abi3t artifact. The native pipeline
+          # tests load native-bin/linux-x86_64t through the REAL loader (the
+          # loader's flavour detection routes 3.15t to the <tag>t directory),
+          # so this cell is the mechanical proof of mm_core's no-GIL
+          # concurrency posture (Plan-3 R3). ubuntu-only in v1: the torch/L5/
+          # tsc legs have no 3.15t wheels (guarded off below), and the mac/win
+          # t LOADING surface is covered by the build jobs' dual-flavour import
+          # smokes + the abi3t cells of abi3-import. D4: rc.2 pin until the
+          # 3.15 final lands in the runner manifest.
+          - os: ubuntu-latest
+            artifact: native-bin-linux
+            tag: linux-x86_64t
+            python-version: "3.15.0-rc.2"
+            freethreaded: true
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
+          freethreaded: ${{ matrix.freethreaded || false }}
 
       # Plan Phase 7 T4: uv replaces pip in the CI layer. The torch CPU wheel
       # (~200 MB) install below is where uv's resolve+install speedup and the
@@ -530,7 +771,8 @@ jobs:
           done
           rm -rf _staging
           case "${{ matrix.tag }}" in
-            windows-x86_64) need="mm_core.pyd" ;;
+            windows-x86_64 | windows-x86_64t) need="mm_core.pyd" ;;
+            *t) need="mm_core.abi3t.so" ;;
             *) need="mm_core.abi3.so" ;;
           esac
           [ -f "${{ matrix.tag }}/$need" ] || { echo "staging failed: ${{ matrix.tag }}/$need missing"; exit 1; }
@@ -549,6 +791,11 @@ jobs:
       - name: Python test dependencies
         run: # markdownify + pillow are module-level imports of py/information.py, which
           # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
+          # On the 3.15t cell, pillow DOES ship cp315t wheels while aiohttp and
+          # pyyaml do not (PyPI surveyed 2026-10-03, NEO-PLAN-2026-003) — they
+          # build from sdist on the runner (gcc); their C dependencies
+          # (multidict/yarl/propcache) have cp315t wheels, frozenlist/aiosignal
+          # ship pure-python fallbacks.
           uv pip install --system pytest pytest-asyncio aiohttp pyyaml requests pillow markdownify
 
       # Ubuntu-only extras: torch + safetensors drive the REFERENCE-WRITER
@@ -562,8 +809,8 @@ jobs:
       # happens deeper, at save_file time; the same class as the markdownify
       # incident, so this line must only ever change together with the suite).
       # The CPU wheel index keeps the install small (no CUDA payload).
-      - name: Torch cross-check dependencies (ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Torch cross-check dependencies (ubuntu GIL cell only)
+        if: matrix.tag == 'linux-x86_64'
         run: |
           uv pip install --system numpy safetensors blake3
           uv pip install --system torch --default-index https://download.pytorch.org/whl/cpu
@@ -580,7 +827,7 @@ jobs:
       # typescript is installed outside the repository (the pnpm store is not
       # materialised in this job) and handed to the harness via MMNEO_TSC.
       - name: Tensor-tree wire cross-check (Rust == TypeScript)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.tag == 'linux-x86_64'
         run: |
           mkdir -p /tmp/mmneo-tsc && cd /tmp/mmneo-tsc
           npm init -y >/dev/null
@@ -594,8 +841,8 @@ jobs:
       # L5 (Plan §5.1): Neo(Rust) compress → official decompress, official
       # compress → Neo decompress, and per-tensor blob parity — against the
       # pip-installed UPSTREAM zipnn 0.5.4 (source build on the runner).
-      - name: L5 official-zipnn cross-validation (ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: L5 official-zipnn cross-validation (ubuntu GIL cell only)
+        if: matrix.tag == 'linux-x86_64'
         run: |
           uv pip install --system zipnn==0.5.4
           python3 scripts/l5/official_cross.py
@@ -711,7 +958,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - uses: astral-sh/setup-uv@v10.2.0
         with:
@@ -881,12 +1128,13 @@ jobs:
 
   publish-native-bin:
     # Phase 8 distribution (Plan §5.3 / K16): on `main` pushes, commit the
-    # four freshly built platform binaries back into native/native-bin/ so a
-    # fresh clone runs the ZipNN engine with NO compiler, NO pip and NO
-    # network. dev/PR runs never publish (their artifacts are verification
-    # only); release tags ship whatever main already carries. The push uses
-    # the default GITHUB_TOKEN (contents: write) and GitHub does not trigger
-    # new workflow runs for token-created commits, so this cannot loop.
+    # eight freshly built platform binaries (4 abi3 + 4 abi3t — NEO-PLAN-
+    # 2026-003) back into native/native-bin/ so a fresh clone runs the ZipNN
+    # engine with NO compiler, NO pip and NO network. dev/PR runs never
+    # publish (their artifacts are verification only); release tags ship
+    # whatever main already carries. The push uses the default GITHUB_TOKEN
+    # (contents: write) and GitHub does not trigger new workflow runs for
+    # token-created commits, so this cannot loop.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: [native-build-linux, native-build-macos, native-build-windows]
@@ -903,10 +1151,17 @@ jobs:
           merge-multiple: true
 
       # download-artifact's layout is the uploads' least-common ancestor, so
-      # the `<tag>` directory segment can vanish (the size-budget job's
-      # FAT_MAGIC note). Identify each binary by CONTENT instead: ELF
-      # e_machine (x86_64 / aarch64), Mach-O FAT magic, or the .pyd name.
-      - name: Stage the four platform binaries into native/native-bin/
+      # the `<tag>` directory segment can vanish for single-file artifacts
+      # (the size-budget job's FAT_MAGIC note). NEO-PLAN-2026-003: all three
+      # build jobs now upload BOTH flavours WITH their directory structure,
+      # so staging is DIRECTORY-TAG-FIRST; content classification (ELF
+      # e_machine x86_64/aarch64, Mach-O FAT magic, the .abi3t.so name) is
+      # the fallback. The fallback deliberately REFUSES a bare .pyd: the GIL
+      # and the t windows binary share one filename (mm_core.pyd — PEP 803
+      # keeps the plain Windows suffix), so only the directory tag can tell
+      # them apart (Plan-3 R7 — a mis-staged pair would ship the abi3 binary
+      # to free-threaded users, whose interpreters reject it at load).
+      - name: Stage the eight platform binaries into native/native-bin/
         run: |
           python3 - <<'PY'
           import pathlib, shutil, sys
@@ -916,23 +1171,39 @@ jobs:
               "linux-aarch64": "mm_core.abi3.so",
               "macos-universal2": "mm_core.abi3.so",
               "windows-x86_64": "mm_core.pyd",
+              "linux-x86_64t": "mm_core.abi3t.so",
+              "linux-aarch64t": "mm_core.abi3t.so",
+              "macos-universal2t": "mm_core.abi3t.so",
+              "windows-x86_64t": "mm_core.pyd",
           }
+
+          def classify(path):
+              # 1) the directory tag wins (uploads carry the <tag>/ segment).
+              parent = path.parent.name
+              if parent in targets:
+                  return parent
+              # 2) content + filename fallback (the LCA can strip the tag dir).
+              head = path.read_bytes()[:4]
+              if path.suffix == ".pyd":
+                  return None  # bare .pyd cannot distinguish GIL from t (R7)
+              is_t = path.name.endswith(".abi3t.so")
+              if head == b"\x7fELF":
+                  machine = int.from_bytes(path.read_bytes()[18:20], "little")
+                  base = {0x3E: "linux-x86_64", 0xB7: "linux-aarch64"}.get(machine)
+                  if base is None:
+                      return None
+                  return base + "t" if is_t else base
+              if head.hex() in ("cafebabe", "cafebabf"):
+                  return "macos-universal2t" if is_t else "macos-universal2"
+              return None
+
           found = {}
           for path in sorted(pathlib.Path("artifacts").rglob("*")):
               if not path.is_file() or path.suffix not in (".so", ".pyd"):
                   continue
-              head = path.read_bytes()[:4]
-              if path.suffix == ".pyd":
-                  tag = "windows-x86_64"
-              elif head == b"\x7fELF":
-                  machine = int.from_bytes(path.read_bytes()[18:20], "little")
-                  tag = {0x3E: "linux-x86_64", 0xB7: "linux-aarch64"}.get(machine)
-              elif head.hex() in ("cafebabe", "cafebabf"):
-                  tag = "macos-universal2"
-              else:
-                  tag = None
+              tag = classify(path)
               if tag is None:
-                  sys.exit(f"cannot classify artifact {path} (magic {head!r})")
+                  sys.exit(f"cannot classify artifact {path} (no <tag> directory segment and no content signature)")
               if tag in found:
                   sys.exit(f"duplicate artifact for {tag}: {found[tag]} and {path}")
               found[tag] = path
@@ -946,13 +1217,17 @@ jobs:
               print(f"staged {found[tag]} -> {out / name} ({(out / name).stat().st_size} bytes)")
           PY
 
-      - name: Verify all four platform binaries are staged in the worktree
+      - name: Verify all eight platform binaries are staged in the worktree
         run: |
           set -euo pipefail
           for f in native/native-bin/linux-x86_64/mm_core.abi3.so \
                    native/native-bin/linux-aarch64/mm_core.abi3.so \
                    native/native-bin/macos-universal2/mm_core.abi3.so \
-                   native/native-bin/windows-x86_64/mm_core.pyd; do
+                   native/native-bin/windows-x86_64/mm_core.pyd \
+                   native/native-bin/linux-x86_64t/mm_core.abi3t.so \
+                   native/native-bin/linux-aarch64t/mm_core.abi3t.so \
+                   native/native-bin/macos-universal2t/mm_core.abi3t.so \
+                   native/native-bin/windows-x86_64t/mm_core.pyd; do
             test -s "$f" || { echo "BUG: $f is missing or empty"; exit 1; }
           done
 
@@ -971,8 +1246,10 @@ jobs:
             git commit -m "chore(native-bin): rebuild the prebuilt mm_core artifacts from ${GITHUB_SHA::7}
 
           Generated by the publish-native-bin job (Plan §5.3 / Phase 8):
-          the four platform binaries (linux x86_64/aarch64 glibc>=2.28,
-          macos universal2, windows x86_64) that a fresh clone imports
-          directly - no compiler, no pip, no network (K16)."
+          the eight platform binaries (linux x86_64/aarch64 glibc>=2.28,
+          macos universal2, windows x86_64 — each as abi3 AND, for
+          free-threaded CPython 3.15+, abi3t; NEO-PLAN-2026-003) that a
+          fresh clone imports directly - no compiler, no pip, no network
+          (K16)."
             git push
           fi

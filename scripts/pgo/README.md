@@ -83,6 +83,13 @@ CI では **出荷ビルド自体が PGO 化されています**（`native-build
 `[pgo-measure]` マーカーで起動）が上記 1–5 を一括実行し、G1（compress /
 decompress +3 %）を job summary へ出力します。
 
+**abi3t（`<tag>t`）成果物は v1 非 PGO（NEO‑PLAN‑2026‑003 D2）** —
+フリースレッドホストでの LLVM profile runtime の挙動（profraw 生成・merge・
+G2 形状の再現性）が未実測のため。「未検証の PGO 組み合わせが出荷を壊す」の
+実例は macOS の計装 fat dylib SIGSEGV（Plan‑2 §4.4 判断 (c)）。GIL 側の PGO
+パイプラインは不変で、t の後追い PGO 化はビルドステップ差し替えだけで済む
+（3.15 ABI は rc1 凍結・成果物は `<tag>t` ディレクトリ分離）。
+
 ## プロファイルの方針
 
 - **ビルド毎生成・コミットしない** — ソースとの版本ズレ（ドリフト）と

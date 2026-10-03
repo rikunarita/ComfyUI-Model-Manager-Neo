@@ -15,12 +15,20 @@ the handshake fails it reports ``available() is False`` plus a human-readable
 ``reason()``, and each feature decides its own degradation: the ZipNN routes
 fail with that reason (there is no other engine), while resilient read paths
 (scan / header / hashes) keep their pure-Python fallbacks.
+
+NEO-PLAN-2026-003 added the interpreter-FLAVOUR routing on top of that
+contract: free-threaded CPython 3.15+ is served by the ``<tag>t`` abi3t
+artifacts (PEP 803 — a free-threaded build cannot load the plain abi3
+binaries), GIL builds stay on ``<tag>`` (abi3-py312 floor), and interpreters
+below either floor degrade with an explicit reason instead of attempting an
+import that could only fail with unreadable undefined-symbol errors.
 """
 
 import importlib
 import os
 import platform
 import sys
+import sysconfig
 from types import ModuleType
 
 from . import config, utils
@@ -53,6 +61,17 @@ from . import config, utils
 MIN_API_VERSION = 6
 MAX_API_VERSION = 6
 
+# Interpreter floors (NEO-PLAN-2026-003). The GIL-build artifacts are built
+# against the `abi3-py312` Stable ABI floor; importing them on an older
+# interpreter dies with unreadable undefined-symbol errors, so the loader
+# refuses EARLY and converts that into the degrade contract's reason().
+# Free-threaded builds get their own artifact family (`<tag>t`, the PEP 803
+# `abi3t` stable ABI): abi3t exists only from CPython 3.15 onward, and a
+# free-threaded build cannot load the plain abi3 binaries — so free-threaded
+# 3.13/3.14 degrade with an explicit reason as well (Plan-3 §3.3/R8).
+MIN_GIL_VERSION = (3, 12)
+MIN_FT_VERSION = (3, 15)
+
 _NATIVE_DIR = "native"
 _NATIVE_BIN_DIR = "native-bin"
 _MODULE_NAME = "mm_core"
@@ -65,8 +84,24 @@ _reason: str | None = None
 _attempted = False
 
 
-def platform_tag() -> str | None:
-    """The ``native-bin/`` subdirectory for this machine, or None.
+def is_free_threaded() -> bool:
+    """True on a free-threaded (GIL-disabled BUILD) CPython.
+
+    The single flavour-detection point of the loader (Plan-3 §3.3):
+    ``Py_GIL_DISABLED`` is the documented build-time flag (defined from
+    CPython 3.13 onward; absent or 0 on GIL builds) and ``sys.abiflags``
+    carrying ``t`` is the same fact from the interpreter's own ABI flags —
+    either signal counts (``abiflags`` only exists on POSIX builds, hence
+    the getattr guard: load() must never raise on any platform). The
+    RUNTIME GIL state (``sys._is_gil_enabled()``) is deliberately not
+    consulted: re-enabling the GIL at runtime does not make the plain-abi3
+    artifacts loadable on a free-threaded build.
+    """
+    return sysconfig.get_config_var("Py_GIL_DISABLED") == 1 or "t" in getattr(sys, "abiflags", "")
+
+
+def _base_platform_tag() -> str | None:
+    """The OS/architecture tag WITHOUT the flavour suffix, or None.
 
     Tags follow Plan §4.2.1: ``linux-x86_64``, ``linux-aarch64``,
     ``windows-x86_64``, ``macos-universal2`` (one fat binary serves both
@@ -91,6 +126,57 @@ def platform_tag() -> str | None:
     return None
 
 
+def platform_tag() -> str | None:
+    """The ``native-bin/`` subdirectory for this machine, or None.
+
+    NEO-PLAN-2026-003 routes each interpreter flavour to its own artifact
+    family on top of the Plan §4.2.1 base tags:
+
+    * GIL build >= 3.12 → ``<tag>`` (the abi3-py312 binaries),
+    * free-threaded build >= 3.15 → ``<tag>t`` (the abi3t binaries, PEP 803;
+      GIL 3.15+ deliberately stays on ``<tag>`` — the abi3 artifacts load
+      there too and double-shipping is avoided),
+    * below either floor, or an unsupported OS/architecture → None, with the
+      interpreter-side cases explained by ``tag_rejection_reason()``.
+    """
+    base = _base_platform_tag()
+    if base is None:
+        return None
+    if is_free_threaded():
+        return base + "t" if sys.version_info[:2] >= MIN_FT_VERSION else None
+    if sys.version_info[:2] < MIN_GIL_VERSION:
+        return None
+    return base
+
+
+def tag_rejection_reason() -> str | None:
+    """Why ``platform_tag()`` is None for INTERPRETER reasons (else None).
+
+    None here does NOT mean "supported": an unsupported OS/architecture also
+    yields a None tag, but ``load()`` reports that case itself ("no prebuilt
+    native core for ..."). Keeping the two families separate is what lets the
+    degrade contract name the actual blocker (floor vs. platform) in the ZipNN
+    routes' error toast and in diagnostics.
+    """
+    if _base_platform_tag() is None:
+        return None
+    version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    if is_free_threaded():
+        if sys.version_info[:2] < MIN_FT_VERSION:
+            return (
+                f"free-threaded CPython {version} has no stable-ABI artifact "
+                "(abi3t requires 3.15+, PEP 803), and a free-threaded build "
+                "cannot load the plain abi3 binaries"
+            )
+        return None
+    if sys.version_info[:2] < MIN_GIL_VERSION:
+        return (
+            f"native core requires CPython {MIN_GIL_VERSION[0]}.{MIN_GIL_VERSION[1]}+ "
+            f"(abi3-py{MIN_GIL_VERSION[0]}{MIN_GIL_VERSION[1]} floor), running on {version}"
+        )
+    return None
+
+
 def load() -> bool:
     """Try to make ``mm_core`` importable (idempotent).
 
@@ -105,7 +191,10 @@ def load() -> bool:
 
     tag = platform_tag()
     if tag is None:
-        _reason = f"no prebuilt native core for {platform.system()}/{platform.machine()}"
+        # Interpreter-floor rejections (GIL < 3.12 / free-threaded < 3.15)
+        # carry their own actionable reason; anything else is the classic
+        # unsupported-OS/architecture case (NEO-PLAN-2026-003 §3.3).
+        _reason = tag_rejection_reason() or (f"no prebuilt native core for {platform.system()}/{platform.machine()}")
         return False
 
     bin_dir = utils.join_path(config.extension_uri, _NATIVE_DIR, _NATIVE_BIN_DIR, tag)
@@ -208,6 +297,7 @@ def diagnostics() -> dict[str, object]:
     """JSON-safe snapshot for the settings/about surface and bug reports."""
     return {
         "platformTag": platform_tag(),
+        "freeThreaded": is_free_threaded(),
         "available": available(),
         "reason": reason(),
         "apiVersion": getattr(_module, "api_version", lambda: None)() if _module else None,
