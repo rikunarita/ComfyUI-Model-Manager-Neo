@@ -54,9 +54,19 @@ jobs:
         with:
           components: rust-src
 
+      # Cache write policy — see native.yml's native-test for the full rationale
+      # (10 GB/repo, per-ref scope). This workflow's schedule runs on the
+      # default branch, so `github.event_name == 'schedule'` still writes; only
+      # dispatches from a throwaway branch are restore-only. Losing this cache
+      # is expensive here: the 7 ASan nightly fuzz targets would rebuild from
+      # scratch (measured 2026-10-03: the fuzz-long entry had already been
+      # LRU-evicted by the PR/tag copies).
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native/crates/znn-codec/fuzz
+          save-if: >-
+            ${{ github.event_name != 'pull_request' &&
+            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       - name: Install mold + clang (sanitizer linking)
         # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
