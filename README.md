@@ -1,8 +1,9 @@
 > [!CAUTION]
-> **This project is still under active development.** Unexpected bugs may
-> occur, and because features are being added incrementally, some artifacts
-> may still be half-finished. The interfaces may also continue to evolve.
-> Feedback and issue reports are welcome.
+> **This project is still under active development, and general use is not
+> recommended at this time.** Unexpected bugs may occur, and because features
+> are being added incrementally, some artifacts may still be half-finished.
+> The interfaces may also continue to evolve. That said, feedback and issue
+> reports are very welcome.
 
 <div align="center">
 
