@@ -572,6 +572,15 @@ base and retires the now‑empty delta folder. Restoration needs the base model,
 and the delta records the fine‑tune's own SHA‑256 so the restore is verified
 end to end.
 
+Delta files are written in the official ZipNN **streaming container** format:
+the official `zipnn` package restores them byte‑exactly (in its byte‑delta
+mode), and Neo in turn restores deltas produced by the official tooling (both
+its single‑container and streaming forms) — both directions are part of the CI
+cross‑validation. `.znn` is also registered in ComfyUI's list of supported
+model extensions (alongside the original's experimental `.gguf`), so delta
+files appear in the grid as managed models and can be restored straight from
+the UI.
+
 <a id="the-engine"></a>
 
 ### 6. The engine: a prebuilt pure‑Rust core
