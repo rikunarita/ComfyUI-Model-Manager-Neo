@@ -425,7 +425,7 @@ date:           Mon Sep 14 13:41:35 UTC 2026
 
 2026 年 9–10 月の開発セッションで、開発ツールチェーン（Rust / Node /
 Python / pnpm / uv）を実際に導入・運用する過程で追加観測された事実です。
-旧開発メモ（MEMO §2.2 / §2.3）から恒久記録として転記しました。
+開発セッションの記録から恒久記録として転記しました。
 本レポート冒頭の調査（§1–§10）とあわせて参照してください。
 
 ### 11.1 永続性とスナップショット
@@ -435,10 +435,10 @@ Python / pnpm / uv）を実際に導入・運用する過程で追加観測さ�
   スナップショット対象は `/home/user` 配下の通常ファイルのみで、生成
   ディレクトリ（node_modules・.venv・dist・build・\_\_pycache\_\_・.cache・
   native/target 等）は除外される。パッケージはセッション毎の再インストール
-  前提（再構築手順は MEMO §2.2）。
+  前提。
 - **`.git` も失われうる**。コミットがリモートへ push 済みなら再 clone で
   無損失。セッション冒頭はリモートの dev tip を確認する
-  （force‑push 巻き戻しの復旧前例あり — MEMO §1.2）。
+  （force‑push 巻き戻しの復旧前例あり）。
 - `HOME` は `/tmp`（`/root` ではない）。環境リセット後は pnpm shim が消え、
   husky pre‑commit が `pnpm: not found` でコミットを落とす →
   `corepack enable --install-directory /usr/local/bin`。
