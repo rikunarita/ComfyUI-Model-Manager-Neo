@@ -1,6 +1,6 @@
 # `scripts/bench/` — 計測証跡アーカイブ + フロントエンド計測器（CI ゲート）
 
-刷新計画の KPI 計測に使われた Python ハーネス
+刷新計画（`Agent/Plan.md`）の KPI 計測に使われた Python ハーネス
 （`bench_*.py`・`gen_synthetic.py`・`common.py`・`run_all.sh`）と L2 ゴールデン
 差分（旧 `scripts/l2/`）は、計画の完了に伴いツリーから削除されました。
 原文は git 履歴から復元できます。このディレクトリに残るのは次の 2 つです。

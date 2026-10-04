@@ -1,8 +1,7 @@
 # `native/` — Rust ネイティブコア ワークスペース
 
 ComfyUI‑Model‑Manager‑Neo の中核処理を Rust へ移行するワークスペースです
-（設計・フェーズ計画の文書は計画完了に伴いツリーから削除されました —
-git 履歴から復元できます。計測証跡は [`../docs/BENCH.md`](../docs/BENCH.md)）。
+（設計・フェーズ計画は [`Agent/Plan.md`](../Agent/Plan.md) を参照）。
 
 **Phase 1（znn-codec フォーマット中核）実装済み**: `znn-codec` クレートが
 ZN ヘッダー・ビット並べ替え・平面分割・huff0/FSE（RFC 8878）・チャンク並列
@@ -262,8 +261,8 @@ scripts/build-native.sh --target windows-x86_64 --size-gate --pgo-train  # matur
 
 配布バイナリの実行時最適化として、計装ベースの PGO が **linux-x86_64 /
 Windows の出荷ビルドに組み込み済み**です（macOS universal2 と
-linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の根拠を記録した
-計画文書は完了に伴いツリーから削除されました — git 履歴参照）。
+linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の根拠は
+[`../Agent/Plan-2.md`](../Agent/Plan-2.md)）。
 
 - **トレーナ**: [`scripts/pgo/train.py`](../scripts/pgo/train.py) —
   stdlib + mm_core + tests/harness のみの決定論的ワークロード

@@ -1,10 +1,8 @@
 """Loader for the Rust native core (``mm_core``).
 
-Phase 0 scaffold of the native-core refresh (refresh-plan §4.2.3 — the plan
-documents were retired from the tree after completion and live in the git
-history): the heavy ZipNN/scan/hash work moves into a Rust extension module
-that ships as **prebuilt binaries** under ``native/native-bin/<platform tag>/``.
-Loading is
+Phase 0 scaffold of the native-core refresh (``Agent/Plan.md`` §4.2.3): the
+heavy ZipNN/scan/hash work moves into a Rust extension module that ships as
+**prebuilt binaries** under ``native/native-bin/<platform tag>/``. Loading is
 deliberately dumb and side-effect free — platform detection, one ``sys.path``
 entry, one ``import``, one version check. **No compilation, no pip, no
 network** (Plan §2.1-5); when anything does not line up, the module simply

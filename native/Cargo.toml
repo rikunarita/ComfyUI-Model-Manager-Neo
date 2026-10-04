@@ -1,5 +1,4 @@
-# Rust native core workspace (refresh-plan §4.2.1 — the plan documents were
-# retired from the tree after completion and live in the git history).
+# Rust native core workspace (Agent/Plan.md §4.2.1).
 #
 # Layout:
 #   crates/znn-codec   pure-Rust ZipNN codec (no Python dependency)

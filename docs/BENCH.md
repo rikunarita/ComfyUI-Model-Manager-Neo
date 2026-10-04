@@ -9,14 +9,9 @@
 | 生データ | [`scripts/bench/results/`](../scripts/bench/results/)（本実行の JSON 一式。旧 `scripts/l2/results/` の L2 証跡も `l2_*.json` として同ディレクトリへ統合済み）       |
 | 再実行   | 計測ハーネス（`scripts/bench/*.py`・`scripts/l2/golden_diff.py`・`znn-cli`）は計画完了後にツリーから削除済み — git 履歴に完全な形で保存されている（下記 §12 参照）  |
 
-> **計測ハーネスと計画文書の保存場所について**: 本書が引用する計測スクリプトは、
-> 刷新計画の完了に伴いリポジトリから削除されました。原文は git 履歴から
+> **計測ハーネスの保存場所について**: 本書が引用する計測スクリプトは、刷新計画
+> （`Agent/Plan.md`）の完了に伴いリポジトリから削除されました。原文は git 履歴から
 > 復元できます（例: `git show <計画完了時のコミット>:scripts/bench/bench_scan.py`）。
-> **計画・開発記録の文書一式（旧 `Agent/Plan.md`・`Agent/Plan-2.md`・
-> `Agent/Plan-3.md`・`Agent/MEMO.md`・`Agent/environment-report.md`）も同様に
-> 計画完了に伴いツリーから削除されました** — 本書およびコード内コメントの
-> 「Plan §x.y」「Plan‑2」「Plan‑3」「MEMO」引用はすべてこれらの履歴文書を
-> 指します（例: `git show <計画完了時のコミット>:Agent/Plan.md`）。
 > **結果 JSON（`scripts/bench/results/`）はコミットされた証跡として残っており、
 > 本書の数値の一次ソースです**（再生成しない規程 — MEMO §1.2）。
 

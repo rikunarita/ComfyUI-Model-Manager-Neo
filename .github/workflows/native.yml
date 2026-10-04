@@ -1,6 +1,4 @@
-# Native core CI (refresh-plan §5.3 — the plan documents were retired from the
-# tree after completion and live in the git history; see the docs/BENCH.md
-# header note) — Phase 0 scope:
+# Native core CI (Agent/Plan.md §5.3) — Phase 0 scope:
 #
 #   native-test    cargo fmt / clippy -D warnings / tests on the three OSes
 #                  (Linux links with rustc's bundled rust-lld — the default

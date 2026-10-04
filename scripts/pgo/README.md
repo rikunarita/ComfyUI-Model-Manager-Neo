@@ -1,9 +1,8 @@
 # `scripts/pgo/` — PGO トレーニング / 計測ドライバ（NEO‑PLAN‑2026‑002）
 
 `mm_core`（Rust ネイティブコア）の **PGO（プロファイル誘導最適化）** 用
-ワークロードドライバです。設計と段階計画・運営記録の文書は計画完了に伴い
-ツリーから削除されました（git 履歴から復元できます。計測証跡は
-[`docs/BENCH.md`](../../docs/BENCH.md) §13）。
+ワークロードドライバです。設計と段階計画は [`Agent/Plan-2.md`](../../Agent/Plan-2.md)、
+運営記録は [`Agent/MEMO.md`](../../Agent/MEMO.md) を参照してください。
 
 ## `train.py` — 3 モード
 
