@@ -88,7 +88,7 @@
   基础模型缩小为极小的**差分文件**。
 - <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **上传到 Hugging Face / ModelScope** —— 把任意本地模型直接发布到 Hugging Face
   或 ModelScope 仓库（需要时自动创建仓库，可选私有、附带相关资产并显示
-  实时进度）。
+  实时进度）。ModelScope 支持——下载、上传、搜索与认证——为 Neo 全新集成。
 - <img src="https://api.iconify.design/lucide/radar.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **多 hub 搜索与哈希识别** —— 在同一个输入框中并行搜索 Hugging Face、
   ModelScope 与 Civitai，并能用哈希把任意本地文件反查到 Civitai 目录。
 - <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **多选** —— 勾选模型与文件夹卡片，一次性加入工作流或删除。
@@ -220,8 +220,8 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
   加入节点图即记录一次使用）。
 - 卡片尺寸可调（预设加完全自定义尺寸）。
 - 无需重启即可切换隐藏文件（以 `.` 开头）的显示。
-- 图片**与视频**预览、悬停时开合动画的玻璃文件夹图案，以及玻璃质感的
-  无预览占位图。
+- 图片**与视频**预览（任意预览可在全屏**灯箱**中放大）、悬停时开合动画的
+  玻璃文件夹图案，以及玻璃质感的无预览占位图。
 - 类型根文件夹卡片带有**该类型的合计大小**（轻量容量看板）；记录的
   SHA256 与库中其他文件一致的模型，会在详情窗口中显示红色**重复警告**。
 - 存放在类型根目录之下的模型，会在名称上方显示其**子目录**（两种布局
@@ -586,30 +586,35 @@ WebP 编解码使用 zenwebp（AGPL‑3.0）—— 全文见
 
 ### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="26" height="26" align="middle" alt=""> 后端与引擎
 
-最深层的改变在界面之下。原版为纯 Python（7 个后端模块、15 条 HTTP
-路由）；Neo 成长为 16 个 Python 模块、约 40 条路由，并把所有热点路径移入
+最深层的改变在界面之下。原版为纯 Python（7 个后端模块、19 条 HTTP
+路由）；Neo 成长为 16 个 Python 模块、42 条路由，并把所有热点路径移入
 预构建 Rust 扩展（`native/`，基于 Stable ABI 的 PyO3 —— 见
 [引擎表](#the-engine-a-prebuilt-pure-rust-core)）。纯 Python 回退只保留在
 「降级回答优于报错」的地方：
 
-| 区域             | 原版                                                        | **Neo**                                                                                                                    |
-| ---------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 模型列表         | 每次请求递归 Python `os.scandir`                            | Rust 并行遍历 + 跨重启持久化的 front‑matter 索引（5,000 模型扫描冷启动约 7.5 倍、热态约 100 ms；逐条目 golden 测试）       |
-| 模型详情路由     | 头部解析跑在**事件循环上** —— 巨大 MoE 头部会冻住整个服务器 | 经 executor + Rust 解析；服务器保持响应                                                                                    |
-| 哈希             | 单条 `hashlib` SHA‑256 循环                                 | 五种记法（`SHA256`/`AutoV1`/`AutoV2`/`CRC32`/`BLAKE3`）**一遍**流式完成                                                    |
-| 下载校验         | 完成后整文件重读                                            | 写入循环供给的内联摘要 —— 零额外 I/O —— 保留 Civitai SHA‑256 关卡                                                          |
-| safetensors 头部 | `comfy.utils` + `json.loads`                                | 单一路由后的 Rust jiter 解析（metadata + tensors + 预分组展示树；65k 张量 MoE 树构建约快 100 倍，wire 格式与 JS 交叉核对） |
-| ZipNN 压缩       | —                                                           | 整个引擎：压缩 / 解压 / 文件夹批量 / 微调差分，mmap 流式（任何模型都低于 1 GB 内存）、SHA‑256 校验还原、协作式取消         |
-| 预览图           | PIL 重编码；动画固定到第 1 帧                               | zenwebp（纯 Rust）编码/解码；动画 GIF/WebP 预览**保持动画**（帧、时长、循环数与 ICC 配置文件均保留）                       |
-| Hub HTTP         | 线程池 worker 内的阻塞 `requests`                           | 事件循环上一条共享 `aiohttp` 会话（停滞的 CDN 再也无法按 read timeout 的 120 秒占住 worker）                               |
-| 文件夹监视       | —                                                           | 可选的原生 `notify` 监视（默认关闭）：按类型约 1.5 秒刷新，跳过网络挂载，监视预算耗尽时降级到 30 秒 TTL 刷新               |
-| 模型库卫生       | —                                                           | 孤立伴随文件 / 空文件夹清查与批量清理                                                                                      |
-| 上传预检         | —                                                           | HF/ModelScope 上传的重复检测哈希在原生核心中执行（释放 GIL）                                                               |
+| 区域             | 原版                                                                                                   | **Neo**                                                                                                                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 模型列表         | 每次请求递归 Python `os.scandir`                                                                       | Rust 并行遍历 + 跨重启持久化的 front‑matter 索引（5,000 模型扫描冷启动约 7.5 倍、热态约 100 ms；逐条目 golden 测试）                                                                                                                                                       |
+| 模型详情路由     | 头部解析跑在**事件循环上** —— 巨大 MoE 头部会冻住整个服务器                                            | 经 executor + Rust 解析；服务器保持响应                                                                                                                                                                                                                                    |
+| 哈希             | 单条 `hashlib` SHA‑256 循环                                                                            | 五种记法（`SHA256`/`AutoV1`/`AutoV2`/`CRC32`/`BLAKE3`）**一遍**流式完成                                                                                                                                                                                                    |
+| 下载校验         | 完成后整文件重读                                                                                       | 写入循环供给的内联摘要 —— 零额外 I/O —— 保留 Civitai SHA‑256 关卡                                                                                                                                                                                                          |
+| safetensors 头部 | `comfy.utils` + `json.loads`                                                                           | 单一路由后的 Rust jiter 解析（metadata + tensors + 预分组展示树；65k 张量 MoE 树构建约快 100 倍，wire 格式与 JS 交叉核对）                                                                                                                                                 |
+| ZipNN 压缩       | —                                                                                                      | 整个引擎：压缩 / 解压 / 文件夹批量 / 微调差分，mmap 流式（任何模型都低于 1 GB 内存）、SHA‑256 校验还原、协作式取消                                                                                                                                                         |
+| 预览图           | PIL 重编码；动画固定到第 1 帧                                                                          | zenwebp（纯 Rust）编码/解码；动画 GIF/WebP 预览**保持动画**（帧、时长、循环数与 ICC 配置文件均保留）                                                                                                                                                                       |
+| Hub 集成         | 仅 Civitai 与 Hugging Face：页面解析用阻塞 `requests`，文件经普通 HTTP URL 获取 —— 完全没有 ModelScope | **Civitai + Hugging Face + ModelScope** —— ModelScope 为全新集成（下载源、上传目标、搜索枢纽与认证）。SDK 传输（`huggingface_hub` + `hf_xet`、`modelscope_hub`）、三枢纽并行名称搜索、按枢纽存于 `private.key` 的 API 密钥（环境变量回退 + 从 ComfyUI 设置迁移）、哈希反查 |
+| Hub HTTP         | 线程池 worker 内的阻塞 `requests`                                                                      | 事件循环上一条共享 `aiohttp` 会话（停滞的 CDN 再也无法按 read timeout 的 120 秒占住 worker）                                                                                                                                                                               |
+| 文件夹监视       | —                                                                                                      | 可选的原生 `notify` 监视（默认关闭）：按类型约 1.5 秒刷新，跳过网络挂载，监视预算耗尽时降级到 30 秒 TTL 刷新                                                                                                                                                               |
+| 模型库卫生       | —                                                                                                      | 孤立伴随文件 / 空文件夹清查与批量清理                                                                                                                                                                                                                                      |
+| 上传预检         | —                                                                                                      | HF/ModelScope 上传的重复检测哈希在原生核心中执行（释放 GIL）                                                                                                                                                                                                               |
 
-在原版之上的功能级新增 —— 上传到 Hugging Face 与 ModelScope、多 hub
-搜索、哈希识别、智能收藏、星标、多选、创建文件夹、直链下载、剩余空间
-保护、Civitai 下载安全网、图集预览、日语与繁體中文语言包 —— 已在[功能](#features)
-中描述；全部为 Neo 侧的工作。
+在原版之上的功能级新增 —— **完整的 ModelScope 集成**（下载源、上传目标、
+搜索枢纽与认证）、上传到 Hugging Face、基于 SDK 的 Hugging Face 下载
+（`huggingface_hub` + `hf_xet`；原版仅抓取普通 resolve URL）、多 hub 搜索、
+哈希识别、智能收藏、星标、「最近使用」记录与排序、多选、创建文件夹、
+直链下载、浏览器内「下载到本地」、剩余空间保护、Civitai 下载安全网、
+图集预览、SHA256 重复警告、子目录标签与类型根目录的合计大小、全屏预览
+灯箱、日语与繁体中文语言包 —— 已在[功能](#features)中描述；全部为
+Neo 侧的工作。
 
 ### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="26" height="26" align="middle" alt=""> 依赖包
 
@@ -856,7 +861,7 @@ zstd huff0/FSE 规范（RFC 8878）与 FiniteStateEntropy（BSD‑2‑Clause）�
 
 本 fork 是依据 **GNU General Public License v3.0** 使用与修改的衍生
 作品。Neo 中的修改（UI 重建、PrimeVue 移除、Rust 原生核心、ZipNN
-压缩、HF/ModelScope 上传、多 hub 搜索与哈希识别、包现代化、工具链、
+压缩、Hugging Face / ModelScope 枢纽集成、多 hub 搜索与哈希识别、包现代化、工具链、
 可靠性与安全性加固、批量扫描移除、日语本地化 —— 逐条见
 [与原版相比改变了什么](#what-changed)）以相同的 GPL‑3.0 许可证提供。
 按许可证要求，原版版权声明与许可证全文保留在 [`LICENSE`](LICENSE) 中。
