@@ -1,24 +1,24 @@
 //! Per-tensor ZipNN blobs — the container semantics the official
 //! `zipnn_compress_safetensors.py` / Neo's legacy `py/compress.py` apply to
-//! every tensor of a safetensors file (Plan §4.5, Appendix B), extended in
-//! Phase 4 to the FULL safetensors 0.8 dtype set (Plan §4.6, KPI K14).
+//! every tensor of a safetensors file, extended in Phase 4 to the FULL
+//! safetensors 0.8 dtype set (KPI K14).
 //!
 //! A compressed tensor is stored as a 1-D `U8` vector holding one COMPLETE
 //! ZN container: `[32-byte header][packed shape][codec payload]`, built with
 //! `input_format = TORCH` and the ORIGINAL tensor's dtype code + shape.
 //! Compatibility-band blobs (f32/f16/bf16/fp8) carry the exact codes and
 //! mode bytes the official tooling writes, so the official
-//! `zipnn_safetensors()` loaders and scripts decode Neo's files unchanged
-//! (Plan §4.6.3). Neo-extension-band blobs (f64, complex64, integers, BOOL,
+//! `zipnn_safetensors()` loaders and scripts decode Neo's files unchanged.
+//! Neo-extension-band blobs (f64, complex64, integers, BOOL,
 //! FNUZ/MX floats — codes 128–146) are self-describing for Neo and rejected
 //! with an EXPLICIT error by official tools (demonstrated: `ValueError:
 //! Unsupported Dtype N`; L5 section E pins it) — files containing them are
-//! marked `znn_neo_extended="1"` and badged in the UI (Plan §4.6.4).
+//! marked `znn_neo_extended="1"` and badged in the UI.
 //!
 //! Parameter mapping (compatibility band verified against
 //! `third_party/zipnn/zipnn.py` `compress_torch_numpy_byte` /
 //! `decompress_bin` and production header dumps, 2026-09-24; the extension
-//! band follows the Plan §4.6.2/§4.6.3 tables and `dtype.rs`):
+//! band follows the tables in `dtype.rs`):
 //!
 //! | safetensors dtype | code | torch name        | planes | bit_reorder | byte_reorder | chunk        |
 //! |-------------------|------|-------------------|--------|-------------|--------------|--------------|
@@ -52,8 +52,8 @@
 //! construction; see `dtype.rs` module docs for the container semantics).
 //!
 //! Torch names: recorded verbatim in `znn_compressed_vectors` infos. torch
-//! 2.14 has no `float6_*` dtype (verified on the release build — the Plan's
-//! §4.6.1 "shell dtype" note predates the release), so the two F6 types
+//! 2.14 has no `float6_*` dtype (verified on the release build — the
+//! "shell dtype" note predates the release), so the two F6 types
 //! record their safetensors names instead; every other dtype records its
 //! `str(torch.dtype)` minus the `torch.` prefix. `complex128`/`bcomplex32`
 //! (codes 129/131) exist in torch but have NO safetensors 0.8
@@ -91,7 +91,7 @@ struct DtypeEntry {
 }
 
 /// THE dtype table (single source of truth for both directions). Codes and
-/// plane geometry come from Plan §4.6.3 / `dtype.rs`; torch names were
+/// plane geometry come from `dtype.rs`; torch names were
 /// verified against torch 2.14.0 (`str(torch.<name>)`) and safetensors 0.8
 /// header spellings against the pip package, 2026-09-26.
 ///
@@ -132,7 +132,7 @@ const DTYPE_TABLE: &[DtypeEntry] = &[
         torch: "float8_e5m2",
         bit_reorder: 1,
     },
-    // Neo extension band (Plan §4.6.3 codes 128–146)
+    // Neo extension band (codes 128–146)
     DtypeEntry {
         code: dtype::NEO_F64,
         st: "F64",
@@ -366,7 +366,7 @@ pub fn scheme_for_code(code: u8) -> CodecResult<TensorScheme> {
             // keep the historical, user-facing error wording for the bands
             if dtype::is_neo_code(code) {
                 CodecError::Unsupported(format!(
-                    "dtype code {code} is an unassigned Neo extension-band code — this file needs a newer Neo (Plan §4.6.3 assigns 128–146)"
+                    "dtype code {code} is an unassigned Neo extension-band code — this file needs a newer Neo (the band assigns 128–146)"
                 ))
             } else {
                 CodecError::Unsupported(format!(
@@ -414,7 +414,7 @@ fn core_params(scheme: &TensorScheme, threads: usize) -> CoreParams {
 }
 
 /// Choose the truncation mode of a Neo integer tensor from its zero-byte
-/// statistics (Plan §6.2 Phase 4 "ゼロ統計自動選択"): the largest byte
+/// statistics ("ゼロ統計自動選択", Phase 4): the largest byte
 /// plane suffix (or, for 2-plane words, the low plane) that is ZERO across
 /// the whole tensor is dropped from the payload and reconstructed as zeros
 /// on decode — lossless by construction. Returns the scheme with the
@@ -576,7 +576,7 @@ pub fn inspect_tensor(blob: &[u8]) -> CodecResult<RestoredInfo> {
     let scheme = scheme_for_code(header.dtype_code)?;
     if !scheme.allows_mode(header.byte_reorder) {
         return Err(CodecError::Unsupported(format!(
-            "byte_reorder {} is not valid for dtype code {} / {} (canonical {}, truncation modes {:?} — Plan §4.6.3)",
+            "byte_reorder {} is not valid for dtype code {} / {} (canonical {}, truncation modes {:?})",
             header.byte_reorder,
             header.dtype_code,
             scheme.st_dtype,
@@ -693,7 +693,7 @@ pub fn decompress_tensor_into(
             info.len
         ))
     })?;
-    // allocation cap BEFORE the resize (Plan §4.4.2: hostile headers must
+    // allocation cap BEFORE the resize (hostile headers must
     // never bomb the allocator — an OOM abort would kill ComfyUI itself)
     if orig_len > max_len {
         return Err(CodecError::Size(format!(
@@ -1203,7 +1203,7 @@ mod tests {
         }
     }
 
-    /// Plan §4.4.2 allocation-cap: a blob whose header tells a CONSISTENT
+    /// Allocation-cap: a blob whose header tells a CONSISTENT
     /// lie (shape × elem == original_len == 1 TiB) must be refused by the
     /// cap BEFORE any allocation — an OOM abort would kill ComfyUI itself.
     #[test]

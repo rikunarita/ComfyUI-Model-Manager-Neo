@@ -2,7 +2,7 @@
 
 `py/native.py` が **sys.path に追加して import するだけ** のプリビルド
 `mm_core` 拡張モジュールを置くディレクトリです（コンパイル不要・pip 不要・
-ネットワーク不要、Plan §2.1‑5）。Phase 8 で旧 `third_party/`（vendored C コア）
+ネットワーク不要）。Phase 8 で旧 `third_party/`（vendored C コア）
 が撤去され、ここが**唯一のネイティブコア供給経路**になりました: ZipNN の
 圧縮/解凍/デルタ/バッチ、スキャン、ヘッダ解析、ハッシュ、プレビュー WebP
 codec はすべてこのコアが実行します（ロード失敗時の挙動は機能ごと —
@@ -37,11 +37,11 @@ native-bin/
   に含まれる正式サフィックスです。**Windows だけは `mm_core.pyd`**
   （`.abi3.pyd` / `.abi3t.pyd` ではない）: Windows CPython の
   `EXTENSION_SUFFIXES` は `.pyd` 系のみで、ABI タグ付きファイル名は存在
-  しません（Plan §4.2.1 の表記を実態に合わせて調整。flavour の分離は
+  しません（元設計の表記を実態に合わせて調整。flavour の分離は
   ディレクトリ名 `<tag>` / `<tag>t` だけが担います）。
 - サイズ予算: **1 バイナリ ≤ 5 MB = ハード上限**（macOS universal2 は
   per‑arch スライス判定・fat ファイルは ≤ 10 MB）、**8 本合計 ≤ 40 MB =
-  目安**（超過は warning のみで run はブロックしない — Plan‑3 D1）。
+  目安**（超過は warning のみで run はブロックしない）。
   CI の `size-budget` ジョブが毎 run でゲートし、8 本すべての存在
   （4 abi3 + 4 abi3t の形状契約）も検査します（FAT_MAGIC を content 判定
   するためディレクトリ断片が失われても堅牢）。
@@ -63,7 +63,7 @@ Actions を再トリガーしないためループしません）。ステージ
 （ELF e_machine / Mach-O FAT magic / `.abi3t.so` 名）はフォールバックで、
 フォールバックは**素の `.pyd` を意図的に拒否**します — Windows の GIL/t 両
 成果物は同じファイル名（`mm_core.pyd`）なので、ディレクトリタグだけが両者を
-区別できるためです（Plan‑3 R7: 誤ステージは abi3 バイナリをフリースレッド
+区別できるためです（誤ステージは abi3 バイナリをフリースレッド
 ユーザーへ配ってしまう）。dev / PR の run は**検証のみ**で publish しません —
 dev ワークツリーの `.so` はローカルビルド用（下記）で gitignore のまま、
 リリースタグは main が既に持つバイナリをそのまま出荷します。

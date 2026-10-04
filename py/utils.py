@@ -309,12 +309,12 @@ def get_download_path():
 
 
 def get_index_cache_dir() -> str:
-    """Directory of the persistent scan index (Plan §4.7.1-3, B3).
+    """Directory of the persistent scan index (B3).
 
     Derived data under the extension dir (`.mm-cache`, gitignored), created on
     demand. The native scan stores its front-matter snapshot (bincode +
     blake3) here so the cache survives ComfyUI restarts — fixing the
-    process-local limit of `manager._SITE_CACHE` (Plan §1.2.2 #9). A missing or
+    process-local limit of `manager._SITE_CACHE`. A missing or
     corrupt snapshot is never an error: the native index rebuilds it.
     """
     cache_dir = join_path(config.extension_uri, ".mm-cache")
@@ -350,7 +350,7 @@ def _native_core():
 def get_model_metadata(filename: str):
     """The ``__metadata__`` block of a safetensors file ({} when absent).
 
-    Native path (Phase 5, Plan §4.7.3 / B4): ``mm_core.safetensors_header``
+    Native path (Phase 5, B4): ``mm_core.safetensors_header``
     parses the header with jiter (K11 — an 8 MB MoE header in tens of
     milliseconds, not the ~500 ms ``json.loads`` of the raw header) and drops
     the ``comfy.utils.safetensors_header`` dependency (resilient to ComfyUI API
@@ -388,7 +388,7 @@ def get_model_tensors(filename: str):
     table - name / dtype / shape - like Hugging Face's safetensors viewer.
     The `__metadata__` entry is skipped; it has its own section.
 
-    Native path (Phase 5, Plan §4.7.3 / B4): `mm_core.safetensors_header`
+    Native path (Phase 5, B4): `mm_core.safetensors_header`
     parses with jiter (K11) and returns the tensor list directly — the output
     shape is byte-identical to the legacy parse (golden-tested).
     """
@@ -444,8 +444,8 @@ def get_model_header(filename: str) -> dict:
     ``{"metadata": {...}, "tensors": [...], "tensorTree": {...} | None}`` —
     the first two are exactly what [get_model_metadata] / [get_model_tensors]
     return (and are served by the same native header parse), the third is the
-    Phase-6 display tensor tree pre-grouped in Rust (Plan §4.7.3
-    "テンソルツリー事前グループ化"): a ``{"v":1,"nodes":[…],"leaves":[…]}``
+    Phase-6 display tensor tree pre-grouped in Rust
+    ("テンソルツリー事前グループ化"): a ``{"v":1,"nodes":[…],"leaves":[…]}``
     document whose leaf indices address THIS response's ``tensors`` array.
 
     ``tensorTree`` is ``None`` whenever it cannot be produced (a legacy engine,
@@ -606,7 +606,7 @@ def _resolve_local_preview(url: str) -> str | None:
     return local if os.path.isfile(local) else None
 
 
-# Plan Phase 7 T7: the preview WebP encoder settings — kept near PIL's
+# Phase 7 T7: the preview WebP encoder settings — kept near PIL's
 # `Image.save(..., "WEBP")` defaults (quality 80, method 4) so pre/post-T7
 # preview sizes land in the same band (the parity gate is "same dimensions,
 # decodable, size within a tolerance", NOT byte-identity — the encoders differ).
@@ -616,14 +616,14 @@ _WEBP_METHOD = 4
 
 def _is_webp(content: bytes) -> bool:
     """WebP by magic bytes (``RIFF....WEBP``) — the only input the native
-    zenwebp decoder handles (non-WebP is decoded by PIL, Plan §3.8 追記)."""
+    zenwebp decoder handles (non-WebP is decoded by PIL)."""
     return content[:4] == b"RIFF" and content[8:12] == b"WEBP"
 
 
 def _encode_preview_webp_native(mm, content: bytes, preview_path: str) -> None:
     """Encode one preview image to WebP through the native zenwebp core (T7).
 
-    Pipeline (Plan §3.8 追記): a non-WebP input is decoded by PIL, a WebP input
+    Pipeline: a non-WebP input is decoded by PIL, a WebP input
     by zenwebp; an animated source is re-encoded as an ANIMATED WebP (the
     pre-T7 PIL path froze those to their first frame — a real Civitai-preview
     regression this removes). Frame extraction: an animated WebP goes through
@@ -727,7 +727,7 @@ async def _write_preview_content_async(
     suffix: str,
 ) -> None:
     """Run the blocking (PIL re-encode / file write) preview writer on the io
-    executor. Plan Phase 7 T8: with the URL fetch moved onto the event loop,
+    executor. Phase 7 T8: with the URL fetch moved onto the event loop,
     only this millisecond-scale leg is handed to a worker, so a slow CDN can no
     longer pin one of the eight io slots for the 120 s read timeout."""
     loop = asyncio.get_running_loop()
@@ -745,7 +745,7 @@ async def save_model_preview(
 ):
     """Save one preview file for a model. Images -> WebP, videos -> original format.
 
-    Plan Phase 7 T8: the URL fetch runs on the event loop through the shared
+    Phase 7 T8: the URL fetch runs on the event loop through the shared
     aiohttp session (``http_client.fetch_preview``) instead of a blocking
     ``requests.get`` in an io-executor worker; only the PIL / write leg goes to
     the executor (``_write_preview_content_async``).
@@ -817,7 +817,7 @@ async def resolve_preview_sources(items: list[Any]) -> tuple[list[tuple[str, str
     the resolution server-side removes every browser-side failure mode (fetch
     errors, MIME mislabeling, cache staleness).
 
-    Plan Phase 7 T8: this is the async half of the former
+    Phase 7 T8: this is the async half of the former
     ``replace_model_previews`` - HTTP fetches run on the event loop through the
     shared aiohttp session (``http_client.fetch_preview``) instead of a
     blocking ``requests.get`` inside an io-executor worker, so a stalled CDN no
@@ -921,7 +921,7 @@ async def save_model_previews(
     being dropped: a partially written gallery would otherwise reorder the
     primary behind the caller's back (the "primary swap reverted" defect).
 
-    Plan Phase 7 T8: async - each entry's URL fetch runs on the event loop
+    Phase 7 T8: async - each entry's URL fetch runs on the event loop
     (shared aiohttp session) instead of blocking an io-executor worker.
 
     Returns the number of previews actually written.
@@ -1107,7 +1107,7 @@ async def send_json(event: str, data: Any, sid: str | None = None):
 
 
 async def notify_models_changed(model_type: str | None, reason: str) -> None:
-    """Broadcast that a model type's on-disk listing changed (Plan §4.7.2-1).
+    """Broadcast that a model type's on-disk listing changed.
 
     Sent after a download completes, a rename/move/delete, a ZipNN settle or an
     upload registers — every client re-fetches ONLY that type (a partial

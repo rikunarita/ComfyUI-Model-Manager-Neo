@@ -546,7 +546,7 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       type: 'boolean',
     })
 
-    // Phase 6 (Plan §4.7.2-2): the OPTIONAL filesystem watcher that turns
+    // Phase 6: the OPTIONAL filesystem watcher that turns
     // external changes (a copy into models/, another downloader) into the same
     // `models_changed` event the UI's own operations broadcast. Default OFF -
     // it holds one inotify watch per folder on Linux, and the backend skips
@@ -560,7 +560,7 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       type: 'boolean',
     })
 
-    // Phase 6 (Plan §4.8-C5): the K15 instrumentation switch. Off by default;
+    // Phase 6 (C5): the K15 instrumentation switch. Off by default;
     // the samples are read from the console handle `__mmNeoPerf.summary()`.
     app.ui?.settings.addSetting({
       id: PERF_MARKS_ID,

@@ -1,8 +1,8 @@
 //! L1 unit tests of the delta codec (Phase 3). The end-to-end route/ws
 //! contract and the cross-path (legacy ⇄ native) goldens live in the Python
 //! suite (`tests/test_phase3_delta.py`); these tests pin the wire format,
-//! the legacy error wording, the Appendix-C SEGFAULT class (Plan §6.2
-//! Phase 3: "付録 C の SEGFAULT ケースをデルタ端到端テストに固定化"), the
+//! the legacy error wording, the Appendix-C SEGFAULT class (pinned
+//! end-to-end: "付録 C の SEGFAULT ケースをデルタ端到端テストに固定化"), the
 //! integrity pipeline (ftSha256 / `.corrupt` / paranoid / cancel) and the
 //! hostile-input guards.
 
@@ -189,7 +189,7 @@ fn roundtrip_identical_files_compresses_tiny() {
 }
 
 // ---------------------------------------------------------------------------
-// Plan §6.2 Phase 3: the Appendix-C SEGFAULT class, pinned end-to-end.
+// Phase 3: the Appendix-C SEGFAULT class, pinned end-to-end.
 // The C core SEGFAULTs (NULL-plane write) whenever the final 256 KiB
 // compression chunk of the 4-plane path is 1–3 bytes; delta padding makes
 // EVERY remainder reachable with real files (Phase 0 BENCH §4.3 proved the
@@ -375,7 +375,7 @@ fn single_container_legacy_files_restore() {
 }
 
 // ---------------------------------------------------------------------------
-// Legacy error wording (UI contract — Plan §4.5-6)
+// Legacy error wording (UI contract)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -477,7 +477,7 @@ fn length_mismatches_use_the_legacy_wording() {
     assert!(!out.exists() && !tmp_sibling(&out).exists());
 
     // (b) a container declaring MORE than the base rendering expects —
-    // refused BEFORE allocation (hostile-header cap, Plan §4.4.2) with the
+    // refused BEFORE allocation (hostile-header cap) with the
     // legacy wording
     let mut bomb = full.clone();
     // first container header: original_len → u64::MAX
@@ -497,7 +497,7 @@ fn length_mismatches_use_the_legacy_wording() {
 }
 
 // ---------------------------------------------------------------------------
-// Integrity pipeline (Plan §4.4.3): ftSha256, .corrupt retreat, paranoid
+// Integrity pipeline: ftSha256, .corrupt retreat, paranoid
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -907,7 +907,7 @@ fn delta_accepts_the_official_method_defaults() {
     }
 
     // the TENSOR-path gate stays strict (a method=0 container is refused
-    // there — Plan Appendix B.1)
+    // there )
     let mut strict = [0u8; 64];
     strict[..2].copy_from_slice(b"ZN");
     strict[2] = 0;

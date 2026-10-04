@@ -1,4 +1,4 @@
-"""Plan Phase 7 / T1 - the upload duplicate-preflight SHA-256 goes native.
+"""Phase 7 / T1 - the upload duplicate-preflight SHA-256 goes native.
 
 ``py/upload_hf.py`` used to hash the whole model with a Python ``hashlib`` 1 MiB
 loop (``hash_local_file``) inside the Hugging Face / ModelScope duplicate
@@ -14,7 +14,7 @@ pool). These tests pin:
   together with the MM_NATIVE switch);
 * ``HfBackend.preflight_remote``'s branches (same-size LFS object -> needs_hash,
   size mismatch / missing target / missing LFS / API error -> None = go);
-* the JUNCTION (MEMO §4.5): ``run_hub_upload`` wires preflight_remote ->
+* the JUNCTION: ``run_hub_upload`` wires preflight_remote ->
   _sha256_of_file -> compare, so a remote sha equal to the local file's sha256
   dedupes the file (``upload_one`` never runs) — and a FAILING hash stage
   degrades to "go" (duplicate detection off, the upload proceeds) instead of
@@ -151,7 +151,7 @@ def test_preflight_remote_swallows_api_errors():
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_run_hub_upload_dedupes_via_the_split_preflight(tmp_path, monkeypatch):
-    """The JUNCTION (MEMO §4.5): run_hub_upload must wire preflight_remote
+    """The JUNCTION: run_hub_upload must wire preflight_remote
     (network, io pool) -> _sha256_of_file (hash, cpu pool) -> compare. A remote
     LFS sha equal to the local file's sha256 dedupes the file, so upload_one is
     never called and the task completes as 'skipped'/'deduplicated'."""

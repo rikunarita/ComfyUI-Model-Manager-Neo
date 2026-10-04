@@ -19,7 +19,7 @@ from aiohttp import web
 
 from . import auth, config, native, thread, utils
 
-# Quick Win A2 (Plan §4.8-A2): the download write loop used to pull 8 KiB
+# Quick Win A2: the download write loop used to pull 8 KiB
 # chunks (1.3 M Python-loop iterations for a 10 GB file). 1 MiB cuts that to
 # ~10 K, freeing the event loop and feeding the inline hasher (B1) efficiently.
 _DOWNLOAD_CHUNK = 1024 * 1024
@@ -195,7 +195,7 @@ def _is_task_id(task_id: str) -> bool:
 class ModelDownload:
     def __init__(self):
         self.api_key = auth.get_api_key()
-        # Inline Civitai verification (Plan §4.8-B1 / K7): the download write
+        # Inline Civitai verification (K7): the download write
         # loop feeds a native hasher as bytes land, so a finished download's
         # SHA256 is known WITHOUT the extra full re-read `_sha256_of` did. The
         # digest is staged here (keyed by task) for `_download_complete` to
@@ -575,7 +575,7 @@ class ModelDownload:
         # never masquerade as a finished download.
         expected_sha = (task_content.hashes or {}).get("SHA256")
         if task_content.downloadPlatform == "civitai" and expected_sha:
-            # B1 (Plan §4.8 / K7): prefer the INLINE digest the write loop fed
+            # B1 (K7): prefer the INLINE digest the write loop fed
             # the native hasher — verifying costs ZERO extra I/O. Fall back to
             # the full re-read only when no inline digest was staged (no
             # native core on this machine, a file that was already complete on
@@ -601,8 +601,8 @@ class ModelDownload:
         if os.path.exists(task_file):
             os.remove(task_file)
         # `complete_download_task` is itself a ws BROADCAST and the client
-        # handler already re-scans the landing type on every client (Plan
-        # §4.7.2-1's "download complete" trigger is satisfied by it), so no
+        # handler already re-scans the landing type on every client (the
+        # "download complete" invalidation trigger is satisfied by it), so no
         # separate `models_changed` is needed here — that would double-scan.
         await utils.send_json("complete_download_task", task_id)
 
@@ -640,7 +640,7 @@ class ModelDownload:
         task_status = self.get_task_status(task_id)
         task_content = self.get_task_content(task_id)
 
-        # Inline Civitai verification (Plan §4.8-B1 / K7): when the native core
+        # Inline Civitai verification (K7): when the native core
         # is available and this is a Civitai download with a published SHA256, a
         # streaming hasher consumes each written chunk, so the finished file's
         # digest is known WITHOUT the extra full re-read `_sha256_of` did. The

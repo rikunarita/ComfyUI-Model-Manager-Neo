@@ -1,8 +1,9 @@
 # `scripts/pgo/` — PGO トレーニング / 計測ドライバ（NEO‑PLAN‑2026‑002）
 
 `mm_core`（Rust ネイティブコア）の **PGO（プロファイル誘導最適化）** 用
-ワークロードドライバです。設計と段階計画は [`Agent/Plan-2.md`](../../Agent/Plan-2.md)、
-運営記録は [`Agent/MEMO.md`](../../Agent/MEMO.md) を参照してください。
+ワークロードドライバです。設計と段階計画・運営記録の文書は計画完了に伴い
+ツリーから削除されました（git 履歴から復元できます。計測証跡は
+[`docs/BENCH.md`](../../docs/BENCH.md) §13）。
 
 ## `train.py` — 3 モード
 
@@ -30,7 +31,7 @@ WebP 静止 + アニメの encode/decode ×10。
 比例するため、codec 秒級に対して 2 パスしかなかった scan 系を
 冷×5（毎回インデックス削除 = 本番の初回スキャン経路）+ 暖×20
 （インデックスヒット = リフレッシュ経路）、hygiene/walk を ×5 へ
-増量した（Plan‑2 R7 緩和）。
+増量した。
 
 ### 環境変数（サイズノブ）
 
@@ -73,8 +74,8 @@ python3 scripts/pgo/train.py --measure \
 
 CI では **出荷ビルド自体が PGO 化されています**（`native-build-linux` の
 三段階 + `--pgo-train` の Windows。macOS universal2 は計装 fat dylib の
-終了時 SIGSEGV 実証により非 PGO〔Plan‑2 §4.4 判断 (c)〕、linux-aarch64 は
-クロスコンパイルのため対象外〔§4.5〕）。
+終了時 SIGSEGV 実証により非 PGO〔判断 (c)〕、linux-aarch64 は
+クロスコンパイルのため対象外）。
 プロファイルの no-op 化は **`g2_check.py`（恒久 G2 ゲート）**が毎ビルドで
 機械検出します（しきい値は run #106 の実測で再校正 — fat-LTO + PGO
 インライナの良性乖離 13.81 % は通過、真の no-op ~100 % は失敗。
@@ -86,16 +87,16 @@ decompress +3 %）を job summary へ出力します。
 **abi3t（`<tag>t`）成果物は v1 非 PGO（NEO‑PLAN‑2026‑003 D2）** —
 フリースレッドホストでの LLVM profile runtime の挙動（profraw 生成・merge・
 G2 形状の再現性）が未実測のため。「未検証の PGO 組み合わせが出荷を壊す」の
-実例は macOS の計装 fat dylib SIGSEGV（Plan‑2 §4.4 判断 (c)）。GIL 側の PGO
+実例は macOS の計装 fat dylib SIGSEGV（判断 (c)）。GIL 側の PGO
 パイプラインは不変で、t の後追い PGO 化はビルドステップ差し替えだけで済む
 （3.15 ABI は rc1 凍結・成果物は `<tag>t` ディレクトリ分離）。
 
 ## プロファイルの方針
 
 - **ビルド毎生成・コミットしない** — ソースとの版本ズレ（ドリフト）と
-  リポジトリ肥大を構造的にゼロにする（Plan‑2 §4.6）。
+  リポジトリ肥大を構造的にゼロにする。
 - **同一 arch / OS のプロファイルのみ使用** — linux-aarch64 はクロス
   コンパイルかつ ARM ランナーが無いため PGO 対象外（x86_64 プロファイルの
-  流用は禁止。Plan‑2 §4.5）。
+  流用は禁止）。
 - macOS / Windows は maturin の `--pgo`（`native/pyproject.toml` の
   `pgo-command` がこの train.py を呼ぶ）でランナー内で完結する。

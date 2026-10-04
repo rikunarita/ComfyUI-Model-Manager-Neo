@@ -1,7 +1,7 @@
 //! Phase 6 bindings — the display tensor tree + the optional library watcher
-//! (Plan §4.7.3 "テンソルツリー事前グループ化", §4.7.2‑2 `watch_roots`).
+//! ("テンソルツリー事前グループ化", `watch_roots`).
 //!
-//! Both surfaces follow the crate's boundary rules (Plan §4.2.2): paths and
+//! Both surfaces follow the crate's boundary rules: paths and
 //! JSON strings cross the boundary (never buffers), long or blocking work runs
 //! with the GIL released, and nothing calls back into Python — the watcher is
 //! **polled** (`watch_poll`) from the Python asyncio task, exactly like the
@@ -25,7 +25,7 @@ const HEADER_CAP: u64 = 32 * 1024 * 1024;
 ///
 /// Synchronous; the GIL is released for the read + parse + fold (an 8 MB MoE
 /// header with ~65k tensors is the workload this exists for — the frontend used
-/// to spend ~0.7 s folding it in JS, Plan §4.7.3 / BENCH §11).
+/// to spend ~0.7 s folding it in JS, BENCH §11).
 ///
 /// # Errors
 /// The same failures as `safetensors_header` (unreadable / oversized /
@@ -41,7 +41,7 @@ pub fn safetensors_tensor_tree(py: Python<'_>, path: &str) -> PyResult<String> {
 
 /// Start watching `roots` recursively; returns the session handle.
 ///
-/// `opts` (all optional): `debounceMs` (default 500 — Plan §4.7.2‑2). A root
+/// `opts` (all optional): `debounceMs` (default 500). A root
 /// that does not exist is skipped and reported in the session's `errors` (a
 /// model volume that is not mounted yet must not fail the whole watcher); a
 /// watch-budget exhaustion marks the session `degraded`, which is how the

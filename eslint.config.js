@@ -38,7 +38,7 @@ export default tseslint.config(
       'node_modules/**',
       'dist/**',
       'coverage/**',
-      // Python virtual environments (uv sync --frozen creates .venv/ - Plan T4);
+      // Python virtual environments (uv sync --frozen creates .venv/);
       // their site-packages ship stray .js files (torch, ...) that are not ours.
       '.venv/**',
       'venv/**',

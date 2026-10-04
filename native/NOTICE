@@ -10,7 +10,7 @@ their own terms; the ONE copyleft component that is not GPL-compatible-by-
 default is called out explicitly below.
 
 ---------------------------------------------------------------------------
-zenwebp — pure-Rust WebP codec (Phase 7 / T7, Agent/Plan.md §3.8 追記)
+zenwebp — pure-Rust WebP codec (preview WebP pipeline, Phase 7 / T7)
 ---------------------------------------------------------------------------
 Used for the preview WebP pipeline: `znn-codec`'s `webp` module decodes WebP
 (still + animated) and encodes WebP (still + animated) through zenwebp, and

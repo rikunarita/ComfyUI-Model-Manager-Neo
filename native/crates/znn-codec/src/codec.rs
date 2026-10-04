@@ -1,6 +1,6 @@
 //! The `zipnn_core` equivalent layer — chunked, plane-parallel compression
-//! and decompression with the exact payload layout of the vendored C core
-//! (Plan §4.5, Appendix B.2), so that existing `.znn` files and C-produced
+//! and decompression with the exact payload layout of the vendored C core,
+//! so that existing `.znn` files and C-produced
 //! goldens are byte-compatible in both directions.
 //!
 //! Payload layout (after the caller-supplied header):
@@ -23,12 +23,12 @@
 //! Decompression mirrors `py_combine_dtype` (uniform `chunk/numBuf` plane
 //! lengths for non-final chunks; the final chunk splits `lastTotal` with the
 //! first `lastTotal % numBuf` planes getting +1) and ADDS the validation
-//! the C omits (Plan §4.4.2): chunkType ∈ {0,1}, cumSizes monotonic and
+//! the C omits: chunkType ∈ {0,1}, cumSizes monotonic and
 //! exactly spanning the payload, raw slice lengths matching the expected
 //! plane lengths, and an output-size cap so hostile headers cannot bomb the
 //! allocator.
 //!
-//! Parallelism: a DEDICATED rayon pool (never the global pool — Plan §4.2.1),
+//! Parallelism: a DEDICATED rayon pool (never the global pool),
 //! default `min(available_parallelism, 16)` threads like the Python layer's
 //! `threads=min(cpu_count(), 16)`. Output is deterministic regardless of
 //! thread count (the assembly pass is sequential).
@@ -124,7 +124,7 @@ type DecScratch = (Vec<Vec<u8>>, Option<Box<huf::decode::DTableEntries>>);
 // neither affects output bytes (verified by reading the C, 2026-09-23).
 
 // ---------------------------------------------------------------------------
-// Dedicated rayon pool (Plan §4.2.1: never the global pool)
+// Dedicated rayon pool (never the global pool)
 // ---------------------------------------------------------------------------
 
 static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
@@ -136,7 +136,7 @@ static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
 /// ~25 MB while RSS grew linearly with the exec count), which tripped the
 /// libFuzzer `rss_limit` in the 3 h `blob_decompress` long runs (36088280583
 /// / 36114455354; the harness pins `threads = 1`). Production pays the same
-/// pool-construction cost per call for any explicit count (e.g. Plan §3.5's
+/// pool-construction cost per call for any explicit count (e.g. the
 /// "halve threads while a prompt executes" option). Pools are tiny and the
 /// set of distinct counts is small, so cache one pool per count instead.
 static CUSTOM_POOLS: LazyLock<Mutex<HashMap<usize, Arc<rayon::ThreadPool>>>> =
@@ -232,8 +232,8 @@ pub fn zipnn_core(header: &[u8], data: &[u8], params: &CoreParams) -> CodecResul
     zipnn_core_with(header, data, params, None)
 }
 
-/// [`zipnn_core`] with a cooperative cancellation flag (Plan §4.2.2 design
-/// invariant 4: cancellation is checked at CHUNK boundaries). A set flag
+/// [`zipnn_core`] with a cooperative cancellation flag (cancellation is
+/// checked at CHUNK boundaries). A set flag
 /// aborts with [`CodecError::Cancelled`] — the caller cleans up its `.tmp`.
 ///
 /// # Errors
@@ -585,8 +585,8 @@ fn compress_chunk(
 /// Decompress a C-core payload (the bytes AFTER the 32-byte header + shape;
 /// i.e. what `zipnn.py` passes to `combine_dtype`).
 ///
-/// `max_output` caps the output allocation (hostile-header guard, Plan
-/// §4.4.2); `None` uses a built-in sanity bound derived from the payload.
+/// `max_output` caps the output allocation (hostile-header guard); `None`
+/// uses a built-in sanity bound derived from the payload.
 ///
 /// # Errors
 /// Any structural violation: short payload, chunkType ∉ {0,1}, non-monotonic
@@ -602,7 +602,7 @@ pub fn combine_dtype(
 }
 
 /// [`combine_dtype`] with a cooperative cancellation flag (checked at CHUNK
-/// boundaries, Plan §4.2.2 design invariant 4).
+/// boundaries).
 ///
 /// # Errors
 /// Everything [`combine_dtype`] reports, plus cancellation.
@@ -923,7 +923,7 @@ pub fn decompress_container(blob: &[u8], max_output: Option<usize>) -> CodecResu
     // been produced by a known encoder; refuse instead of guessing.
     if !scheme.allows_mode(header.byte_reorder) {
         return Err(CodecError::Unsupported(format!(
-            "byte_reorder {} is not valid for dtype code {} (canonical {}, truncation modes {:?} — Plan §4.6.3)",
+            "byte_reorder {} is not valid for dtype code {} (canonical {}, truncation modes {:?})",
             header.byte_reorder,
             header.dtype_code,
             scheme.canonical_mode(),

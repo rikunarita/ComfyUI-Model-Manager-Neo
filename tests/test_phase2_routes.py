@@ -1,6 +1,6 @@
-"""Plan Phase 2 (L4) / Phase 8: route/ws contract golden tests (single path).
+"""Phase 2 (L4) / Phase 8: route/ws contract golden tests (single path).
 
-The Phase-2 switchover contract (Plan §6.2), kept verbatim after the Phase-8
+The Phase-2 switchover contract, kept verbatim after the Phase-8
 removal of the legacy vendored C core and the ``MM_NATIVE`` switch:
 ``POST /model-manager/zipnn/{compress,decompress}`` emits the SAME websocket
 event sequence and stats shapes the frontend has always consumed — the native
@@ -12,7 +12,7 @@ Rust pipeline is now the only engine. These tests pin:
   is refused cleanly);
 * an unavailable native core fails the task with the loader's actionable
   reason — never a silent fallback (there is no other engine any more);
-* the startup ``.tmp``/``.corrupt`` cleanup sweep (Plan §4.4.4).
+* the startup ``.tmp``/``.corrupt`` cleanup sweep.
 
 Cross-engine compatibility with the OFFICIAL zipnn lives in the L5 CI gate
 (``scripts/l5/official_cross.py`` against pip zipnn 0.5.4) — the transition-

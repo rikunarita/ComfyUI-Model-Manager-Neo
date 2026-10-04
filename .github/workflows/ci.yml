@@ -7,7 +7,7 @@ name: CI
 
 on:
   push:
-    # `dev` is the working branch of the Rust-native refresh (Agent/Plan.md):
+    # `dev` is the working branch of the Rust-native refresh:
     # every push there gets the same verification a PR to main would.
     branches: [main, dev]
   pull_request:
@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Plan Phase 7 T4: uv replaces pip in the CI layer - a drop-in
+      # Phase 7 T4: uv replaces pip in the CI layer - a drop-in
       # `uv pip install --system` (8-100x faster resolve+install) against the
       # setup-python interpreter. The RUNTIME contract is untouched:
       # requirements.txt (read by ComfyUI / ComfyUI-Manager) and
@@ -85,13 +85,13 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # Phase 6 / Plan §4.8-C5: the K15 measurement base runs on every push.
+      # Phase 6 / C5: the K15 measurement base runs on every push.
       # It compiles the REAL src/utils modules with the repository's tsc and
       # measures them against verbatim copies of the pre-Phase-6 code, so the
       # gates are same-run ratios (C1 hoisting, C2 comparator choice, the Rust
       # tensor-tree decode) and hold on a shared runner. The absolute K15
       # numbers are recorded with the env block and judged on the reference
-      # machine (Plan §2.2); the browser paint leg is instrumented in the app
+      # machine; the browser paint leg is instrumented in the app
       # itself (src/utils/perf.ts). The Rust<->JS tree cross-check needs a
       # built native binary and runs in native.yml's integration job instead.
       - name: Frontend K15 bench (C5)

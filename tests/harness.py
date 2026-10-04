@@ -2,7 +2,7 @@
 
 Pure-Python safetensors container I/O is deliberately NOT built on the
 safetensors library so tests control the exact bytes (key order, padding):
-the Rust writer's byte-exact restoration guarantee (Plan §4.7.4) is only
+the Rust writer's byte-exact restoration guarantee is only
 testable against known input bytes. Large synthetic models for the benches
 were generated with torch/numpy instead — the byte-level helpers here are
 for small, exact fixtures.
@@ -280,13 +280,13 @@ def synth_fp8(n: int, seed: int = 1, low_entropy: bool = False) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# L4 model corpus (Plan §5.1 L4 / §6.2 Phase 2)
+# L4 model corpus (Phase 2)
 #
 # Synthetic stand-ins for the corpus classes of the plan (sd1.5-fp16,
 # sdxl-fp16, flux-fp8, LLM-bf16, VAE-f32, MoE huge-header, complex64 audio,
 # f64 synth) — same dtypes / naming patterns / header shapes at CI-friendly
 # sizes. The 12 GB-scale KPI runs used dedicated bench fixtures instead (the
-# RAM ceiling of the dev sandbox, MEMO 2026-09-23); every file here must
+# RAM ceiling of the dev sandbox); every file here must
 # compress→decompress byte-exactly (sha256) through the production pipeline.
 # ---------------------------------------------------------------------------
 def synth_u8(n: int, seed: int = 1) -> bytes:

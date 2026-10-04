@@ -1,5 +1,5 @@
 //! ZN header codec — the 32-byte container header + the packed-shape
-//! extension (Plan Appendix B.1).
+//! extension.
 //!
 //! Byte-for-byte semantics mirror `third_party/zipnn/zipnn.py`
 //! (`_update_header` / `_retrieve_header`) and `util_torch.py`
@@ -16,7 +16,7 @@
 //! [10:13] lossy triple  (always 0 in lossless files; non-zero = error)
 //! [13]    streaming: MSB set = streaming; low 7 bits = log2(streaming_chunk)
 //! [14]    log2(compression_chunk)  (default 18 = 256 KiB)
-//! [15]    dtype code    (Plan §4.6.3 / dtype.rs)
+//! [15]    dtype code    (dtype.rs)
 //! [16:24] original_len  (u64 LE)
 //! [24:32] comp_len field: the BYTE single-group path writes comp_len+32
 //!         (`_update_header_comp_len`); the `zipnn_core` path overwrites it
@@ -27,7 +27,7 @@
 //!         indicator (1/2/4/8) + the value LE.
 //! ```
 //!
-//! The decompressor validates everything it consumes (Plan §4.4.2): magic,
+//! The decompressor validates everything it consumes: magic,
 //! method, lossy-zero, and (Phase 1 scope) rejects delta/streaming payloads
 //! with explicit errors — they land in Phase 3.
 
@@ -104,11 +104,11 @@ impl ZnHeader {
     /// float32 byte containers `compress_bin` ALWAYS routes through
     /// `zipnn_core` (Huffman payload) regardless of the method value. So
     /// real official delta files carry byte 7 ∈ {0,1,2,3,4} with a Huffman
-    /// payload — refusing anything but 1 would break Plan §7 R12 ("the Rust
-    /// decompressor accepts 100% of the official output"). The payload is
+    /// payload — refusing anything but 1 would break the interop rule ("the
+    /// Rust decompressor accepts 100% of the official output"). The payload is
     /// still fully validated by the codec's structural checks, so a
     /// genuinely foreign payload is a clean Err, never a mis-decode. The
-    /// TENSOR path keeps the strict gate (Plan Appendix B.1).
+    /// TENSOR path keeps the strict gate.
     pub fn decode_delta(buf: &[u8]) -> CodecResult<Self> {
         Self::decode_inner(buf, false)
     }
@@ -123,9 +123,9 @@ impl ZnHeader {
         if buf[0..2] != ZNN_MAGIC {
             return Err(CodecError::Header("missing ZN magic".to_owned()));
         }
-        // Strict version gate (Plan §7 R10): Neo implements the ZipNN 0.5.4
+        // Strict version gate: Neo implements the ZipNN 0.5.4
         // wire format; a NEWER upstream version could change semantics, and
-        // silently mis-decoding it is the exact failure mode R10 guards
+        // silently mis-decoding it is the exact failure mode this gate guards
         // against — refuse with an actionable message instead. (Older minors
         // than 0.5 predate every .znn file in the ecosystems Neo reads —
         // the HF ZipNN collections and the official CLI are all 0.5.x.)
@@ -139,7 +139,7 @@ impl ZnHeader {
         let method = buf[7];
         if strict_method && method != METHOD_HUFFMAN {
             return Err(CodecError::Unsupported(format!(
-                "compression method {method} (only HUFFMAN=1 is supported; Plan Appendix B.1)"
+                "compression method {method} (only HUFFMAN=1 is supported)"
             )));
         }
         let lossy = [buf[10], buf[11], buf[12]];
@@ -209,13 +209,13 @@ impl ZnHeader {
     pub fn validate_for_decode(&self) -> CodecResult<usize> {
         if self.delta_compressed_type != 0 {
             return Err(CodecError::Unsupported(format!(
-                "delta_compressed_type={} payloads are handled by the delta codec (Plan Phase 3)",
+                "delta_compressed_type={} payloads are handled by the delta codec",
                 self.delta_compressed_type
             )));
         }
         if self.streaming {
             return Err(CodecError::Unsupported(
-                "streaming payloads are handled by the delta codec (Plan Phase 3)".to_owned(),
+                "streaming payloads are handled by the delta codec".to_owned(),
             ));
         }
         if self.compression_chunk_log2 == 0 || self.compression_chunk_log2 > 63 {
@@ -379,7 +379,7 @@ mod tests {
         assert!(ZnHeader::decode(&b[..10]).is_err(), "short");
     }
 
-    /// Plan §7 R10: the version bytes are gated strictly — anything outside
+    /// The version bytes are gated strictly — anything outside
     /// 0.5.0..=0.5.4 is an explicit error, never a silent mis-decode.
     #[test]
     fn decode_gates_the_container_version() {

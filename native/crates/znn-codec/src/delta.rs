@@ -1,4 +1,4 @@
-//! File-level delta (de)compression — Phase 3 (Plan §4.5-6, §6.2).
+//! File-level delta (de)compression — Phase 3.
 //!
 //! The native replacement of `py/compress.py`'s `delta_compress_files` /
 //! `delta_decompress_file`, which wrap the official ZipNN delta API
@@ -7,7 +7,7 @@
 //! XOR difference, plane-split + huff0-coded as a FLOAT32 byte container
 //! (4 planes, bit_reorder=1, byte_reorder=220, dtype code 1, header byte 9
 //! = 1) — exactly the container the vendored `zipnn.py` writes, so Neo and
-//! official ZipNN delta files stay interchangeable (Plan §7 R12).
+//! official ZipNN delta files stay interchangeable.
 //!
 //! # Wire format
 //!
@@ -20,10 +20,10 @@
 //!   `[u64 hlen+pad][header][spaces×pad][data]`. The pads travel in the
 //!   sidecar `<delta>.neo-delta.json` (`basePad`/`ftPad`) so decompression
 //!   restores the fine-tune BYTE-EXACTLY. Neo adds a third sidecar key,
-//!   `ftSha256` — the SHA-256 of the original fine-tune file (Plan §4.4.3:
-//!   restore-time verification; sidecars are Neo-private, so this is
+//!   `ftSha256` — the SHA-256 of the original fine-tune file (restore-time
+//!   verification; sidecars are Neo-private, so this is
 //!   compatibility-neutral).
-//! * **Compression output is the official STREAMING form** (Plan §4.5-6):
+//! * **Compression output is the official STREAMING form**:
 //!   the padded renderings are XORed in 1 MiB streaming chunks and each
 //!   chunk is emitted as one complete ZN container (`header[13] = 128+20`,
 //!   `[24:32]` = container size — the layout `zipnn.py`'s streaming
@@ -36,14 +36,14 @@
 //!
 //! # Compatibility contract (error wording reaches the UI verbatim)
 //!
-//! The legacy messages are contract (Plan §4.5-6: the UI displays them
+//! The legacy messages are contract (the UI displays them
 //! as-is): the data-size mismatch RuntimeError of `_delta_aligned_bytes`,
 //! and `zipnn.py`'s "Length of delta file has to match the length of the
 //! decompressed file." / "The data wasn't compressed using delta
 //! compression …" ValueErrors — carried by [`StError::Message`] (displayed
 //! without a prefix).
 //!
-//! # Integrity (Plan §4.4.3)
+//! # Integrity
 //!
 //! Compress records `ftSha256` (the ORIGINAL fine-tune file digest, hashed
 //! on a worker thread over the same mmap pages the XOR loop reads);
@@ -61,7 +61,7 @@
 //! core's Appendix-C SEGFAULT class (`total % 256 KiB ∈ {1,2,3}` — reachable
 //! through delta padding with real files, proven in Phase 0 BENCH §4.3)
 //! decodes through the bounds-checked Rust codec (pinned by the end-to-end
-//! regression tests below, Plan §6.2 Phase 3).
+//! regression tests below).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -77,7 +77,7 @@ use crate::{
     DEFAULT_CHUNK, DEFAULT_CHUNK_LOG2, DEFAULT_THRESHOLD, HEADER_LEN, HUF_BLOCKSIZE_MAX, dtype,
 };
 
-/// Streaming chunk of the delta output (Plan §4.5-6: 1 MiB — `zipnn.py`
+/// Streaming chunk of the delta output (1 MiB — `zipnn.py`
 /// `streaming_chunk=1024*1024`).
 pub const STREAMING_CHUNK: usize = 1024 * 1024;
 
@@ -120,7 +120,7 @@ pub fn sidecar_path(delta: &Path) -> PathBuf {
     PathBuf::from(s)
 }
 
-/// The `.neo-delta.json` record (Plan Appendix B.3: `basePad`/`ftPad` are
+/// The `.neo-delta.json` record (`basePad`/`ftPad` are
 /// the legacy keys; `ftSha256` is the Neo Phase-3 integrity addition).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DeltaMeta {
@@ -345,7 +345,7 @@ fn annotate(e: StError, what: &str, path: &Path) -> StError {
 /// path of the legacy `delta_compress_files`; the output is the official
 /// streaming container chain — see the module docs).
 ///
-/// Ordering / crash guarantees mirror Phase 2 (Plan §4.4.4): `dst` appears
+/// Ordering / crash guarantees mirror Phase 2: `dst` appears
 /// only through the AtomicWriter rename AFTER the artifact is complete and
 /// fsynced (and, in paranoid mode, fully re-decoded and sha-verified); the
 /// sidecar is committed after the delta file. Removing the now-redundant
@@ -424,8 +424,8 @@ pub fn delta_compress(
         other => other,
     })?;
 
-    // The chunk loop and the fine-tune SHA-256 run concurrently (Plan
-    // §4.4.3-1: the hash rides the same mmap pages the XOR loop reads — a
+    // The chunk loop and the fine-tune SHA-256 run concurrently (the hash
+    // rides the same mmap pages the XOR loop reads — a
     // scoped thread needs no lifetime gymnastics).
     let loop_outcome: StResult<(String, u64)> = std::thread::scope(|s| {
         let sha_handle = s.spawn(|| sha256_chunks(ft_file, hooks.cancel));
@@ -509,7 +509,7 @@ pub fn delta_compress(
         ft_sha256: Some(ft_sha.clone()),
     };
 
-    // Paranoid mode (Plan §4.4.3-4, same semantics as the tensor pipeline):
+    // Paranoid mode (same semantics as the tensor pipeline):
     // fully re-decode the finished artifact against the base and compare
     // with the fine-tune digest BEFORE the rename — a failed paranoid run
     // removes the artifact and leaves BOTH models untouched. The internal
@@ -610,8 +610,8 @@ pub fn delta_compress(
 /// Decode ONE ZN container of a delta chain into `scratch` (grow-only) and
 /// return its decoded length. `remaining_expected` is the allocation cap:
 /// a container declaring more bytes than the base rendering still expects
-/// is the legacy length mismatch — refused BEFORE the resize (Plan §4.4.2:
-/// hostile headers must never bomb the allocator).
+/// is the legacy length mismatch — refused BEFORE the resize (hostile
+/// headers must never bomb the allocator).
 fn decode_delta_container(
     container: &[u8],
     scratch: &mut Vec<u8>,
@@ -926,7 +926,7 @@ fn decode_xored(
 /// (pads 0, no verification) — the length checks then fail with the legacy
 /// wording unless the pads genuinely were zero.
 ///
-/// Verification (Plan §4.4.3): with `ftSha256` present and `opts.verify`
+/// Verification: with `ftSha256` present and `opts.verify`
 /// (default ON) the restore is hashed inline; a mismatch KEEPS the delta
 /// file and retreats the restore to `<dst>.corrupt`.
 ///
@@ -1055,7 +1055,7 @@ pub fn delta_decompress(
             } else {
                 warnings.push(
                     "no ftSha256 in the delta sidecar (created before Neo Phase 3, or by the official tooling): \
-                     byte-exact verification skipped (Plan §4.4.3-4)"
+                     byte-exact verification skipped"
                         .to_owned(),
                 );
             }

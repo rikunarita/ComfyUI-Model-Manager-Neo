@@ -114,7 +114,7 @@
     </div>
 
     <!--
-      ZipNN compression breakdown (Plan §4.6.4): the dtype mix recorded in
+      ZipNN compression breakdown: the dtype mix recorded in
       `znn_compressed_vectors` plus the Neo-extension badge. The badge says
       what interoperability the file has: Neo-extended files stay lossless
       inside Neo but official ZipNN tools refuse their blobs.
@@ -315,7 +315,7 @@ const stringify = (value: unknown): string => {
   }
 }
 
-/* ---- ZipNN compression breakdown (Plan §4.6.4) -------------------------- */
+/* ---- ZipNN compression breakdown ---------------------------------------- */
 
 /**
  * The ZipNN/Neo bookkeeping keys of `__metadata__`. They get a dedicated
@@ -411,7 +411,7 @@ interface TensorRow {
 }
 
 /**
- * Random access over the tensor tree (Plan §4.7.3, Phase 6).
+ * Random access over the tensor tree (Phase 6).
  *
  * The backend folds the tree in Rust while it parses the header anyway and
  * ships the compact pre-order table; `createTensorTreeIndex` validates it and

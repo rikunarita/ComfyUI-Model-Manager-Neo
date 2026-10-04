@@ -26,7 +26,7 @@ from pathlib import Path
 
 
 def _platform_tag() -> str | None:
-    """The `native/native-bin/<tag>` directory of this machine (Plan §4.2.1)."""
+    """The `native/native-bin/<tag>` directory of this machine."""
     system = platform.system()
     machine = platform.machine().lower()
     if system == "Linux" and machine in ("x86_64", "amd64"):

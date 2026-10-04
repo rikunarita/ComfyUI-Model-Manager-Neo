@@ -1,4 +1,4 @@
-"""Plan Phase 7 / T7 - the preview WebP pipeline goes native (zenwebp).
+"""Phase 7 / T7 - the preview WebP pipeline goes native (zenwebp).
 
 `py/utils.py::_write_preview_content` used to re-encode every preview with PIL
 (`Image.open(...).save(..., "WEBP")`), which also FROZE an animated GIF / WebP
@@ -8,7 +8,7 @@ re-encoded by zenwebp - stills as still WebP, animated sources as ANIMATED
 WebP (frames + durations preserved). The native core is the rollback unit: a
 failure (or `MM_NATIVE=0`) falls back to the exact pre-T7 PIL path.
 
-The Plan's parity gate is a BEHAVIOUR contract, not byte-identity (the encoders
+The parity gate is a BEHAVIOUR contract, not byte-identity (the encoders
 differ): "same dimensions, decodable, size within a tolerance band". These
 tests pin that, the animation preservation (frames, per-frame durations, the
 loop count and the ICC profile at the container-byte level) and the native

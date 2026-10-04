@@ -1,4 +1,4 @@
-"""Plan Phase 8: the distribution invariants — single path, version sync,
+"""Phase 8: the distribution invariants — single path, version sync,
 licence inheritance, no third_party residue.
 
 Phase 8 completes the migration: the vendored C core (``third_party/``) and
@@ -6,7 +6,7 @@ the ``MM_NATIVE`` switch are gone, the prebuilt ``mm_core`` under
 ``native/native-bin/`` is the single engine, and the release is PREPARED by
 synchronising the version across pyproject / package.json / web/version.yaml
 (the publish itself — GitHub Release, tag, registry, the dev→main merge — is
-the user's job, Plan §6.3). These tests pin the invariants that can silently
+the user's job). These tests pin the invariants that can silently
 regress:
 
 * requirements.txt (the runtime contract ComfyUI / ComfyUI-Manager reads)
@@ -18,7 +18,7 @@ regress:
   and the loader exposes no mode API;
 * ``native/NOTICE`` inherits the ZipNN (MIT) and FiniteStateEntropy (BSD-2)
   licence texts verbatim and attributes zenwebp (AGPL-3.0) — the inheritance
-  the third_party removal was conditioned on (Plan §8);
+  the third_party removal was conditioned on;
 * ``.gitignore`` re-includes the shipped native-bin binaries (without the
   negation the publish job's commit would silently contain nothing) and the
   publish job stays main-only.
@@ -40,7 +40,7 @@ def _pyproject() -> dict:
 
 def test_requirements_matches_pyproject_dependencies():
     """The runtime contract (requirements.txt) is the pyproject dependency
-    list, comment lines aside — the documented one-way sync (Plan T4 note /
+    list, comment lines aside — the documented one-way sync (T4 note /
     Phase 8 "pyproject / requirements 整理"). A drift would mean Manager
     installs something the metadata does not declare (or vice versa)."""
     deps = _pyproject()["project"]["dependencies"]
@@ -94,7 +94,7 @@ def test_mm_native_switch_is_gone():
 def test_notice_inherits_the_licence_texts():
     """native/NOTICE carries what third_party/'s licence files carried: the
     ZipNN MIT text, the FiniteStateEntropy BSD-2 text and the zenwebp AGPL
-    attribution (Plan §8 — the condition of the removal)."""
+    attribution (the condition of the removal)."""
     notice = (REPO_ROOT / "native" / "NOTICE").read_text(encoding="utf-8")
     # ZipNN (MIT) — the verbatim upstream text
     assert "MIT License" in notice

@@ -1,6 +1,6 @@
 //! L3 fuzz target 3/3: the full payload decoder (`combine_dtype` — the
-//! `zipnn_core` layer) against hostile payloads AND hostile parameters
-//! (Plan §5.1 L3, §4.4.2). Exercises: chunkType validation, cumSizes
+//! `zipnn_core` layer) against hostile payloads AND hostile parameters.
+//! Exercises: chunkType validation, cumSizes
 //! monotonicity/span checks, raw-slice length checks, huff0 sub-decoding,
 //! plane join, the output cap, and the container-level entry point.
 //! Single call per iteration; every path must return Err — never panic,

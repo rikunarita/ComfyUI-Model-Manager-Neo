@@ -1,4 +1,4 @@
-"""Phase 6 golden tests - the Rust-folded display tensor tree (Plan §4.7.3).
+"""Phase 6 golden tests - the Rust-folded display tensor tree.
 
 `safetensors_tensor_tree` moves the Information tab's tensor-tree fold out of
 the browser (~0.73 s of main-thread JS for a 65k-tensor MoE header - BENCH

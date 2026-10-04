@@ -7,13 +7,14 @@
 //!
 //! Writer byte output is BIT-IDENTICAL to `BIT_*CStream` for the same
 //! add/flush call sequence (the encoder relies on that for byte-exact
-//! golden parity with the C core — Plan §4.5-5 lets us relax this, but
+//! golden parity with the C core — the compatibility contract lets us relax
+//! this, but
 //! exactness makes L2 diffing trivial).
 //!
 //! The reader mirrors `BIT_DStream_t` exactly, including the small-stream
 //! (<8 bytes) container construction and the four reload states
 //! (unfinished / end-of-buffer / completed / overflow), with bounds-checked
-//! reads instead of the C pointer arithmetic (Plan §4.4.2: hostile input
+//! reads instead of the C pointer arithmetic (hostile input
 //! must produce errors, never OOB).
 
 use crate::{CodecError, CodecResult};

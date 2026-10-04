@@ -1,12 +1,13 @@
 //! N-plane split/join — the ZipNN "byte grouping" pre-transform
-//! (Plan §4.5-2, Appendix C.4; N = 1, 2, 4 compatibility + N = 8 and the
-//! truncation masks of the Neo extension band, Plan §4.6.2, Phase 4).
+//! (N = 1, 2, 4 compatibility + N = 8 and the truncation masks of the Neo
+//! extension band, Phase 4).
 //!
 //! The vendored C core (`data_manipulation_dtype16/32.c`) splits a chunk into
 //! N byte planes so that like-significant bytes land together before huff0.
 //! Its remainder handling is BROKEN: for a final chunk shorter than N bytes
 //! it writes through NULL plane pointers (deterministic SEGFAULT for
-//! `total % 256 KiB ∈ {1,2,3}` on the 4-plane path — Plan Appendix C), and
+//! `total % 256 KiB ∈ {1,2,3}` on the 4-plane path — demonstrated on the
+//! C core), and
 //! for other non-divisible lengths it performs 1–3 byte heap-overflow writes
 //! plus up to 3 bytes of out-of-bounds reads (UB, silently absorbed by
 //! allocator slack).
@@ -23,7 +24,7 @@
 //!
 //! Reordering (sign/exponent bit transform) is FUSED into the split: the C
 //! core reorders the chunk in place before splitting — the Rust codec never
-//! mutates its input (Plan §4.3), it transforms words while copying. The
+//! mutates its input, it transforms words while copying. The
 //! trailing partial word (total % 4 bytes) is NOT reordered in either
 //! implementation (C `reorder_all_floats_*` processes only len/4 words).
 //!
@@ -272,7 +273,7 @@ fn transform_word64(kind: ReorderKind, u: u64) -> u64 {
 /// f64 sign/exponent reorder; tail bytes (total % 8) go to planes 0..rem
 /// UNTRANSFORMED — the natural generalisation of the C in-bounds layout the
 /// 2/4-plane paths reproduce byte-exactly (Neo extension band: the C core
-/// has no 8-plane code, Plan §4.6.2).
+/// has no 8-plane code).
 #[allow(clippy::type_complexity)]
 fn split8(src: &[u8], planes: &mut [&mut [u8]], kind: ReorderKind) {
     let total = src.len();
@@ -862,7 +863,7 @@ mod tests {
 
     #[test]
     fn roundtrip_exhaustive_small_lengths() {
-        // Plan §6.2: "チャンク長 1–8 を含む端数網羅" — exhaustively 0..=72.
+        // "チャンク長 1–8 を含む端数網羅" — exhaustively 0..=72.
         for total in 0..=72usize {
             for n in [1usize, 2, 4] {
                 for kind in [ReorderKind::None, ReorderKind::F32, ReorderKind::Bf16] {

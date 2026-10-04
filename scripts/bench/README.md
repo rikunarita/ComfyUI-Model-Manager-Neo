@@ -1,6 +1,6 @@
 # `scripts/bench/` — 計測証跡アーカイブ + フロントエンド計測器（CI ゲート）
 
-刷新計画（`Agent/Plan.md`）の KPI 計測に使われた Python ハーネス
+刷新計画の KPI 計測に使われた Python ハーネス
 （`bench_*.py`・`gen_synthetic.py`・`common.py`・`run_all.sh`）と L2 ゴールデン
 差分（旧 `scripts/l2/`）は、計画の完了に伴いツリーから削除されました。
 原文は git 履歴から復元できます。このディレクトリに残るのは次の 2 つです。
@@ -9,8 +9,7 @@
 
 [`docs/BENCH.md`](../../docs/BENCH.md) が数値を逐語引用する一次ソースの
 JSON 一式です。各 JSON の `env` ブロックに計測環境（CPU・RAM・スレッド数）が
-記録されています。**再生成せず、決定的な欄のみ外科的に追記する**のが規程です
-（MEMO §1.2）。
+記録されています。**再生成せず、決定的な欄のみ外科的に追記する**のが規程です。
 
 - `zipnn.json` / `delta.json` / `c_defects.json` / `scan.json` / `header.json` /
   `hash.json` / `json-bench.txt` — Phase 0 ベースライン（2026‑09‑23）

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * K15 / Phase 6 frontend bench (Plan §4.8‑C5 "performance mark 計測基盤",
- * §2.2 K15, §6.2 Phase 6 完了条件).
+ * K15 / Phase 6 frontend bench ("performance mark 計測基盤" — the K15
+ * acceptance gate).
  *
  * Measures the REAL browser code path headlessly: the pure modules under
  * `src/utils` are compiled with the repository's own TypeScript and then driven
- * with a deterministic 5,000-model synthetic library (the same scale the Plan's
- * K15 names) and a DeepSeek-shaped 65k-tensor MoE header.
+ * with a deterministic 5,000-model synthetic library (the same scale K15
+ * names) and a DeepSeek-shaped 65k-tensor MoE header.
  *
  * What is measured, and why it is comparable across machines:
  *
@@ -851,7 +851,7 @@ const report = {
     'The "naive"/"legacy" sides are verbatim copies of the pre-Phase-6 component code, inlined ' +
     'here as the before-side of every gate. The gates are same-run ratios, so they hold on any ' +
     'machine; the absolute numbers belong to the env block below (K15 is judged on the reference ' +
-    '8C/16T machine - Plan §2.2). The browser paint leg of K15 is instrumented in the app itself ' +
+    '8C/16T reference machine). The browser paint leg of K15 is instrumented in the app itself ' +
     '(src/utils/perf.ts: mm.grid.queryToPaint via __mmNeoPerf.summary()).',
   env: {
     date: new Date().toISOString().replace(/\.\d+Z$/, '+0000'),

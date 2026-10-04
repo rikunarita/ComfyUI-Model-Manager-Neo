@@ -154,7 +154,7 @@ const cols = computed(() => {
 })
 
 /**
- * C1 (Plan §4.8): the search query is compiled into its token regexes ONCE per
+ * C1: the search query is compiled into its token regexes ONCE per
  * change instead of once per model per keystroke - a 5,000-model library used
  * to rebuild the same 1-3 `RegExp` objects 5,000 times on every recompute.
  */

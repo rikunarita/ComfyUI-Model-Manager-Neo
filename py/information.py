@@ -16,7 +16,7 @@ from PIL import Image
 
 from . import auth, config, http_client, utils
 
-# A3 (Plan §4.8-A3): the hub base URLs are module constants so the mock tests
+# A3: the hub base URLs are module constants so the mock tests
 # can point them at a local server (no live API dependency).
 HF_API_BASE = "https://huggingface.co/api"
 
@@ -114,7 +114,7 @@ class ModelSearcher(ABC):
     """
     Abstract class for model searcher.
 
-    A3 (Plan §4.8-A3): the lookup is a coroutine. The HTTP round trips run on
+    A3: the lookup is a coroutine. The HTTP round trips run on
     the server's event loop through the shared aiohttp session; a searcher whose
     backend is a blocking SDK (ModelScope) moves that call into an executor
     itself, so the route never pins an io worker for a network wait.
@@ -455,7 +455,7 @@ class ModelScopeModelSearcher(ModelSearcher):
 
     def _list_repo_files(self, repo_id: str):
         """The blocking `modelscope_hub` call (A3 keeps SDK traffic in an
-        executor; only Neo's own round trips moved to aiohttp — Plan §3.8)."""
+        executor; only Neo's own round trips moved to aiohttp)."""
         from modelscope_hub import HubApi
 
         token = auth.get_modelscope_token()
@@ -541,7 +541,7 @@ class Information:
                 # blocking `requests.get` round trips (Civitai model + version
                 # data, or the Hugging Face model info AND recursive file tree)
                 # and running them inline froze ComfyUI's event loop, so they
-                # were moved to an io-executor worker. A3 (Plan §4.8-A3) makes
+                # were moved to an io-executor worker. A3 makes
                 # the round trips async on the loop instead - which is strictly
                 # better than either predecessor: no freeze AND no worker pinned
                 # for the duration of the lookup. The ModelScope SDK call is the

@@ -1,6 +1,6 @@
 /**
  * Search-filter and sort primitives shared by the two grid layouts
- * (Plan §4.8‑C, C1 + C2).
+ * (C1 + C2).
  *
  * Both used to live inline in `DialogManager.vue` / `DialogExplorer.vue`,
  * which cost two things on a large library:
@@ -21,7 +21,7 @@
  *
  * The module is deliberately dependency-free (no Vue, no component imports) so
  * the headless K15 harness (`scripts/bench/front/k15.mjs`) can compile and
- * measure the very same code the browser runs — Plan §4.8‑C5 "計測基盤".
+ * measure the very same code the browser runs — the C5 "計測基盤".
  */
 
 /** One whitespace-separated search token together with its compiled matcher. */
@@ -173,7 +173,7 @@ export const buildModelRows = <T extends GridModel>(
  * | `a.localeCompare(b, undefined, {numeric})`  | 363 ms  |
  * | hoisted numeric `Intl.Collator().compare`   | 11.4 ms |
  *
- * So the Plan's C2 hypothesis holds spectacularly for the NUMERIC variant
+ * So the C2 hypothesis holds spectacularly for the NUMERIC variant
  * (V8 has no fast path when options are passed, so every call rebuilt a
  * collator: 32x) but is **inverted for the default variant**: V8 caches the
  * default collator inside `localeCompare` and its builtin beats the public

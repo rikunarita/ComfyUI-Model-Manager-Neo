@@ -1,14 +1,14 @@
-//! Phase 7 bindings — the preview **WebP** codec (Plan §3.8 追記 / T7).
+//! Phase 7 bindings — the preview **WebP** codec (T7).
 //!
 //! Thin PyO3 wrappers over [`znn_codec::webp`] (the zenwebp-backed pure-Rust
-//! codec). Boundary rules (Plan §4.2.2): pixels cross as `bytes` (previews are
+//! codec). Boundary rules: pixels cross as `bytes` (previews are
 //! small — a model thumbnail, never a multi-GB payload), every codec call runs
 //! with the GIL released (the input buffer is copied to an owned `Vec` first so
 //! the borrow never outlives the detach), and every [`WebpError`] becomes a
 //! `RuntimeError` — the Python caller (`py/utils.py`) catches it and falls back
 //! to the PIL path, so a native failure degrades, never breaks a preview save.
 //!
-//! Licence: zenwebp is AGPL-3.0-only (see `native/NOTICE` / Plan §8).
+//! Licence: zenwebp is AGPL-3.0-only (see `native/NOTICE`).
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;

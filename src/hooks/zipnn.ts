@@ -229,7 +229,7 @@ const beginTask = async (
 }
 
 /**
- * Phase 4 (Plan §4.6.4): the dtype breakdown behind the compress
+ * Phase 4: the dtype breakdown behind the compress
  * confirmation. `/zipnn/inspect` parses ONLY the safetensors header (in an
  * executor on the backend), so this is cheap — but it touches the disk, so
  * every failure degrades to `null` and the dialog keeps its generic message
@@ -274,7 +274,7 @@ const inspectZipnnModel = async (model: {
  * pre-check runs; when the model carries dtypes outside the official ZipNN
  * band, the message is upgraded IN PLACE to say the artifact will be
  * Neo-extended (still lossless here, but official ZipNN tools will refuse
- * it — Plan §4.6.4 "圧縮確認ダイアログに明示"). The dialog itself is never
+ * it — "圧縮確認ダイアログに明示"). The dialog itself is never
  * delayed by the check.
  */
 /**

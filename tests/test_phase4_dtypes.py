@@ -1,4 +1,4 @@
-"""Plan Phase 4 (L4): the Neo extension dtype band end-to-end.
+"""Phase 4 (L4): the Neo extension dtype band end-to-end.
 
 Every safetensors 0.8 dtype (all 22 spellings) compresses through the
 native pipeline: the five compatibility-band floats exactly like before
@@ -6,7 +6,7 @@ native pipeline: the five compatibility-band floats exactly like before
 extension band (codes 128-146, ``znn_neo_extended="1"`` marker, explicit
 rejection by official tools — pinned by ``scripts/l5`` section E).
 
-Gates covered here (Plan §6.2 Phase 4 完了条件 "全拡張 dtype 往復 green"):
+Gates covered here (Phase 4 完了条件 "全拡張 dtype 往復 green"):
 
 * per-dtype round trip: compress → decompress → SHA-256 byte-exact,
   infos torch-name spelling, U8 blob storage, marker presence per band;
@@ -223,7 +223,7 @@ def test_truncation_modes_end_to_end(mm, tmp_path):
 
 
 def test_bool_and_e8m0_compress_hard(tmp_path, mm):
-    """Plan §4.6.2 promises: BOOL {0,1} ≈ 1/8 via huff0; opaque 1-plane
+    """Design promises: BOOL {0,1} ≈ 1/8 via huff0; opaque 1-plane
     types collapse to their symbol entropy (the fixture carries 8 distinct
     bytes → ~3 bits/byte ≈ 0.375 + overhead). Measured, not assumed — the
     numbers also feed docs/BENCH.md §9."""

@@ -1,5 +1,5 @@
-//! The safetensors compression / decompression pipelines (Plan §4.3, §4.4.3,
-//! Phase 2) — the Rust replacement of `py/compress.py`'s
+//! The safetensors compression / decompression pipelines (Phase 2) — the
+//! Rust replacement of `py/compress.py`'s
 //! `compress_safetensors` / `decompress_safetensors`, with the semantics of
 //! the official `zipnn_compress_safetensors.py` scripts preserved exactly
 //! (per-tensor ZN blobs, `znn_compressed_vectors` infos, the "not worth it"
@@ -10,20 +10,20 @@
 //!   offset → seek-back header patch → fsync → (paranoid: decompress-verify
 //!   the artifact) → rename. Peak RAM is O(one tensor) — no RAM dict of the
 //!   whole model, no `tensor.clone()`, no spill copy (KPI K1). The source
-//!   SHA-256 runs on a worker thread over the same mmap pages (Plan §4.4.3
-//!   step 1) and is recorded as `znn_neo_src_sha256`.
+//!   SHA-256 runs on a worker thread over the same mmap pages — step 1
+//!   of the integrity design — and is recorded as `znn_neo_src_sha256`.
 //! * **decompress** writes the canonical restored header FIRST (every
 //!   restored size is known from the blob headers before any payload is
 //!   decoded), then streams tensor-by-tensor with an INLINE SHA-256 — the
-//!   end-to-end verification costs zero extra I/O (Plan §4.4.3: default ON).
+//!   end-to-end verification costs zero extra I/O (default ON).
 //!   Mismatch on a byte-exact-capable file → the compressed source is KEPT
 //!   and the restore is retreated to `<dst>.corrupt`; sources whose header
 //!   was not canonical (`znn_neo_exact="0"`) fall back to the structural
-//!   guarantee of Plan §4.7.4 (tensor data + metadata equal) instead of
+//!   minimum guarantee (tensor data + metadata equal) instead of
 //!   failing on formatting.
 //!
-//! The worst-case-header single-pass design is a documented refinement of
-//! Plan §4.3's "RAM/spoil" sketch: trailing spaces inside the declared
+//! The worst-case-header single-pass design refines the original
+//! "RAM/spoil" sketch: trailing spaces inside the declared
 //! header region are valid JSON whitespace (the same trick the legacy delta
 //! padding uses), so the payload can stream at a fixed offset and the exact
 //! header is patched in afterwards — one write pass instead of three. The
@@ -33,7 +33,7 @@
 //!
 //! All container writes go through [`AtomicWriter`] (sibling `.tmp` → fsync
 //! → verify → rename → dir fsync); cancellation is cooperative at tensor and
-//! codec-chunk granularity (Plan §4.2.2 invariant 4).
+//! codec-chunk granularity (cooperative cancellation stays responsive).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -59,11 +59,11 @@ use crate::znn_tensor::{
 pub const METADATA_KEY: &str = "znn_compressed_vectors";
 /// Neo: pre-compression on-disk size of the source file (legacy-compatible).
 pub const ORIGINAL_SIZE_KEY: &str = "znn_neo_original_bytes";
-/// Neo: SHA-256 of the whole source file (Plan §4.4.3, new in Phase 2).
+/// Neo: SHA-256 of the whole source file (new in Phase 2).
 pub const SRC_SHA_KEY: &str = "znn_neo_src_sha256";
 /// Neo: "1" when the source header is canonical — decompression can then
 /// restore byte-exactly and ENFORCES the sha; "0" downgrades to the
-/// structural guarantee (Plan §4.7.4).
+/// structural minimum guarantee.
 pub const EXACT_KEY: &str = "znn_neo_exact";
 /// Neo: Phase-4 marker (Neo-extension dtypes present). Phase 2 never writes
 /// it, but restore strips it so future files round-trip cleanly.
@@ -88,7 +88,7 @@ pub const BOOKKEEPING_KEYS: [&str; 6] = [
     SRC_META_ABSENT_KEY,
 ];
 
-/// Diagnostic suffix of a failed-verification restore (Plan §4.4.3).
+/// Diagnostic suffix of a failed-verification restore.
 pub const CORRUPT_SUFFIX: &str = ".corrupt";
 
 // ---------------------------------------------------------------------------
@@ -112,8 +112,8 @@ pub enum Phase {
     Done = 4,
     /// Terminal: failed (see the job's error).
     Failed = 5,
-    /// The delta chunk loop (Phase 3 — the legacy ws phase vocabulary of
-    /// Plan §4.2.3 is `prepare/tensors/delta/done`; delta routes report
+    /// The delta chunk loop (Phase 3 — the legacy ws phase vocabulary is
+    /// `prepare/tensors/delta/done`; delta routes report
     /// their work under `"delta"` exactly like the legacy 3-step progress).
     Delta = 6,
 }
@@ -148,7 +148,7 @@ impl Phase {
     }
 }
 
-/// Atomic job progress (Plan §4.3: the Python side polls at 10 Hz instead
+/// Atomic job progress (the Python side polls at 10 Hz instead
 /// of the legacy GIL-reacquiring `run_coroutine_threadsafe` callbacks).
 #[derive(Debug)]
 pub struct Progress {
@@ -226,22 +226,21 @@ impl Hooks<'_> {
     }
 }
 
-/// Job-level options (the `opts` dict of the Python API, Plan §4.2.2).
+/// Job-level options (the `opts` dict of the Python API).
 #[derive(Debug, Clone)]
 pub struct JobOpts {
     /// Codec worker threads (0 = pool default `min(parallelism, 16)`).
     pub threads: usize,
     /// Compress only: re-decode the finished artifact and verify it against
-    /// the source sha BEFORE it is renamed into place (Plan §4.4.3-4,
-    /// default off).
+    /// the source sha BEFORE it is renamed into place (default off).
     pub paranoid: bool,
     /// Decompress only: compare the restore against `znn_neo_src_sha256`
-    /// (Plan §4.4.3-2 — 既定 ON; the switch exists for the symmetry the plan
-    /// implies, e.g. bulk migrations that re-verify out of band).
+    /// (既定 ON — default ON; the switch exists for symmetry, e.g. bulk
+    /// migrations that re-verify out of band).
     pub verify: bool,
     /// Decompress only: per-tensor allocation cap — hostile `.znn` files
     /// may declare arbitrary `original_len` values and must ERROR, never
-    /// OOM-kill the host (Plan §4.4.2). Default 64 GiB: far above any real
+    /// OOM-kill the host. Default 64 GiB: far above any real
     /// single tensor, far below a u64 bomb.
     pub max_restore_bytes: usize,
     /// Test hook (hidden): shift the worst-case header bound by this many
@@ -300,11 +299,11 @@ pub enum Verified {
     /// Restored bytes SHA-256 == `znn_neo_src_sha256` (byte-exact).
     Sha256,
     /// Source was non-canonical (`znn_neo_exact="0"`): sha differs by
-    /// formatting; the structural guarantee (Plan §4.7.4) was checked
+    /// formatting; the structural minimum guarantee was checked
     /// instead — tensor data + metadata equal, container valid.
     Structural,
     /// No `znn_neo_src_sha256` (official-CLI / legacy files): verification
-    /// skipped and logged (Plan §4.4.3-4).
+    /// skipped and logged.
     Skipped,
 }
 
@@ -404,7 +403,7 @@ fn compressible_scheme(t: &TensorEntry) -> Option<TensorScheme> {
 /// order) + the Neo records (`znn_neo_*` then the infos key — the legacy
 /// pipeline's insertion order). `extended` records the Phase-4 marker
 /// (`znn_neo_extended="1"` — the file contains Neo-extension-band blobs the
-/// official ZipNN tooling rejects with an explicit error; Plan §4.6.3).
+/// official ZipNN tooling rejects with an explicit error).
 fn build_compress_meta(
     kept: &[(String, String)],
     file_len: u64,
@@ -439,7 +438,7 @@ fn build_compress_meta(
 /// after the artifact is complete and fsynced — and, in paranoid mode,
 /// fully re-decoded and sha-verified. The original-file removal stays the
 /// Python layer's job (after this returns Ok), preserving the legacy
-/// ordering guarantee (Plan §4.4.3-5).
+/// ordering guarantee.
 ///
 /// # Errors
 /// Parse/codec/I-O failures, cancellation, and verification failures in
@@ -577,7 +576,7 @@ pub fn compress_file(
     let mut blob_buf: Vec<u8> = Vec::new();
 
     // The source SHA-256 streams over the SAME mmap pages on a worker thread
-    // while the tensor loop runs (Plan §4.4.3-1: near-zero added cost — the
+    // while the tensor loop runs (near-zero added cost — the
     // pages are already hot; scoped thread = no lifetime gymnastics).
     let loop_outcome: StResult<String> = std::thread::scope(|s| {
         let sha_handle = s.spawn(|| sha256_chunks(&mmap, hooks.cancel));
@@ -716,7 +715,7 @@ pub fn compress_file(
     }
     writer.finish()?;
 
-    // Paranoid mode (Plan §4.4.3-4): fully re-decode the artifact and verify
+    // Paranoid mode: fully re-decode the artifact and verify
     // it against the source sha BEFORE the rename — a failed paranoid run
     // leaves dst non-existent and the tmp removed.
     let mut warnings: Vec<String> = Vec::new();
@@ -758,7 +757,7 @@ pub fn compress_file(
         warnings.push(
             "the source header is not in canonical safetensors form (hand-edited or exotic writer): \
              decompression will restore tensor data + metadata identically but not byte-for-byte, \
-             and verification downgrades to the structural check (Plan §4.7.4)"
+             and verification downgrades to the structural check"
                 .to_owned(),
         );
     }
@@ -838,20 +837,20 @@ fn stream_write(writer: &mut AtomicWriter, bytes: &[u8], hooks: &Hooks) -> StRes
 // decompression SLOWER here (0.65 s vs 0.60 s for 64 MB: no spare core to
 // overlap with, plus clone traffic) and grew peak RSS by the unbounded
 // channel backlog (a K1 hazard on 12 GB models). The INLINE hasher below is
-// the design of Plan §4.4.3 (zero extra I/O, zero extra memory); on SHA-NI
-// hosts (the Plan's reference class) its serial cost is ~45 ms per 64 MB —
+// the verification design (zero extra I/O, zero extra memory); on SHA-NI
+// hosts (the reference class) its serial cost is ~45 ms per 64 MB —
 // negligible. Re-parallelising only pays with bounded queues AND spare
 // cores; revisit measurement-driven if a reference-machine run says so.
 
 /// Decompress `src` (.znn.safetensors) into `dst` (.safetensors) — the
-/// native path of the legacy `decompress_safetensors`, with the Plan
-/// §4.4.3 verification pipeline:
+/// native path of the legacy `decompress_safetensors`, with the integrity
+/// verification pipeline:
 ///
 /// * `znn_neo_src_sha256` present → the restore is hashed INLINE (zero extra
 ///   I/O) and compared; a mismatch on a byte-exact-capable file KEEPS the
 ///   compressed source and retreats the restore to `<dst>.corrupt`;
 /// * `znn_neo_exact="0"` sources downgrade a mismatch to the structural
-///   guarantee (Plan §4.7.4) instead of failing on formatting;
+///   minimum guarantee instead of failing on formatting;
 /// * files without the key (official CLI / legacy) skip verification with a
 ///   logged note.
 ///
@@ -1066,7 +1065,7 @@ pub fn decompress_file(
     }
     let digest = writer.finish()?;
 
-    // Verification (Plan §4.4.3) — the tmp is durable at this point but NOT
+    // Verification — the tmp is durable at this point but NOT
     // yet renamed: a failed check keeps the compressed source and retreats
     // the restore to `.corrupt`.
     hooks.phase(Phase::Verify);
@@ -1086,7 +1085,7 @@ pub fn decompress_file(
             }
             // Non-canonical source (znn_neo_exact="0"): a byte difference is
             // EXPECTED (the restore is canonical, the source was not). Fall
-            // back to the structural guarantee of Plan §4.7.4, re-checked
+            // back to the structural minimum guarantee, re-checked
             // against the on-disk bytes.
             if let Err(e) = structural_check(writer.tmp_path(), &owned, restored_meta.as_deref()) {
                 writer.abort();
@@ -1112,12 +1111,12 @@ pub fn decompress_file(
             if sha_was_recorded {
                 warnings.push(format!(
                     "{SRC_SHA_KEY} is recorded but verification was disabled via opts — \
-                     the restore was NOT checked (Plan §4.4.3-2 defaults to ON)"
+                     the restore was NOT checked (verification defaults to ON)"
                 ));
             } else {
                 warnings.push(format!(
                     "no {SRC_SHA_KEY} in this file (compressed by the official ZipNN tooling or a pre-Neo version): \
-                     byte-exact verification skipped (Plan §4.4.3-4)"
+                     byte-exact verification skipped"
                 ));
             }
             Verified::Skipped
@@ -1193,7 +1192,7 @@ fn infos_err(e: jiter::JiterError) -> StError {
     StError::Format(format!("malformed {METADATA_KEY} record: {e}"))
 }
 
-/// The Plan §4.7.4 minimum guarantee, re-checked against the ON-DISK bytes
+/// The structural minimum guarantee, re-checked against the ON-DISK bytes
 /// (a fresh parse of the finished tmp): valid container, entries exactly as
 /// planned (names/dtypes/shapes/dense offsets), metadata exactly as
 /// planned. Catches write-level corruption of the header/layout for

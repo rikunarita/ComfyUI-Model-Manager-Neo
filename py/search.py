@@ -23,7 +23,7 @@ GET /model-manager/civitai/image-meta?model-version-id=&url=
     preview image of a Civitai model version (``withMeta=true&flatMeta=true``).
 
 Network calls run on the event loop through the shared aiohttp session
-(``py/http_client.py``, Quick Win A3 — Plan §4.8-A3); only the hub SDKs
+(``py/http_client.py``, Quick Win A3); only the hub SDKs
 (``huggingface_hub`` / ``modelscope_hub``) still use an IO-executor worker, and
 a failing provider degrades to an ``error`` entry instead of failing the whole
 search.
@@ -40,7 +40,7 @@ from aiohttp import web
 from . import auth, http_client, utils
 from .information import MODELSCOPE_INTL_ENDPOINT
 
-# A3 (Plan §4.8-A3 / §6.2 Phase 6): every hub round trip of this module goes
+# A3 (Phase 6): every hub round trip of this module goes
 # through the shared aiohttp session (`py/http_client.py`) instead of a
 # blocking `requests.get` in an io-executor worker - no thread hop, one
 # connector, one timeout policy. The base URLs are module constants so the mock
@@ -172,7 +172,7 @@ def _hf_list_models(query: str, limit: int, offset: int, sort: str) -> list[Any]
     """The blocking `huggingface_hub` page fetch (httpx2 under the hood).
 
     Stays in an executor: A3 unifies Neo's OWN round trips on aiohttp, it does
-    not replace the hub SDK (Plan §3.8 - `huggingface_hub` 2.x is httpx2-based,
+    not replace the hub SDK (`huggingface_hub` 2.x is httpx2-based,
     so a "unified" stack would be a third one).
     """
     from huggingface_hub import HfApi
@@ -359,7 +359,7 @@ async def _ms_owner_info(owner: str, name: str) -> tuple[str | None, str | None,
 
 def _ms_list_repos(query: str, limit: int, page_number: int, sort: str) -> Any:
     """The blocking `modelscope_hub` page fetch (stays in an executor — A3
-    unifies Neo's own round trips, not the hub SDKs; Plan §3.8)."""
+    unifies Neo's own round trips, not the hub SDKs)."""
     from modelscope_hub import HubApi
 
     api = HubApi(endpoint=MODELSCOPE_INTL_ENDPOINT)
@@ -534,7 +534,7 @@ class SearchRoutes:
                     return provider, {"items": [], "error": str(e), "nextCursor": None}
 
             if platform in _PROVIDERS:
-                # A3 (Plan §4.8-A3): the providers are coroutines now, so the
+                # A3: the providers are coroutines now, so the
                 # whole request runs on the event loop - the io-executor hop
                 # (one of eight workers, pinned for the entire round trip) is
                 # gone.

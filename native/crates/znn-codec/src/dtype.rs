@@ -1,4 +1,4 @@
-//! dtype code <-> plane scheme tables (Plan §4.6.3: compatibility band +
+//! dtype code <-> plane scheme tables (compatibility band +
 //! Neo extension band).
 //!
 //! ## Upstream compatibility band (codes 1–30)
@@ -16,13 +16,13 @@
 //! | float8_e4m3fn    | 29   | 1      | 1 (ignored) | 10           | 1    |
 //! | float8_e5m2      | 30   | 1      | 1 (ignored) | 10           | 1    |
 //!
-//! ## Neo extension band (codes 128–255, Phase 4 — Plan §4.6.2/§4.6.3)
+//! ## Neo extension band (codes 128–255, Phase 4)
 //!
 //! Codes deliberately far above the upstream enum (which ends at 30), so the
 //! official zipnn 0.5.4 decoder can never mistake them for its own: it
 //! rejects every unknown code with an explicit `ValueError: Unsupported
 //! Dtype N` (demonstrated against the pip build in `scripts/l5` section E —
-//! no silent corruption, Plan §4.6.3 failure-mode safety). Files containing
+//! no silent corruption). Files containing
 //! extension-band blobs carry the `znn_neo_extended="1"` metadata marker.
 //!
 //! | dtype (safetensors)      | code | planes | bit_reorder | byte_reorder    | bits |
@@ -41,15 +41,15 @@
 //! | F6_E2M3 / F6_E3M2        | 145/146 | 1   | 0           | 10              | 6    |
 //!
 //! Complex types are word-transformed: C64 is two consecutive f32 words, so
-//! the 4-plane f32 reorder applies per u32 exactly as for F32 (Plan §4.6.2
-//! "C64 は u32 単位処理で同一変換が成立"); complex128 likewise per u64, and
+//! the 4-plane f32 reorder applies per u32 exactly as for F32
+//! ("C64 は u32 単位処理で同一変換が成立"); complex128 likewise per u64, and
 //! bcomplex32 is one (real, imag) bf16 pair per u32 = the bf16-pair transform.
 //! `complex128`/`bcomplex32` have NO safetensors 0.8 representation (verified
 //! against the pip package on 2026-09-26: `safetensors.torch.save` raises
 //! `KeyError: torch.complex128`), so their codes are codec-level only — the
 //! safetensors pipeline refuses to restore such blobs with an explicit error.
 //!
-//! **C64 band decision (Plan §4.6.3 open question, settled by demonstration
+//! **C64 band decision (an open question settled by demonstration
 //! 2026-09-26):** the upstream enum reserves code 9 for COMPLEX64, but the
 //! official 0.5.4 decoder's dtype dispatch has no arm for it — `decompress_bin`
 //! ends in `raise ValueError(f"Unsupported Dtype {self.dtype}")` for 9 exactly
@@ -63,7 +63,7 @@
 //! The C core's truncation modes are dead code (`handle_split_mode_41/9/1`
 //! commented out; the dtype16 8/1 paths leave the second plane's container
 //! slots uninitialized) and `zipnn.py` never writes them. Neo formalises them
-//! (Plan §6.2 Phase 4 "トランケートモード 1/9/41/8 の正式実装"): when whole
+//! (Phase 4 "トランケートモード 1/9/41/8 の正式実装"): when whole
 //! byte planes of an integer tensor are zero across the ENTIRE tensor (checked
 //! by the compressor), those planes are DROPPED from the payload and the mode
 //! byte records which planes survive; the decompressor zero-fills the dropped
@@ -88,7 +88,7 @@
 //!
 //! Truncation is LOSSLESS by construction: the compressor verifies the
 //! dropped planes are all-zero before choosing a mode. It is offered only
-//! for the Neo integer codes (I16/U16/I32/U32 — Plan §4.6.2; I64/U64 rely on
+//! for the Neo integer codes (I16/U16/I32/U32; I64/U64 rely on
 //! the plain 8-plane split, whose top planes are zero-fed to huff0 anyway).
 //!
 //! ## 8-plane mode byte
@@ -99,7 +99,7 @@
 //! a value no official encoder produces and no official decoder accepts.
 //!
 //! Delta files use `float32` semantics on raw bytes (`bytearray_dtype=
-//! "float32"` → the (4, 1, 220) compatibility path — Plan §4.5-6) and are
+//! "float32"` → the (4, 1, 220) compatibility path) and are
 //! unaffected by the extension band.
 //!
 //! Note on FP8 `bit_reorder`: production writes `bit_reorder=1` into the
@@ -120,7 +120,7 @@ pub const BFLOAT16: u8 = 6;
 pub const FLOAT8_E4M3FN: u8 = 29;
 pub const FLOAT8_E5M2: u8 = 30;
 
-// Neo extension band codes (Plan §4.6.3 — assigned exactly as planned).
+// Neo extension band codes (assigned exactly as designed).
 pub const NEO_F64: u8 = 128;
 pub const NEO_COMPLEX128: u8 = 129;
 pub const NEO_COMPLEX64: u8 = 130;
@@ -158,7 +158,7 @@ pub const MODE_TRUNC_LOW2_OF4: u8 = 9;
 pub const MODE_TRUNC_LOW1: u8 = 1;
 pub const MODE_TRUNC_HIGH1_OF2: u8 = 8;
 
-/// Which interoperability band a dtype code belongs to (Plan §4.6.3).
+/// Which interoperability band a dtype code belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Band {
     /// Codes 1–30: written exactly like upstream zipnn 0.5.4, so official
@@ -265,8 +265,8 @@ fn neo(num_planes: usize, bits: usize, reorder_active: bool, trunc: &'static [u8
 ///
 /// # Errors
 /// Unknown codes are rejected with an explicit message (the official zipnn
-/// decoder also refuses unknown codes — no silent corruption; Plan §4.6.3
-/// failure-mode safety). Codes in 31..=127 are reserved: upstream may assign
+/// decoder also refuses unknown codes — no silent corruption). Codes in
+/// 31..=127 are reserved: upstream may assign
 /// them in future versions, and Neo must never pre-empt that space.
 pub fn scheme_for_dtype(code: u8) -> CodecResult<PlaneScheme> {
     match code {
@@ -289,7 +289,7 @@ pub fn scheme_for_dtype(code: u8) -> CodecResult<PlaneScheme> {
         // unassigned (the arm must not overlap the assigned codes — clippy
         // match_overlapping_arm)
         147..=255 => Err(CodecError::Unsupported(format!(
-            "dtype code {code} is an unassigned Neo extension-band code (Plan §4.6.3 assigns 128–146)"
+            "dtype code {code} is an unassigned Neo extension-band code (the band assigns 128–146)"
         ))),
         other => Err(CodecError::Unsupported(format!(
             "dtype code {other} is not implemented (the ZipNN 0.5.4 torch path covers 1/2/4/5/6/29/30; upstream-only codes 3,7–28 are dead in the official codec too; Neo extension band starts at {NEO_BAND_START})"
@@ -347,7 +347,7 @@ pub fn plane_mask(byte_reorder: u8, num_planes: usize) -> CodecResult<PlaneMask>
         (8, MODE_8PLANES) => full(&mut m, 8),
         (1 | 2 | 4 | 8, other) => {
             return Err(CodecError::Unsupported(format!(
-                "byte_reorder {other} invalid for {num_planes}-plane data (modes: 1-plane 10; 2-plane 10/1/8; 4-plane 220/41/9/1; 8-plane 88 — truncation modes are Neo extension-band only, Plan §4.6.3)"
+                "byte_reorder {other} invalid for {num_planes}-plane data (modes: 1-plane 10; 2-plane 10/1/8; 4-plane 220/41/9/1; 8-plane 88 — truncation modes are Neo extension-band only)"
             )));
         }
         (other, _) => {
@@ -426,8 +426,8 @@ mod tests {
     }
 
     #[test]
-    fn neo_band_schemes_match_the_plan_table() {
-        // Plan §4.6.3 code assignment, verbatim
+    fn neo_band_schemes_match_the_code_table() {
+        // The Neo extension-band code assignment, verbatim
         let cases: &[(u8, usize, usize, bool)] = &[
             (NEO_F64, 8, 64, true),
             (NEO_COMPLEX128, 8, 128, true),
@@ -494,7 +494,7 @@ mod tests {
             assert!(scheme_for_dtype(code).is_err(), "code {code}");
         }
         // the code-9 (COMPLEX64) rejection is the demonstrated settlement of
-        // the Plan §4.6.3 band question: upstream reserved the code but its
+        // the band question: upstream reserved the code but its
         // decoder raises — Neo uses 130 (module docs, L5 section E2)
         let err = scheme_for_dtype(9).unwrap_err().to_string();
         assert!(err.contains("not implemented"), "{err}");

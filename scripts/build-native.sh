@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Build the distributable mm_core native artifacts (Agent/Plan.md §3.3, §4.2.1).
+# Build the distributable mm_core native artifacts.
 #
 #   scripts/build-native.sh --target <tag> [--size-gate] [--pgo <profdata> | --pgo-train]
 #
-# PGO (NEO-PLAN-2026-002):
+# PGO:
 #   --pgo <profdata>  linux targets only: link the SHIPPED artifact against a
 #                     pre-merged LLVM profile (instrumented build + training
 #                     are orchestrated by the caller — see the pgo-measure job
@@ -22,19 +22,19 @@
 #   macos-universal2  maturin universal2 (macOS host only: cargo + lipo)      -> mm_core.abi3.so
 #   windows-x86_64    maturin MSVC (Windows host only)                        -> mm_core.pyd
 #
-# abi3t targets (NEO-PLAN-2026-003 Step 2 — `<tag>t` = the four tags above with
+# abi3t targets (`<tag>t` = the four tags above with
 # a `t` suffix: linux-x86_64t / linux-aarch64t / macos-universal2t /
 # windows-x86_64t): the free-threaded Stable ABI flavour (PEP 803, pyo3
-# `abi3t-py315` via mm-core's `ft` feature). Built NON-PGO (Plan-3 D2) with the
+# `abi3t-py315` via mm-core's `ft` feature). Built NON-PGO with the
 # EXCLUSIVE feature set `--no-default-features --features [extension-module,]ft`
 # (never together with stable-abi — combining them makes the produced flavour
 # host-dependent). Requires a Python >= 3.15 HOST interpreter (PyO3 host >=
 # target; CI pins 3.15.0-rc.2 until the 3.15 final lands in the runner
-# manifest — Plan-3 D4). Outputs: mm_core.abi3t.so (POSIX) / mm_core.pyd
+# manifest). Outputs: mm_core.abi3t.so (POSIX) / mm_core.pyd
 # (Windows — PEP 803 keeps the plain suffix); loadable by BOTH the
 # free-threaded and the GIL build of CPython 3.15+.
 #
-# Why these routes (Plan §3.3): Linux crosses pin the glibc floor via
+# Why these routes: Linux crosses pin the glibc floor via
 # cargo-zigbuild (wider coverage than the legacy C prebuilds' glibc >= 2.34);
 # macOS/Windows are built ON their OS with maturin — cross-linking a PyO3
 # extension for Apple targets from Linux does not work with zig: pyo3-build-config
@@ -53,8 +53,8 @@
 # native-bin/ (no compiler, no pip, no network).
 set -euo pipefail
 
-GLIBC_FLOOR="${MM_GLIBC_FLOOR:-2.28}" # Plan §3.3: Debian 10 / Ubuntu 20.04+
-SIZE_BUDGET=$((5 * 1024 * 1024))      # Plan §3.3/R6: <= 5 MB per binary
+GLIBC_FLOOR="${MM_GLIBC_FLOOR:-2.28}" # Debian 10 / Ubuntu 20.04+
+SIZE_BUDGET=$((5 * 1024 * 1024))      # <= 5 MB per binary (guideline)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Windows (git-bash) runners may only provide `python`, not `python3`.
@@ -86,9 +86,9 @@ done
 
 [[ -n "$TARGET" ]] || { echo "usage: build-native.sh --target <tag> [--size-gate] [--pgo <profdata> | --pgo-train]" >&2; exit 2; }
 [[ -z "$PGO_PROFDATA" || "$PGO_TRAIN" -eq 0 ]] || { echo "--pgo and --pgo-train are mutually exclusive" >&2; exit 2; }
-# NEO-PLAN-2026-003 D2: the abi3t (<tag>t) targets build NON-PGO — the LLVM
-# profile runtime is unvalidated on free-threaded hosts, and the GIL-side PGO
-# pipeline (Plan-2) stays exactly as it is.
+# The abi3t (<tag>t) targets build NON-PGO — the LLVM profile runtime is
+# unvalidated on free-threaded hosts, and the GIL-side PGO pipeline stays
+# exactly as it is.
 if [[ -n "$PGO_PROFDATA" ]]; then
   case "$TARGET" in
     linux-x86_64 | linux-aarch64) [[ -f "$PGO_PROFDATA" ]] || { echo "profile not found: $PGO_PROFDATA" >&2; exit 2; } ;;
@@ -123,7 +123,7 @@ PY
 
 finish() {
   local dst="$1"
-  # Per-binary size budget (Plan §3.3/R6). Callers pass a doubled budget for
+  # Per-binary size budget. Callers pass a doubled budget for
   # the macOS universal2 FAT binary (two architecture slices — see
   # build_macos_universal2, which gates each thinned slice at the single-binary
   # budget); every other target is one architecture and uses the default.
@@ -151,11 +151,11 @@ build_linux() {
   local -a feat=()
   if [[ "$flavour" == "ft" ]]; then
     # abi3t (PEP 803) — EXCLUSIVE feature set: never together with stable-abi
-    # (host-dependent flavour, Plan-3 §2-3). Host python must be >= 3.15.
+    # (host-dependent flavour). Host python must be >= 3.15.
     out_name="mm_core.abi3t.so"
     tag_suffix="t"
     feat=(--no-default-features --features extension-module,ft)
-    log "flavour: abi3t (ft feature; non-PGO — Plan-3 D2; host Python >= 3.15 required)"
+    log "flavour: abi3t (ft feature; non-PGO; host Python >= 3.15 required)"
   fi
   local -a pgo_env=()
   if [[ -n "$PGO_PROFDATA" ]]; then
@@ -185,7 +185,7 @@ build_macos_universal2() {
   local -a pgo_flag=() feat=()
   [[ "$PGO_TRAIN" -eq 1 ]] && pgo_flag=(--pgo) && log "PGO: maturin --pgo (pgo-command trains in a temporary venv)"
   if [[ "$flavour" == "ft" ]]; then
-    # abi3t (PEP 803), non-PGO (Plan-3 D2). tool.maturin's features already
+    # abi3t (PEP 803), non-PGO. tool.maturin's features already
     # carry pyo3/extension-module, so the CLI only adds `ft` and drops the
     # default (stable-abi) — the two stable-ABI flavours stay exclusive.
     out_name="mm_core.abi3t.so"
@@ -193,7 +193,7 @@ build_macos_universal2() {
     wheel_glob="mm_core-*-cp315*abi3t*universal2.whl"
     extract_suffix=".abi3t.so"
     feat=(--no-default-features --features ft)
-    log "flavour: abi3t (ft feature; non-PGO — Plan-3 D2; host Python >= 3.15 required)"
+    log "flavour: abi3t (ft feature; non-PGO; host Python >= 3.15 required)"
   fi
   # ${feat[*]+...} — bash 3.2 empty-array guard (see build_linux).
   log "maturin build --release --target universal2-apple-darwin ${feat[*]+"${feat[*]}"}"
@@ -204,11 +204,11 @@ build_macos_universal2() {
   mkdir -p "$out_dir"
   extract_from_wheel "$wheel" "$extract_suffix" "$out_dir/$out_name"
   lipo -info "$out_dir/$out_name" || true
-  # universal2 is a FAT binary (x86_64 + arm64). Plan §3.3's "<= 5 MB per
-  # binary" is a PER-ARCHITECTURE budget, so gate each thinned slice at
+  # universal2 is a FAT binary (x86_64 + arm64). The "<= 5 MB per
+  # binary" budget is PER-ARCHITECTURE, so gate each thinned slice at
   # SIZE_BUDGET; the fat file itself is naturally ~2x and is checked against a
   # doubled budget in finish() (the whole native-bin set still has to fit the
-  # size-budget CI job's total — the 40 MB guideline of NEO-PLAN-2026-003 D1).
+  # size-budget CI job's total — the 40 MB guideline).
   if [[ "$SIZE_GATE" -eq 1 ]]; then
     local arch slice ssz
     for arch in x86_64 arm64; do
@@ -238,13 +238,13 @@ build_windows() {
   local -a pgo_flag=() feat=()
   [[ "$PGO_TRAIN" -eq 1 ]] && pgo_flag=(--pgo) && log "PGO: maturin --pgo (pgo-command trains in a temporary venv)"
   if [[ "$flavour" == "ft" ]]; then
-    # abi3t (PEP 803), non-PGO (Plan-3 D2). PEP 803 keeps the plain `.pyd`
+    # abi3t (PEP 803), non-PGO. PEP 803 keeps the plain `.pyd`
     # name on Windows — the GIL and t artifacts are separated by their
     # native-bin/<tag> directories, never by filename.
     tag="windows-x86_64t"
     wheel_glob="mm_core-*-cp315*abi3t*win_amd64.whl"
     feat=(--no-default-features --features ft)
-    log "flavour: abi3t (ft feature; non-PGO — Plan-3 D2; host Python >= 3.15 required)"
+    log "flavour: abi3t (ft feature; non-PGO; host Python >= 3.15 required)"
   fi
   # ${feat[*]+...} — bash 3.2 empty-array guard (see build_linux).
   log "maturin build --release (MSVC) ${feat[*]+"${feat[*]}"}"
@@ -254,8 +254,8 @@ build_windows() {
   local out_dir="$BIN_ROOT/$tag"
   mkdir -p "$out_dir"
   # NOTE: mm_core.pyd, NOT mm_core.abi3.pyd — Windows CPython only recognises
-  # the plain `.pyd` suffix in EXTENSION_SUFFIXES (Plan §4.2.1 adjusted; PEP
-  # 803 keeps the same rule for abi3t).
+  # the plain `.pyd` suffix in EXTENSION_SUFFIXES (PEP 803 keeps the same
+  # rule for abi3t).
   extract_from_wheel "$wheel" ".pyd" "$out_dir/mm_core.pyd"
   finish "$out_dir/mm_core.pyd"
 }

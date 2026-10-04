@@ -1,4 +1,4 @@
-"""Phase 5 download inline-verification tests (Plan §4.8-B1 / K7).
+"""Phase 5 download inline-verification tests (B1 / K7).
 
 The download write loop feeds a native hasher as bytes land, so a finished
 Civitai download's SHA256 is verified WITHOUT the extra full re-read the legacy

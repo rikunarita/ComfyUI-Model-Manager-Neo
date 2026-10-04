@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PGO training / measurement driver for the ``mm_core`` native core.
 
-NEO-PLAN-2026-002 §4.2. Three modes:
+Part of the PGO pipeline. Three modes:
 
 * **(default) train** — exercises every hot surface of ``mm_core`` against
   deterministic synthetic fixtures (compress / decompress / delta / scan /
@@ -18,9 +18,9 @@ NEO-PLAN-2026-002 §4.2. Three modes:
 * ``--measure`` — A/B throughput driver: alternates ``--bench-one``
   subprocesses between two built cores (``--a`` = baseline, ``--b`` = PGO),
   N rounds, steal-gated on Linux (contaminated rounds are discarded and
-  retried) — the BENCH gate protocol (MEMO §3) reduced to a single runner
-  session. Verdict statistic = the per-side **median** ratio (Plan-2 §2.2
-  G1); the per-side minimum (worst window) and maximum (zero-interference
+  retried) — the BENCH gate protocol reduced to a single runner
+  session. Verdict statistic = the per-side **median** ratio (the G1
+  verdict); the per-side minimum (worst window) and maximum (zero-interference
   ceiling) are reported alongside. The original min-only verdict was
   retired after run #108: min-of-N compares whichever unlucky round each
   side drew, so the verdict flipped (#107 PASS x1.126 / #108 NOT MET
@@ -272,7 +272,7 @@ def train(mm, fx: dict[str, Path], root: Path, rounds: int) -> dict:
     # 3. scan — WEIGHTED (run #107 evidence): with a single cold+warm pass the
     # profile is dominated by codec work and scan ended up x0.349 under PGO
     # (its rayon plumbing closures landed in the missing-profile population —
-    # Plan-2 R7 workload skew). PGO weight is proportional to execution
+    # workload skew). PGO weight is proportional to execution
     # counts, so iterate: 5 cold scans (fresh index dir each time — the
     # production first-scan-after-startup path) + 20 warm scans (persistent
     # index hit — the refresh path). timings[] keeps the last iteration; the
@@ -446,7 +446,7 @@ def _steal_ticks() -> int | None:
 def summarize_workloads(samples: dict[tuple[str, str], list[float]]) -> dict[str, dict]:
     """Per-workload A/B statistics: min / median / best per side + ratios.
 
-    The G1 verdict statistic is the per-side **median** ratio (Plan-2 §2.2).
+    The G1 verdict statistic is the per-side **median** ratio.
     ``ratio`` (kept as an alias of ``ratioMin``) preserves the JSON key that
     the run #107/#108 records reference; ``ratioBest`` is the
     zero-interference ceiling (per-side best window).
@@ -510,7 +510,7 @@ def measure(a_dir: str, b_dir: str, rounds: int, json_out: str | None, workdir: 
             for wl in BENCH_WORKLOADS:
                 result = None
                 dirty = False
-                # steal gate (BENCH protocol, MEMO §3): a contaminated window
+                # steal gate (BENCH protocol): a contaminated window
                 # is DISCARDED AND RETRIED (not silently dropped — losing the
                 # sample would leave the side without a minimum to judge).
                 for attempt in range(MAX_STEAL_RETRIES):

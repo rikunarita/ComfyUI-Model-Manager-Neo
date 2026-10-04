@@ -1,15 +1,15 @@
-//! Optional filesystem watching of the model library (Plan §4.7.2‑2, Phase 6).
+//! Optional filesystem watching of the model library (Phase 6).
 //!
 //! `notify` 8.2.0 + `notify-debouncer-full` 0.7.0 **directly** (the
-//! `extended-notify` wrapper is explicitly NOT used — Plan §3.1: a 0.1.x
+//! `extended-notify` wrapper is explicitly NOT used: a 0.1.x
 //! single-author crate that pulls `tokio` into the shipped binary and pins
 //! debouncer-full a generation back).
 //!
-//! Shape of the feature (all of it from Plan §4.7.2‑2 / §6.2 Phase 6):
+//! Shape of the feature (Phase 6):
 //!
 //! * **polling, not callbacks** — the debouncer thread only appends to a
 //!   shared, deduplicated path set; Python drains it with [`watch_poll`] from
-//!   its own asyncio task (Plan §4.2.2: "ポーリング方式 — GIL 再取得
+//!   its own asyncio task ("ポーリング方式 — GIL 再取得
 //!   コールバックを使わない"). No GIL is ever taken from a notify thread;
 //! * **500 ms debounce** ([`DEBOUNCE`]) so a batch copy or a ZipNN run
 //!   collapses into one refresh instead of one per file;
@@ -17,7 +17,7 @@
 //!   directory, and `fs.inotify.max_user_watches` is a hard per-user ceiling.
 //!   Exhaustion surfaces as [`ErrorKind::MaxFilesWatch`]; the session then
 //!   records a `degraded` reason and Python falls back to the 30 s TTL
-//!   revalidation instead of failing (Plan §4.7.2‑2 "枯渇時は TTL へ
+//!   revalidation instead of failing ("枯渇時は TTL へ
 //!   degrade");
 //! * **missed events** — `Event::need_rescan` (a backend that lost track, e.g.
 //!   a queue overflow) sets `rescan` in the poll payload so Python broadcasts a
@@ -38,7 +38,7 @@ use std::time::{Duration, Instant};
 use notify::RecursiveMode;
 use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
 
-/// Debounce window of Plan §4.7.2‑2 (500 ms).
+/// Debounce window (500 ms).
 pub const DEBOUNCE: Duration = Duration::from_millis(500);
 
 /// The concrete debouncer type (`new_debouncer`'s return, spelled out so the

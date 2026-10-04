@@ -1,6 +1,5 @@
 //! Sign/exponent bit reordering — the ZipNN pre-transform that groups the
-//! sign bit next to the exponent so plane 0 becomes low-entropy
-//! (Plan §4.5-1, §4.6.2).
+//! sign bit next to the exponent so plane 0 becomes low-entropy.
 //!
 //! Word transforms are verbatim ports of the vendored C reference
 //! (`third_party/zipnn-core/csrc/data_manipulation_dtype32.c`
@@ -17,8 +16,8 @@
 //!   exp=(u<<1)&0xFFE0_0000_0000_0000; man=u&0x000F_FFFF_FFFF_FFFF`
 //!   → layout `[exp11 bits 63..53][sign bit 52][man52 bits 51..0]`.
 //!
-//!   **Plan §4.6.2 erratum (found by this implementation, 2026-09-23):** the
-//!   plan's f64 formula (`sign=(u>>12)&0x0008…`, `man=u&0x0007_FFFF…`) is NOT
+//!   **Erratum (found by this implementation, 2026-09-23):** the originally
+//!   sketched f64 formula (`sign=(u>>12)&0x0008…`, `man=u&0x0007_FFFF…`) is NOT
 //!   a bijection — it drops mantissa bit 51 into the sign slot and leaves
 //!   bit 52 dead, so ~50% of all u64 patterns fail to round-trip (empirically
 //!   100,045/200,000 random failures; e.g. 1.5 → 1.0). The corrected
@@ -34,7 +33,7 @@
 //! word are left UNTOUCHED (they are still plane-interleaved by `planes`).
 //! Unlike the C core — which destroys its input in place (the reason Neo's
 //! Python layer clones tensors) — the Rust codec applies these transforms
-//! while copying (Plan §4.3): the input slice is never mutated.
+//! while copying: the input slice is never mutated.
 
 /// Which word transform a payload uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -91,7 +90,7 @@ pub const fn revert_bf16_pair(u: u32) -> u32 {
     sign | exponent | mantissa
 }
 
-/// f64 sign/exponent reorder — Neo's new scheme (corrected Plan §4.6.2, see
+/// f64 sign/exponent reorder — Neo's new scheme (corrected — see
 /// the module erratum): exponent bits 62..52 move to 63..53, the sign (bit
 /// 63) lands at bit 52 directly below the exponent, and the FULL 52-bit
 /// mantissa keeps bits 51..0. Bijection (pinned by proptest over any u64).
@@ -308,7 +307,7 @@ mod proptests {
 
     proptest! {
         /// Every transform is a bijection with its revert as the exact
-        /// inverse — "全単射" (Plan §6.2 Phase 1: proptest 全単射).
+        /// inverse — "全単射" (pinned by proptest).
         #[test]
         fn f32_reorder_is_a_bijection(u in any::<u32>()) {
             prop_assert_eq!(revert_f32_word(reorder_f32_word(u)), u);

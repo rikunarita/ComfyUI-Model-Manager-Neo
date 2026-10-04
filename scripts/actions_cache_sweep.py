@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prune dead GitHub Actions cache entries for this repository.
 
-Why this exists (all numbers measured 2026-10-03, NEO-PLAN-2026-003 cleanup):
+Why this exists (all numbers measured 2026-10-03):
 
 * Actions caches are scoped per ref and capped at 10 GB per repository on every
   plan. Eviction deletes entries in last-access order (oldest first), and any

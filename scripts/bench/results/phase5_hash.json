@@ -1,7 +1,7 @@
 {
   "phase": 5,
   "kind": "hash",
-  "note": "Same-session legacy (MM_NATIVE=0) vs native (MM_NATIVE=1) on the 2 vCPU / 1 GiB / no-SHA-NI dev container. Absolute KPI targets are for the reference 8C/16T NVMe machine (Plan §2.2); the ratio is the portable signal (BENCH methodology).",
+  "note": "Same-session legacy (MM_NATIVE=0) vs native (MM_NATIVE=1) on the 2 vCPU / 1 GiB / no-SHA-NI dev container. Absolute KPI targets are for the reference 8C/16T NVMe machine; the ratio is the portable signal (BENCH methodology).",
   "legacy": {
     "env": {
       "date": "2026-09-27T07:26:15+0000",

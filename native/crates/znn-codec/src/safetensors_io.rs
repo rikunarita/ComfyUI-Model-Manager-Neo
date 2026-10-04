@@ -1,6 +1,5 @@
 //! safetensors container I/O — mmap reads, an order-preserving canonical
-//! writer and atomic replacement (Plan §4.2.1 `safetensors_io.rs`, §4.3,
-//! §4.4.4, §4.7.4).
+//! writer and atomic replacement.
 //!
 //! # Format facts (primary sources, re-verified 2026-09-24)
 //!
@@ -24,7 +23,7 @@
 //!   The JSON key order is arbitrary for readers (entries are indexed by
 //!   name and sorted by offset internally).
 //!
-//! # Why Neo writes its own header (Plan §4.7.4)
+//! # Why Neo writes its own header
 //!
 //! The reference `serialize` re-sorts tensors and re-randomises metadata key
 //! order (its metadata map is a `HashMap`), so a torch-mediated round trip
@@ -32,15 +31,15 @@
 //! the source file's JSON key order and metadata order** and reproduces the
 //! canonical byte format, which makes decompression **byte-exact** for every
 //! file a standard tool wrote — and that guarantee is what turns
-//! `znn_neo_src_sha256` (Plan §4.4.3) into a real end-to-end check.
+//! `znn_neo_src_sha256` into a real end-to-end check.
 //! [`StContainer::canonical`] records whether a parsed file matches the
 //! canonical form byte-for-byte; sources that do not (hand-edited headers,
 //! exotic writers) still compress, but their restore is guaranteed at the
-//! weaker "tensor data + metadata values equal" level (Plan §4.7.4) and the
+//! weaker "tensor data + metadata values equal" level and the
 //! pipeline says so instead of failing the sha check blindly.
 //!
 //! All writes go through [`AtomicWriter`]: sibling `.tmp` → write → fsync →
-//! rename → fsync(parent dir) (Plan §4.4.4 — the legacy Python path has no
+//! rename → fsync(parent dir) (the legacy Python path has no
 //! fsync at all). ENOSPC surfaces as [`StError::Io`] with the partial file
 //! removed; nothing is ever renamed into place unverified.
 
@@ -77,7 +76,7 @@ pub enum StError {
     #[error("integrity verification failed: {0}")]
     Verification(String),
     /// A message that must reach the user VERBATIM (no prefix): the legacy
-    /// error-wording compatibility of Plan §4.5-6 — the UI displays these
+    /// error-wording compatibility contract — the UI displays these
     /// strings as-is and users search them, so they are contract, not prose
     /// (e.g. zipnn.py's delta length-mismatch ValueError).
     #[error("{0}")]
@@ -244,7 +243,7 @@ impl StContainer {
         })
     }
 
-    /// Parse from a file path via a read-only shared mmap (Plan §4.3: the
+    /// Parse from a file path via a read-only shared mmap (the
     /// model bytes never cross the Python boundary and are never copied —
     /// the OS page cache is the only buffer).
     ///
@@ -266,7 +265,7 @@ impl StContainer {
         // SAFETY: read-only shared mapping (MAP_SHARED, PROT_READ) of a
         // model file that Neo's flows never mutate while mapped — the same
         // exposure the incumbent stack already takes (Python safetensors'
-        // `safe_open` mmaps identically, Plan §7 R4: shared read mappings
+        // `safe_open` mmaps identically: shared read mappings
         // coexist with AV/indexer readers). A foreign writer racing the map
         // is outside the format contract; every CONSUMED byte still passes
         // the bounds/structure validation of `parse` and the codec's hostile
@@ -758,7 +757,7 @@ fn tensor_params(shape: &[u64]) -> u64 {
 }
 
 /// Fold a parsed header's tensor list into the display tree and encode it
-/// (Plan §4.7.3 "テンソルツリー事前グループ化", Phase 6).
+/// ("テンソルツリー事前グループ化", Phase 6).
 ///
 /// Grouping rule — identical to the frontend's historical `tensorTree`
 /// computed, which this replaces for the expensive part: a tensor name is split
@@ -926,7 +925,7 @@ pub fn tensor_tree_json(path: &Path, max_header: u64) -> StResult<String> {
 }
 
 /// Header-only parse for the model-detail display functions
-/// (`py/utils.py get_model_metadata` / `get_model_tensors`, Plan §4.7.3 / B4).
+/// (`py/utils.py get_model_metadata` / `get_model_tensors`).
 ///
 /// Reads just the leading JSON region (no data-region validation, no full-file
 /// mmap — a display read must succeed on a file whose tensor data is truncated
@@ -990,18 +989,18 @@ pub fn header_display_json(path: &Path, max_header: u64) -> StResult<String> {
 }
 
 // ---------------------------------------------------------------------------
-// Atomic writer (Plan §4.4.4)
+// Atomic writer
 // ---------------------------------------------------------------------------
 
-/// Sibling-tempfile atomic writer with optional inline SHA-256 (Plan
-/// §4.4.3: the decompressor verifies WITHOUT re-reading the file — the
+/// Sibling-tempfile atomic writer with optional inline SHA-256 (the
+/// decompressor verifies WITHOUT re-reading the file — the
 /// hasher consumes every byte exactly once on its way to disk).
 ///
 /// Lifecycle: `new` creates `<dst>.tmp` (the legacy naming, so the startup
 /// cleanup and the route-level failure cleanup recognise it) → `write_all`
 /// streams → [`finish`](Self::finish) flushes + fsyncs (the file is durable
 /// but still a tmp) → the caller VERIFIES → [`commit`](Self::commit) renames
-/// into place + fsyncs the parent directory (Plan §4.4.4: the original is
+/// into place + fsyncs the parent directory (the original is
 /// only ever replaced after verification succeeded). Any error — or a plain
 /// `drop` without `commit` (panic, process kill) — removes the partial file.
 pub struct AtomicWriter {
@@ -1136,7 +1135,7 @@ impl AtomicWriter {
     }
 
     /// Rename the finished `.tmp` into place + fsync the parent directory
-    /// (Plan §4.4.4 — makes the replacement itself crash-durable).
+    /// (makes the replacement itself crash-durable).
     ///
     /// The RENAME is the commit point: once it succeeds the artifact is live
     /// and a failing directory fsync must not turn a complete, verified file
@@ -1180,7 +1179,7 @@ impl AtomicWriter {
         let _ = std::fs::remove_file(&self.tmp);
     }
 
-    /// Verification-failure path (Plan §4.4.3): preserve the finished tmp as
+    /// Verification-failure path: preserve the finished tmp as
     /// a diagnostic artifact at `path` (the `.corrupt` retreat) instead of
     /// deleting it — the compressed source is NOT touched, so nothing is
     /// ever lost. An existing artifact at `path` is replaced.
@@ -1204,7 +1203,7 @@ impl AtomicWriter {
 impl Drop for AtomicWriter {
     fn drop(&mut self) {
         // A writer dropped WITHOUT commit() (error path, panic, kill, failed
-        // verification) must never leave a stray `.tmp` behind (Plan §4.4.4).
+        // verification) must never leave a stray `.tmp` behind.
         if !self.committed {
             self.inner = None;
             let _ = std::fs::remove_file(&self.tmp);
@@ -1222,7 +1221,7 @@ pub fn tmp_sibling(dst: &Path) -> PathBuf {
     PathBuf::from(s)
 }
 
-/// fsync a directory (POSIX): makes the rename itself durable (Plan §4.4.4).
+/// fsync a directory (POSIX): makes the rename itself durable.
 /// A no-op on platforms without directory fds (Windows).
 pub fn fsync_dir(dir: &Path) -> std::io::Result<()> {
     #[cfg(unix)]
@@ -1259,7 +1258,7 @@ pub fn is_enospc(e: &std::io::Error) -> bool {
 }
 
 /// SHA-256 of a byte image (the compressor hashes the mmap'd source on a
-/// worker thread while the tensor loop runs — Plan §4.4.3 step 1).
+/// worker thread while the tensor loop runs).
 pub fn sha256_chunks(
     data: &[u8],
     cancel: Option<&std::sync::atomic::AtomicBool>,

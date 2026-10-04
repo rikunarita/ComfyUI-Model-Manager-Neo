@@ -1,4 +1,4 @@
-//! Async job registry — the polling-based Python API of Plan §4.2.2:
+//! Async job registry — the polling-based Python API:
 //!
 //! ```text
 //! mm_core.zipnn_compress(src, dst, opts) -> handle
@@ -9,15 +9,15 @@
 //! mm_core.job_error(handle)    -> str | None
 //! ```
 //!
-//! Design invariants (Plan §4.2.2):
+//! Design invariants:
 //! * **no GIL round-trips from job threads** — jobs are pure-Rust threads
 //!   (never touching `Python`), the asyncio side POLLS the atomic progress
 //!   at ~10 Hz instead of the legacy `run_coroutine_threadsafe` callbacks;
 //! * **panics never escape** — the pipeline runs inside `catch_unwind` and a
 //!   panic becomes a regular job error (the workspace's `panic = "unwind"`
-//!   profile is what makes this possible; `abort` is forbidden, Plan §3.3);
+//!   profile is what makes this possible; `abort` is forbidden);
 //! * **cancellation is cooperative** at tensor/chunk boundaries and the
-//!   pipeline's `.tmp` guards remove partial output (Plan §4.2.2-4);
+//!   pipeline's `.tmp` guards remove partial output;
 //! * handles are process-local u64 ids; terminal jobs are swept by age and
 //!   registry-size caps so a long-lived ComfyUI process cannot leak.
 
@@ -351,7 +351,7 @@ fn spawn(kind: Kind, src: PathBuf, dst: PathBuf, opts: JobOpts) -> u64 {
     id
 }
 
-/// Parse the `opts` dict (Plan §4.2.2 — unknown keys are ignored so older
+/// Parse the `opts` dict (unknown keys are ignored so older
 /// binaries tolerate newer callers' option sets).
 fn parse_opts(opts: Option<&Bound<'_, PyDict>>) -> JobOpts {
     let mut out = JobOpts::default();
@@ -487,12 +487,12 @@ fn parse_delta_meta(meta: Option<&Bound<'_, PyDict>>) -> DeltaMeta {
     }
 }
 
-/// The batch walk primitive (Plan §4.2.2 `walk_models`): the parallel,
+/// The batch walk primitive (`walk_models`): the parallel,
 /// `os.walk`-faithful replacement of `py/compress.py`'s three Python
 /// walkers. SYNCHRONOUS (walks are latency-bound metadata scans the routes
 /// run inside executors anyway); returns a JSON array of path strings in
 /// the legacy `sorted(found)` order. The GIL is RELEASED for the walk
-/// itself (Plan §4.2.2 invariant 2 — a held GIL would freeze the ComfyUI
+/// itself (a held GIL would freeze the ComfyUI
 /// event loop for the whole walk even though the caller is an executor
 /// thread; regression-pinned by `test_walk_models_releases_the_gil`).
 ///
@@ -545,8 +545,8 @@ pub fn walk_models(
     let skip_bundles = get_bool("skipBundles");
 
     // The walk and its serialisation touch no Python object — release the
-    // GIL around them (Plan §4.2.2 invariant 2: long-running APIs must not
-    // freeze the interpreter). The batch routes call this from executors,
+    // GIL around them (long-running APIs must not freeze the
+    // interpreter). The batch routes call this from executors,
     // where a held GIL would block the ComfyUI event loop for the WHOLE
     // walk — seconds on network-storage libraries (the legacy `os.walk`
     // interleaved at bytecode boundaries; the Rust walk must not regress
@@ -572,13 +572,13 @@ pub fn walk_models(
 }
 
 /// Move every sidecar of `src` (20-slot previews + `.md`/`.txt` notes) to
-/// the matching names beside `dst` (Plan §4.2.2 `move_with_sidecars` — the
+/// the matching names beside `dst` (`move_with_sidecars` — the
 /// `_sidecar_move` / `_delta_sidecar_move` replacement; bundle semantics
 /// stay in Python). The model file itself is NOT moved (callers keep the
 /// legacy ordering: artifact first, sidecars second, source removal last).
 /// SYNCHRONOUS — renames are metadata operations — but the directory
-/// listing and the renames still run GIL-free (Plan §4.2.2 invariant 2;
-/// `readdir` + `rename` on network storage are not instant).
+/// listing and the renames still run GIL-free (`readdir` + `rename` on
+/// network storage are not instant).
 ///
 /// # Errors
 /// Rename failures (like the legacy `os.rename` `OSError`).

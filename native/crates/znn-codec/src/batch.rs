@@ -1,4 +1,4 @@
-//! Batch primitives (Phase 3, Plan §6.2): the mechanical halves of the
+//! Batch primitives (Phase 3): the mechanical halves of the
 //! folder-batch flow — a parallel directory walk (`walk_models`, the
 //! `os.walk` + name-filter + `sorted()` replacement) and the model sidecar
 //! mover (`move_with_sidecars`, the `_sidecar_move` / `_delta_sidecar_move`
@@ -7,7 +7,7 @@
 //! The BUNDLE SEMANTICS stay in Python (`py/compress.py`): which folder is
 //! a bundle, where compressed output lands (`_bundle_dst_root`), where a
 //! bundle empties back to (`_batch_restore_root` / `_decompress_target`) —
-//! Plan §6.2 Phase 3: "バンドル意味論（`*_DeltaZNN`・type-root 内包・
+//! Phase 3 rule: "バンドル意味論（`*_DeltaZNN`・type-root 内包・
 //! legacy `_ZNN`）は Python 現行ロジックを維持". This module only walks and
 //! moves, with every naming rule a faithful port of `py/utils.py` /
 //! `py/compress.py` (constants arrive through [`WalkOpts`] so the Python
@@ -18,8 +18,8 @@
 //! descended into and never listed as files, unreadable directories are
 //! skipped silently (`os.walk(onerror=None)`), and the result is sorted by
 //! the same path strings Python would sort. The walk itself is parallel
-//! (the `ignore` crate — Plan §3.7 first candidate), which is where the
-//! network-storage libraries of Plan §1.2.2 #9 get their latency back.
+//! (the `ignore` crate — the first candidate), which is where the
+//! network-storage libraries get their latency back.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -253,7 +253,7 @@ pub(crate) fn preview_candidate_names(basename: &str) -> Vec<String> {
 /// * the destination directory is created on demand;
 /// * the model file itself is NOT moved — the callers keep the legacy
 ///   ordering (artifact committed first, sidecars follow, the source model
-///   is removed last — Plan §4.4.3-5).
+///   is removed last).
 ///
 /// # Errors
 /// Rename failures (propagated like the legacy `os.rename` OSError — the

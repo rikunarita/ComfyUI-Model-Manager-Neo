@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """G2 gate — verify that a PGO profile was actually applied to a build.
 
-NEO-PLAN-2026-002 §6.2 (Step 3 pilot / Step 4 shipping jobs). Inputs:
+Part of the PGO pipeline (Step 3 pilot / Step 4 shipping jobs). Inputs:
 
 * ``show_txt``  — the output of ``llvm-profdata show merged.profdata``
 * ``build_log`` — the ``-Cprofile-use`` build log, built with
@@ -100,7 +100,7 @@ def main() -> int:
         return 1
     print(
         f"G2 OK: profile applied (missing {ratio:.2%} < {args.max_missing_ratio:.0%}"
-        " = benign fat-LTO/PGO inliner divergence; see Plan-2 §6.2)"
+        " = benign fat-LTO/PGO inliner divergence)"
     )
     return 0
 
