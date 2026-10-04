@@ -879,14 +879,6 @@ documents the workspace, the test pyramid and the fuzzing setup.
 | `pnpm fallow:fix:dry` / `fallow:fix`  | preview / apply automatic cleanup (always dry-run first)                |
 | `pnpm fallow:audit`                   | PR-style gate: only findings introduced by the current change           |
 
-> [!WARNING]
-> `pnpm dev` **deletes the whole `web/` directory** before writing
-> `manager-dev.js` (see the `dev()` plugin in `vite.config.ts`). That removes the
-> committed production bundle — `web/manager.js` and `web/style-*.css` — from the
-> working tree, so `git status` shows them as deleted. Committing in that state
-> would ship an extension whose UI no longer loads. Always run `pnpm build`
-> before committing, and never commit a tree where `web/manager.js` is missing.
-
 A **husky** `pre-commit` hook runs **lint-staged** on staged files (ESLint +
 Stylelint + Prettier for the frontend, Ruff for the backend) plus a full
 `pnpm typecheck`.

@@ -772,14 +772,6 @@ universal2、maturin/MSVC 生成 Windows）；[`native/README.md`](native/README
 | `pnpm fallow:fix:dry` / `fallow:fix`  | 自動清理預覽 / 應用（永遠先 dry-run）                         |
 | `pnpm fallow:audit`                   | PR 風格關卡：只報告當前變更引入的問題                         |
 
-> [!WARNING]
-> `pnpm dev` 在寫入 `manager-dev.js` 之前會**刪除整個 `web/` 目錄**（見
-> `vite.config.ts` 的 `dev()` 外掛）。這會從工作樹中移除已提交的生產
-> 打包產物 —— `web/manager.js` 與 `web/style-*.css` —— 於是 `git status`
-> 會顯示它們被刪除。在這種狀態下提交，會釋出一個 UI 再也載入不出來的
-> 擴充套件。提交前務必執行 `pnpm build`，絕不要提交缺少 `web/manager.js` 的
-> 工作樹。
-
 **husky** 的 `pre-commit` 鉤子會對暫存檔案執行 **lint-staged**（前端
 ESLint + Stylelint + Prettier，後端 Ruff），外加完整的 `pnpm typecheck`。
 
