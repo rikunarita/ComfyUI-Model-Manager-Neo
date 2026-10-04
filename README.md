@@ -101,7 +101,8 @@ the experience from the ground up:
   against their base model.
 - <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Upload to Hugging Face / ModelScope** — publish any local model straight to
   a Hugging Face or ModelScope repository (created for you if needed, with a
-  private option, related assets and live progress).
+  private option, related assets and live progress). ModelScope support —
+  download, upload, search and auth — is an entirely new integration in Neo.
 - <img src="https://api.iconify.design/lucide/radar.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Multi‑hub search & hash identify** — search Hugging Face, ModelScope and
   Civitai in parallel from a single input, and resolve any local file against
   the Civitai catalog by hash.
@@ -241,8 +242,9 @@ the `Extensions → Model Manager Neo` menu, or the command palette.
   (opening a model or adding it to the graph records the use).
 - Adjustable card size (presets plus fully custom dimensions).
 - Toggle visibility of hidden (`.`‑prefixed) files without restarting.
-- Image **and video** previews, glass folder artwork with hover open/close
-  animations, and a glass no‑preview fallback.
+- Image **and video** previews — any preview opens in a fullscreen
+  **lightbox** — glass folder artwork with hover open/close animations, and a
+  glass no‑preview fallback.
 - Type‑root folder cards carry the **aggregate size of their type** (a
   lightweight capacity dashboard), and models whose recorded SHA256 matches
   another file in the library raise a red **duplicate warning** in the detail
@@ -679,31 +681,37 @@ the PrimeVue dependency itself, and the batch‑scan feature — see
 ### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="26" height="26" align="middle" alt=""> Backend & engine
 
 The deepest changes are below the UI. The original is pure Python (7 backend
-modules, 15 HTTP routes); Neo grows to 16 Python modules and roughly 40 routes,
+modules, 19 HTTP routes); Neo grows to 16 Python modules and 42 routes,
 and moves every hot path into a prebuilt Rust extension (`native/`, PyO3 over
 the Stable ABI — see [the engine table](#the-engine)).
 A pure‑Python fallback survives only where a degraded answer beats an error:
 
-| Area                  | Original                                                                            | **Neo**                                                                                                                                                                  |
-| --------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Model listing         | recursive Python `os.scandir` per request                                           | Rust parallel walk + a persistent front‑matter index that survives restarts (5,000‑model scan ~7.5× faster cold, ~100 ms warm; entry‑for‑entry golden‑tested)            |
-| Model detail route    | header parsing ran **on the event loop** — a huge MoE header froze the whole server | executor‑backed, Rust‑parsed; the server stays responsive                                                                                                                |
-| Hashing               | one `hashlib` SHA‑256 loop                                                          | five notations (`SHA256`/`AutoV1`/`AutoV2`/`CRC32`/`BLAKE3`) in **one** streaming pass                                                                                   |
-| Download verification | full re‑read after completion                                                       | inline digest fed by the write loop — zero extra I/O — keeping the Civitai SHA‑256 gate                                                                                  |
-| safetensors headers   | `comfy.utils` + `json.loads`                                                        | Rust jiter parse behind one route (metadata + tensors + a pre‑grouped display tree; a 65k‑tensor MoE tree builds ~100× faster, wire‑format cross‑checked against the JS) |
-| ZipNN compression     | —                                                                                   | the whole engine: compress / decompress / folder batches / fine‑tune deltas, mmap‑streamed (< 1 GB RAM on any model), SHA‑256‑verified restore, cooperative cancellation |
-| Preview images        | PIL re‑encode; animations frozen to frame 1                                         | zenwebp (pure Rust) encode/decode; animated GIF/WebP previews stay **animated** (frames, durations, loop count and ICC profile preserved)                                |
-| Hub HTTP              | blocking `requests` inside thread‑pool workers                                      | one shared `aiohttp` session on the event loop (a stalled CDN can no longer pin a worker for the 120 s read timeout)                                                     |
-| Folder watching       | —                                                                                   | optional native `notify` watcher (default off): per‑type refresh in ~1.5 s, network mounts skipped, watch‑budget exhaustion degrades to the 30 s TTL refresh             |
-| Library hygiene       | —                                                                                   | orphaned sidecar / empty‑folder sweep with bulk cleanup                                                                                                                  |
-| Upload preflight      | —                                                                                   | duplicate‑detection hashing for HF/ModelScope uploads runs in the native core (GIL released)                                                                             |
-| Distribution          | the prebuilt web bundle is fetched from GitHub Releases on first launch             | the web bundle ships prebuilt in `web/` and the Rust core in `native/native-bin/` — first launch fetches nothing beyond the four Python dependencies                     |
+| Area                  | Original                                                                                                                           | **Neo**                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Model listing         | recursive Python `os.scandir` per request                                                                                          | Rust parallel walk + a persistent front‑matter index that survives restarts (5,000‑model scan ~7.5× faster cold, ~100 ms warm; entry‑for‑entry golden‑tested)                                                                                                                                                                                                |
+| Model detail route    | header parsing ran **on the event loop** — a huge MoE header froze the whole server                                                | executor‑backed, Rust‑parsed; the server stays responsive                                                                                                                                                                                                                                                                                                    |
+| Hashing               | one `hashlib` SHA‑256 loop                                                                                                         | five notations (`SHA256`/`AutoV1`/`AutoV2`/`CRC32`/`BLAKE3`) in **one** streaming pass                                                                                                                                                                                                                                                                       |
+| Download verification | full re‑read after completion                                                                                                      | inline digest fed by the write loop — zero extra I/O — keeping the Civitai SHA‑256 gate                                                                                                                                                                                                                                                                      |
+| safetensors headers   | `comfy.utils` + `json.loads`                                                                                                       | Rust jiter parse behind one route (metadata + tensors + a pre‑grouped display tree; a 65k‑tensor MoE tree builds ~100× faster, wire‑format cross‑checked against the JS)                                                                                                                                                                                     |
+| ZipNN compression     | —                                                                                                                                  | the whole engine: compress / decompress / folder batches / fine‑tune deltas, mmap‑streamed (< 1 GB RAM on any model), SHA‑256‑verified restore, cooperative cancellation                                                                                                                                                                                     |
+| Preview images        | PIL re‑encode; animations frozen to frame 1                                                                                        | zenwebp (pure Rust) encode/decode; animated GIF/WebP previews stay **animated** (frames, durations, loop count and ICC profile preserved)                                                                                                                                                                                                                    |
+| Hub integrations      | Civitai + Hugging Face only: page resolvers over blocking `requests`, files fetched through plain HTTP URLs — no ModelScope at all | **Civitai + Hugging Face + ModelScope** — ModelScope is an entirely new integration (download source, upload target, search hub and auth). SDK‑backed transfers (`huggingface_hub` + `hf_xet`, `modelscope_hub`), three‑hub parallel name search, per‑hub API keys in `private.key` (env fallbacks + migration from ComfyUI settings), hash reverse‑identify |
+| Hub HTTP              | blocking `requests` inside thread‑pool workers                                                                                     | one shared `aiohttp` session on the event loop (a stalled CDN can no longer pin a worker for the 120 s read timeout)                                                                                                                                                                                                                                         |
+| Folder watching       | —                                                                                                                                  | optional native `notify` watcher (default off): per‑type refresh in ~1.5 s, network mounts skipped, watch‑budget exhaustion degrades to the 30 s TTL refresh                                                                                                                                                                                                 |
+| Library hygiene       | —                                                                                                                                  | orphaned sidecar / empty‑folder sweep with bulk cleanup                                                                                                                                                                                                                                                                                                      |
+| Upload preflight      | —                                                                                                                                  | duplicate‑detection hashing for HF/ModelScope uploads runs in the native core (GIL released)                                                                                                                                                                                                                                                                 |
+| Distribution          | the prebuilt web bundle is fetched from GitHub Releases on first launch                                                            | the web bundle ships prebuilt in `web/` and the Rust core in `native/native-bin/` — first launch fetches nothing beyond the four Python dependencies                                                                                                                                                                                                         |
 
-Feature‑level additions on top of the original — upload to Hugging Face and
-ModelScope, multi‑hub search, hash identify, smart collections, stars,
-multi‑select, folder creation, direct‑link downloads, the free‑space guard, the
-Civitai download safety net, gallery previews, the Japanese and Traditional Chinese locales — are
-described in [Features](#features); every one of them is Neo‑side work.
+Feature‑level additions on top of the original — **the entire ModelScope
+integration** (download source, upload target, search hub and auth), upload to
+Hugging Face, SDK‑backed Hugging Face downloads (`huggingface_hub` + `hf_xet`;
+the original fetched plain resolve URLs), multi‑hub search, hash identify, smart
+collections, stars, recently‑used tracking and sort, multi‑select, folder
+creation, direct‑link downloads, the in‑browser “Download to local”, the
+free‑space guard, the Civitai download safety net, gallery previews,
+duplicate‑SHA256 warnings, sub‑directory labels and per‑type size totals, the
+fullscreen preview lightbox, and the Japanese and Traditional Chinese locales —
+are described in [Features](#features); every one of them is Neo‑side work.
 
 ### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="26" height="26" align="middle" alt=""> Packages
 
@@ -972,8 +980,9 @@ following the zstd huff0/FSE specification (RFC 8878) and FiniteStateEntropy
 
 This fork is a derivative work used and modified in accordance with the
 **GNU General Public License v3.0**. Modifications in Neo (the UI rebuild,
-PrimeVue removal, the Rust native core, ZipNN compression, HF/ModelScope
-upload, multi‑hub search and hash identify, package modernisation, toolchain,
+PrimeVue removal, the Rust native core, ZipNN compression, the Hugging Face /
+ModelScope hub integrations, multi‑hub search and hash identify, package
+modernisation, toolchain,
 the reliability and security hardening, the batch‑scan removal and the Japanese
 localisation — itemised in
 [What changed from the original](#what-changed)) are provided under the same
