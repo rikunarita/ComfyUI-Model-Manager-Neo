@@ -93,6 +93,13 @@
   （Actions 権限不足と default‑branch 制約）になるため、GitHub UI からの
   手動ディスパッチはユーザに依頼します。
 - **GitHub Actions の更新は 1 action ずつ別コミット**（bisect 可能にするため）。
+- **コミット前に必ず `pnpm build` を実行する**: `pnpm dev` は
+  `web/manager-dev.js` を書き出す前に **`web/` ディレクトリ全体を削除する**
+  （`vite.config.ts` の `dev()` プラグイン）。コミット済みの本番バンドル
+  （`web/manager.js` / `web/style-*.css`）がワークツリーから消え、
+  `git status` に削除として出るため、その状態でコミットすると UI が
+  読み込めない拡張機能を出荷することになります。`web/manager.js` が
+  欠けたツリーは絶対にコミットしません。
 - **コミットは日本語の conventional commits**（`type(scope): 概要` + 詳細本文）。
   pre‑commit フック = lint‑staged + `pnpm typecheck`。環境リセットで pnpm shim が
   消えた場合は `corepack enable --install-directory /usr/local/bin`

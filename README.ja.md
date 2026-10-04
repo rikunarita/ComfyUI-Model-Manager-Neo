@@ -853,14 +853,6 @@ maturin + lipo、Windows は maturin/MSVC）。ワークスペース・テスト
 | `pnpm fallow:fix:dry` / `fallow:fix`  | 自動クリーンアップのプレビュー / 適用（常にまず dry-run）                 |
 | `pnpm fallow:audit`                   | PR 風ゲート: 現在の変更が導入した指摘のみ                                 |
 
-> [!WARNING]
-> `pnpm dev` は `manager-dev.js` を書く前に **`web/` ディレクトリ全体を削除**
-> します（`vite.config.ts` の `dev()` プラグイン参照）。コミット済みの本番
-> バンドル — `web/manager.js` と `web/style-*.css` — がワークツリーから消え、
-> `git status` に削除として出ます。その状態でコミットすると UI が読み込めない
-> 拡張機能を出荷することになります。コミット前には必ず `pnpm build` を実行し、
-> `web/manager.js` が欠けたツリーを絶対にコミットしないでください。
-
 **husky** の `pre-commit` フックがステージされたファイルに **lint-staged**
 （フロントエンドは ESLint + Stylelint + Prettier、バックエンドは Ruff）と
 `pnpm typecheck` 全体を実行します。
