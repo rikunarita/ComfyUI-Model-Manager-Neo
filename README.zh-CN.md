@@ -1,3 +1,8 @@
+> [!CAUTION]
+> **本项目仍在积极开发中。**可能出现意料之外的 bug；由于功能正在陆续
+> 添加，部分成果物可能是半成品。界面今后也可能继续变化。欢迎反馈问题
+> 与提交 issue。
+
 <div align="center">
 
 # <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
@@ -199,10 +204,6 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
 
 通过顶栏的 **「Model Manager Neo」** 按钮、侧边栏、
 `Extensions → Model Manager Neo` 菜单或命令面板打开管理器。
-
-> [!TIP]
-> Neo 处于积极开发中 —— 已具备日常使用的完成度，但接口仍可能继续演进。
-> 欢迎反馈与 issue。
 
 ---
 
@@ -860,7 +861,7 @@ zstd huff0/FSE 规范（RFC 8878）与 FiniteStateEntropy（BSD‑2‑Clause）�
 [与原版相比改变了什么](#what-changed)）以相同的 GPL‑3.0 许可证提供。
 按许可证要求，原版版权声明与许可证全文保留在 [`LICENSE`](LICENSE) 中。
 
-### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="26" height="26" align="middle" alt=""> Built with Qwen Studio
+### <img src="https://api.iconify.design/logos/qwen-icon.svg" width="26" height="26" align="middle" alt=""> Built with Qwen Studio
 
 本 fork 的很大一部分是在与 **[Qwen Studio]** 的紧密协作中完成的：玻璃
 拟态 UI 重建、Rust 原生核心、ZipNN 压缩引擎、hub 上传流程、可靠性与
