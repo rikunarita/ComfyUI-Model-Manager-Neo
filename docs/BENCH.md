@@ -1029,12 +1029,12 @@ MMNEO_TSC=/tmp/mmneo-tsc/node_modules/typescript/bin/tsc \
 ブラウザ実機での paint 脚（K15 の残り半分）は DevTools コンソールで:
 
 ```js
-__mmNeoPerf.enable(); // 設定 → Model Manager Neo → UI → パフォーマンスマーク でも可
+__mmNeoPerf.enable() // 設定 → Model Manager Neo → UI → パフォーマンスマーク でも可
 // …マネージャを開いて検索を数回…
-__mmNeoPerf.summary(); // mm.grid.queryToPaint / mm.grid.initialRender の P50/P95/P99
+__mmNeoPerf.summary() // mm.grid.queryToPaint / mm.grid.initialRender の P50/P95/P99
 ```
 
-## 13. PGO 効果の実測（NEO‑PLAN‑2026‑002 Step 3、2026‑10‑01、run #107 初実走）
+## 13. PGO 効果の実測（パイロット計測 Step 3、2026‑10‑01、run #107 初実走）
 
 `pgo-measure` ジョブ（ubuntu‑latest）による実測。同一コミット（`42ae568`）から
 ビルドした baseline 成果物と PGO 成果物（zigbuild・glibc 2.28 床・strip 済み）を、

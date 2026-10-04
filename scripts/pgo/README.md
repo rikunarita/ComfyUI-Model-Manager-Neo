@@ -1,4 +1,4 @@
-# `scripts/pgo/` — PGO トレーニング / 計測ドライバ（NEO‑PLAN‑2026‑002）
+# `scripts/pgo/` — PGO トレーニング / 計測ドライバ
 
 `mm_core`（Rust ネイティブコア）の **PGO（プロファイル誘導最適化）** 用
 ワークロードドライバです。設計と段階計画・運営記録の文書は計画完了に伴い
@@ -84,7 +84,7 @@ CI では **出荷ビルド自体が PGO 化されています**（`native-build
 `[pgo-measure]` マーカーで起動）が上記 1–5 を一括実行し、G1（compress /
 decompress +3 %）を job summary へ出力します。
 
-**abi3t（`<tag>t`）成果物は v1 非 PGO（NEO‑PLAN‑2026‑003 D2）** —
+**abi3t（`<tag>t`）成果物は v1 非 PGO** —
 フリースレッドホストでの LLVM profile runtime の挙動（profraw 生成・merge・
 G2 形状の再現性）が未実測のため。「未検証の PGO 組み合わせが出荷を壊す」の
 実例は macOS の計装 fat dylib SIGSEGV（判断 (c)）。GIL 側の PGO

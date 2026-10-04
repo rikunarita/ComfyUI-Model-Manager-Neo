@@ -140,10 +140,10 @@ native/
 - **edition 2024 / resolver 2**、`rust-version = "1.85"`（edition 2024 の下限。
   PyO3 の MSRV は 1.83 で、clippy.toml の msrv は Cargo.toml と揃えて 1.85）。
 - **abi3-py312**: 1 バイナリで CPython 3.12 以降をカバー（リポジトリの
-  `requires-python >= 3.12` と整合。NEO‑PLAN‑2026‑003 で floor を 3.10 → 3.12 へ
+  `requires-python >= 3.12` と整合。2026‑10 に floor を 3.10 → 3.12 へ
   引き上げ — CPython 3.10 は 2026‑10‑01 に EOL 到達済み・ComfyUI の文書化
   サポート下限が 3.12）。
-- **abi3t-py315（`ft` feature・NEO‑PLAN‑2026‑003）**: フリースレッド CPython
+- **abi3t-py315（`ft` feature）**: フリースレッド CPython
   3.15+ 向けの `<tag>t` 成果物（PEP 803 — 安定 ABI のフリースレッド版）。
   `stable-abi` とは**排他**でビルドする（同時有効化は成果物フレーバをホスト依存に
   するため — native‑test の toggle ゲートが cargo metadata から機械禁止）。
@@ -175,7 +175,7 @@ native/
 rustup toolchain install stable   # rustfmt / clippy コンポーネント込み
 ```
 
-### 2. リンカー（rust‑lld 既定 — 追加インストール不要、NEO‑PLAN‑2026‑002 Step 1）
+### 2. リンカー（rust‑lld 既定 — 追加インストール不要）
 
 Linux ネイティブビルドは **rustc 同梱の rust‑lld** を使います
 （Rust 1.90 以降、`x86_64-unknown-linux-gnu` の既定リンカー）。
@@ -256,7 +256,7 @@ scripts/build-native.sh --target windows-x86_64 --size-gate --pgo-train  # matur
 # macOS universal2 は非 PGO 出荷（run #107 実証による判断 (c) — 下記 PGO 節）
 ```
 
-## PGO（プロファイル誘導最適化 — NEO‑PLAN‑2026‑002）
+## PGO（プロファイル誘導最適化）
 
 配布バイナリの実行時最適化として、計装ベースの PGO が **linux-x86_64 /
 Windows の出荷ビルドに組み込み済み**です（macOS universal2 と
@@ -313,18 +313,18 @@ readelf・lipo 等の無い環境でも
 
 ### 検証状況（Phase 0 完了、2026‑09‑23、native.yml @ 81854f5 全ジョブ緑）
 
-| ターゲット            | ビルド経路                                                                          | 検証結果                                                                                                       |
-| --------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| linux-x86_64          | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル + CI 緑。import 疎通: CPython **3.10 / 3.11 / 3.13**（410,416 B）                                     |
-| linux-aarch64         | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル（readelf で AArch64 + GLIBC≤2.28 確認）+ CI 緑（383,824 B）                                           |
-| windows-x86_64 (MSVC) | maturin（windows-latest）                                                           | CI 緑。import 疎通: CPython 3.11（163,840 B、`mm_core.pyd`）                                                   |
-| macos-universal2      | maturin universal2 = 両 arch + lipo                                                 | CI 緑。lipo: x86_64+arm64、import 疎通: CPython 3.11 arm64（666,032 B）                                        |
-| linux-x86_64t         | cargo zigbuild `--no-default-features --features extension-module,ft`（非 PGO・D2） | CI 実走待ち（NEO‑PLAN‑2026‑003 で 2026‑10‑03 実装。import 疎通 = 3.15.0‑rc.2 GIL + 3.15.0‑rc.2t の両フレーバ） |
-| linux-aarch64t        | 同上（クロス・非 PGO）                                                              | CI 実走待ち                                                                                                    |
-| macos-universal2t     | maturin `--no-default-features --features ft` universal2（非 PGO）                  | CI 実走待ち（lipo + 両フレーバ import 疎通）                                                                   |
-| windows-x86_64t       | maturin `--no-default-features --features ft`（非 PGO）                             | CI 実走待ち（`mm_core.pyd` — PEP 803 も Windows の拡張子は変えない。GIL 版と `<tag>t` ディレクトリで分離）     |
+| ターゲット            | ビルド経路                                                                          | 検証結果                                                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| linux-x86_64          | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル + CI 緑。import 疎通: CPython **3.10 / 3.11 / 3.13**（410,416 B）                                 |
+| linux-aarch64         | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル（readelf で AArch64 + GLIBC≤2.28 確認）+ CI 緑（383,824 B）                                       |
+| windows-x86_64 (MSVC) | maturin（windows-latest）                                                           | CI 緑。import 疎通: CPython 3.11（163,840 B、`mm_core.pyd`）                                               |
+| macos-universal2      | maturin universal2 = 両 arch + lipo                                                 | CI 緑。lipo: x86_64+arm64、import 疎通: CPython 3.11 arm64（666,032 B）                                    |
+| linux-x86_64t         | cargo zigbuild `--no-default-features --features extension-module,ft`（非 PGO・D2） | CI 実走待ち（2026‑10‑03 実装。import 疎通 = 3.15.0‑rc.2 GIL + 3.15.0‑rc.2t の両フレーバ）                  |
+| linux-aarch64t        | 同上（クロス・非 PGO）                                                              | CI 実走待ち                                                                                                |
+| macos-universal2t     | maturin `--no-default-features --features ft` universal2（非 PGO）                  | CI 実走待ち（lipo + 両フレーバ import 疎通）                                                               |
+| windows-x86_64t       | maturin `--no-default-features --features ft`（非 PGO）                             | CI 実走待ち（`mm_core.pyd` — PEP 803 も Windows の拡張子は変えない。GIL 版と `<tag>t` ディレクトリで分離） |
 
-**NEO‑PLAN‑2026‑003（2026‑10‑03）以降の検証マトリクス**: floor 3.12 化により
+**2026‑10‑03 以降の検証マトリクス**: floor 3.12 化により
 abi3 の CI 検証解釈系は **3.12 / 3.14**（上表 GIL 行の 3.10 / 3.11 / 3.13 は旧 floor
 時代の実証史）。t 4 本の検証解釈系は **3.15.0‑rc.2（GIL）+ 3.15.0‑rc.2t
 （フリースレッド）**— 各 build job の両フレーバ import スモーク + abi3‑import の

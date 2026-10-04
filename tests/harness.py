@@ -282,7 +282,7 @@ def synth_fp8(n: int, seed: int = 1, low_entropy: bool = False) -> bytes:
 # ---------------------------------------------------------------------------
 # L4 model corpus (Phase 2)
 #
-# Synthetic stand-ins for the corpus classes of the plan (sd1.5-fp16,
+# Synthetic stand-ins for the planned corpus classes (sd1.5-fp16,
 # sdxl-fp16, flux-fp8, LLM-bf16, VAE-f32, MoE huge-header, complex64 audio,
 # f64 synth) — same dtypes / naming patterns / header shapes at CI-friendly
 # sizes. The 12 GB-scale KPI runs used dedicated bench fixtures instead (the
