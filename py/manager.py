@@ -108,7 +108,7 @@ class ModelManager:
 
         @routes.get("/model-manager/watch-status")
         async def watch_status(request):
-            """Diagnostics of the optional library watcher (Plan §4.7.2-2).
+            """Diagnostics of the optional library watcher.
 
             Read-only: whether the setting is on, whether the polling task and
             the native session are up, how many roots are armed (network roots
@@ -280,7 +280,7 @@ class ModelManager:
                 # inline froze the server event loop for the whole operation
                 # (and deadlocks outright when the preview URL points back at
                 # ComfyUI itself).
-                # Plan Phase 7 T8: the HTTP fetch now runs on the event loop
+                # Phase 7 T8: the HTTP fetch now runs on the event loop
                 # (resolve_preview_sources via the shared aiohttp session), so a
                 # stalled CDN no longer pins one of the eight io-executor workers
                 # for the 120 s read timeout; only the millisecond-scale PIL /
@@ -293,7 +293,7 @@ class ModelManager:
                 await utils.notify_models_changed(model_type, "update")
                 # An edit can MOVE the model to another type; invalidate both
                 # listings so the destination grid picks it up and the source
-                # drops it (Plan §4.7.2-1).
+                # drops it.
                 new_type = model_data.get("type")
                 if isinstance(new_type, str) and new_type and new_type != model_type:
                     await utils.notify_models_changed(new_type, "update")
@@ -374,7 +374,7 @@ class ModelManager:
                 os.makedirs(target)
             except Exception as e:
                 return web.json_response({"success": False, "error": str(e)})
-            # Plan §4.7.2-1: a new folder changes the listing of that type, so
+            # A new folder changes the listing of that type, so
             # the other clients invalidate it too (the creating client's own
             # refresh and this broadcast are deduped by the frontend's
             # generation guard). Without it, a folder created in one browser
@@ -385,12 +385,12 @@ class ModelManager:
     def scan_models(self, folder: str, include_hidden_files: bool = False):
         folders, *_ = folder_paths.folder_names_and_paths[folder]
 
-        # Native path (Phase 5, Plan §4.7.1): the Rust parallel walk returns the
+        # Native path (Phase 5): the Rust parallel walk returns the
         # EXACT same JSON shape as the Python walk below (golden-tested entry
         # for entry in tests/test_phase5_scan.py). The naming constants arrive
         # from py/utils + folder_paths so the Python side stays the single
-        # source of truth; `indexDir` enables the persistent front-matter cache
-        # (Plan §4.7.1-3). A native failure degrades to the Python walk rather
+        # source of truth; `indexDir` enables the persistent front-matter cache.
+        # A native failure degrades to the Python walk rather
         # than failing the listing (the scan must never break the grid).
         mm = native.core_if_enabled()
         if mm is not None:
@@ -531,7 +531,7 @@ class ModelManager:
                 continue
             dir_names: dict[str, set[str]] = {}
             file_entries = get_all_files_entry(base_path, dir_names)
-            # Deterministic listing order (Plan §4.7.1 安定順序): sort the walk
+            # Deterministic listing order (安定順序): sort the walk
             # by normalised path so the order never shifts between refreshes AND
             # matches the native Rust scan entry-for-entry (golden parity — the
             # native walk sorts by the same key). The grid re-sorts by the
@@ -556,7 +556,7 @@ class ModelManager:
         return result
 
     def scan_hygiene(self):
-        # Native path (Phase 5, Plan §4.7.1): the Rust walk returns the same
+        # Native path (Phase 5): the Rust walk returns the same
         # `{orphans, empty}` JSON (golden-tested against the Python walk below).
         mm = native.core_if_enabled()
         if mm is not None:
@@ -616,7 +616,7 @@ class ModelManager:
                                 "sizeBytes": 0,
                             }
                         )
-        # Deterministic order (Plan §4.7.1): the os.walk order is FS-dependent,
+        # Deterministic order: the os.walk order is FS-dependent,
         # so sort the report to match the native Rust scan entry-for-entry
         # (golden parity) and to keep the listing stable between refreshes.
         orphans.sort(key=lambda d: (d["type"], d["pathIndex"], d["fullname"]))
@@ -626,7 +626,7 @@ class ModelManager:
     def get_model_info(self, model_path: str):
         directory = os.path.dirname(model_path)
 
-        # ONE header fetch for the whole detail payload (Plan §4.7.3): the
+        # ONE header fetch for the whole detail payload: the
         # native path parses the safetensors header once for metadata+tensors
         # and once for the pre-grouped display tree, instead of the two
         # separate parses `get_model_metadata` + `get_model_tensors` did.
@@ -650,7 +650,7 @@ class ModelManager:
         }
 
     async def _resolve_update_previews(self, model_data: dict) -> tuple | None:
-        """Resolve the editor gallery on the event loop (Plan Phase 7 T8).
+        """Resolve the editor gallery on the event loop (Phase 7 T8).
 
         Returns ``None`` (no preview work), ``("write", staged)`` (a resolved
         gallery to rewrite) or ``("remove",)`` (an emptied gallery to delete).

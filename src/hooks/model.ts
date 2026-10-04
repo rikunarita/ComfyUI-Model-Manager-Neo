@@ -114,7 +114,7 @@ export const useModels = defineStore('models', store => {
   provide(modelFolderProvideKey, folders)
 
   /**
-   * The model listing, per type (C3 — Plan §4.8, R8).
+   * The model listing, per type (C3).
    *
    * `shallowRef`, not `ref`: a 5,000-model library used to be wrapped in deep
    * reactive Proxies (every model object, every nested `metadata` map), which
@@ -462,7 +462,7 @@ export const useModels = defineStore('models', store => {
     api.getSystemStats().then((res: any) => {
       systemStat.value = res
     })
-    // Unified invalidation (Plan §4.7.2-1): the backend broadcasts
+    // Unified invalidation: the backend broadcasts
     // `models_changed {type, reason}` after operations that have no dedicated
     // completion event of their own (rename / move / delete). Re-fetch ONLY the
     // affected type (a partial refresh — the generation guard in refreshModels
@@ -834,7 +834,7 @@ export const useModelFolder = (option: { type?: MaybeRefOrGetter<string | undefi
 
     const folderItems = cloneDeep(models.value[type]) ?? []
     const pureFolders = folderItems.filter(item => item.isFolder)
-    // C2 (Plan §4.8): shared Intl.Collator instead of String#localeCompare.
+    // C2: shared Intl.Collator instead of String#localeCompare.
     pureFolders.sort((a, b) => compareText(a.basename, b.basename))
 
     const folders = modelFolders.value[type] ?? []

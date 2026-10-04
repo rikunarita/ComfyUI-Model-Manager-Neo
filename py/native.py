@@ -1,11 +1,11 @@
 """Loader for the Rust native core (``mm_core``).
 
-Phase 0 scaffold of the native-core refresh (``Agent/Plan.md`` §4.2.3): the
-heavy ZipNN/scan/hash work moves into a Rust extension module that ships as
+Phase 0 scaffold of the native-core refresh: the heavy ZipNN/scan/hash
+work moves into a Rust extension module that ships as
 **prebuilt binaries** under ``native/native-bin/<platform tag>/``. Loading is
 deliberately dumb and side-effect free — platform detection, one ``sys.path``
 entry, one ``import``, one version check. **No compilation, no pip, no
-network** (Plan §2.1-5); when anything does not line up, the module simply
+network**; when anything does not line up, the module simply
 reports ``available() is False`` plus a human-readable ``reason()``.
 
 Phase 8 removed the ``MM_NATIVE`` transition switch: the prebuilt core under
@@ -16,7 +16,7 @@ the handshake fails it reports ``available() is False`` plus a human-readable
 fail with that reason (there is no other engine), while resilient read paths
 (scan / header / hashes) keep their pure-Python fallbacks.
 
-NEO-PLAN-2026-003 added the interpreter-FLAVOUR routing on top of that
+The abi3t work (2026-10) added the interpreter-FLAVOUR routing on top of that
 contract: free-threaded CPython 3.15+ is served by the ``<tag>t`` abi3t
 artifacts (PEP 803 — a free-threaded build cannot load the plain abi3
 binaries), GIL builds stay on ``<tag>`` (abi3-py312 floor), and interpreters
@@ -33,8 +33,8 @@ from types import ModuleType
 
 from . import config, utils
 
-# The Python-facing API surface this backend understands (Plan §4.2.2
-# `api_version()`); bump together with the Rust constant in
+# The Python-facing API surface this backend understands
+# (`api_version()`); bump together with the Rust constant in
 # native/crates/mm-core/src/lib.rs.
 #
 # * 1 — Phase 0: version handshake only,
@@ -48,12 +48,12 @@ from . import config, utils
 #   py/manager.py, py/utils.py, py/identify.py and py/download.py call
 #   directly, plus the persistent front-matter index.
 # * 5 — Phase 6: the display tensor tree (safetensors_tensor_tree, the Rust
-#   pre-grouping of Plan §4.7.3) that py/utils.py serves to the model-detail
+#   pre-grouping) that py/utils.py serves to the model-detail
 #   route, plus the optional library watcher (watch_start/watch_poll/
-#   watch_stop/watch_diagnostics, Plan §4.7.2-2) that py/watcher.py drives.
+#   watch_stop/watch_diagnostics) that py/watcher.py drives.
 # * 6 — Phase 7 (T7): the preview WebP codec (webp_decode / webp_encode /
-#   webp_encode_animation, the zenwebp-backed pure-Rust encode/decode/animation
-#   of Plan §3.8 追記) that py/utils.py's preview pipeline calls with a PIL
+#   webp_encode_animation, the zenwebp-backed pure-Rust encode/decode/animation)
+#   that py/utils.py's preview pipeline calls with a PIL
 #   fallback.
 # The range is EXACT (min == max): an older binary would pass a `>=` handshake
 # and then fail with an AttributeError deep inside a compression task — an
@@ -61,14 +61,14 @@ from . import config, utils
 MIN_API_VERSION = 6
 MAX_API_VERSION = 6
 
-# Interpreter floors (NEO-PLAN-2026-003). The GIL-build artifacts are built
+# Interpreter floors. The GIL-build artifacts are built
 # against the `abi3-py312` Stable ABI floor; importing them on an older
 # interpreter dies with unreadable undefined-symbol errors, so the loader
 # refuses EARLY and converts that into the degrade contract's reason().
 # Free-threaded builds get their own artifact family (`<tag>t`, the PEP 803
 # `abi3t` stable ABI): abi3t exists only from CPython 3.15 onward, and a
 # free-threaded build cannot load the plain abi3 binaries — so free-threaded
-# 3.13/3.14 degrade with an explicit reason as well (Plan-3 §3.3/R8).
+# 3.13/3.14 degrade with an explicit reason as well.
 MIN_GIL_VERSION = (3, 12)
 MIN_FT_VERSION = (3, 15)
 
@@ -87,7 +87,7 @@ _attempted = False
 def is_free_threaded() -> bool:
     """True on a free-threaded (GIL-disabled BUILD) CPython.
 
-    The single flavour-detection point of the loader (Plan-3 §3.3):
+    The single flavour-detection point of the loader:
     ``Py_GIL_DISABLED`` is the documented build-time flag (defined from
     CPython 3.13 onward; absent or 0 on GIL builds) and ``sys.abiflags``
     carrying ``t`` is the same fact from the interpreter's own ABI flags —
@@ -103,7 +103,7 @@ def is_free_threaded() -> bool:
 def _base_platform_tag() -> str | None:
     """The OS/architecture tag WITHOUT the flavour suffix, or None.
 
-    Tags follow Plan §4.2.1: ``linux-x86_64``, ``linux-aarch64``,
+    Tags: ``linux-x86_64``, ``linux-aarch64``,
     ``windows-x86_64``, ``macos-universal2`` (one fat binary serves both
     Intel and Apple Silicon). Anything else (32-bit, exotic architectures)
     has no prebuilt support.
@@ -117,7 +117,7 @@ def _base_platform_tag() -> str | None:
             return "linux-aarch64"
     elif system == "Windows":
         # Windows reports AMD64 for x86_64 (and ARM64 for aarch64, which has
-        # no prebuilt binary — Plan §4.2.1).
+        # no prebuilt binary).
         if machine in ("amd64", "x86_64"):
             return "windows-x86_64"
     elif system == "Darwin":
@@ -129,8 +129,8 @@ def _base_platform_tag() -> str | None:
 def platform_tag() -> str | None:
     """The ``native-bin/`` subdirectory for this machine, or None.
 
-    NEO-PLAN-2026-003 routes each interpreter flavour to its own artifact
-    family on top of the Plan §4.2.1 base tags:
+    The abi3t work (2026-10) routes each interpreter flavour to its own
+    artifact family on top of the base tags:
 
     * GIL build >= 3.12 → ``<tag>`` (the abi3-py312 binaries),
     * free-threaded build >= 3.15 → ``<tag>t`` (the abi3t binaries, PEP 803;
@@ -193,7 +193,7 @@ def load() -> bool:
     if tag is None:
         # Interpreter-floor rejections (GIL < 3.12 / free-threaded < 3.15)
         # carry their own actionable reason; anything else is the classic
-        # unsupported-OS/architecture case (NEO-PLAN-2026-003 §3.3).
+        # unsupported-OS/architecture case.
         _reason = tag_rejection_reason() or (f"no prebuilt native core for {platform.system()}/{platform.machine()}")
         return False
 

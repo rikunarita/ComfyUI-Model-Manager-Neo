@@ -1,12 +1,12 @@
-//! Library scan + hygiene scan (Phase 5, Plan §4.7.1).
+//! Library scan + hygiene scan (Phase 5).
 //!
 //! The Rust port of `py/manager.py ModelManager.scan_models()` and
-//! `scan_hygiene()`: a PARALLEL directory walk (`rayon`, Plan §3.7 `ignore`
+//! `scan_hygiene()`: a PARALLEL directory walk (`rayon`, the `ignore`
 //! family) that resolves previews against a zero-stat directory name set,
 //! parses the `.md` front-matter (through the persistent [`SiteIndex`]),
 //! stats each entry and serialises the EXACT JSON shape the current Python
 //! route returns — so the frontend needs no change and the two engines are
-//! golden-identical (Plan §6.2 Phase 5 "現行 JSON 形状 golden テスト").
+//! golden-identical ("現行 JSON 形状 golden テスト").
 //!
 //! Faithfulness notes (every rule mirrors the Python it replaces):
 //! * **entry set** — a file is collected iff its `os.path.splitext` extension
@@ -33,7 +33,7 @@
 //!   `updatedAt = round(st_mtime_ns / 1e6)`, reproducing Python's
 //!   round-half-to-even float division bit-for-bit (`f64::round_ties_even`);
 //! * **order** — entries are sorted by `(pathIndex, path)` so the listing is
-//!   fully deterministic between refreshes (Plan §4.7.1 "安定順序"); the
+//!   fully deterministic between refreshes ("安定順序"); the
 //!   Python reference sorts identically, so the two agree entry-for-entry.
 
 use std::collections::{HashMap, HashSet};
@@ -50,7 +50,7 @@ use crate::index::{SiteIndex, SiteRecord};
 
 // ---------------------------------------------------------------------------
 // Options (every naming constant arrives from Python — py/utils.py and
-// folder_paths stay the single source of truth, Plan §4.7.1).
+// folder_paths stay the single source of truth).
 // ---------------------------------------------------------------------------
 
 /// Configuration of one [`scan_models`] call (one model type).
@@ -69,7 +69,7 @@ pub struct ScanOpts {
     pub no_preview_url: String,
     /// The preview route prefix (`/model-manager/preview`).
     pub preview_url_prefix: String,
-    /// The persistent front-matter cache (Plan §4.7.1‑3). `None` = parse every
+    /// The persistent front-matter cache. `None` = parse every
     /// sidecar each scan (still correct, just not cached across restarts).
     pub index: Option<Arc<SiteIndex>>,
 }
@@ -363,7 +363,7 @@ pub fn scan_models(opts: &ScanOpts) -> String {
         ),
     );
     // Deterministic order: (pathIndex, path) — matches the Python reference's
-    // per-base sort (Plan §4.7.1 安定順序).
+    // per-base sort (安定順序).
     entries.sort_by(|a, b| {
         a.path_index
             .cmp(&b.path_index)
@@ -659,8 +659,8 @@ fn is_sidecar_name(name: &str) -> bool {
     PREVIEW_EXT_SET.contains(&ext) || name.ends_with(".md") || name.ends_with(".txt")
 }
 
-/// Local-only hygiene sweep: orphaned sidecars and empty folders (Plan §4.7.1
-/// "衛生スキャン … も同一 walk 基盤で Rust 化"). Name-set based — no hashing,
+/// Local-only hygiene sweep: orphaned sidecars and empty folders
+/// ("衛生スキャン … も同一 walk 基盤で Rust 化"). Name-set based — no hashing,
 /// no network. The report groups by type (the `base_paths` order) and is sorted
 /// deterministically within a type so the two engines agree.
 #[must_use]

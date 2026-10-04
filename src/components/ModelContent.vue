@@ -116,7 +116,7 @@ const emits = defineEmits<{
 
 /**
  * The heavy READ-ONLY display payloads of a model detail: the exact tensor list
- * and its Rust-folded tree (Plan §4.7.3, Phase 6).
+ * and its Rust-folded tree (Phase 6).
  *
  * Neither is editable through this form and neither is sent by the save path
  * (`hooks/model.ts buildUpdatePayload` submits only preview / description /

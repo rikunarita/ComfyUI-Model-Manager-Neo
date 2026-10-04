@@ -1,6 +1,6 @@
 /**
- * C5 — the permanent performance-mark instrumentation base (Plan §4.8‑C5,
- * K15 "検索 keystroke → 描画 ≤ 16 ms (P95) / 初回グリッド描画 ≤ 1 s").
+ * C5 — the permanent performance-mark instrumentation base (K15
+ * "検索 keystroke → 描画 ≤ 16 ms (P95) / 初回グリッド描画 ≤ 1 s").
  *
  * Two halves:
  *

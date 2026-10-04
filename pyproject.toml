@@ -21,7 +21,7 @@ Icon = ""
 
 # ---------------------------------------------------------------------------
 # uv: Python package management for the DEVELOPMENT and CI layers only
-# (Plan Phase 7 T4 - a pip replacement). The runtime contract is unchanged:
+# (Phase 7 T4 - a pip replacement). The runtime contract is unchanged:
 # requirements.txt (read by ComfyUI / ComfyUI-Manager) and __init__.py ->
 # utils.pip_install run inside the USER's ComfyUI Python, where uv cannot be
 # assumed. The frontend (pnpm) is entirely out of scope for uv.
@@ -30,14 +30,14 @@ Icon = ""
 # to install dependencies without building/installing the project itself.
 # uv.lock (committed) pins the resolved versions for cross-platform
 # reproducibility - `uv sync --frozen` rebuilds the whole dev/test environment
-# in one shot (MEMO §2.2 steps 3-4). requirements.txt stays the runtime source
+# in one shot. requirements.txt stays the runtime source
 # of truth; the lock is generated from this pyproject (one-way).
 # ---------------------------------------------------------------------------
 [tool.uv]
 package = false
 
 # torch's CPU wheels are ~200 MB lighter than the default CUDA build; the
-# EXPLICIT index keeps ONLY torch on the CPU wheelhouse (Plan T4). Every other
+# EXPLICIT index keeps ONLY torch on the CPU wheelhouse (T4). Every other
 # package still resolves from the default index.
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -72,7 +72,7 @@ dev = [
 ]
 
 # ---------------------------------------------------------------------------
-# mypy: static types for the Python backend (Plan Phase 7 T5 - the former
+# mypy: static types for the Python backend (Phase 7 T5 - the former
 # mypy.ini, mechanically converted; mypy >= 1.x auto-discovers `[tool.mypy]`
 # in pyproject.toml, verified on mypy 2.3.1).
 #
@@ -118,7 +118,7 @@ warn_unused_ignores = true
 # plus import sorting; two families are consciously ignored (see below).
 # ---------------------------------------------------------------------------
 [tool.ruff]
-target-version = "py312" # Python floor: the abi3-py312 native core (NEO-PLAN-2026-003; 3.10 hit EOL 2026-10-01)
+target-version = "py312" # Python floor: the abi3-py312 native core (3.10 hit EOL 2026-10-01)
 line-length = 120
 extend-exclude = ["web", "downloads", "demo"]
 

@@ -421,4 +421,99 @@ date:           Mon Sep 14 13:41:35 UTC 2026
 
 ---
 
+## 11. ツールチェーン導入・運用の実地メモ（2026‑10‑04 追記）
+
+2026 年 9–10 月の開発セッションで、開発ツールチェーン（Rust / Node /
+Python / pnpm / uv）を実際に導入・運用する過程で追加観測された事実です。
+開発セッションの記録から恒久記録として転記しました。
+本レポート冒頭の調査（§1–§10）とあわせて参照してください。
+
+### 11.1 永続性とスナップショット
+
+- `apt-get install` / `pip install` / `npm install -g` / rustup と、
+  node_modules・native/target は**セッションをまたいで永続しない**。
+  スナップショット対象は `/home/user` 配下の通常ファイルのみで、生成
+  ディレクトリ（node_modules・.venv・dist・build・\_\_pycache\_\_・.cache・
+  native/target 等）は除外される。パッケージはセッション毎の再インストール
+  前提。
+- **`.git` も失われうる**。コミットがリモートへ push 済みなら再 clone で
+  無損失。セッション冒頭はリモートの dev tip を確認する
+  （force‑push 巻き戻しの復旧前例あり）。
+- `HOME` は `/tmp`（`/root` ではない）。環境リセット後は pnpm shim が消え、
+  husky pre‑commit が `pnpm: not found` でコミットを落とす →
+  `corepack enable --install-directory /usr/local/bin`。
+- ディスク使用の実績: torch CPU + Rust stable + nightly + fuzz 依存で
+  **≈7 GB**（9.9 GB 総量に対して）。`native/target` の肥大に注意
+  （cargo‑fuzz は別ツリーの target を使う）。
+
+### 11.2 Rust ツールチェーン
+
+- **rustup のインストールスクリプト（sh.rustup.rs）は curl / wget を要求する**
+  （この環境にはどちらも無い）→
+  `static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init` の
+  **バイナリを Python urllib で直接取得**して実行する（ネットワーク機能を
+  内蔵しており、スクリプトを介す必要がない）。
+- **cc が無いと cc‑rs を使うクレート（blake3 等）の build script リンクが
+  失敗する** → `pip install ziglang` による **cc shim**
+  （`python3 -m ziglang cc` へ委譲。cc‑rs が渡す
+  `--target=x86_64-unknown-linux-gnu` は zig が解釈できないため、shim 内で
+  `--target=x86_64-linux-gnu` へ変換する）+ **llvm‑ar shim**
+  （`rustup component add llvm-tools` の `llvm-ar` を `ar` として symlink）。
+- リポジトリの mold リンカ設定（`.cargo/config.toml`）は
+  `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=<cc shim>` +
+  `RUSTFLAGS="-C debuginfo=0"` で迂回できる（環境変数が config の
+  target rustflags より優先）。
+- **release ビルド（lto=fat + codegen‑units=1）は 1 GiB メモリで OOM
+  （SIGKILL）しやすい** → `CARGO_BUILD_JOBS=1`
+  （リンク時の `fork: Cannot allocate memory` 対策。release LTO でも -j2 が
+  通ることがあるが不安定）。成功例もある（zenwebp 込みの fat LTO が
+  3 分 12 秒）が不安定なため、**pytest と bench cross‑check には debug
+  ビルドで十分**（api_version ハンドシェーク・全テストが release と同一
+  結果）。target/release は計測後に削除する。
+
+### 11.3 Node.js / pnpm
+
+- **公式 Node 26 tarball は libatomic.so.1 依存でこの環境では動かない**。
+  常設の **Node 20.20.2 + corepack pnpm** で prettier / typecheck は支障なし。
+- dependency‑cruiser 18 は **Node ≥22 必須** → 公式 Node 22 tarball を /tmp へ
+  展開し、`node_modules/.bin/depcruise src` 用に専用する。
+- pnpm 10+ のサプライチェーン設定（`minimumReleaseAge` 等）は
+  **`pnpm-workspace.yaml`**（camelCase キー）でのみ有効（`.npmrc` は
+  auth / registry 設定しか読まれない）。既定ゲート（1440 分）有効下では
+  `pnpm update` / `install` の「supply‑chain 検証」ステップが数百エントリの
+  公開日時を引いて **1 GiB で OOM（exit 137）する** →
+  `pnpm-workspace.yaml` に一時的な `minimumReleaseAge: 0` を置いて
+  `--lockfile-only` で解決 → `install --frozen-lockfile` の順で回避する
+  （設定はコミット前に復元）。
+
+### 11.4 Python / uv
+
+- `uv pip install --system` は**アクティブな venv が無いとき PATH 先頭の
+  非 venv Python を対象にする**。この環境は `/opt/arena-python` が venv
+  （pyvenv.cfg + VIRTUAL_ENV）なので、`--system` は `/usr` の Python を選び
+  PEP 668（externally‑managed）で拒否される → `--break-system-packages` で
+  回避。（GitHub ランナーの setup‑python は venv でも externally‑managed でも
+  ないため、`--system` がそのまま刺さる。）
+- dev / test 依存（torch CPU を含む）の完全再現は `uv sync --frozen` 一発
+  （pyproject の `[dependency-groups] dev` + uv.lock）。torch の CPU index は
+  `[[tool.uv.index]] explicit` + `[tool.uv.sources]` で指定する
+  （`--index-url` は uv で非推奨）。
+
+### 11.5 apt / ネットワーク
+
+- **apt の HTTP スループットが ~25 KB/s まで劣化することがある**
+  （rustup / pip / crates.io / GitHub API は高速なまま）→
+  `apt-get --print-uris` + Python 並列ダウンロード + dpkg キャッシュ経由
+  （`dpkg -i`）で回避。
+
+### 11.6 エージェント実行基盤（bash ツール）の癖
+
+- **bash ツールへ渡したファイル内容の中の `"$ARENA_WORKSPACE"` という文字列は
+  ワークスペース実体の環境変数へ置換される** — heredoc 内の絶対パスが壊れる。
+  スクリプトは相対パス（`cd` して実行）か `os.path.dirname(__file__)` を使う。
+- **バックグラウンド実行（`nohup … &`）はツール呼び出しをまたぐと殺される** —
+  長時間ビルドは `timeout` 付きの同期実行で行う。
+
+---
+
 _本レポートはすべて実際にコマンドを実行して得た出力に基づいています。_

@@ -1,14 +1,14 @@
-//! `znn-codec` — pure-Rust `ZipNN` codec (Plan §3.6, §4.2.1).
+//! `znn-codec` — pure-Rust `ZipNN` codec.
 //!
 //! This crate is the Python-independent heart of the native core: the ZipNN
 //! byte format (ZN header + plane split + huff0/FSE chunks), safetensors I/O,
 //! the streaming delta codec, the parallel library scan and the multi-hash
-//! pass. Phase 1 (Plan §6.2) implements the format core:
+//! pass. Phase 1 implements the format core:
 //!
 //! | module             | contents                                                     |
 //! |--------------------|--------------------------------------------------------------|
-//! | [`header`]         | ZN header 32 B + packed shape (Plan Appendix B.1)            |
-//! | [`dtype`]          | dtype code <-> plane scheme tables: compat + Neo band (§4.6.3)|
+//! | [`header`]         | ZN header 32 B + packed shape                                |
+//! | [`dtype`]          | dtype code <-> plane scheme tables: compat + Neo band        |
 //! | [`reorder`]        | sign/exponent bit reorder (f32, bf16, f64 schemes) + reverts |
 //! | [`planes`]         | N-plane split/join (N = 1, 2, 4, 8) + truncation masks       |
 //! | [`bitstream`]      | the FSE/huff0 backward bit reader / forward bit writer       |
@@ -27,37 +27,39 @@
 //! |                    | mover (Phase 3; bundle semantics stay in Python)             |
 //! | [`scan`]           | library scan + hygiene scan: the parallel `os.scandir`/       |
 //! |                    | `os.walk` port, preview resolution, front-matter, the exact   |
-//! |                    | listing JSON shape (Phase 5, Plan §4.7.1)                     |
+//! |                    | listing JSON shape (Phase 5)                                  |
 //! | [`index`]          | persistent front-matter cache (bincode + blake3, atomic,      |
-//! |                    | auto-rebuild — survives restarts, Phase 5, Plan §4.7.1-3)     |
+//! |                    | auto-rebuild — survives restarts, Phase 5)                    |
 //! | [`hash`]           | multi-algorithm one-pass hashing (SHA256/AutoV1/AutoV2/CRC32/ |
 //! |                    | BLAKE3) + the incremental hasher for download inline verify   |
-//! |                    | (Phase 5, Plan §4.8-B1/B2)                                    |
+//! |                    | (Phase 5)                                                     |
 //! | [`watch`]          | optional library file-watching (notify + debouncer-full,       |
-//! |                    | 500 ms debounce, watch-budget degrade — Phase 6, §4.7.2-2)     |
+//! |                    | 500 ms debounce, watch-budget degrade — Phase 6)               |
 //!
 //! `safetensors_io` also carries the Phase-5 `header_display_json` (the
 //! header-only jiter parse behind `get_model_metadata`/`get_model_tensors`,
 //! B4) and the Phase-6 `tensor_tree_json` (the display tensor tree
-//! pre-grouped in Rust, Plan §4.7.3 "テンソルツリー事前グループ化").
-//! File-watching (`watch_roots`, Plan §4.7.2-2) lives behind the `watch`
+//! pre-grouped in Rust — "テンソルツリー事前グループ化").
+//! File-watching (`watch_roots`) lives behind the `watch`
 //! feature, which is ON by default so the shipped prebuilt binaries expose
 //! `mm_core.watch_*` — the *runtime* switch (a ComfyUI setting) is what
 //! defaults to OFF.
 //!
-//! Test organisation (Plan §3.4.3): unit tests are inline `#[cfg(test)]`
+//! Test organisation: unit tests are inline `#[cfg(test)]`
 //! (they reach private APIs — the Rust convention); the `tests/` folder
 //! manages the crate-level integration gates over the PUBLIC API
 //! (`extended_band.rs` = the Phase-4 K14 round-trip gate).
 //!
-//! Correctness strategy (Plan §5.1): L1 unit/proptest suites here, L2
-//! differential tests against the bundled prebuilt C core (golden generator,
-//! `scripts/l2/`), L3 cargo-fuzz on hostile inputs (`fuzz/`) — and the
-//! Appendix C crash cases are permanent regression tests: every documented
-//! C-core SEGFAULT input must answer with [`CodecError`] or a correct result,
-//! never a crash or UB.
+//! Correctness strategy: L1 unit/proptest suites here and L3 cargo-fuzz on
+//! hostile inputs (`fuzz/`). The L2 differential gate against the original C
+//! core was retired together with the core (its evidence stays committed in
+//! `scripts/bench/results/`); the official-`zipnn` cross-validation (L5,
+//! `scripts/l5/`) is the permanent compatibility gate. The Appendix C crash
+//! cases are permanent regression tests: every documented C-core SEGFAULT
+//! input must answer with [`CodecError`] or a correct result, never a crash
+//! or UB.
 //!
-//! Compatibility contract (Plan §4.5):
+//! Compatibility contract:
 //! * the decoder accepts 100% of what the vendored C encoder (FiniteState
 //!   `HUF_compress`) produces, and validates hostile input (header values,
 //!   cumulative sizes, stream bounds, allocation caps) instead of trusting it;
@@ -65,11 +67,11 @@
 //!   tableLog choice, same tree build, same weight-encoding choice, same
 //!   bitstream order) so L2 can golden-diff compressed bytes, not just ratios.
 //!
-//! Lint policy (Plan §3.4.2): workspace lints (pedantic = warn, unsafe =
+//! Lint policy: workspace lints (pedantic = warn, unsafe =
 //! deny); the format core (Phase 1) contains NO `unsafe` at all. Phase 2
 //! adds exactly ONE reviewed unsafe boundary: the read-only `memmap2`
 //! mapping in [`safetensors_io::StContainer::open`] (documented SAFETY
-//! block; the zero-copy mmap design is Plan §3.7/§4.3 itself, and the
+//! block; the zero-copy mmap design is deliberate, and the
 //! Python safetensors reader this replaces mmaps identically).
 
 // Phase 1 kept the whole crate unsafe-free; the deny makes any further
@@ -99,12 +101,12 @@ pub mod webp;
 pub mod znn_tensor;
 
 /// Magic bytes of the ZipNN container: the ZN header starts with `b"ZN"`
-/// (Plan Appendix B.1, offsets 0–1; `zipnn.py` `_update_header`).
+/// (offsets 0–1; `zipnn.py` `_update_header`).
 pub const ZNN_MAGIC: [u8; 2] = *b"ZN";
 
 /// Fixed length of the ZN header in bytes. A variable-length packed shape
 /// (dim count + per-dim values) follows it, but only for TORCH/NUMPY inputs
-/// (Plan Appendix B.1; `zipnn.py` `header_length = 32`).
+/// (`zipnn.py` `header_length = 32`).
 pub const HEADER_LEN: usize = 32;
 
 /// Maximum input size of a single huff0 block
@@ -120,7 +122,7 @@ pub const HUF_TABLELOG_MAX: u32 = 12;
 pub const HUF_TABLELOG_DEFAULT: u32 = 11;
 
 /// Default compression chunk as a log2: header byte 14 holds `18`, i.e.
-/// 256 KiB (Plan Appendix B.1; `zipnn.py` `compression_chunk=256*1024`).
+/// 256 KiB (`zipnn.py` `compression_chunk=256*1024`).
 pub const DEFAULT_CHUNK_LOG2: u8 = 18;
 
 /// Default compression chunk in bytes (`2^DEFAULT_CHUNK_LOG2`).
@@ -130,7 +132,7 @@ pub const DEFAULT_CHUNK: usize = 1 << DEFAULT_CHUNK_LOG2;
 /// `compression_threshold=0.95`; C: `comp < uncomp * threshold` in f64).
 pub const DEFAULT_THRESHOLD: f64 = 0.95;
 
-/// One codec-level error type (Plan §4.4.2: hostile input must produce
+/// One codec-level error type (hostile input must produce
 /// errors, never panics / UB / unbounded allocation).
 #[derive(Debug, thiserror::Error)]
 pub enum CodecError {

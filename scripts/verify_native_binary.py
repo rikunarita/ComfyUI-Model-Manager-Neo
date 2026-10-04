@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify a built mm_core extension binary (Plan §3.3, risk R3).
+"""Verify a built mm_core extension binary.
 
 Pure-stdlib container parsing (no readelf/objdump on minimal hosts or CI):
 
@@ -14,7 +14,7 @@ Pure-stdlib container parsing (no readelf/objdump on minimal hosts or CI):
 * PE (windows-x86_64): machine must be x86_64; the ONLY python import
   allowed is the stable-ABI forwarder ``python3.dll``.
 
-The four ``<tag>t`` abi3t variants (NEO-PLAN-2026-003: linux-x86_64t /
+The four ``<tag>t`` abi3t variants (linux-x86_64t /
 linux-aarch64t / macos-universal2t / windows-x86_64t — the PEP 803
 free-threaded stable ABI) go through the SAME container checks: the trailing
 ``t`` is stripped for the architecture expectations (PEP 803 changes the ABI,
@@ -47,7 +47,7 @@ IMAGE_FILE_MACHINE_AMD64 = 0x8664
 
 
 def _base_tag(tag: str) -> str:
-    """Strip the abi3t ``t`` suffix (NEO-PLAN-2026-003 Step 2).
+    """Strip the abi3t ``t`` suffix.
 
     ``linux-x86_64t`` and ``linux-x86_64`` share every container-level
     expectation (same ELF class, same e_machine, same glibc floor) — the t

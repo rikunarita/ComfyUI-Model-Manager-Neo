@@ -1,1002 +1,800 @@
 # 開発メモ — ComfyUI‑Model‑Manager‑Neo
 
-> **2026‑09‑28 再編（ユーザ指示）**: 本ファイルは 19 セッション分の逐語ログ
-> （約 2,660 行）だったが、「**これからの実装に必要な永続知識**（§1–§5）+
-> **圧縮タイムライン**（§6）」へ再編した。**削除された詳細の逐語原文は git 履歴に
-> 完全な形で残る** — 発掘は `git show 88b5e9c:Agent/MEMO.md`（再編直前 tip）。
-> 計画・設計根拠は [`Plan.md`](Plan.md)、計測証跡は
-> [`../docs/BENCH.md`](../docs/BENCH.md)、実行環境の詳細実測は
-> [`environment-report.md`](environment-report.md) が一次ソース。
-> **フェーズ番号注記**: 2026‑09‑28 の Phase 7/8 繰り下げ（Plan 版数履歴 2.1）に
-> より、それ以前の記録中の「Phase 7」（third_party 撤去・USAGE 改訂・リリース）は
-> **現在の Phase 8** を指す。
+> **この文書の目的と位置づけ。** 本ファイルは本リポジトリの開発記録です。
+> 2026 年 9 月から 10 月にかけて策定・完了した 3 つの計画
+> （Plan.md・Plan-2.md・Plan-3.md — NEO‑PLAN‑2026‑001/002/003）で
+> 何を実施し、何が達成されたかを一望できるように要約し、あわせて今後の開発に
+> 必要な恒久規程・技術知見・残件を収録します。計測証跡の一次ソースは
+> [`../docs/BENCH.md`](../docs/BENCH.md)、開発環境の実測一次ソースは
+> [`environment-report.md`](environment-report.md) です。
+>
+> **計画文書の保存場所。** 3 つの計画書は全実装要件の完了に伴いツリーから
+> 削除されました。原文は git 履歴に完全な形で保存されており、
+> `git show eb3a317:Agent/Plan.md`（同様に `Agent/Plan-2.md`・
+> `Agent/Plan-3.md`）で復元できます。本メモ内の「Plan §x.y」「Plan‑2 /
+> Plan‑3」「NEO‑PLAN‑2026‑00N」形式の参照は、これらの履歴文書の節を
+> 指します。
+>
+> **旧記録の参照について。** コード・CI・文書中の「第 N セッション」
+> 「MEMO 2026‑XX‑XX」という参照は、git 履歴に保存されている旧開発メモ
+> （30 セッション分の逐語記録 — `git show 88b5e9c:Agent/MEMO.md`）を指します。
+> 本ファイルはその全面改写版です。
+>
+> **フェーズ番号について。** 2026‑09‑28 の計画改訂（Plan 版数履歴 2.1）により、
+> それ以前の記録にある「Phase 7」（third_party 撤去・USAGE 改訂・リリース準備）は
+> 現在の **Phase 8** を指します。
 
 ---
 
-## 1. 恒久規程とユーザ決定（セッション着手時に必読）
+## 1. 恒久規程とユーザ決定
 
-### 1.1 ユーザ決定（恒久 — 一次記録は Plan.md、ここは索引）
+### 1.1 ユーザ決定（現在も有効）
 
-| 日付       | 決定                                                                                                                                                                                                                                | 一次記録             |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| 2026‑09‑23 | 圧縮率は速度より重要（「せめて 67 % は下回らない」）→ バイト同一による構造的保証で回答（bf16 実測 0.6623）                                                                                                                          | BENCH §6.3           |
-| 2026‑09‑23 | `unsafe` はできる限り使わない（virtual‑raw で safe のまま目標超過達成し不使用で決着）                                                                                                                                               | Plan §2.4            |
-| 2026‑09‑23 | 上流 issue は起票しない。メモリバグは Neo 内で完全修正を担保                                                                                                                                                                        | BENCH §6.4           |
-| 2026‑09‑27 | Phase 5 見送り項目（A3 / watch_roots）は Phase 6 へ移管（→ 実施完了）                                                                                                                                                               | Plan §6.2            |
-| 2026‑09‑27 | バイナリサイズ **目安化**（絶対条件から降格。合計 ≤20 MB はハード上限のまま。CI ゲートは早期警戒装置として維持）                                                                                                                    | Plan §3.3 / §6.3     |
-| 2026‑09‑29 | バイナリサイズ目安を **≤4 MB/本 → ≤5 MB/本** へ改定（fat は per‑slice ≤5・ファイル ≤10。合計 ≤20 MB ハード上限は不変）。zenwebp で 4 MB の 98 % に達したため（5 MB なら 78 %）                                                      | Plan 版数 2.6 / §3.3 |
-| 2026‑09‑27 | **v0.3.0 の公開作業はユーザ専任**（GitHub Release・タグ publish・registry 公開・main へのマージ PR）。セッションはバージョン同期 + 公開前検証（K16 スモーク）まで                                                                   | Plan §6.3 恒久規程   |
-| 2026‑09‑27 | HTTP の Rust 化はしない（reqwest/axum/utoipa 不採用 — 実測根拠は §4.3）                                                                                                                                                             | Plan §3.8            |
-| 2026‑09‑27 | extended‑notify は導入しない（notify 8.2 + debouncer‑full 0.7 直接採用 — 根拠は §4.3）                                                                                                                                              | Plan §3.1            |
-| 2026‑09‑28 | **Phase 7「ツールチェーン現代化・設定統合」新設（T1–T6）**。旧 Phase 7 は **Phase 8** へ繰り下げ                                                                                                                                    | Plan 版数履歴 2.1    |
-| 2026‑09‑28 | **T7 zenwebp 導入 + AGPL‑3.0 ライセンス整備を必須化**。**T8 requests 2 箇所の aiohttp 化**（requests は modelscope_hub の推移的依存として残ることを明記）。**Phase 8 の abi3t ストレッチは削除**（随時対応）                        | Plan 版数履歴 2.2    |
-| 2026‑09‑28 | **T7 は一気刷新**（第一段階/第二段階を挿まない — 静止+アニメ+WebP デコードを一括。保安面は先送りでなくゲート化）                                                                                                                    | Plan 版数履歴 2.3    |
-| 2026‑09‑28 | **T4（uv 導入）一時撤回 → 復元（撤回の撤回）** — 撤回理由（uv はフロントエンドのパッケージ管理不可）は T4 範囲の誤解: T4 は **Python 開発・CI 層専用**（pnpm/フロントエンドは一切変更なし・現状維持）。範囲確認の上、原文どおり復元 | Plan 版数履歴 2.4    |
-| （継続）   | `demo-assets/` はユーザが後で追加する — セッションは触らない                                                                                                                                                                        | ユーザ指示           |
-| （継続）   | CI 実行結果の確認は、ユーザが次ターンで指示したときにセッションが行う                                                                                                                                                               | ユーザ指示           |
+- **リリース公開はユーザ専任**: GitHub Release の作成・タグの publish・
+  registry への公開・`main` へのマージ PR はユーザが実施します。セッションが
+  担うのはバージョン同期コミットと公開前検証（K16 スモーク）までです。
+- **圧縮率は速度より優先**: bf16 で 67 % を下回らないという要件に対し、
+  C 実装との出力バイト同一による構造的保証で回答しました
+  （bf16 実測 0.6623 — BENCH §6.3）。
+- **`unsafe` は可能な限り用いない**: フォーマットコアは `unsafe` ゼロで
+  目標を達成しました（唯一の例外は安全性レビュー済みの読み取り専用 mmap
+  境界 — native/README 参照）。
+- **上流 zipnn への issue は起票しない**: C コアのメモリ安全欠陥は Neo 実装内で
+  完全に修正し、回帰テストで固定することで担保します（証跡は BENCH §6.4）。
+- **バイナリサイズは目安で管理**: 1 本 ≤5 MB（fat binary は per‑slice ≤5 MB・
+  ファイル ≤10 MB）、8 本合計 ≤40 MB（Plan‑3 D1 — 超過は warning のみで
+  run はブロックしません）。CI のサイズゲートは早期警戒装置として維持し、
+  目安超過時はユーザ判断で上限を改定する運用です。
+- **HTTP 層は Rust 化しない**: reqwest / axum / utoipa は不採用
+  （実測根拠は §4.3）。
+- **extended‑notify は導入しない**: notify + debouncer‑full を直接採用
+  （根拠は §4.3）。
+- **ユーザ環境でのネイティブコア自動ビルドは行わない**: 「セットアップ時に
+  コンパイラもネットワークも要求しない」という配布方針を貫き、非対応
+  プラットフォームでは理由を明示してデグレードします。手動ビルド手順は
+  native/README.md に文書化済みです（Plan‑3 §5 に回答記録）。
+- **`demo-assets/` はユーザ管理領域**: セッションは変更しません。
+- **CI 実行結果の確認**: ユーザが指示したときにセッションが実施します。
 
 ### 1.2 開発ワークフロー規程
 
-- **cargo 使用方針**（Plan §3.4.3）: `check` 常用 / `test` は必要なときだけ /
-  clippy・rustfmt を品質向上に活用 / `build` は最終確認のみ。
+- **cargo 使用方針**: `check` を常用し、`test` は必要なときだけ、
+  clippy / rustfmt を品質向上に活用し、`build` は最終確認のみにします。
 - **Rust テスト配置**: 単体 = インライン `#[cfg(test)]`（private 到達可）、
-  統合 = `native/crates/znn-codec/tests/`（**公開 API のみ**）、
-  差分 = `scripts/l2`、敵対的 = `fuzz/`。
-- **push 前検証は「native 成果物あり」と「なし」の両方で pytest**
-  （ci.yml = なし・native.yml = あり。なしの再現:
-  `mv native/native-bin/<tag>/mm_core.abi3.so /tmp/`）。
-- **native.yml で pytest を回す 2 ジョブ**（native‑build‑linux の loader
-  regression / integration ×3 OS）**の pip 行は同一内容に保つ**
-  （片方だけの追加で同種の失敗が再発する — markdownify が前例）。
-  **削除も同規程**（numpy 前例・2026‑10‑01 run #87）: 「tests に直接 import が
-  無い」ことの grep だけでは不十分 — **実行時深い所で走る推移的 import**
-  （safetensors.torch の save_file 経路が numpy を要求。importorskip は
-  torch/safetensors.torch を守っても numpy は守らない）がある。依存行の削減は
-  「削除 → 当該 CI セルの実走緑」までを 1 単位とし、テスト側にも
-  明示的 importorskip ガードを置く（fail ではなく skip に落ちる二重化）。
-- **api_version bump は 4 者同期**: `py/native.py` の [N,N] / mm‑core
-  `lib.rs` 定数 + test / native.yml abi3‑import の assert / pytest の 3 アサート。
-- **bench 証跡 JSON（`scripts/bench/results/`）は再生成しない**: BENCH 本文が
-  参照機の timing 値を逐語引用している。ゲート追加時は**決定的な欄だけ外科的に
-  追記**する（前例: `phase6_front.json` の `rowsParity` /
+  統合 = `native/crates/znn-codec/tests/`（公開 API のみ）、敵対的 = `fuzz/`。
+  差分テスト（旧 `scripts/l2`）は Phase 8 で退役し、L5 公式クロス検証が
+  恒久ゲートです。
+- **push 前検証は「native 成果物あり」と「なし」の両方で pytest を実行**:
+  ci.yml = なし、native.yml = あり。「なし」の再現は
+  `mv native/native-bin/<tag>/mm_core.abi3.so /tmp/`。
+- **native.yml で pytest を実行する複数ジョブの pip 依存行は同一内容に保つ**:
+  削除も同規程で、「削除 → 当該 CI セルでの実行成功確認」までを 1 単位とし、
+  テスト側にも明示的な `importorskip` ガードを置きます。実行時の深い所で
+  走る推移的 import は、tests の直接 import を grep しても見つかりません
+  （前例: safetensors.torch の save_file 経路が numpy を要求）。
+- **`api_version` の bump は 4 者同期**: `py/native.py` の `[N, N]` /
+  mm‑core `lib.rs` の定数 + テスト / native.yml の abi3‑import アサート /
+  pytest のアサート。
+- **ベンチ証跡 JSON（`scripts/bench/results/`）は再生成しない**: BENCH 本文が
+  参照機の実測値を逐語引用しています。ゲート追加時は決定的な欄のみ
+  外科的に追記します（前例: `phase6_front.json` の `rowsParity` /
   `tensorTreeRowsIdentical`）。
-- **テストは mutation testing で捕捉力まで証明する**（対応する回帰を意図的に
-  混ぜて失敗 → 復元して成功）。「アサーションが通る」だけでは甘さを見逃す。
-  「接合部」型ギャップ（両端は個別にテスト済みでも接続部が無テスト）が
-  繰り返し発生源（2026‑09‑28 の 4 件がその例 — §4.5）。
-- **fallow（dead‑code + dupes）は CI ゲート**（ci.yml・2026‑09‑28 追加）。
-  push 前に `pnpm fallow:dead` + `pnpm fallow:dupes`。export を消すと
-  **戻り型/注釈型が連鎖で unused‑types（warn）に落ちる**ので型も併せて
-  private 化すると clean（README 公称「未使用 export ゼロ・重複ゼロ」）。
-- **fuzz‑long の再ディスパッチは fuzz 表面が変わったときだけ**。表面不変なら
-  既存 run の証跡が有効 + 週次スケジュール（日曜 18:00 UTC・6 ターゲット）が
-  担保。**PAT は Actions 権限不足 + dispatch の default‑branch 制約で 403** →
-  GitHub UI からの手動ディスパッチはユーザ依頼。
-- **GitHub Actions の更新は 1 action ずつ別コミット**（bisect 可能 —
-  Plan T6 規程）。
-- Plan §6.2 の詳細チェックリストと §9 マスターチェックリストは
-  **同一コミットで**更新（Plan §6.3）。
-- コミット: 日本語 conventional commits（`type(scope): 概要` + 詳細本文）。
-  pre‑commit フック = lint‑staged + `pnpm typecheck`。**環境リセットで pnpm
-  shim が消えた場合は `corepack enable --install-directory /usr/local/bin`**
-  （さもないとフックが `pnpm: not found` でコミットを落とす）。
-- **`core` ダンプをコミットに含めない**（.gitignore 対象外 — `git status` で
-  確認）。native‑bin の `.so` は gitignore 対象（CI が main/tag で生成）。
-- **セッション冒頭は dev tip を確認する**: 過去に外部からの force‑push
-  巻き戻し（c3b7919 事件・2026‑09‑26）の前例あり。復旧は GitHub API +
-  ローカル reflog から 12 コミットの SHA 回収・マージで実証済み。
-  `.git` 自体を失った場合はリモートから再 clone（コミット済みなら無損失）。
+- **テストは mutation testing で捕捉力まで証明する**: 対応する回帰を
+  意図的に混ぜて失敗、復元して成功、までを確認します。両端が個別に
+  テスト済みでも接続部が無テストの「接合部」型ギャップが繰り返しの
+  発生源です（§4.5）。
+- **fallow（dead‑code + dupes）は CI ゲート**: push 前に
+  `pnpm fallow:dead` + `pnpm fallow:dupes`。export を削除するときは
+  戻り型・注釈型も併せて private 化すると clean です
+  （型を残すと連鎖で unused‑types 警告に落ちます）。
+- **fuzz‑long の再ディスパッチはファズ表面が変わったときだけ**: 表面不変なら
+  既存 run の証跡と週次スケジュール（日曜 18:00 UTC・7 ターゲット）が
+  担保します。PAT からの `workflow_dispatch` は 403
+  （Actions 権限不足と default‑branch 制約）になるため、GitHub UI からの
+  手動ディスパッチはユーザに依頼します。
+- **GitHub Actions の更新は 1 action ずつ別コミット**（bisect 可能にするため）。
+- **コミットは日本語の conventional commits**（`type(scope): 概要` + 詳細本文）。
+  pre‑commit フック = lint‑staged + `pnpm typecheck`。環境リセットで pnpm shim が
+  消えた場合は `corepack enable --install-directory /usr/local/bin`
+  （さもないとフックが `pnpm: not found` でコミットを落とします）。
+- **`core` ダンプをコミットに含めない**（.gitignore 対象外のため
+  `git status` で確認）。`native-bin/` の `.so` / `.pyd` は gitignore 対象
+  （main / tag で CI が生成し、publish bot のみが force‑add します）。
+- **セッション冒頭はリモートの dev tip を確認する**: 外部からの force‑push
+  巻き戻し（2026‑09‑26）から 12 コミットの SHA を GitHub API + ローカル
+  reflog で回収・マージした復旧前例があります。`.git` 自体を失った場合は
+  リモートから再 clone します（push 済みなら無損失）。
 
 ## 2. 開発環境（実測）と再構築手順
 
-### 2.1 スペック（詳細は environment-report.md）
+### 2.1 スペック
 
 2 vCPU（Skylake‑SP・AVX‑512 あり・**SHA 拡張なし**）/ RAM **1 GiB**（swap なし）/
 ディスク ~9.9 GB / Debian 12（ホストカーネル 4.19・Kata VM）/ Python 3.11.2
-（`/opt/arena-python`）/ Node v20.20.2 / git 2.39.5。
-**12 GB モデル級の KPI 実測は不可能** → ~256 MB 級で実測 + 検証済み外挿を
-BENCH に明記する規程（推測でなく「実測 + 外挿」）。絶対値の判定は参照機
-（8C/16T・Plan §2.2）。
+（`/opt/arena-python`）/ Node v20.20.2 / git 2.39.5。詳細と一次実測は
+[`environment-report.md`](environment-report.md) を参照してください。
 
-### 2.2 再構築チェックリスト（セッション冒頭 — **apt/pip/rustup/node_modules はターンをまたいで永続しない**。ワークスペースのファイルは永続する）
+12 GB モデル級の KPI 実測はこの環境では不可能なため、~256 MB 級で実測し、
+検証済みの外挿を BENCH に明記する規程です（推測ではなく「実測 + 外挿」）。
+絶対値の判定は参照機（8C/16T・NVMe — Plan §2.2）で行います。
+
+### 2.2 再構築チェックリスト（セッション冒頭）
+
+apt / pip / rustup / node_modules はターンをまたいで永続しません
+（ワークスペースのファイルは永続します）。
 
 1. `apt-get update && apt-get install -y build-essential libpython3.11-dev curl pkg-config`
-   （**clang/mold は不要になった** — リンカーは rust-lld 既定。2026-10-01、NEO-PLAN-2026-002 Step 1）
-2. rustup: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal`
-   → `rustup component add rustfmt clippy`（stable 1.98.1 で確認）。
-3. pip: `pytest pytest-asyncio aiohttp markdownify huggingface_hub "hf_xet>=1.5.2,<2.0.0" modelscope_hub pillow numpy safetensors ruff mypy pyyaml`
-   \+ `torch --index-url https://download.pytorch.org/whl/cpu`
-   （torch はフル 176 カバレッジ用 — 無いと 11 件 skip）。
+   （clang / mold は不要 — リンカーは rust‑lld が既定です。2026‑10‑01、
+   NEO‑PLAN‑2026‑002 Step 1）。
+2. rustup（stable）+ `rustup component add rustfmt clippy llvm-tools`。
+3. Python 依存: `pip install pytest pytest-asyncio aiohttp markdownify huggingface_hub "hf_xet>=1.5.2,<2.0.0" modelscope_hub pillow numpy safetensors ruff mypy pyyaml`
+   - `torch --index-url https://download.pytorch.org/whl/cpu`
+     （torch はフルカバレッジ用 — 無いと 11 件が skip）。
 4. `corepack enable --install-directory /usr/local/bin` → リポジトリ root で
-   `corepack pnpm install --frozen-lockfile`（pnpm 12.3.4）。
-5. dependency‑cruiser 18 は **Node ≥22 必須**（この環境は 20.20.2）→ 公式
-   tarball の Node v22.20.0 を /tmp へ展開し `node_modules/.bin/depcruise src`。
+   `corepack pnpm install --frozen-lockfile`。
+5. dependency‑cruiser 18 は Node ≥22 が必須（常設は 20.20.2）→ 公式 tarball の
+   Node 22 を /tmp へ展開し `node_modules/.bin/depcruise src`。
 6. テスト用 native `.so`: `cd native && CARGO_BUILD_JOBS=1 cargo build -p mm-core`
    → `cp target/debug/libmm_core.so native-bin/linux-x86_64/mm_core.abi3.so`。
-   **debug で十分**（api_version ハンドシェーク・全 pytest・bench cross‑check が
-   release と同一結果。release は §2.3 の OOM）。
-7. **（T4 実装済み・2026‑09‑29）** 手順 3–4 は `uv sync --frozen` 一発で代替可能
-   （pyproject `[dependency-groups] dev` + uv.lock が dev/test/build 依存 + torch CPU を
-   再現 → `.venv/bin/python -m pytest tests`）。pip 手動インストールは uv 不在時のフォールバック。
-   dependency‑cruiser 18 は Node ≥22 必須（この環境は 20.20.2）→ 公式 tarball の
-   **Node v26.10.0**（T2/CI と一致）を /tmp へ展開し `corepack pnpm`（pnpm 12.3.4）。
+   debug ビルドで十分です（api_version ハンドシェーク・全 pytest・bench
+   cross‑check が release と同一結果）。
+7. 手順 3–4 は `uv sync --frozen` 一発で代替可能（pyproject の
+   `[dependency-groups] dev` + uv.lock が dev/test/build 依存 + torch CPU を
+   再現 → `.venv/bin/python -m pytest tests`）。pip 手動インストールは
+   uv が無い場合のフォールバックです。
 
-### 2.3 環境の癖（過去セッションで踏んだ罠の一覧）
+### 2.3 環境の癖
 
-- **release ビルド（lto=fat + codegen‑units=1）は 1 GiB で OOM（SIGKILL）**。
-  cargo は `CARGO_BUILD_JOBS=1`（リンク時 `fork: Cannot allocate memory` 対策。
-  release LTO でも -j2 は通ることがあるが不安定）。
-- **bash ツールへ渡したファイル内容の中の `"$ARENA_WORKSPACE"` 文字列は
-  ワークスペース実体の env 変数へ置換される** — heredoc 内の絶対パスが壊れる。
-  スクリプトは相対パス（`cd` して実行）か `os.path.dirname(__file__)`。
-- **バックグラウンド実行（`nohup … &`）はツール呼び出しをまたぐと殺される** —
-  長時間ビルドは `timeout` 付き同期実行。
-- apt の HTTP が 25 KB/s まで劣化することがある → `apt-get --print-uris` +
-  Python 並列 DL + dpkg キャッシュ経由で回避。rustup / pip / crates.io /
-  GitHub API は高速。
-- ディスク: torch + rust stable + nightly + fuzz で ~7 GB 使用。
-  **native/target の肥大に注意**（fuzz の target は別ツリー）。
-- ワークスペーススナップショットは **`.git`・インストール済みパッケージ・
-  node_modules 外の大物（native/target 等は除外リスト）を失いうる** —
-  再構築は本節の手順通り。
-- **curl/wget/cc の無いサンドボックスでの Rust ゲート再現（第 20 セッション
-  で実証）**: (1) rustup は `sh.rustup.rs` のシェルスクリプトが curl/wget を
-  要求するため、**`static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init`
-  バイナリを Python urllib で直接取得**して実行する（ネットワーク内蔵）。
-  (2) cc 不在では build script のリンクが失敗するため、**`pip install ziglang`
-  - cc shim**（`python3 -m ziglang cc` へ委譲。cc-rs が渡す
-    `--target=x86_64-unknown-linux-gnu` は zig が解釈できないので shim 内で
-    `--target=x86_64-linux-gnu` へ変換）+ `llvm-ar` shim
-    （`rustup component add llvm-tools` の `llvm-ar` を `ar` として symlink —
-    blake3 の cc-rs が要求）。(3) リポジトリの mold config は
-    `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=<cc shim>` +
-    `RUSTFLAGS="-C debuginfo=0"`（env が config の target rustflags より優先）
-    で迂回。(4) Node 26 tarball は libatomic.so.1 依存でこの環境では動かない —
-    **Node 20.20.2 + corepack pnpm で prettier/typecheck は支障なし**
-    （dependency-cruiser 18 のみ Node ≥22 必須）。この手順で clippy 1.99 の
-    全ワークスペースゲート（`--all-targets --all-features -D warnings`）・
-    `cargo test --workspace --exclude mm-core`（206+4）をローカル再現した。
+過去セッションで遭遇した落とし穴と回避策の実地メモ（rustup‑init の直接取得、
+cc 不在時の ziglang による cc / llvm‑ar shim、release LTO ビルドのメモリ逼迫、
+apt スループットの劣化、pnpm サプライチェーン検証の OOM、uv `--system` の
+対象解釈、bash ツールの変数展開とバックグラウンドプロセスの寿命など）は
+[`environment-report.md`](environment-report.md) §11 に集約しました。
 
-## 3. 計測方法論（bench スクリプト/テストが「MEMO 2026‑09‑23」として参照する定義）
+## 3. 計測方法論
 
-- **ゲート プロトコル（Phase 1 確立・2026‑09‑23）**: legacy vs native を
-  **同一セッションで交互計測**（3 ラウンド）、**steal ゲート**（共有
-  2 vCPU ホストの他プロセス汚染ラウンドを破棄して再計測）、判定は
-  **側別最小値**、**サブプロセス分離**。2 連続 PASS を要求。
-  未ゲート計測は同一設定でも 2–3 倍揺れる。
-- **絶対値は共有ランナーでゲートにしない**: K15 bench（`scripts/bench/front/k15.mjs`）
-  のゲートは全て**同一実行内比率**（before/after を同一実行で計測）。絶対値は
-  env ブロック付きで記録し、判定は参照機（Plan §2.2）。
-- 参考: C コアは最静穏窓で bf16/f16 圧縮 ~950–1,030 MB/s に達することがある
-  （Rust 静穏窓上限 ~740–790、virtual‑raw 後は未観測）— 交互計測が必須の理由。
-- sha2 0.11 の SHA‑256 に **AVX2 バックエンドは無い**（SHA‑NI か soft のみ。
-  `x86-avx2` は SHA‑512 専用）→ SHA‑NI 無し機では検証ハッシュ ~156 MB/s が
-  e2e の壁（BENCH §7.1 に内訳）。
+ベンチスクリプト・テスト・BENCH が「MEMO §3」「MEMO 2026‑09‑23」として
+参照する定義です。
 
-## 4. 技術知見・教訓（将来の実装に影響する分の蒸留）
+- **ゲートプロトコル**: A/B の両側（旧実装 vs 新実装、baseline vs PGO など）を
+  **同一セッションで交互計測**（3 ラウンド以上）、**steal ゲート**（共有
+  2 vCPU ホストの他プロセスに汚染されたラウンドを破棄して再計測）、
+  **サブプロセス分離**、2 連続 PASS を要求します。ゲートなしの計測は
+  同一設定でも 2–3 倍揺れます。
+- **判定 = 側別中央値比**: min‑of‑N 判定は共有ランナーで外れ値ラウンド同士の
+  組み合わせによるアーティファクトを 2 run 連続で生んだため採用しません
+  （min / best は参考並記、退行監視は中央値 < 0.95）。steal ゲートは
+  バースト的な割当・スケジュール干渉を捕捉できない（/proc/stat の steal に
+  現れない）ため、判別手段は安定対照（hash ±0.4 %）とラウンド別表のみです。
+  実装 = `scripts/pgo/train.py::summarize_workloads()`（BENCH §13.6）。
+- **ラウンド別の生サンプル**（`roundsA` / `roundsB`）を JSON と job summary の
+  両方へ記録し、解釈は必ずラウンド別表で行います（N=5）。round 0 は両側とも
+  冷間（ページイン・周波数）、15–95 ms 級の微小窓は同一バイナリでも
+  側内変動 2.1 倍に達します。
+- **共有ランナーの絶対値はゲートにしない**: K15 bench
+  （`scripts/bench/front/k15.mjs`）のゲートはすべて同一実行内比率です。
+  絶対値は env ブロック付きで記録し、判定は参照機（Plan §2.2）で行います。
+- sha2 0.11 の SHA‑256 に **AVX2 バックエンドはありません**（SHA‑NI か
+  ソフトウェア実装のみ。`x86-avx2` は SHA‑512 専用）→ SHA‑NI 非搭載機では
+  検証ハッシュ ~156 MB/s が e2e の壁になります（内訳は BENCH §7.1）。
+
+## 4. 技術知見・教訓
 
 ### 4.1 ビルド / ツールチェーン / CI
 
-- **prettier は完全な依存ツリーで実行**: prettier‑plugin‑tailwindcss のクラス順は
-  tailwindcss 本体 + `tailwindStylesheet`（src/style.css）の解決に依存 →
-  `pnpm install --frozen-lockfile` 後の `pnpm format:check` が唯一の正。
-- **GH Windows ランナーは core.autocrlf=true でチェックアウト**: rustfmt.toml の
-  `newline_style = "Unix"` は全 .rs の fmt ゲートを破壊 → 既定（Auto）+
-  `.gitattributes: *.rs text eol=lf` が正解。
+- **prettier は完全な依存ツリーで実行する**: prettier‑plugin‑tailwindcss の
+  クラス順は tailwindcss 本体 + `tailwindStylesheet`（src/style.css）の解決に
+  依存します → `pnpm install --frozen-lockfile` 後の `pnpm format:check` が
+  唯一の正です。
+- **GH Windows ランナーは `core.autocrlf=true` でチェックアウトする**:
+  rustfmt.toml の `newline_style = "Unix"` は全 .rs の fmt ゲートを破壊します →
+  既定（Auto）+ `.gitattributes: *.rs text eol=lf` が正解。
 - **maturin の universal2 ターゲット名は `universal2-apple-darwin`**。
-- **macOS の setup‑python（python.org ビルド）はリンク可能 libpython を持たない**
-  （フレームワークのみ）→ `cargo test -p mm-core --no-default-features` は
-  macOS 除外（clippy `--all-targets` + ビルド&import 疎通で担保）。
+  macOS の setup‑python（python.org ビルド）はリンク可能な libpython を
+  持ちません（フレームワークのみ）→ `cargo test -p mm-core
+--no-default-features` は macOS 除外（clippy `--all-targets` +
+  ビルド & import 疎通で担保）。
 - **Linux から Apple ターゲットへのクロスは PyO3 0.29 で不可**（実測）:
   rustc/pyo3 の `-Wl,-exported_symbols_list`（2 引数形）と
-  `-undefined dynamic_lookup` を zig cc が誤変換（zig 0.15.2/0.16.0 双方）。
-  macOS ホスト ビルド + lipo が正経路。
+  `-undefined dynamic_lookup` を zig cc が誤変換します（zig 0.15.2 / 0.16.0
+  双方）→ macOS ホストビルド + lipo が正経路。
 - cargo‑zigbuild + zig 0.16 の `ignoring deprecated linker optimization
-setting '1'` 警告は**無害**（成果物の glibc ≤2.28 は readelf で確認）。
-  `.cargo/config.toml` の mold 設定は zigbuild に影響しない
-  （`CARGO_TARGET_*_LINKER` 優先）。
+setting '1'` 警告は無害です（成果物の glibc ≤2.28 は readelf で確認済み）。
+  zigbuild のリンクは `CARGO_TARGET_*_LINKER`（zig 由来の wrapper）が
+  `.cargo/config.toml` の設定より優先されます。
 - **PyO3 0.29**: 宣言的 `#[pymodule] mod` 構文が正（関数形は deprecated）。
-  `use pyo3::prelude::*;` は mod の**内側**にも必要。**GIL 解放の API 名は
-  `py.detach()`**（`allow_threads` ではない — E0599。marker.rs 一次確認。
-  `PyErr` は `Ungil` なので `PyResult<T>` 返却可。クロージャへ `&str` 借用を
-  持ち込めないため owned 化）。
-- **jiter 0.17**: オブジェクト反復は `next_object()` 開始・**後続キーは
-  `next_key()`**（next_object 反復は ExpectedSomeValue）。simd‑json 0.18 は
-  `ValueAsObject/ValueObjectAccess/ValueAsScalar/ValueAsArray` trait import 必須。
-- **bincode: crates.io の `max_stable_version = 3.0.0` は `compile_error!`
-  プレースホルダ**（xkcd 2347 型のスクワットガード — .crate 展開で確認）→
-  **2.0.1 が真の安定版**（Plan §3.1 注記）。
+  `use pyo3::prelude::*;` は mod の内側にも必要。**GIL 解放の API 名は
+  `py.detach()`**（`allow_threads` ではありません）。`PyErr` は `Ungil` なので
+  `PyResult<T>` で返却可能。クロージャへ `&str` 借用は持ち込めないため
+  owned 化します。
+- **jiter 0.17**: オブジェクト反復は `next_object()` で開始し、後続キーは
+  `next_key()`（next_object の反復継続は ExpectedSomeValue）。
+- **bincode**: crates.io の `max_stable_version = 3.0.0` は名前占拠を防ぐための
+  `compile_error!` プレースホルダです → **2.0.1 が真の安定版**。
 - **macos‑universal2 は fat binary**: サイズ予算は per‑arch スライス判定
-  （各 ≤5 MB）+ fat ファイルは 2× 予算。native.yml size‑budget は
-  **FAT_MAGIC（cafebabe/cafebabf・big‑endian）の content 判定**（path 非依存 =
-  download‑artifact の LCA で `macos-universal2` 断片が消えても堅牢）。
+  （各 ≤5 MB）+ fat ファイルは 2 倍予算。CI の size‑budget は
+  **FAT_MAGIC の content 判定**（path 非依存 = download‑artifact の LCA で
+  ディレクトリ断片が消えても堅牢）。
 - **huggingface_hub 2.0 は `HfApi.list_models(sort=)` の注解を閉じた Literal に
-  狭窄** → `cast(Any, sort)` パターン（`# type: ignore` は
-  warn_unused_ignores と hub 未導入環境の双方で割れるため不採用）。
-- **テストは POSIX エラー文言に依存しない**（`io_ctx` が全平台で
-  「操作 + パス」を付与する形に強化済み）。**Windows の separator**:
-  報告パスは `utils.join_path` 統一、テストは normalize 比較。
+  狭窄します** → `cast(Any, sort)` パターン（`# type: ignore` は
+  warn_unused_ignores 環境と hub 未導入環境の双方で壊れるため不採用）。
+- **テストは POSIX のエラー文言に依存しない**（`io_ctx` が全プラットフォームで
+  「操作 + パス」を付与する形に強化済み）。Windows の報告パスは
+  `utils.join_path` で統一し、テストは normalize して比較します。
 - CI が書く JSON 証跡は `json.dump(indent=2)` + 末尾改行（prettier ゲート）。
-- **pnpm 12 の設定配置（2026‑09‑29 T6 で発見・一次ソース pnpm.io/settings）**:
-  pnpm 10+ は **`.npmrc` から auth/registry 設定しか読まない** — `minimumReleaseAge`
-  等のサプライチェーン設定は `pnpm-workspace.yaml`（camelCase キー）が正。本リポの
-  `.npmrc: minimum-release-age=0` は pnpm 12 で**無視される死に設定**だった。
-  **2026‑09‑29 ユーザ指示で `.npmrc` を削除**（ゲートは pnpm 既定 1440 分 = 1 日が
-  有効・`minimumReleaseAge` の新設は不要）+ 孤立していた
-  `minimumReleaseAgeExclude`（fallow 3.27.0 一式＝既に 1 日経過で無意味）も削除。
-  **実測の罠**: 既定ゲート有効下で `pnpm update`/install の「supply-chain 検証」ステップが
-  497 エントリの公開日時を引いて 1 GiB サンドボックスでは **OOM（exit 137）**。
-  ローカル解決時は `pnpm-workspace.yaml: minimumReleaseAge: 0` を一時的に置いて
-  `--lockfile-only` → 新規 `install --frozen-lockfile` の順で回避（コミット前に復元）。
-  **当日公開版はゲートが拒否する**（@lucide/vue 1.49.0 が 2026‑09‑29 公開で flag →
-  1 day 経過済みの 1.48.0 に pin・翌日以降に解禁）。
-- **uv（2026‑09‑29 T4）**: `uv pip install --system` は**アクティブな venv が無い
-  とき PATH 先頭の非 venv Python を対象にする**（このサンドボックスは
-  `/opt/arena-python` が venv〔pyvenv.cfg + VIRTUAL_ENV〕なので `--system` は
-  `/usr` を選び PEP 668 で拒否 → `--break-system-packages` で回避。GitHub ランナーの
-  setup-python は venv でも externally-managed でもないので `--system` がそのまま刺さる）。
-  torch CPU は `[[tool.uv.index]] explicit` + `[tool.uv.sources]` で CPU wheelhouse へ
-  （`uv pip install --default-index <cpu>` も可・`--index-url` は uv で非推奨）。
-  root pyproject は `[build-system]` 無し = `[tool.uv] package = false` で仮想プロジェクト化。
-- **zenwebp 0.4.4（2026‑09‑29 T7）**: 純 Rust WebP codec（`forbid(unsafe_code)`・
-  archmage で SIMD）。encode = `EncodeRequest::{lossy,lossless,new}(&config, rgba,
-PixelLayout::Rgba8, w, h).encode()`、still decode = `oneshot::decode_rgba`（常に RGBA）、
-  animation = `mux::{AnimationEncoder(add_frame/finalize), AnimationDecoder(decode_all)}`。
-  **罠: `AnimationDecoder` のフレームは has_alpha で RGBA(4B)/RGB(3B) が変わる**
-  （`current_frame_data` doc）→ `znn_codec::webp::decode_animation` は長さで判別し
-  RGBA へ正規化（`encode_animation` は Rgba8 固定のため）。**PIL は WebP の
-  per-frame duration を info で公開しない**（GIF は公開）→ アニメ WebP 入力は
-  native decode_animation で duration 保持。`ImageInfo::from_webp` でデコード前に
-  canvas 次元をガード（敵対的ヘッダの過剰確保防止 = fuzz の要点）。AGPL‑3.0（§8・NOTICE）。
-- **GH ランナーの apt ハングが実在する**（native run #80・2026‑09‑30:
-  native-test ubuntu の「Install mold + clang」ステップが**無出力で 6 h ハング** →
-  GitHub のジョブ上限で run 全体が cancelled。同一ステップは run #79/#81 では
-  20 s 未満 = ミラー側の一過性ストール。サンドボックスの apt 25 KB/s 劣化
-  （§2.3）と同クラス）。対策（第 18 セッションで適用）: 全 apt ステップへ
-  `timeout-minutes: 10`（数分で赤くなり re-run で健全ミラーを引ける）+
-  ci/native/fuzz-long の全ジョブへ `timeout-minutes: 60`（fuzz-long の
-  360/120 は既存のまま。観測最長 8.8 min の ~7 倍 = 誤殺しない余裕）。
-- **maturin `--pgo` の実装事実（1.15.0、`src/pgo.rs` 実読・2026‑10‑01）**:
-  `pgo-command` は **project_root（= native/）を cwd にシステムシェル経由**
-  （unix `sh -c` / Windows `cmd /C`）で実行され、PATH 先頭に一時 venv の bin
-  （`python` = venv）、`VIRTUAL_ENV`/`UV_PYTHON` 設定、`LLVM_PROFILE_FILE` は
-  maturin が `<tempdir>/%m_%p.profraw` に設定する。venv は uv 優先
-  （無ければ `python -m venv`）、計装 wheel + requires_dist 依存を install。
-  `llvm-profdata` は **rustc sysroot（`lib/rustlib/<host>/bin`）→ PATH の順**
-  で解決 = **`llvm-tools-preview` component が必須**。profraw ゼロなら
-  明示 bail（「トレーニングがコードを exercise しなかった」エラー）。
-  → `pgo-command = "python ../scripts/pgo/train.py"` の相対パスは
-  cwd=native/ で正しい。train.py を stdlib 専用に設計した理由がこれ
-  （requires_dist が空なので venv には何も入らない）。
-- **PGO × fat LTO の warn-missing-function は「良性乖離」が支配的**
-  （run #106 実測 13.81 % = 1,052/7,618: ジェネリック実体化 518 + クロージャ
-  実体 254 + 計装時完全インライン関数のアウトオブライン復元 485 —
-  `fse::DTable::decode_symbol`・`MultiHasher::update`・`Walker::walk` 等の
-  ホット関数を含むが、これらは計装ビルドで呼び出し側へ完全インラインされ
-  独立記録を持たないだけで、use ビルド側では呼び出し側がプロファイルを
-  保持する）。プロファイル適用の陽性証拠は **Total count**（#106 =
-  1.21e9）。dev プロファイル（非 LTO）では乖離 0.055 % まで縮小 —
-  **G2 のしきい値は dev 実験で較正してはいけない**（#106 失敗の教訓。
-  判定器は `scripts/pgo/g2_check.py` に恒久化、mutation 5 ケース実証済み）。
-- **release ビルドは 1 GiB でも通ることがある**（2026‑09‑29 T7 で zenwebp 込み
-  lto=fat + codegen‑units=1 が 3m12s で成功 — §2.3 の「OOM」は常にではない。
-  不安定なので `CARGO_BUILD_JOBS=1` + ディスク残量に注意。target/release は計測後削除）。
-- **計装 universal2（fat）dylib は macOS で終了時 SIGSEGV**（run #107 実証・
-  Plan‑2 §4.4 判断 (c)）: maturin `--pgo` のトレーニング自体は全 30 セクション
-  完走するが、インタプリタ終了時のプロファイルランタイム flush でクラッシュし
-  profraw が出ない（`[train] done` の 37 ms 後）。単一 arch の PE（Windows）/
-  ELF（Linux）では再現しない → **macOS は非 PGO 出荷**。macOS ホスト無しでは
-  デバッグ不能なので推測修正は禁止（再評価 = upstream 修正後に arm64 単一 arch から）。
-- **PGO プロファイルは決定論的に再現する — ただし「関数集合と missing 比率」
-  の意味で**: train.py のシード固定により G2 の形状数値（7,618 / 1,052 /
-  13.81 % / znn_codec 877）は run #106・#107 ×2・#108 ×2 の 5 セルで完全一致。
-  **Total count は ±0.1 % 一致**（同一 run の 2 ジョブ間でも ~0.08 % ずれる —
-  #107: 992,358 / #108: 1,080,225。rayon の並列分割/ワークスティーリング順が
-  ランナーで変わりうるため。G2 の count 条件が `> 0` のみなのはこのため）。
-  train.py の重み付け改訂は count を意図どおり動かす（#107→#108 +6.7 % =
-  scan 系増量の反映証明）。missing 内訳の新クラス（#107 判明）: rayon の
-  `in_worker_cold` / `in_worker_cross` 分裂変種 = use ビルド側で新規生成される
-  コールド経路複製（良性）。
-- **共有ランナーの A/B 計測: round 0 は両側とも冷間・短時間窓は二峰分散**
-  （run #107 実測）: compress が round 0→1 で 174.77→347.88 MB/s へ倍増
-  （ページイン/周波数）。側別最小値プロトコルの min 比は事実上「冷間同士」の
-  比較になる。15–95 ms 級の微小窓（scan）は**同一バイナリでも側内 2.1 倍**
-  変動し、min 比はラウンド選択アーティファクトになる（#107 scan ×0.349 の実例 —
-  定常 round 2 は ×0.99）。**対策（恒久）**: ラウンド別生サンプル
-  （`roundsA`/`roundsB`）を JSON と job summary の両方へ記録し、解釈は必ず
-  ラウンド別表で行う。N=5（3→5 へ増量）。
-- **min-of-N 判定は共有ランナーで使えない（run #108 で確定・判定 = 側別中央値）**:
-  #108 の compress min ×0.7575 は「a の外れ値ラウンド 4 vs b の外れ値
-  ラウンド 3」の比で、退行ではなかった（clean round 1 同士は ×0.9992・
-  hash は全ラウンド ±0.4 %・側内変動は最大 2.2 倍）。min 判定は 2 run 連続で
-  アーティファクト（#107 scan ×0.349 / #108 compress ×0.7575・scan ×5.0302）を
-  生んだため、**G1 判定 = 側別中央値比**（Plan‑2 §2.2 の原定義）、min/best は
-  参考並記、REGRESSION WATCH も中央値 < 0.95。**steal ゲートはこのノイズ級を
-  捕まえられない**（#108 は破棄 0 で通過 — バースト的な割当/スケジュール干渉は
-  /proc/stat の steal に現れない）。hash（±0.4 % の安定対照）とラウンド別表が
-  唯一の判別手段。実装 = `train.py::summarize_workloads()`（BENCH §13.6）。
-- **cargo‑zigbuild（0.23.4）の zig 探索順とジョブ内 python 切替**
-  （run 37113439219 の失敗 1 で実測、src/zig/locate.rs 実読）:
-  ① `CARGO_ZIGBUILD_ZIG_COMMAND`（非空 + **パス実在が必須** — 素のコマンド名は
-  不可。引数は `CARGO_ZIGBUILD_ZIG_COMMAND_ARGS`）→ ② `python3 -m ziglang`
-  （`CARGO_ZIGBUILD_PYTHON_PATH`、既定 python3）→ ③ PATH の `zig`
-  （`CARGO_ZIGBUILD_ZIG_PATH`）。ziglang wheel の console script は
-  **`python‑zig` のみ = PATH に `zig` shim は入らない**ので ③ は永久に不発。
-  ジョブ中段の setup‑python 切替（t ビルドの py315）で ② も壊れ、以降の
-  zigbuild は「Failed to find zig」で死ぬ。**恒久対策 = ツールチェイン導入時
-  （当該 python3 がまだ ziglang を持つ間）に site‑packages 内実体の絶対パスを
-  解決し `CARGO_ZIGBUILD_ZIG_COMMAND` を `$GITHUB_ENV` へ pin する** —
-  生成される linker wrapper は同変数を自分で再エクスポートする
-  （src/zig/wrapper.rs）ので、1 回の pin でジョブ全体に伝播する。zig の
-  lib_dir は `<zig> env` で解決（実行 CWD ≠ インストール先なら絶対パス。
-  wheel 内 `ziglang/lib/` が実体の隣にある限り直呼びで完全動作 —
-  `__main__.py` も同じパスを exec しているだけ）。pin のみ・
-  `python3 -m ziglang` 破綻環境での zigbuild 成功 + GLIBC_2.28 floor を実測。
-- **pyo3 0.29.2 の abi3‑pyXY feature は上向きチェーン**:
-  `abi3-py312 = ["abi3-py313", ...]` → py313 → py314 → py315 → 素の `abi3`
-  （pyo3 + pyo3‑ffi 双方の Cargo.toml 実読）。floor の実体は
-  pyo3‑build‑config `get_abi3_version()` = **有効化された最小の pyXY**
-  （minor 昇順スキャンで最初の有効 feature を採用）。よって
-  「floor == py312」のアサートは「有効な abi3‑py3XX の最小 minor == 12」で
-  書くべきで、「abi3‑py313 等が居ないこと」で書くと**常に誤検出**する
-  （toggle ゲートの潜在バグ — ft 軸が先に死んでいたため未発火だった）。
-  `abi3t-py315 = ["abi3t", ffi]`（0.29.2 時点、上位チェーン無し）。
-- **`cargo metadata` に `-p/--package` セレクタは無い**（cargo 1.99 実測:
-  `error: unexpected argument '-p' found`・exit 1）。feature のスコープ指定は
-  `package/feature` 修飾名で行う（`--features
-mm-core/extension-module,mm-core/ft`）。副次教訓: ゲート helper の
-  `capture_output=True + check=True` は cargo の stderr を握り潰し、CI ログに
-  素の traceback しか残さない — 非ゼロ時は stderr を写してから exit する。
-- **bash 3.2（macOS ランナー /bin/bash）+ `set -u`: 空配列はダブルクォート内
-  でも unbound**（run 37113439219 の失敗 2 = log 文字列内の `"${feat[*]}"`・
-  line 195。GIL 側は feat=() なので確実発火。linux bash 5.2 / git‑bash は
-  無影響）。ガード `${feat[*]+"${feat[*]}"}` は**GNU ソースから自ビルドした
-  実機 bash 3.2.57** でダブルクォート内・空/非空/空白含み要素とも正常動作を
-  実測（5.2 でも同一）— 実行行の `${feat[@]+"${feat[@]}"}` と同じイディオムで
-  統一した。macOS ステップの shell は `/bin/bash -e {0}`（= 3.2.57）。
-
-- **Actions キャッシュは「ref 単位スコープ × 10 GB/repo」— 納品形が
-  dev→PR→main だと 1 サイクルで 3 コピー保存され、既定のままでは必ず詰まる**
-  （2026‑10‑03 実測: 9.65 GiB / **96.5 %**・37 件 = `GET /actions/cache/usage` の
-  `active_caches_size_in_bytes 10,360,823,055`。一覧 API は 38 件で usage は
-  ~5 分遅れる）:
-  - **スコープ規則**（Dependency caching reference 実読）: 復元の検索順は
-    「現ブランチ → default branch」、PR run は加えて base branch。
-    **PR run が作ったキャッシュは `refs/pull/N/merge` に入り、その PR の
-    再実行からしか復元できない**（base からも他の PR からも不可）= マージ後は
-    純粋な死蔵。**タグ run も同様**（「異なるタグ名で作られたキャッシュは
-    復元できない」）→ `on: push: tags: ["v*"]` はリリースごとに ~2.4 GiB の
-    死蔵を作る。実測内訳: main 5.153 GiB / 18 件・refs/pull/29/merge
-    **2.505 GiB / 10 件**（PR #29 は 13:33 マージ済み）・dev 1.991 GiB / 10 件。
-    同一キーの 3 重保存も実測（`v0-rust-native-test-Linux-x64-2c4d122c-412e313b`
-    = main 624.07 MiB / pull 624.07 MiB / dev 550.63 MiB）。
-  - **restore-key フォールバックは `last_accessed_at` を更新する**ので、死蔵が
-    LRU eviction（「last access が古い順に削除」）を生き残り、代わりに live な
-    ブランチキャッシュが消える。実証: **fuzz‑long #7**（2026‑09‑27 main・7 ジョブ
-    全 success・rust‑cache post 成功）が保存した `v0-rust-fuzz-*` が 6 日後の
-    一覧に存在しない（7 日無アクセス消去の期限 10‑04 より前）= **evict 済み**。
-    旧世代 6 件も 13:34 のフォールバック復元で last_accessed が更新され、
-    evict されにくい位置に居座っていた。
-  - **rust‑cache のキー世代**: 末尾ハッシュは「全 Cargo.toml/Cargo.lock・
-    rust‑toolchain・.cargo/config.toml + env-vars のハッシュ」（action.yml
-    `add-rust-environment-hash-key`）→ 依存を触るたびに世代が増え、旧世代は
-    exact match 不可能なまま残る（実測 2.061 GiB / 6 件）。
-    cleanup.ts の `rmExcept` は**名前ベース**（末尾 `-$hash` を落として keep 集合と
-    照合）なので、PGO の計測ビルド（`RUSTFLAGS=-Cprofile-generate`）と本ビルドは
-    別 fingerprint で同居し**両方キャッシュされる** = native‑build‑linux 556 MiB の
-    主要因（`cache-targets: "false"` にすれば registry のみになるが、cold ビルドの
-    実測が無いので保留 = 1 run で計測してから判断）。
-  - **対策① = `Swatinem/rust-cache@v2` の `save-if`**（v2 の dist/save.js 実読:
-    `const save = getInput("save-if").toLowerCase() || "true"` →
-    `save === "true"` のときだけ保存し、それ以外は post step が即 return。
-    **restore は `main: dist/restore.js` で常時実行**）。本リポジトリの式は
-    `github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' ||
-github.ref == 'refs/heads/dev')`（7 箇所: native.yml の native‑test /
-    native‑build‑linux / ‑macos / ‑windows / fuzz‑smoke / pgo‑measure +
-    fuzz‑long.yml の fuzz）。schedule は default branch 上で走るので
-    `github.ref == 'refs/heads/main'` = 保存される（週次 7×3 h の ASan ビルドが
-    cold にならない）。`!= 'pull_request'` は native.yml の concurrency 注記にある
-    ghost PR run（`github.ref` が `refs/heads/main` を返した実例）を main スコープの
-    書き込みから外すため。PR/tag run の復元は default branch フォールバックで
-    効くので速度は落ちない（PR run の restore 実測 0.1–0.5 min）。
-  - **対策② = 能動的 prune**（公式ドキュメント "Managing caches → Force deleting
-    cache entries" が「eviction より速い間隔で消すワークフローを置け」と明記し、
-    `pull_request: closed` + `permissions: actions: write` の定型を出している）:
-    `scripts/actions_cache_sweep.py`（stdlib のみ）+ `.github/workflows/cache-cleanup.yml`
-    （PR クローズ時に当該 `refs/pull/N/merge` / 週次 03:40 UTC + dispatch で
-    pull・tags・世代落ち）。**削除は非破壊**（最悪でも 1 回 cold build、run は
-    失敗しない）。REST の delete 上限は 400/min。
-    **実装時の地雷（cache-cleanup run #1 で実証・2026‑10‑03）**: runner は
-    **`GITHUB_TOKEN` を step の環境変数に自動注入しない** — default env は
-    `GITHUB_REPOSITORY` / `GITHUB_SHA` / `GITHUB_STEP_SUMMARY` 等の 46 変数のみ
-    （docs ソース `variables.md` の表を実読、`*TOKEN*` は 0 件）で、token は
-    `secrets.GITHUB_TOKEN` / `github.token` の**式コンテキストからしか届かない**。
-    REST を叩く step は必ず `env: GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` を
-    明示する（「already in the step environment」という当初のコメントは誤りで、
-    prune job が `no credentials` で exit 1 した。両 job の script step へ追加
-    して解消 — 失敗 run の実害はゼロ: `save-if` により PR run はそもそも
-    保存せず `refs/pull/30/merge` スコープは 0 件だった）。
-  - **上限の引き上げは現状不可**: `GET /repos/.../actions/cache/storage-limit` →
-    **HTTP 402 "Please ensure your account has a valid payment method on file"**
-    （10 GB 超は Pro/Team/Enterprise + 支払方法 + opt‑in の従量課金、
-    50 GB ≈ $2.80/月 — 2025‑11‑20 changelog）。**cache の 10 GB/repo は公開
-    リポジトリにも適用される**（本リポジトリで eviction が実測されている）。
-  - 試算（実測エントリサイズの合計）: 1 サイクル = main 3.09 + dev 1.99 +
-    PR 0.21 + fuzz‑long 0.49 ≈ **5.8 GiB**、世代落ち 2.06 を足すと 7.84 GiB =
-    **10 GB は「1.2 サイクル分」しか無い**。save‑if 後は定常 5.57 GiB
-    （PR/tag 由来の増加分ゼロ）+ 即時 prune 16 件 / 4.566 GiB で
-    **22 件 / 5.083 GiB（50.8 %）**へ。
-  - **artifacts は別枠**: `upload-artifact` の既定保持は **90 日**で、live
-    396 件 / 0.797 GiB・直近 ~120 MiB/日（内訳 native‑bin‑linux 332.7 /
-    ‑macos 305.5 / ‑windows 177.8 MiB = 実質 100 % がこの 3 種）。検証専用
-    （同一 run の下流が数分以内に download・main では publish bot がコミット）
-    なので **7 日**へ短縮。fuzz‑crashes / pgo‑measure‑report は 0.00–0.10 MiB の
-    証拠物件なので据え置き。公開リポジトリでは artifact 枠は実測上効いていない
-    （Free の 500 MB 相当を超えても upload 成功）。
+- **pnpm 10+ は `.npmrc` から auth / registry 設定しか読みません**:
+  `minimumReleaseAge` 等のサプライチェーン設定は `pnpm-workspace.yaml`
+  （camelCase キー）が正です。既定ゲート下では `pnpm update` / `install` の
+  検証ステップが 1 GiB 環境で OOM します（回避策は environment-report.md
+  §11.3）。当日公開版はゲートが拒否するため、1 日以上経過した版へ pin します。
+- **uv**: `uv pip install --system` はアクティブな venv が無いとき PATH 先頭の
+  非 venv Python を対象にします（このサンドボックスでは
+  `--break-system-packages` が必要。GitHub ランナーの setup‑python には
+  `--system` がそのまま刺さります）。torch CPU は `[[tool.uv.index]] explicit` +
+  `[tool.uv.sources]` で CPU wheelhouse へ。root pyproject は
+  `[build-system]` 無し = `[tool.uv] package = false` で仮想プロジェクト化。
+- **zenwebp 0.4.4**（純 Rust WebP codec・`forbid(unsafe_code)`・AGPL‑3.0）:
+  エンコードは `EncodeRequest::{lossy, lossless, new}`、静止デコードは
+  `oneshot::decode_rgba`（常に RGBA）、アニメは
+  `mux::{AnimationEncoder, AnimationDecoder}`。**`AnimationDecoder` のフレームは
+  has_alpha により RGBA(4 B)/RGB(3 B) が変わる**ため、
+  `znn_codec::webp::decode_animation` は長さで判別し RGBA へ正規化します。
+  **PIL は WebP のフレーム毎 duration を公開しない**（GIF は公開）→
+  アニメ WebP 入力は native デコードで duration を保持。canvas 次元は
+  `ImageInfo::from_webp` でデコード前にガードします（敵対的ヘッダの
+  過剰確保防止 = ファズの要点）。
+- **GH ランナーの apt ハングは実在します**（native run #80: apt ステップが
+  無出力で 6 時間ハングし run 全体が cancelled。同一ステップは前後の run では
+  20 秒未満 = ミラー側の一過性ストール）→ 全 apt ステップへ
+  `timeout-minutes: 10`、全ジョブへ `timeout-minutes: 60`。
+- **maturin `--pgo`（1.15.0）の実装事実**: `pgo-command` は project_root
+  （= native/）を cwd にシステムシェル経由（unix `sh -c` / Windows `cmd /C`）で
+  実行され、PATH 先頭に一時 venv の bin、`LLVM_PROFILE_FILE` は maturin が設定。
+  `llvm-profdata` は rustc sysroot → PATH の順で解決されるため
+  **`llvm-tools-preview` component が必須**です。profraw がゼロなら明示的に
+  bail します。`pgo-command = "python ../scripts/pgo/train.py"` の相対パスは
+  cwd=native/ で正しく、これが train.py を標準ライブラリ専用に設計した
+  理由です（requires_dist が空のため venv に何も入りません）。
+- **計装 universal2（fat）dylib は macOS でインタプリタ終了時に SIGSEGV**:
+  トレーニング自体は完走しますが、終了時のプロファイルランタイム flush で
+  クラッシュし profraw が出ません（単一 arch の PE / ELF では再現せず）→
+  **macOS は非 PGO 出荷**。macOS ホスト無しではデバッグ不能なため
+  推測修正は禁止（再評価は upstream 修正後に arm64 単一 arch から）。
+- **PGO × fat LTO の warn‑missing‑function は良性乖離が支配的**（実測 13.81 %:
+  ジェネリック実体化・クロージャ実体・計装時に完全インラインされた関数の
+  アウトオブライン復元）→ G2 ゲートはしきい値 50 % + 陽性プローブ
+  （Total count）。**しきい値を dev（非 LTO）実験で較正してはいけません**
+  （乖離が 0.055 % まで縮むためゲートが厳しすぎる側で壊れます）。判定器は
+  `scripts/pgo/g2_check.py` に恒久化（mutation 5 変種で検出力を実証）。
+  プロファイルの形状（関数集合と missing 比率）はシード固定により
+  決定的に再現し、Total count は ±0.1 % のランナー変動がある（rayon の
+  並列分割順）ため count 条件は `> 0` のみです。
+- **cargo‑zigbuild の zig 探索順**: ① `CARGO_ZIGBUILD_ZIG_COMMAND`
+  （非空かつ**パス実在が必須**）→ ② `python3 -m ziglang` → ③ PATH の `zig`。
+  ziglang wheel の console script は `python-zig` のみで ③ は永久に不発、
+  ジョブ中段の setup‑python 切替で ② も壊れます → **恒久対策はツールチェイン
+  導入時に site‑packages 内実体の絶対パスを解決し
+  `CARGO_ZIGBUILD_ZIG_COMMAND` を `$GITHUB_ENV` へ pin すること**
+  （生成される linker wrapper が同変数を自分で再エクスポートするため、
+  1 回の pin でジョブ全体に伝播します）。
+- **pyo3 0.29.2 の abi3‑pyXY feature は上向きチェーン**
+  （`abi3-py312` ⇒ py313 ⇒ py314 ⇒ py315 ⇒ 素の `abi3`）→ floor の実体は
+  「有効化された最小の pyXY」（pyo3‑build‑config `get_abi3_version()` の
+  昇順スキャン）。floor のアサートは「最小有効 minor == N」の形で書きます
+  （「より高い abi3‑pyXXX が居ないこと」の形は常に誤検出します）。
+  `abi3t-py315 = ["abi3t", ffi]`（上向きチェーン無し）。
+- **`cargo metadata` に `-p/--package` セレクタは無い** → feature のスコープは
+  `package/feature` 修飾名で指定。ゲート helper が `capture_output=True +
+check=True` で cargo の stderr を握り潰すと CI ログに traceback しか
+  残らないため、非ゼロ時は stderr を写してから exit します。
+- **macOS ランナーの /bin/bash は 3.2**: `set -u` 下では空配列が
+  ダブルクォート内でも unbound になります → `${arr[*]+"${arr[*]}"}` ガード
+  （GNU ソースから自ビルドした 3.2.57 実機で動作確認済み。5.2 でも同一）。
+- **GitHub Actions のキャッシュは「ref 単位スコープ × 10 GB/repo」**:
+  dev→PR→main の納品形では同一キーが 3 コピー保存され、PR run が作った
+  キャッシュは `refs/pull/N/merge` スコープに入り**マージ後はどこからも
+  復元できません**（タグ run も同様）→ `Swatinem/rust-cache@v2` の `save-if` を
+  main / dev の非 PR イベント限定にしています（7 箇所）。
+  **restore‑key フォールバックは `last_accessed_at` を更新する**ため、
+  復元不能キャッシュが LRU eviction を生き残り、代わりに live なブランチ
+  キャッシュが削除されます → 能動的な削除が必須です:
+  `cache-cleanup.yml` + `scripts/actions_cache_sweep.py`
+  （PR クローズ時に当該スコープ、週次日曜 03:40 UTC + dispatch で
+  pull・tags・世代落ち。削除は非破壊 — 最悪でも cold build が 1 回）。
+  上限の引き上げは支払方法の登録なしでは HTTP 402 で不可。rust‑cache の
+  キー末尾ハッシュは全 Cargo.toml / Cargo.lock 等が対象のため、依存を触る
+  たびに旧世代が残ります（`--older-than-days` の名前ベース削除で一括整理）。
+- **runner は `GITHUB_TOKEN` を step の環境変数に自動注入しません**
+  （トークンは `secrets.GITHUB_TOKEN` / `github.token` の式コンテキストから
+  のみ供給）→ REST を叩く step は必ず
+  `env: GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` を明示します。
+- **`upload-artifact` の既定保持は 90 日** → 検証用の `native-bin-*` は
+  `retention-days: 7`（fuzz‑crashes / pgo‑measure‑report は証拠物件のため
+  据え置き）。
 
 ### 4.2 フロントエンド / V8
 
-- **C2 comparator の計測事実（bench ゲートで機械固定）**: V8 は**既定 options の
-  `localeCompare`** に内部キャッシュ済み既定 collator の高速経路を持つ →
-  hoisted `Intl.Collator` より ×2.1–3.5 **速い**（既定 variant は
-  `localeCompare` 維持）。**options 付き**に高速経路は無く `{numeric:true}` は
-  hoisted numeric Collator の ×23–33 遅い（numeric variant のみ Collator 化）。
-  **この設計判断は CI（Node 22 GH ランナー）の V8 でも再現**（第 8 セッション —
-  Plan T2 が Node 更新時の再検証を規定）。
-- **shallowRef 移行の手順**: 全消費者の**影響棚卸しを先行**（doc コメントに
-  列挙）、読み取り専用 or cloneDeep 後操作のみであることを確認 →
+- **C2 comparator（bench ゲートで機械固定）**: V8 は**既定 options の
+  `localeCompare`** に内部キャッシュ済み既定 collator の高速経路を持ち、
+  hoisted `Intl.Collator` より ×2.1–3.5 速い → 既定 variant は `localeCompare`
+  を維持。**options 付き**に高速経路は無く、`{numeric:true}` は hoisted
+  numeric Collator が ×23–33 速い → numeric variant のみ Collator 化。
+  この設計判断は CI の V8 でも再現しており、Node 更新時に再検証します
+  （Plan T2 規程）。
+- **shallowRef 移行の手順**: 全消費者の影響棚卸しを先行（doc コメントに
+  列挙）→ 読み取り専用または cloneDeep 後操作のみであることを確認 →
   イミュータブル差し替え（`models.value = {...models.value, [folder]: resData}`）。
-  getter watch（`() => modelsData.value[type]`）は ref 自体を追跡するため
-  shallowRef でも再代入で発火する。
-- **巨大 payload の cloneDeep は隠れコスト**: 65,268 tensors で 218.5 ms +
-  87,195 ノード tree で 130.0 ms がダイアログ open 毎、dirty 判定の
-  JSON.stringify が毎回 → 読み取り専用表示 payload は**参照共有**
-  （保存経路がこれらを送らないことで安全）+ snapshot 除外 + `toRaw()` 経由
-  読み取り（Proxy トラップ回避）。端到端 ≈1,589 → ≈13 ms（BENCH §11.3.1）。
-- テンソルツリー: Rust pre‑order 線形符号 + JS 遅延インデックス（87k ノードを
-  materialize しない）。**描画行の順序は `tensorTreeRowsIdentical` ゲート**が
-  legacy fold と機械照合（collapsed + 全展開 152,462 行）。
+  getter watch（`() => modelsData.value[type]`）は ref 自体を追跡するため、
+  shallowRef でも再代入で発火します。
+- **巨大 payload の cloneDeep は隠れコスト**: 65,268 テンソルで 218.5 ms、
+  87,195 ノードの tree で 130.0 ms がダイアログを開くたびに発生していました →
+  読み取り専用表示 payload は**参照共有**（保存経路がこれらを送らないことで
+  安全）+ snapshot 除外 + `toRaw()` 経由の読み取り（Proxy トラップ回避）。
+  端到端 ≈1,589 → ≈13 ms（BENCH §11.3.1）。
+- **テンソルツリー**: Rust pre‑order 線形符号 + JS 遅延インデックス
+  （87k ノードを materialize しません）。**描画行の順序は
+  `tensorTreeRowsIdentical` ゲート**が legacy fold と機械照合します
+  （collapsed + 全展開 152,462 行）。
 - SMIL アニメーションの `<img>`（フォルダアイコン）に `decoding="async"` は
-  **意図的に非適用**（タイムライン再開挙動が変わる）。`loading="lazy"` は
-  仮想スクロール済みのため不導入。
-- `scripts/bench/front/k15.mjs` は `--cross-check` 無しなら native 不要・約 30 s
-  （縮小パラメータ `--models 1500 --keystrokes 40 --moe-layers 12
---moe-experts 8` で約 6 s）。pnpm ストア外の tsc は `MMNEO_TSC` で渡す。
+  **意図的に非適用**（タイムライン再開挙動が変わるため）。
+  `loading="lazy"` は仮想スクロール済みのため不導入。
+- `scripts/bench/front/k15.mjs` は `--cross-check` 無しなら native 不要・約 30 秒
+  （縮小パラメータで約 6 秒）。pnpm ストア外の tsc は `MMNEO_TSC` で渡します。
 
 ### 4.3 バックエンド（Python / native 接続）
 
-- **HTTP を Rust 化しない実測根拠（2026‑09‑27 — Plan §3.8 / BENCH §11.4 が参照）**:
-  reqwest **0.13.5** は feature 名変更（`rustls-tls` 廃止 → `rustls`）で、
-  **aws‑lc‑sys（C/asm・cmake 必須）**+ ring（C/asm）を引き「コンパイラ不要」
-  配布哲学と衝突。最小プローブ cdylib（同一 release プロファイル）実測
-  **4,886,072 B ≈ 4.9 MB** = HTTP スタックだけで予算の ~1.9 倍超過。依存
-  **167 crates**。native‑tls は OpenSSL 動的リンクで zigbuild glibc 2.28 床を
-  破壊。huggingface_hub 2.0 は **httpx2 基盤**（PyPI requires_dist 一次確認）→
-  Rust 化は「統一」でなく**第 3 スタック追加**。重い HF 転送は hf_xet で既に
-  Rust。axum（サーバ FW）/ utoipa（Rust ハンドラ OpenAPI）は aiohttp
+- **HTTP を Rust 化しない実測根拠**（Plan §3.8 / BENCH §11.4 の一次記録）:
+  reqwest 0.13 は feature 名変更（`rustls-tls` → `rustls`）で aws‑lc‑sys
+  （C/asm・cmake 必須）+ ring を引き込み、「コンパイラ不要」の配布哲学と
+  衝突します。最小プローブ cdylib は実測 **~4.9 MB**（HTTP スタックだけで
+  サイズ予算の ~1.9 倍超過）・依存 167 crates。native‑tls は OpenSSL 動的リンクで
+  zigbuild の glibc 2.28 床を破壊。huggingface_hub 2.0 は httpx 基盤のため、
+  Rust 化は「統一」ではなく**第 3 のスタック追加**になります。重い HF 転送は
+  hf_xet で既に Rust 化済み。axum（サーバ FW）/ utoipa は aiohttp
   PromptServer 登録モデルに非該当。
-- **extended‑notify 不採用の実測根拠（2026‑09‑27 — Plan §3.1 が参照）**:
-  0.1.3・単一作者・DL 1,286（notify 本体 1.599 億 / debouncer‑full 1,673 万と
-  3 桁以上差）、**debouncer‑full ^0.6 の後ろピン**（現行 0.7.0）、tokio を
-  出荷バイナリへ混入。目玉機能は Neo 側で数行代替可（root 再アーム・kind
-  フィルタ・ポーリングは **notify 本体の PollWatcher 標準搭載**）。本当に
-  必要なのはグルー（inotify 予算管理・network FS 検出・path→type・既定 OFF）
-  = `py/watcher.py` 実装済み。
-- **aiohttp parity の要点（A3 契約 — `py/http_client.py`）**: requests の
-  timeout は `(connect, read‑between‑bytes)` → `ClientTimeout(connect=…,
-sock_read=…, total=None)`（**total ではない** — 120 ms 間隔 2 チャンク
-  ストリーミングで実測固定）。`HttpStatusError` が `raise_for_status` 文言を
-  **逐語再現** + `.response.status_code` 維持（Civitai 401 誘導文が依存）。
-  JSON は **content‑type を検査しない**（`content_type=None` — ModelScope CDN が
-  octet‑stream で返す実例）。宣言 charset 尊重 + 未知 codec は UTF‑8 degrade
-  （LookupError 捕捉）。`trust_env=True`（プロキシ環境変数）。共有セッションは
-  **ループ変化を検出して再作成**（本番の None→生成は await を挟まず同期
-  アトミック = 並発初回呼び出しでも安全。pytest は autouse `close_session()`）。
-- **`requests` は modelscope_hub の推移的依存**（`pip show requests` 実測:
-  `Required-by: modelscope-hub`）— Neo の直接使用ゼロ化後も環境に残る。
-  requirements.txt は不変（T8 のメリットは依存削減でなく構造:
-  IO プール専有解消・方針一元化・テスト可能性）。
-- **io プール枯渇クラス**（A3/T8/A1 の動機）: 8 本の io ワーカーでの
-  ブロッキング HTTP は、遅い CDN で read timeout（最大 120 s）分スロットを
-  専有 → scan/hygiene/preview が連鎖的に遅れる。ネットワーク待ちはイベント
-  ループ、executor には CPU 段のみ。同クラス: model‑info ルートの
-  executor 化（A1）、watcher arm/release の executor 化、resume seeding の
-  executor 化（Phase 5 監査 #1）。
-- **GIL 規律**: 長時間/ブロッキング native API は `py.detach()` で解放
-  （違反の前例: walk_models/move_with_sidecars — 2026‑09‑26 修正、
+- **extended‑notify 不採用の実測根拠**（Plan §3.1 の一次記録）: 単一作者・
+  ダウンロード数が本体ライブラリと 3 桁以上差・debouncer‑full の旧版ピン
+  （^0.6）・tokio の出荷バイナリ混入。目玉機能（root 再アーム・kind フィルタ・
+  ポーリング）は Neo 側で数行で代替可能で、ポーリングは notify 本体の
+  PollWatcher に標準搭載。本当に必要なのはグルー（inotify 予算管理・
+  network FS 検出・path→type・既定 OFF）= `py/watcher.py` に実装済み。
+- **aiohttp parity の契約**（`py/http_client.py`）: requests の timeout
+  `(connect, read-between-bytes)` → `ClientTimeout(connect=…, sock_read=…,
+total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのストリーミングで
+  実測固定）。`HttpStatusError` は `raise_for_status` の文言を**逐語再現** +
+  `.response.status_code` を維持（Civitai の 401 誘導文が依存）。JSON は
+  **content‑type を検査しない**（`content_type=None` — ModelScope CDN が
+  octet‑stream で返す実例）。宣言 charset を尊重し、未知 codec は UTF‑8 へ
+  degrade（LookupError 捕捉）。`trust_env=True`（プロキシ環境変数）。
+  共有セッションは**イベントループの変化を検出して再作成**
+  （None→生成は await を挟まない同期アトミック = 並発初回呼び出しでも安全）。
+- **`requests` は modelscope_hub の推移的依存として残ります**
+  （`Required-by: modelscope-hub` を実測）— Neo の直接使用ゼロ化後も環境に
+  存在します（直接使用ゼロは AST テストで固定）。T8 の利点は依存削減ではなく
+  構造です（IO プール専有の解消・方針の一元化・テスト可能性）。
+- **IO プール枯渇クラス**: 8 本の io ワーカー上でのブロッキング HTTP は、
+  遅い CDN で read timeout（最大 120 秒）分スロットを専有し、scan / hygiene /
+  preview が連鎖的に遅れます。ネットワーク待ちはイベントループ、executor には
+  CPU 段のみ（同クラス: model‑info ルートの executor 化、watcher arm/release の
+  executor 化、resume seeding の executor 化）。
+- **GIL 規律**: 長時間・ブロッキングの native API は `py.detach()` で解放します
+  （違反の前例: walk_models / move_with_sidecars —
   `test_walk_models_releases_the_gil` で機械固定）。**watcher の arm/release は
   executor 経由、poll はループ上**（mutex swap + 小 JSON = 安い、が設計意図）。
-  Python 側の重い段（hash/PIL/ヘッダ解析）は executor。
-- **O(n²) の教訓（Phase 5 実装中に発見・修正）**: `parse_header_json` の重複
-  テンソル名検査が `iter().any/position`（O(n)/テンソル）→ 64,491 テンソル MoE
-  で native が **6,098 ms = legacy 334 ms の ×18 退行**。`HashMap<name, pos>`
-  O(1) last‑wins へ修正 → 212 ms（legacy 比 ×1.58 速）。**compress も共有
-  経路**なので 6 s → 数十 ms。教訓: **native 化は自動では速くならない —
-  実規模での端到端計測が必須**。
-- **ヘッダ解析は 1 ルート**: `get_model_header` が metadata+tensors+tree を
-  一度に返す + `(mtime_ns, size)` スタンプ ガード（2 回の native 呼び出し間に
-  ファイルが差し替わると tree を落とす — フロントの leaf 数検査
+  Python 側の重い段（hash / PIL / ヘッダ解析）は executor。
+- **native 化は自動では速くなりません**: `parse_header_json` の重複テンソル名
+  検査が線形走査（O(n²)）だったため、64,491 テンソルの MoE で native が
+  **×18 の退行**（6,098 ms vs legacy 334 ms）→ `HashMap<name, pos>` O(1)
+  last‑wins へ修正し 212 ms（legacy 比 ×1.58 速）。compress も共有経路のため
+  6 秒 → 数十ミリ秒。**実規模での端到端計測が必須**です。
+- **ヘッダ解析は 1 ルート**: `get_model_header` が metadata + tensors + tree を
+  一度に返し、`(mtime_ns, size)` スタンプガードを掛けます（2 回の native 呼び出し
+  の間にファイルが差し替わると tree を落とす — フロントの leaf 数検査
   `leaves.length === tensors.length` と二重）。
-- **watcher 設計定数**（テストから monkeypatch 可能な module 定数）:
+- **watcher の設計定数**（テストから monkeypatch 可能な module 定数）:
   `SETTING_TTL=5.0` / `TYPE_COOLDOWN=2.0` / `DEGRADE_RETRY=600` /
-  `MOUNTINFO_TTL=60`。rescan/type のクールダウンは**消費されたシグナルを
-  意図的に間引く**（30 s TTL が correctness の床）。シングルトン
+  `MOUNTINFO_TTL=60`。rescan / type のクールダウンは**消費されたシグナルを
+  意図的に間引きます**（30 秒 TTL が correctness の床）。シングルトン
   `watcher.watcher` とクラス `ModelWatcher` は分離済み。
-- **request 無しでの設定読み取り**: ComfyUI `get_request_user_id` は
-  single‑user で request に触れない（app/user_manager.py 一次確認）→
-  background task は `request=None` で読める。`--multi-user` では例外 →
+- **request 無しでの設定読み取り**: ComfyUI の `get_request_user_id` は
+  single‑user で request に触れない（app/user_manager.py を一次確認）→
+  background task は `request=None` で読めます。`--multi-user` では例外 →
   既定値（OFF）へ degrade = 安全側。
-- **設定 ID 文字列は ComfyUI が永続化するキーなので改名禁止**
-  （`ModelManager.Scan.*` 系 — 改名は既存インストールの保存値を孤立させる）。
-  解決は `resolve_setting_key`（`scan.watch_model_folders` →
-  `ModelManager.Scan.WatchModelFolders`）。
-- **既知の非バグ事項**: `decompressedTensors` は native=実デコード数 /
-  legacy=infos エントリ数（ゴースト infos の壊れファイルでのみ差）。legacy の
-  「dst 存在チェック後の競合」は native の create_new で構造的に解消済み
-  （legacy は Phase 8 で消滅）。サーバ kill 中のジョブスレッドは道連れで死ぬ
-  （tmp 残りは起動時クリーンアップの 15 分規則が回収。コミット済み成果物は
-  rename 原子性で不整合にならない）。
-- **T1 の対象（upload preflight ハッシュ）**: `upload_hf.py hash_local_file` は
-  Python hashlib の 1 MiB ループで **io_executor 上で走る**（CPU 作業 —
-  プール意味論的にも cpu 側が正）。hashlib も OpenSSL 経由で SHA 拡張を使う
-  ため純速度差は小さい（BENCH §10.2: SHA‑NI 無し機で native 5 表記
-  1239 MB/s vs legacy sha256 単体 1442 MB/s）— 実益はループ除去・経路統一・
-  GIL 解放。チャンク毎 `report_progress(PHASE_HASH)` の扱いが設計判断
-  （Plan T1）。
-- **`EXTENSION_SUFFIXES` = 拡張子の flavour 行列（native run 37121494488 の
-  失敗 4 で実測・CPython 一次ソースで確定）**: `_imp.extension_suffixes()` は
-  `_PyImport_DynLoadFiletab` そのもの（`Python/import.c`
-  `imp_extension_suffixes_impl`）で、POSIX の実体は `Python/dynload_shlib.c` —
-  **`.abi3*` 項は `#ifndef Py_GIL_DISABLED` の内側、`.abi3t*` 項は無条件**。
-  `FileFinder._find_spec` は `name + suffix` しか照合しない
-  （`Lib/importlib/_bootstrap_external.py:1386-1395`）ので、free-threaded 3.15
-  では `mm_core.abi3.so` を `mm_core` としても `mm_core.abi3` としても解決できず
-  `ModuleNotFoundError` になる（= ローダーの reason は
-  「import mm_core failed: No module named 'mm_core'」）。実測値:
-  - 3.12.15 GIL → `.cpython-312-x86_64-linux-gnu.so` / **`.abi3.so`** / `.so`
-  - 3.13.16t ft → `.cpython-313t-…so` / **`.abi3.so`** / `.so`
-  - 3.14.8t ft → `.cpython-314t-…so` / **`.abi3.so`** / `.so`
-  - 3.15.0rc2 GIL → `.cpython-315-…so` / `.abi3-x86_64-linux-gnu.so` /
-    **`.abi3.so`** / `.abi3t-x86_64-linux-gnu.so` / **`.abi3t.so`** / `.so`
-  - 3.15.0rc2t ft → `.cpython-315t-…so` / `.abi3t-x86_64-linux-gnu.so` /
-    **`.abi3t.so`** / `.so`（**`.abi3.so` が消える**）
-- **`Py_GIL_DISABLED` ガードは 3.15 で入った**（v3.13.9 / v3.14.0 の
-  `dynload_shlib.c` を実読 = ガード無し・`.abi3t` 項も無し）。つまり
-  3.13t/3.14t は `.abi3.so` を**受理してしまう** = GIL 専用拡張が dlopen まで
-  届く。ローダーが ft<3.15 を「abi3t requires 3.15+」で**早期拒否**する根拠は
-  ここにある（「解決できないから」ではなく「解決できてしまうから危ない」）。
-  逆に **GIL 3.15 は両 family を併記**するので、abi3-import の
-  「3.15 GIL × abi3t 成果物」セルは成立する（run 37121494488 で緑）。
-- **Windows には family 差がファイル名に存在しない**: `Python/dynload_win.c` は
-  `PYD_TAGGED_SUFFIX` / `PYD_UNTAGGED_SUFFIX` の 2 項のみ
-  （`Include/internal/pycore_importdl.h` v3.15.0rc2 実読:
-  `.cp315[t]-win_amd64.pyd` / `.pyd`・`PYD_THREADING_TAG` が
-  `Py_GIL_DISABLED` で `t`）。よって Windows の flavour 分離は
-  **ディレクトリ名（`<tag>` vs `<tag>t`）だけ**が担い、`.abi3*` は永遠に無い。
-  テストやステージングで「ABI タグ付きファイル名」を前提にできるのは POSIX のみ。
+- **設定 ID 文字列は ComfyUI が永続化するキーのため改名禁止**
+  （`ModelManager.Scan.*` 系 — 改名は既存インストールの保存値を孤立させます）。
+  歴史的な ID の吸収は `resolve_setting_key`。
+- **既知の非バグ事項**: `decompressedTensors` は native = 実デコード数 /
+  legacy = infos エントリ数（ゴースト infos を持つ壊れファイルでのみ差）。
+  legacy の「dst 存在チェック後の競合」は native の create_new で構造的に
+  解消済み。サーバ kill 中のジョブスレッドは道連れで終了します
+  （残った tmp は起動時クリーンアップの 15 分規則が回収。コミット済み成果物は
+  rename の原子性により不整合になりません）。
+- **アップロード preflight ハッシュ（T1）**: `upload_hf.py` の `hash_local_file` は
+  Python hashlib の 1 MiB ループで io_executor 上で走っていました
+  （CPU 作業 — プール意味論的にも cpu 側が正）。hashlib も OpenSSL 経由で
+  SHA 拡張を使うため純速度差は小さく（BENCH §10.2）、実益はループ除去・
+  経路統一・GIL 解放です。
+- **`EXTENSION_SUFFIXES` の flavour 行列**（CPython 一次ソースで確定 —
+  `Python/dynload_shlib.c` / `dynload_win.c` / `_bootstrap_external.py`）:
+  POSIX では **`.abi3*` 項が `#ifndef Py_GIL_DISABLED` の内側、`.abi3t*` 項は
+  無条件**。`FileFinder._find_spec` は `name + suffix` しか照合しないため、
+  free‑threaded 3.15 では `mm_core.abi3.so` をどの名でも解決できず
+  `ModuleNotFoundError` になります。**`Py_GIL_DISABLED` ガードは 3.15 で
+  導入された**ため、3.13t / 3.14t は `.abi3.so` を**受理してしまいます**
+  （dlopen まで届く）= ローダーが ft < 3.15 を早期拒否する根拠は
+  「解決できないから」ではなく「解決できてしまうから危ない」。
+  GIL 3.15 は両 family を併記します（abi3‑import の「3.15 GIL × abi3t」セルは
+  成立）。**Windows には family 差がファイル名に存在しません**（`.pyd` 2 項のみ）
+  → flavour 分離はディレクトリ名（`<tag>` vs `<tag>t`）だけが担い、
+  ABI タグ付きファイル名を前提にできるのは POSIX のみです。
 
 ### 4.4 ファジング
 
-- **blob_decompress OOM（fuzz‑long run 1・2026‑09‑25）の根因 = コード欠陥では
-  ない**: libFuzzer の `rss_limit_mb` 到達。live heap ~25 MB で、実体は
-  **アロケータのページ保持**（exec 毎の Vec churn + ASan quarantine 256 MB 級 +
-  OS への遅い返却）が ~5,000 万 exec で累積。対策 3 点: 出力バッファの
-  **thread_local grow‑only 化**（パイプライン K1 と同型）+
+- **blob_decompress の OOM（fuzz‑long run 1・2）の根因はコード欠陥では
+  ありません**: ハーネスの threads=1 が default_threads() と異なるため
+  `with_threads` が exec 毎に新規 rayon プールを生成・破棄し
+  （OS スレッドの churn → サニタイザメタデータが ~35 B/exec で累積）、
+  rss_limit に到達していました → 明示スレッド数のプールをキャッシュ +
+  上限ガードで解消（定常窓 ~44 → ~9 B/exec。再ディスパッチ run は
+  1.9 億 execs / 3 h 完走・peak RSS 164 MB・クラッシュ 0）。副次対策:
+  出力バッファの thread_local grow‑only 化、
   `ASAN_OPTIONS=quarantine_size_mb=32:release_to_os_interval_ms=200`
-  （cargo‑fuzz は自前の `detect_odr_violation=0` を**追記**するだけで環境変数は
-  子へ到達 — 実地確認済み）+ `rss_limit_mb` 4096。OOM 入力（88 B）は
-  `corpus/blob_decompress/oom-2026-09-25.bin` として回帰シード化。
-- **トリアージ注意**: libFuzzer の OOM レポートは **stderr のみで `crash-*`
-  アーティファクトを残さない**（アーティファクト 0 件でもジョブログを読む）。
-- 現行ターゲット **6**: `huf_decompress` / `zn_header` / `codec_decompress` /
-  `st_parse` / `blob_decompress`（キャップ 1 MiB で駆動）/ `delta_decompress`。
-  **T7 で 7 本目（敵対的 WebP → デコード経路）を追加** — native.yml の
-  fuzz‑smoke ループ（6 ハードコード）と fuzz‑long.yml の matrix を
-  **同一コミットで**拡張（Plan T7 ゲート欄）。
-- 証跡: run 3 完走で Phase 1 完了条件消化、run 5 全 7 ジョブ SUCCESS、
-  **run 6 = 18 h 証跡は codec 無変更の間有効**。fuzz 表面を変えたのは
-  Phase 4（8 平面/trunc/dtype 表 → run 6 をディスパッチした理由）。
+  （cargo‑fuzz は自前変数を**追記**するため環境変数は子へ到達します）、
+  `rss_limit_mb` 4096。OOM 入力（88 B）は corpus へ回帰シード化済み。
+- **libFuzzer の OOM レポートは stderr のみで `crash-*` アーティファクトを
+  残しません** → アーティファクト 0 件でもジョブログを読みます。
+- **現行ターゲットは 7 種**: `huf_decompress` / `zn_header` /
+  `codec_decompress` / `st_parse` / `blob_decompress`（キャップ 1 MiB で駆動）/
+  `delta_decompress` / `webp_decode`。native.yml の fuzz‑smoke ループと
+  fuzz-long.yml の matrix は**同一コミットで**拡張します。
+- 18 時間の完走証跡は codec 無変更の間有効です。再ディスパッチはファズ表面が
+  変わったときのみ（§1.2）。
 
 ### 4.5 テスト規律
 
-- **ゴールデン parity 規程**: 同一 fixture を**両エンジン**（`MM_NATIVE=0/1`）で
-  → `native == legacy` を完全構造比較（scan/hygiene/header/hash/walk/move/
-  batch）。byte‑exact 復元は sha256 で検証。
+- **ゴールデン parity 規程**: 同一 fixture を native と Python 経路の双方で
+  実行し（エンジン切替は旧 `MM_NATIVE` 環境変数から `core_if_enabled` 注入へ
+  移行済み）、`native == legacy` を完全構造比較します
+  （scan / hygiene / header / hash / walk / move / batch）。byte‑exact 復元は
+  sha256 で検証。
 - **MockHub パターン**（`test_phase6_http.py`）: 実 aiohttp TestServer +
-  `calls` 記録で**往復回数と順序**まで固定（ライブ API 依存ゼロ・
+  `calls` 記録で**往復回数と順序**まで固定します（ライブ API 依存ゼロ・
   録画フィクスチャの陳腐化なし）。
 - **fake core 注入パターン**: `monkeypatch.setattr(service, "_core", ...)` /
   `monkeypatch.setattr(download.native, "core_if_enabled", ...)` →
   **native バイナリ無しで** inline‑hash / watcher 経路をテスト可能
-  （= ci.yml の成果物なし環境でもカバーされる）。
+  （= ci.yml の成果物なし環境でもカバーされます）。
 - **`download_model_file_http` を直接駆動するテストは
-  `md.get_task_status(task_id).status = "doing"` が必須**（TaskStatus 既定
+  `md.get_task_status(task_id).status = "doing"` が必須**（TaskStatus 既定の
   `"pause"` だと書き込みループが協調ポーズで即 break → 0 バイト）。
-- watcher テストは必ず**新しい `ModelWatcher` インスタンス**で作る
-  （シングルトンを汚すとクールダウン状態が持ち越される）。
-- executor 配置の検証は**スレッド ident 記録**で決定論的に
-  （`test_arm_and_release_run_off_the_event_loop` パターン: start/stop は
-  executor、poll はループ上）。
-- cancel 伝播の待機は**条件ベース**（`asyncio.wait_for(event.wait(), timeout)`）
-  — 固定回数の `sleep(0)` ループは回数依存で理論上 flaky。
-- `stubs.py` は ComfyUI master のセマンティクスをミラー（2026‑09‑23 再検証。
-  `safetensors_header` の <8 B ガード差は文書化済み — 呼び出し側の
+- watcher テストは必ず**新しい `ModelWatcher` インスタンス**で作ります
+  （シングルトンを汚すとクールダウン状態が持ち越されます）。
+- executor 配置の検証は**スレッド ident の記録**で決定論的に
+  （start/stop は executor、poll はループ上）。
+- cancel 伝播の待機は**条件ベース**（`asyncio.wait_for(event.wait(), timeout)`)
+  — 固定回数の `sleep(0)` ループは回数依存で理論上 flaky です。
+- `stubs.py` は ComfyUI master のセマンティクスをミラーします
+  （`safetensors_header` の <8 B ガード差は文書化済み — 呼び出し側の
   `except Exception` が両者を同じ結果へ写像）。`write_safetensors` は
   バイト制御された正準 writer（8 バイト整列・`__metadata__` 先頭・
-  insertion/sort 両順）— torch 往復では書けない「非ソート順ファイルの
-  byte‑exact 復元」をテスト可能にしているのはこれ。
-- 2026‑09‑28 のテスト精査で追加した 4 件（download ループガード端到端 /
-  `.tmp` フィルタ接合部 / type_matcher sibling‑prefix / cancel 条件待ち）は
-  全て mutation 検証済み。「**接合部**」（両端は個別テスト済みでも接続部が
-  無テスト）を探せ。
-- **`time.monotonic()` は uptime 基準 — テストで「十分大きい」を仮定しない**
-  （2026‑09‑30 第 18 セッションで実証された flake クラス）: TTL 失効テストで
-  キャッシュ stamp に絶対原点 `0.0` を使うと、起動直後の CI ランナー
-  （uptime < TTL 秒）では「まだ失効していない」判定になる（実例: native
-  run #81 integration(ubuntu) — `test_mountinfo_body_is_cached_within_the_ttl`。
-  修正 = 相対原点 `now - (TTL + 1)`。monotonic を 5 s に固定したシミュレーション
-  で旧パターンの失敗と新パターンの決定論性を実証済み）。
-  **本番コード側でも同根のバグを発見・修正（第 19 セッション・main native
-  run #85 の失敗根因）**: watcher のクールダウンが「未放送」を
-  `_last_type_broadcast.get(key, 0.0)` の monotonic 0.0 既定値で符号化 →
-  起動 60 秒未満のランナーで初回 rescan 放送が抑制された。None sentinel 化 +
-  固定時計（monotonic=5 s）の回帰テストで決定論化。**教訓: monotonic 比較の
-  「無い」状態は必ず None/sentinel で表し、数値原点 0.0 を使わない**。
-- **mutation 検証は「アサート無しの try/except‑pass」も探す**（第 18 セッション:
-  `test_webp_decode_rejects_garbage` が例外を要求しておらず、どんな退化でも
-  緑だった → `pytest.raises` 化。同型: loop/アニメ ICC 保持は Python 側
-  未固定で `loop = 0` / `icc = b""` ハードコード mutation が全テストを通過した
-  → 接合部テスト追加で捕捉を実証）。
-- **`sys.version_info` の monkeypatch はサードパーティの import 時分岐に漏れる**
-  （native run 37121494488 の失敗 4 調査で実証・第 28 セッション）:
-  `test_phase0_native_loader.py` の autouse ピン（GIL 3.12 偽装）下で aiohttp が
-  **初回** import されると、`aiohttp/client_ws.py` の import 時分岐
-  `if sys.version_info >= (3, 13)` が偽になって `typing_extensions.TypeVar`
-  経路へ入り、実 3.15 ホストでは `AttributeError: attribute '__default__' of
-'typing.TypeVar' objects is not writable`（typing_extensions.py:1754
-  `_set_default`）で死ぬ。**一度壊れると回収不能**で、以降のテストは
-  半初期化の aiohttp を掴み `TypeError: ClientTimeout.__init__() got an
-unexpected keyword argument 'total'`（client.py:253）で全滅する。CI が
-  無事だったのは**収集順の偶然**（アルファベット先頭の
-  `test_phase0_a1_model_info_route.py` がピンなしで先に import していた）で、
-  `pytest tests/test_phase0_native_loader.py` の単独実行なら 3.15.0rc2t で
-  12 本中 11 本が失敗した。**恒久対策**: ピンを持つテストモジュールは、
-  モジュール import 時（=どの fixture よりも前）に必要なサードパーティを
-  `importlib.import_module()` でウォームアップしておく（F401 を避け、意図を
-  コメントで固定できるため import 文より呼び出し形を推奨）。
+  insertion / sort 両順）で、torch 往復では書けない「非ソート順ファイルの
+  byte‑exact 復元」をテスト可能にしています。
+- **`time.monotonic()` は uptime 基準 — テストで「十分大きい」を仮定しない**:
+  TTL 失効テストでキャッシュ stamp に絶対原点 `0.0` を使うと、起動直後の
+  CI ランナー（uptime < TTL 秒）で「まだ失効していない」判定になります
+  （実例: `test_mountinfo_body_is_cached_within_the_ttl`）→ 相対原点
+  `now - (TTL + 1)` を使います。**本番コードにも同根の欠陥がありました**
+  （watcher のクールダウンが「未放送」を monotonic 0.0 の既定値で符号化 →
+  起動 60 秒未満のランナーで初回 rescan 放送が抑制された）→ None sentinel 化 +
+  固定時計の回帰テストで決定論化。**教訓: monotonic 比較の「無い」状態は
+  必ず None / sentinel で表し、数値原点 0.0 を使いません**。
+- **mutation 検証は「アサート無しの try/except‑pass」も探します**
+  （例外を要求しておらず、どんな退化でも成功していた前例 →
+  `pytest.raises` 化。同型: loop / アニメ ICC の保持が Python 側で未固定 →
+  接合部テストの追加で捕捉を実証）。
+- **`sys.version_info` の monkeypatch はサードパーティの import 時分岐に
+  漏れます**: バージョンピン（GIL 3.12 偽装）下で aiohttp が初回 import されると
+  `client_ws.py` の `>= (3, 13)` 分岐が偽になり `typing_extensions.TypeVar`
+  経路へ入り、実際の 3.15 ホストでは以降のテストが連鎖して失敗します
+  （**一度壊れると回収不能**）
+  （CI が無事だったのは収集順の偶然でした）→ ピンを持つテストモジュールは、
+  モジュール import 時（どの fixture より前）に必要なサードパーティを
+  `importlib.import_module()` でウォームアップしておきます。
 - **実 import 機構に触れるテストは「偽装した解釈系」で走らせてはいけない**
-  （同 run の失敗 4 = 本体・第 28 セッション）: ピンが差し替えるのは Python 層の
-  属性だけで、`EXTENSION_SUFFIXES` / `FileFinder` / `dlopen` は**本物の解釈系の
-  まま**。よって「ピン後の tag で実成果物を import させる」テストは、実ホストが
-  ピンと違う flavour のときに**成果物側が完全に正しいのに必ず落ちる**。
-  さらに skip ガードを実成果物の存在チェックにしていると、CI のステージングが
-  **全 tag ディレクトリを展開する**（native-bin-linux は 4 tag 丸ごと）ため
-  他 flavour の成果物が存在してしまい、ガードが発火しないまま assert へ進む。
-  **教訓（3 点セット）**: 実 import を行うテストは (1) 実ホストの信号で走らせる
-  （`_use_real_interpreter` パターン = モジュール import 時に
-  `_REAL_VERSION`/`_REAL_ABIFLAGS`/`_REAL_GIL_DISABLED` を退避 → テスト内で
-  `_force_interpreter` により再設定。monkeypatch の undo は逆順なので
-  二重 setattr でも元の値へ戻る）、(2) 期待ファイル名をハードコードせず
-  flavour（`is_free_threaded()`）から導出する、(3) tag が None の skip には
-  `tag_rejection_reason()` を出して「成果物不足」と「解釈系非対応」を区別する。
-  副次利得: floor 未満ホスト（GIL 3.11 等）でピンが tag を捏造し、実 import が
-  未定義シンボルで失敗する潜在の誤検出も同時に消えた。
+  （ピンが差し替えるのは Python 層の属性だけで、`EXTENSION_SUFFIXES` /
+  `FileFinder` / `dlopen` は本物の解釈系のまま）:
+  (1) 実ホストの信号で走らせる（`_use_real_interpreter` パターン =
+  モジュール import 時に `_REAL_VERSION` / `_REAL_ABIFLAGS` /
+  `_REAL_GIL_DISABLED` を退避 → monkeypatch で再設定。undo は逆順のため
+  二重 setattr でも元の値へ戻ります）、
+  (2) 期待ファイル名をハードコードせず flavour（`is_free_threaded()`）から
+  導出する、
+  (3) tag が None の skip には `tag_rejection_reason()` を出し
+  「成果物不足」と「解釈系非対応」を区別する。
+  副次利得: floor 未満ホストでピンが tag を捏造し、実 import が未定義
+  シンボルで失敗する潜在の誤検出も同時に消えます。
 
-## 5. 現状と残件（2026‑10‑03 第 30 セッション時点）
+## 5. 完了した計画とその成果（過去に何をしたか）
 
-- **Phase 0–7 完了（CI 実走緑まで確認済み）+ Phase 8 実装完了**
-  （**残 = 完了条件の Win/macOS 脚と v0.3.0 公開作業 — ユーザ専任**。
-  詳細と完了条件の照合は Plan §9 / §6.2）。キー値:
-  api_version **6**（4 者同期 — py/native.py [6,6] / lib.rs 定数+test /
-  native.yml abi3 assert / pytest 4 アサート）/ release `.so` linux-x86_64
-  **4,110,816 B = 3.92 MiB = 5 MiB 目安の 78 %（2026‑09‑29 に目安 4→5 MB 改定・
-  CI size-budget も green で実測 budget 内を確認）**（zenwebp 増分 +0.93 MB）/
-  version **0.3.0**（pyproject / package.json / native workspace / web バンドル
-  同期済み — 公開はユーザ専任）/ **third_party/ 撤去済み = mm_core 単一エンジン** /
-  Rust L1 **206**（znn-codec・webp +11）+ 統合 **4** + mm‑core **5** /
-  pytest **213**（native+torch）・成果物なし = ci.yml 相当は 81+132 skip /
-  K15 達成（Node 26 で C2 ゲート再検証 PASS）/ fuzz は **7 ターゲット**
-  （webp_decode 追加 — codec 表面が変わったので run 6 の 18 h 証跡は webp 経路には
-  未適用・次回 fuzz-long で 7 本目を実走）/ pnpm **12.8.1**（ユーザ指示で UP）。
-- **Phase 7 = 8 項目すべて実装 + CI 実走緑確認済み**: ed86b64 → ci.yml #162 /
-  native.yml #73、00f185f（サイズ目安 5 MB + pnpm 12.8.1 + 接合部テスト）→
-  ci.yml #163 / native.yml #74、いずれも**全ジョブ success**。Plan §9 Phase 7 [x]。
-- **Phase 8 = 実装・自動 QA 完了（2026‑10‑01・第 19 セッション）**:
-  旧経路全削除（compress.py 2425→1391 行）・third_party 撤去（MIT+BSD‑2 全文を
-  NOTICE 継承）・MM_NATIVE 撤去（単一経路。読み取り系 Python フォールバックは
-  維持 — Plan §6.2 実施注記に設計判断を記録）・publish‑native‑bin 配布機構
-  （main 専用・content 分類・git add -f・.gitignore の *.so 無視は維持）・
-  L2/native‑diff 退役（証跡残置・L5 が恒久ゲート）・v0.3.0 同期 + web 再ビルド・
-  README×2 / USAGE×3 全面改訂（フォーク元 2.8.5 のルート/設定/フック差分を
-  一次照合し「Backend & engine」差分表を新設）・K16 Linux 実証（純標準ライブラリ
-  python3 -S で圧縮/解凍バイト一致）・サイズ実測 78.4 %（release プロファイルは
-  既に最適 = 追加最適化は速度トレードオフのため不採用）。
-  着手ゲート（L5 2 リリースサイクル連続 green）は main run #64–#82 の
-  全 success を API で実証 + ユーザ指示で消化。
-- 残件（全セッション共通で持ち越し）: Phase 2 **K2/K3 の参照機再計測**、
-  **K10** 5000 モデル ≤100 ms の参照機確認、**K11 端到端 ≤40 ms**（processed
-  JSON をルートで直接スピルスする設計 = `get_model_tensors` の公開契約を変える
-  ため**範囲外と記録済み**）、**実 UI 手動 QA**（Phase 8 の USAGE 改訂時に
-  統合 — `__mmNeoPerf` の paint 脚計測が K15 実測手段）、**demo‑assets**
-  （ユーザが後で追加）。
-- CI: ci.yml に **fallow ゲート**（2026‑09‑28 追加）と **K15 bench**
-  （`tensorTreeRowsIdentical` 含む）、native.yml に **tensor‑tree cross‑check**
-  が常設。**Phase 7（2026‑09‑29）で CI を更新**: node 26.10.0・ruff 0.16.9・
-  **uv**（setup-uv v10.2.0 + `uv pip install --system`・ci.yml 1 + native.yml 4 ジョブ）・
-  GitHub Actions メジャー更新（checkout/setup-node/setup-python v7・upload-artifact v7・
-  download-artifact v8・pnpm-action v6.1）・mypy は `python -m mypy`（pyproject 自動発見）・
-  native.yml abi3 assert = api_version 6 + webp 4 関数・fuzz は **7 ターゲット**
-  （webp_decode 追加・fuzz-smoke ループ + fuzz-long matrix）。Phase 7 の CI 実走緑は
-  第 16 セッションで確認済み（ci.yml #162/#163・native.yml #73/#74）。
-  **第 18 セッション（2026‑10‑01）で CI 耐障害性を強化**: 全 apt ステップ
-  `timeout-minutes: 10`（run #80 の 6 h ハング→cancelled 事案）+ 全ジョブ
-  `timeout-minutes: 60`（ci/native/fuzz-long）・actionlint 1.7.12 緑。
-  第 18 の dev tip は CI 実走緑を確認済み（CI #172 / native #83）。
-  **第 19 セッション**: PR #18 マージ後の main run native #85 が
-  integration(ubuntu) で失敗 → 根因は L5 ではなく **watcher クールダウンの
-  fresh‑boot flake**（本番コードの monotonic 0.0 既定値 — §4.5）と特定し
-  None sentinel 化 + 固定時計回帰テストで修正（mutation 検証済み）。
-  **第 20 セッション（2026‑10‑01）**: Phase 8 が PR #19/#20 で main へ
-  マージされ、publish‑native‑bin が 4 プラットフォームのバイナリを main へ
-  コミット（bot commit ff730c92 / 9f00e6b5 / f11ba161 = K16 の main 側
-  配布機構が実働）。main run #94（windows integration 3 failed）・dev #95
-  （clippy 1.99 ドリフト 3OS）・main #98 / PR #97（ステージング dir-move）
-  の 3 障害を根絶（5d18128 / 5fa3679 / e6c707d、dev run #96 全緑 +
-  e6c707d の CI 確認が残件）。**integration は 3 OS とも native テストを
-  実走する構成になった**（import smoke ガード付き）。
-  **第 20 セッションの残はすべて消化済み**: e6c707d は dev run #100/#103
-  で全緑、ユーザの PR #21/#22 マージで main 側も native #105 全緑
-  （ファイルマージ ステージングが main コンテキストで実証され、publish bot が
-  01d65ba でバイナリを再コミット）。v0.3.0 の Release/tag/registry 公開は
-  ユーザ専任のまま未実施。**Plan‑2（lld+PGO）は実装完了（v1.5・2026‑10‑02
-  第 25 セッションで収束）**: Step 1–5 の dev 側はすべて実走緑
-  （native run #106–#109 — #109 = 中央値判定の初実走 + 高速ランナーでの
-  パリティ記録・BENCH §13.7）。残りはユーザ専任工程（dev→main マージ →
-  publish‑native‑bin の bot コミット確認）と R5 フォローアップ
-  （fuzz‑long の apt ステップ削除 = マージ後の初回週次 run〔日曜 18:00 UTC・
-  schedule は default branch 限定〕またはユーザ dispatch の緑確認後に
-  別コミット）のみ。
+3 つの計画の全実装要件は 2026‑09‑23 から 2026‑10‑03 にかけて完了し、
+CI と公開パイプラインが正常に実行されることまで確認済みです。計画書本体
+（版数履歴・チェックリスト・一次ソース一覧を含む）は git 履歴に一次記録として
+保存されています（冒頭の注記参照）。
 
-- **Plan‑3（NEO‑PLAN‑2026‑003）Steps 1–5 実装完了（2026‑10‑03 第 26 セッション —
-  CI 実走確認は次ターン・ユーザ）**: floor 3.12 化（abi3‑py312・requires‑python・
-  ruff py312・mypy 3.12・uv.lock revision 5・CI 解釈系 ×7・abi3‑import 3.12/3.14）→
-  ft feature と `<tag>t` ビルド経路（build‑native.sh 8 ターゲット・toggle ゲート 3 軸・
-  build ×3 へ host 3.15.0‑rc.2 の t ビルド + GIL/ft 両フレーバ smoke・ディレクトリ構造
-  upload）→ ローダー（is_free_threaded・`<tag>t` ルーティング・GIL 3.12 / ft 3.15 の
-  floor ガード・diagnostics.freeThreaded・テスト +4）→ CI 拡張（abi3‑import 4 セル・
-  size‑budget = found 8 ハード + 本別 5/10 MB ハード + 合計 40 MB 目安〔D1・超過は
-  warning のみ〕・publish 8 エントリ = ディレクトリタグ優先 staging〔R7: bare .pyd 拒否〕・
-  integration の ubuntu t セル = 3.15.0‑rc.2t × フル pytest〔D3〕、torch/tsc/L5 脚は
-  GIL セル限定へ条件変更）→ 文書・バッジ（README×4・USAGE×4・native/README・
-  pgo README・Plan‑3 v1.2 状態更新）。commits: c5ffa7e / fcdf540 / 07a4d05 /
-  0ca9847 / Step5。**ローカル実測**: ruff 0.16.9(py312)・mypy 3.12・pytest 3.12.15 =
-  85 passed/135 skipped・publish staging simulation 5 シナリオ PASS・cargo スタブで
-  t フラグ/ガード実測・**実解釈系 3.15.0rc2 GIL/ft でローダー実測**（ft →
-  `linux‑x86_64t`・GIL 3.15 → `linux‑x86_64`・3.11 → floor reason。EXTENSION_SUFFIXES
-  が PEP 803 予告どおり = GIL 3.15 は .abi3.so/.abi3t.so 両対応・3.15t は .abi3t.so
-  のみ）。**一次確認の追加**: pyo3 は abi3+abi3t 同時有効でエラーにならずホスト依存
-  flavour 化（guide v0.29.2 実読 → clippy --all-features は host 3.12 で abi3 側として
-  コンパイル可）・setup‑python の t サフィックスは rc 版に非対応 → `freethreaded: true`
-  入力を使用・PyPI 実査（2026‑10‑03）: pillow/numpy/multidict/yarl/propcache に
-  cp315t wheel あり、**aiohttp/pyyaml は無し** → t integration セルは sdist ビルド依存
-  （ubuntu ランナーの gcc。失敗時は当該セルの依存縮小か smoke 降格を別コミットで —
-  R3 緩和の類推）。**残件（ユーザ専任）**: dev CI 実走確認 → dev→main マージ →
-  publish bot の 8 本コミット確認 → D4（3.15 final が manifest 着弾後 `3.15`/`3.15t`
-  表記へ別コミット振替）。Plan‑2 R5（fuzz‑long の apt 削除）は残件のまま。
+### 5.1 Plan.md（NEO‑PLAN‑2026‑001）— Rust ネイティブコア化と ZipNN 完全置き換え
 
-- **Plan‑3 後始末: dev run（native）37113439219 の 3 失敗を根因解析して修正
-  （2026‑10‑03 第 27 セッション — 修正の CI 実走確認は次ターン・ユーザ）**:
-  ① linux「Build linux‑x86_64t」= `Failed to find zig` — py315 切替後の
-  python3 に ziglang が無く、ziglang wheel に `zig` shim も無い（console
-  script は `python‑zig` のみ）ため cargo‑zigbuild の探索 3 経路が全滅 →
-  ツールチェイン導入時の `CARGO_ZIGBUILD_ZIG_COMMAND` pin（`$GITHUB_ENV`・
-  ジョブ全持続）で解決。実測: pin のみで zigbuild 完走 + GLIBC_2.28 floor、
-  解決スニペットは CI ステップと一字一句同一のものを ziglang wheel 実
-  インストールに対して実行済み。② macOS「Build macos‑universal2」=
-  `feat[*]: unbound variable`（line 195・bash 3.2 は空配列がダブルクォート
-  内でも unbound）→ log 3 箇所（165/195/245）を `${feat[*]+"${feat[*]}"}`
-  ガードへ統一。実測: GNU ソースからビルドした bash 3.2.57 でクラッシュ行を
-  再現し、修正版は 3.2.57/5.2 双方 + スタブ cargo でスクリプト全体
-  （GIL/ft × 4 ターゲット）を完走。③ native‑test toggle ゲートの ft 軸 =
-  `cargo metadata -p mm-core`（同コマンドにセレクタ無し・cargo 1.99 実測）→
-  `--features mm-core/extension-module,mm-core/ft` の修飾形へ + cargo stderr
-  を surface（旧 check=True が真因を隠していた）。**④ 修正過程で潜在の
-  誤検出を発見・同コミットで修正**: pyo3 0.29.2 は abi3‑pyXY が上向き
-  チェーン（floor = 有効化された最小 pyXY・pyo3‑build‑config 一次確認）
-  なので、default 解決に {abi3‑py313..315} が必ず含まれ、旧アサート
-  「高い abi3‑py3XX が居ないこと」は ft 軸を直し次第必ず発火した →
-  「最小有効 minor == 12 / == 15」形へ置換。ゲート実走 PASS + 負例 9 ケース
-  （floor 上昇/低下/欠落・abi3t 漏れ・R6 混合・将来チェーン仮定）で検出力
-  を実証。**同 run の陽性確認（修正不要の証明）**: native‑build‑windows は
-  t ビールド含め全緑（実タグ `cp315-abi3.abi3t-win_amd64.whl`）+ abi3t
-  import smoke が 3.15 GIL/ft 双方で通過 → R4 は実証済みで解消。linux GIL
-  経路（PGO 三段階・G2・aarch64・glibc floor・loader pytest）も t ステップ
-  直前まで緑。修正は 3 独立コミット（fix(ci) ×2 + fix(build)）+ 本記録。
+Neo の中核処理を Rust ネイティブコア（`mm_core`）へ移行し、vendored ZipNN
+C スタックを置き換える計画です。4 つの柱: **信頼性の抜本改善**
+（計画策定過程で C コアの再現性ある SEGFAULT とヒープオーバーフローを
+実機実証 — Plan 付録 C — Rust によりこの欠陥クラスを構造的に消滅させ、
+SHA‑256 端到端完全性検証を新設）、**メモリ効率**（圧縮ピーク RAM を
+モデルサイズの約 2 倍から O(チャンク×スレッド数) へ、デルタを約 4–5 倍から
+1 GB 未満へ）、**速度**（KPI K1–K16 — Plan §2.2）、**配布拡大**
+（CPython バージョン別 C 拡張 ×6・Linux x86_64 のみ → abi3 単一バイナリ ×
+4 プラットフォーム・コンパイラ不要）。dtype 対応は 5 種から 22 種へ拡張。
+Phase 0–8 の全フェーズが完了しました。
 
-- **Plan‑3 後始末(2): dev run（native）37121494488 = 18 ジョブ中 17 success、
-  残る 1 失敗を根因解析して修正（2026‑10‑03 第 28 セッション — 修正の CI 実走
-  確認は次ターン・ユーザ）**: ①②③（zig pin / bash 3.2 ガード / toggle ゲート）は
-  **すべて解消を確認** — native‑test ×3・native‑build‑linux/macos/windows・
-  abi3‑import 4 セル・size‑budget・fuzz‑smoke・integration の GIL 3 セルが緑。
-  失敗は `integration (ubuntu-latest, native-bin-linux, linux-x86_64t,
-3.15.0-rc.2, true)` の **pytest 1 本のみ**
-  （`1 failed, 218 passed, 1 skipped`）=
-  `tests/test_phase0_native_loader.py::test_load_finds_prebuilt_and_handshakes`。
-  **根因はテスト側で、ローダーも abi3t 成果物も無罪**（同セルの他 218 本は
-  実ローダ経由で `linux-x86_64t/mm_core.abi3t.so` を使い切っている）。連鎖は
-  5 段: (a) autouse ピンが `sys.version_info=(3,12,7)`/`abiflags=''`/
-  `Py_GIL_DISABLED=0` を偽装 → (b) `platform_tag()` が `linux-x86_64t` でなく
-  `linux-x86_64` を返す → (c) プローブ名が `mm_core.abi3.so` ハードコード →
-  (d) **native-bin-linux アーティファクトは 4 tag 丸ごと**（artifact
-  11273309005 を DL して確認）で Stage step が全部展開するため
-  `native-bin/linux-x86_64/mm_core.abi3.so` が実在し skip ガードが発火しない →
-  (e) free-threaded 3.15 の `EXTENSION_SUFFIXES` に `.abi3.so` が無い
-  （§4.3 の行列・`Python/dynload_shlib.c` の `#ifndef Py_GIL_DISABLED`）ので
-  `import mm_core` が `ModuleNotFoundError` → `load()` は reason
-  「import mm_core failed: No module named 'mm_core'」で False = **正しく拒否した
-  のは load() で、誤っていたのはアサート**。**再現は CI と同一材料で完全一致**:
-  同一 SHA(09993fb) の `git archive` + 実 CI バイナリ 4 本 + CPython
-  3.15.0rc2 free-threaded + pytest 9.1.1 + CI と同一依存（aiohttp 3.14.3 /
-  pyyaml 6.0.3 は sdist ビルド、pillow 12.3.0 は cp315t wheel）で
-  `1 failed, 218 passed, 1 skipped, 26 warnings`（CI ログと一字一句同じ）+
-  reason() 実測。陽性対照として GIL 3.12.15 が同一の `mm_core.abi3.so` を
-  正常 import（api_version 6 / `0.3.0+09993fbc3`）。**修正は 2 独立コミット**:
-  (1) `test(loader)` — `_REAL_*` 退避 + `_use_real_interpreter()` の逃避口を
-  新設し、handshake テストを実ホスト解釈系で走らせてプローブ名を flavour 準拠
-  （`is_free_threaded()` → `mm_core.abi3t.so` / `mm_core.abi3.so`）へ。
-  GIL ホストでは family 文字列も tag も従来と完全同一なので
-  ubuntu‑GIL/macos/windows の挙動は不変（windows は `.pyd` のため従来どおり
-  skip = 2 skipped 維持）。`core.__file__` の family 一致と
-  `diagnostics()["freeThreaded"]` の一致をアサート追加。回帰テスト
-  `test_extension_suffixes_enforce_the_flavour_split` を新設し、機構を
-  **5 flavour 実測**で固定（3.12.15 GIL / 3.13.16t / 3.14.8t / 3.15.0rc2 GIL /
-  3.15.0rc2t — 全て単独 PASS）。skip 文言は tag None 時に
-  `tag_rejection_reason()` を出す形へ改善。(2) `test(loader)` — ピンが
-  サードパーティの import 時分岐に漏れる地雷の除去（§4.5・モジュール
-  import 時の `importlib.import_module("aiohttp.web")` ウォームアップ。
-  修正前は 3.15.0rc2t での単独実行が 12 本中 11 失敗、修正後は 4 解釈系で
-  12 passed）。**検証**: 修正後のフルスイートは 3.15.0rc2t / 3.12.15 とも
-  **220 passed / 1 skipped**（skip = numpy 不在の test_phase4_dtypes、t セル
-  設計どおり）・loader 単独は 3.15.0rc2 GIL 12 passed / 3.14.8t 11 passed +
-  1 skipped（tag None）・ruff 0.16.9 check + format 緑。**Gemini 由来の
-  「3.15.0rc3 / lazy‑import リリースブロッカー」情報は本件と無関係**を確認 —
-  upstream に `v3.15.0rc3` タグは実在するが `actions/python-versions` の
-  versions‑manifest.json は今も `3.15.0-rc.2` が最新で setup‑python は rc.3 を
-  インストールできず、失敗は拡張子テーブル 100 %。**前セッションの残リスク
-  「t セルの aiohttp/pyyaml sdist 依存」は発火しなかった**（runner 上で
-  13.19 s でビルド完了）。D4（`3.15`/`3.15t` 表記への振替）は manifest 着弾
-  待ちのまま。次ターン: この 2 コミットの CI 実走確認 → ユーザが dev→main
-  マージ。
+- **Phase 0 — 基盤準備（2026‑09‑23 完了）**: `native/` cargo ワークスペース
+  （edition 2024）、CI（native.yml 新設）、ベンチ基盤 + `docs/BENCH.md` の
+  ベースライン記録、`py/native.py` ローダー + `MM_NATIVE` スイッチ、
+  JSON パーサの確定（8 MB MoE ヘッダで jiter 10.6 ms vs simd‑json 187.6 ms vs
+  serde_json 143.6 ms）、Quick Win A1（モデル詳細ルートの executor 化）、
+  mold / rustfmt / clippy の導入。
+- **Phase 1 — znn‑codec フォーマット中核（2026‑09‑23 実装・09‑25 fuzz
+  バジェット達成）**: ZN ヘッダ、ビット並べ替え、平面分割、huff0 / FSE の
+  エンコーダ・デコーダ（C からの逐条移植 → **出力は C 実装とバイト同一**:
+  L2 ゴールデン差分 9,880/9,880・フル 10,500 ケース GATE PASS・付録 C の
+  クラッシュクラス 495/495 を安全処理）、チャンク並列 codec。速度は 8/8 指標
+  ×1.09–1.81 で C 超え（virtual‑raw 平面最適化・`unsafe` 不使用で達成）。
+  ファズ 3 ターゲットで実バグ 3 件を検出・修正。
+- **Phase 2 — safetensors 圧縮/解凍パイプライン + バックエンド接続
+  （2026‑09‑24）**: mmap 単一書き込みパス（ピーク RAM = O(最大テンソル)）、
+  SHA‑256 端到端検証 + `.corrupt` 退避、paranoid モード、ジョブ API
+  （10 Hz ポーリング・GIL 非接触・catch_unwind・完了の権威シグナルは
+  outcome レコード）、ws イベント / stats 形状のゴールデン互換、起動時の
+  `.tmp` クリーンアップ（15 分の年齢ガード）。公式 pip zipnn 0.5.4 との
+  双方向クロス検証ゲート（L5）を CI に新設。K1 / K6 / K13 達成。
+- **Phase 3 — デルタ圧縮 + バッチプリミティブ（2026‑09‑25）**: 両側 mmap +
+  1 MiB ストリーミング XOR（K4 = ピーク 1 GB 未満・匿名域 O(チャンク)）、
+  公式 streaming コンテナ連鎖形式（公式解凍側が 100 % 受理することを L5‑D で
+  実証）、`.neo-delta.json` サイドカー + `ftSha256` インライン検証、
+  `walk_models` / `move_with_sidecars`（Python 現行とのゴールデン parity・
+  GIL 解放をテストで機械固定）。K5 = 付録 C の SEGFAULT クラス 3/3 が
+  生産ルートで正常完了 + byte‑exact。api_version 3。
+- **Phase 4 — dtype 大幅拡張（2026‑09‑26）**: safetensors 0.8 の全 22 dtype の
+  圧縮帯化（K14）— Neo 拡張帯コード 128–146（F64 8 平面・整数系・BOOL・
+  FNUZ FP8・F8_E8M0・F4 / F6）、トランケーションモード 1/9/41/8 の
+  クリーンな正式実装（C 版の 41/9/1 はコメントアウトされた到達不能コード）、
+  `znn_neo_extended` マーカー、`/zipnn/inspect` ルート、UI（dtype 内訳・
+  Neo バッジ・確認ダイアログ・i18n×3）、相互運用マトリクスの 5 文書化。
+  公式 zipnn は Neo 帯を `ValueError: Unsupported Dtype N` で明示拒否
+  （静かな破損ゼロ — L5 E 系で CI 固定）。互換帯の出力バイト同一を維持
+  （L2 quick 1,121/1,121）。
+- **Phase 5 — スキャン / インデックス / ハッシュ / 更新伝播（2026‑09‑27）**:
+  Rust 並列 walk（os.scandir 意味論の忠実移植 + ゴールデン parity）、
+  永続 front‑matter インデックス（bincode + blake3 + 原子入替 + 破損時
+  自動全再構築 — 再起動を跨ぐ）、`safetensors_header`（jiter・32 MiB 統一
+  ガード・comfy.utils 依存の撤去）、`hash_file` / `hasher_*`
+  （5 表記 1 パス・1239 MB/s・Civitai 表記ゴールデン）、ダウンロードの
+  インライン検証（K7 = 完了時追加 I/O ゼロ）、1 MiB チャンク化（K8）、
+  `models_changed` ws 無効化 + フロントの部分再取得。K9 = 5000 モデル
+  0.145 s（legacy 比 ×7.5）・K10 = warm 99 ms・K11 達成。実装中に
+  ヘッダ解析の O(n²) 重大バグを発見・修正（§4.3）。api_version 4。
+- **Phase 6 — フロントエンド表示最適化 + Phase 5 移管項目（2026‑09‑27）**:
+  C1 正規表現ホイスティング（keystroke p95 ×3.0）、C2 照合キー化
+  （既定は localeCompare 維持・numeric のみ Collator 化 ×22–32 — §4.2）、
+  C3 shallowRef、C4 `decoding="async"`、C5 計測基盤（`utils/perf.ts` +
+  `__mmNeoPerf` + ヘッドレス計測器 k15.mjs の CI 常設）、テンソルツリーの
+  Rust 事前グループ化（65,268 テンソルで ×104 = 1,329 → 12.8 ms・
+  Rust == Python == JS の三者同一性を機械固定）、A3 requests→aiohttp 統一
+  （モックテスト 17 件）、watch_roots（notify 直接採用・500 ms デバウンス・
+  既定 OFF・network root 自動スキップ・inotify 枯渇時は TTL へ degrade）。
+  K15 達成（5,050 モデル・keystroke JS 作業 p95 3.96 ms ≤ 16 ms・
+  初回グリッド行構築 p95 7.03 ms）。api_version 5。
+- **Phase 7 — ツールチェーン現代化・設定統合 T1–T8（2026‑09‑29）**:
+  T1 アップロード preflight SHA256 の native 化、T2 Node 26.10.0
+  （C2 ゲートを Node 26 の V8 で再検証）、T3 Ruff 0.16.9、T4 uv 導入
+  （Python の開発・CI 層専用 — uv.lock コミット・CI 5 ジョブを
+  `uv pip install --system` へ）、T5 設定統合（`[tool.mypy]` の pyproject 化・
+  prettier / stylelint の package.json 移設・tests/pytest.ini は rootdir 制御の
+  ため意図的に非統合）、T6 GitHub Actions の一括更新（checkout / setup-node /
+  setup-python v7・upload-artifact v7・download-artifact v8・pnpm-action v6.1 —
+  1 action ずつ別コミット）、T7 zenwebp 一気刷新（静止エンコード + アニメ WebP
+  保持 + デコード・api_version 6・fuzz 7 本目・AGPL‑3.0 ライセンス整備）、
+  T8 requests の直接参照ゼロ化（AST テストで固定）。サイズ目安の 4→5 MB 改定、
+  pnpm 12.8.1 への更新、依存の最新安定版一斉更新（vue 3.5.43・vite 8.3.1・
+  eslint 10.11.0 ほか）。CI 実行の全ジョブ成功を確認。
+- **Phase 8 — third_party 撤去・配布仕上げ・v0.3.0（2026‑10‑01）**:
+  旧経路の全削除（compress.py 2,425 → 1,391 行）、`third_party/` 撤去
+  （ZipNN MIT + FiniteStateEntropy BSD‑2 の全文を `native/NOTICE` へ継承）、
+  `MM_NATIVE` 撤去（単一経路化 — 読み取り系のレジリエンス経路のみ
+  Python フォールバックを維持する設計判断を記録）、`publish-native-bin`
+  配布機構（main 専用・成果物の content 分類・`git add -f`・bot コミットは
+  再トリガーされずループ不可）、L2 / native‑diff の退役（L5 が恒久ゲート・
+  証跡 JSON は残置）、v0.3.0 のバージョン同期 + web 再ビルド、
+  README×2 / USAGE×3 の全面改訂（フォーク元 2.8.5 との差分を一次照合し
+  「Backend & engine」差分表を新設）、純標準ライブラリの `python3 -S` による
+  コンパイラ・pip・ネットワークなし動作の Linux 実証（K16）。
 
-- **Plan‑3 の CI 全緑 + publish 8 本を確認し、Actions キャッシュ逼迫
-  （96.5 %）を根因解析して対策（2026‑10‑03 第 29 セッション — 恒久記録は
-  §4.1 の末尾ブロック）**:
-  ① **CI 全緑を確認** — dev push #135/#224・PR #29 の #136/#225・main push
-  #137/#226 の **4 run すべて success**（native 18/18・CI 緑）= v1.4 の
-  2 修正（実ホスト解釈系での handshake 検証 + ピン漏れ除去）が実走で解消。
-  ② **publish‑native‑bin の bot コミット `208a3ff` を確認** =
-  `native/native-bin/` に **8 本**（linux‑x86_64 3.93 / linux‑aarch64 3.36 /
-  linux‑x86_64t 3.96 / linux‑aarch64t 3.36 / macos‑universal2 6.43 /
-  macos‑universal2t 6.43 / windows‑x86_64 3.55 / windows‑x86_64t 3.96 MiB・
-  合計 **34.98 MiB** = D1 の 40 MB 目安内、FAT 2 本も 10 MB 予算内、
-  本別 5 MB ハード予算内）→ **Plan‑3 の実装 + 公開パイプラインは完了**。
-  ③ **ユーザ報告の「キャッシュ上限」を解析**: 9.65 GiB / 96.5 %（37 件）の
-  根因は「ref 単位スコープ × dev→PR→main の 3 重保存」+「PR/tag スコープの
-  死蔵（PR #29 分 2.505 GiB）」+「世代落ち 2.061 GiB」で、**LRU eviction は
-  既に発動**（fuzz‑long #7 のキャッシュが消滅）。即時 prune **16 件 /
-  4.566 GiB**（pull 10 + main 旧世代 6、fuzz‑smoke 500 MiB は現行世代なので
-  保持）→ **22 件 / 5.083 GiB（50.8 %）**。構造対策は 3 独立コミット =
-  `save-if`（rust‑cache 7 箇所を main/dev の非 PR イベント限定に）/
-  `cache-cleanup.yml` + `scripts/actions_cache_sweep.py`（PR クローズ時 +
-  週次 sweep）/ native‑bin‑* の `retention-days: 7`。上限引き上げは
-  **HTTP 402（支払方法なし）で不可**を実測。
-  ④ **D4 は依然として実行不可**を再実測: CPython の最新タグは `v3.15.0rc3`、
-  **PEP 790 = rc3 実績 2026‑10‑02 / final 予定 2026‑10‑09**（前セッションで
-  ユーザ提示の情報が PEP 本体と一致）、`actions/python-versions` の
-  versions‑manifest.json は今も `3.15.0-rc.2`（`stable=False`・ft 13 本）が
-  最新。**振替対象を精密化** = native.yml の `python-version: "3.15.0-rc.2"`
-  **9 箇所**（L353/377/459/470/538/546/586/589/721）+ コメント 5 箇所
-  （L10/347/453/531/571）。ft セルは `freethreaded: true` 側で切替わるので
-  **`3.15t` という文字列は書かない**（Plan‑3 の「`3.15`/`3.15t`」表記より
-  実装は単純 — Plan‑3 v1.5 の D4 節に反映）。
-  **検証**: actionlint 1.7.12 / prettier 3.9.9 `--check .` / ruff 0.16.9
-  check + format --check / YAML パース緑・PyYAML で 7 箇所の save‑if 文字列と
-  5 つの upload‑artifact を実読・pytest 86 passed + 135 skipped（native binary
-  無しの dev worktree 由来）・sweep スクリプトは実リポジトリへ dry‑run 3 種
-  （既定 = nothing to prune / `--ref refs/heads/dev` = 10 件 1.991 GiB 選択 /
-  `--older-than-days 5` = 0 件）。
-  ⑤ **この 4 コミットの CI 実走確認まで完了**（push `4e92a4d` →
-  **native #138 = 18 ジョブ中 16 success + 2 skipped**〔publish‑native‑bin と
-  pgo‑measure は dev で skip = 設計どおり〕・**CI #227 = success**）。
-  native‑test (ubuntu) のジョブログで save‑if の実挙動を確認:
-  `save-if: true`（折り返しスカラーの式が正しくブール文字列へ評価された証拠）・
-  `Cache hit for: v0-rust-native-test-Linux-x64-2c4d122c-412e313b`
-  （624 MB・full match: true）・post step は **`Cache up-to-date.`**
-  （exact hit なので新規保存なし = `isCacheUpToDate()` の短絡）。
-  **run 後の一覧は 22 件 / 5.083 GiB のまま = 新規エントリ 0 件**
-  （`refs/pull/*` 0・`refs/tags/*` 0）。`save-if: false` 側（PR run）は
-  次回の dev→main PR で確認できる。
-  **次ターン（ユーザ）**: dev→main マージ → PR クローズ時に cache‑cleanup の
-  `prune-closed-pull-request` が走ることを確認（save‑if で PR は元々保存しないので
-  「nothing to prune」が正解の出力）→ 以降は D4（3.15 final の manifest 着弾後）と
-  Plan‑2 R5（fuzz‑long の apt ステップ削除）。v0.3.0 のタグ打ち時は save‑if が
-  「タグ run がキャッシュを保存しない」ことを保証する。
+### 5.2 Plan‑2.md（NEO‑PLAN‑2026‑002）— rust‑lld 移行と PGO 導入（Step 1–5）
 
-- **PR #30（dev→main）のマージ確認と cache‑cleanup 初走失敗の根因・修正
-  （2026‑10‑03 第 30 セッション — 恒久記録は §4.1 対策②の地雷注記）**:
-  ① **納品サイクルは全緑** — PR #30 の PR run **native #140 / CI #229 success**、
-  マージ後 main（`ccfe4ea4`）の push run **native #141 / CI #230 success**。
-  キャッシュは前後で **22 件 / 5.083 GiB のまま = 新規エントリ 0 件**
-  （`refs/pull/*` 0 件 = **`save-if: false` 側（PR run）の実走確認が完了**。
-  main 側 run も全キー exact hit で新規保存なし）。
-  ② **cache‑cleanup run #1（`pull_request: closed`・PR #30）の
-  `prune-closed-pull-request` だけ失敗** — step「Prune this PR's cache scope」が
-  exit 1、出力は `no credentials: set GITHUB_TOKEN (in CI) or GH_TOKEN (locally)`。
-  **根因**: `scripts/actions_cache_sweep.py` の `resolve_token()` はプロセス env の
-  `GITHUB_TOKEN`/`GH_TOKEN` だけを見るが、**runner は `GITHUB_TOKEN` を step env に
-  自動注入しない**（default env 46 変数の表に `*TOKEN*` は 0 件 — docs ソース実読。
-  token は `secrets.GITHUB_TOKEN` / `github.token` の式コンテキスト専用）のに、
-  workflow は渡しておらず、コメントも「already in the step environment」と誤記
-  していた。**修正**: 両 job の script step に
-  `env: GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` を追加（`sweep` も同型の潜在
-  バグ — 翌日曜 03:40 UTC の cron で同じ失敗をするところだった）+ コメントを
-  事実に合わせて訂正。失敗 run #1 の**実害はゼロ**（削除対象の
-  `refs/pull/30/merge` スコープは 0 件 = save‑if が PR 保存を止めていた。修正版
-  スクリプトでローカル実証: `nothing to prune` / exit 0）。re‑run は無意味
-  （sha `92aad1e` の旧 workflow で再走するため）。
-  **検証**: 失敗のローカル完全再現（同一コマンド・token 無し → CI ログと
-  一字一句同じエラーで exit 1）+ 修正経路（token 有り → exit 0）/
-  actionlint 1.7.12 / prettier 3.9.9 `--check .` / PyYAML で両 step の env に
-  `GITHUB_TOKEN` が入ることを実読。
-  **次ターン（ユーザ）**: この修正の dev→main マージ → PR クローズ時に
-  `prune-closed-pull-request` の緑（正解の出力は「nothing to prune」）を確認。
-  **日曜 03:40 UTC までに main へ入れる**（schedule run は default branch の
-  workflow を使うため、それまでにマージしないと sweep が同型で失敗する）。
-  以降は D4（3.15 final の manifest 着弾後）と Plan‑2 R5。
+2 本柱: CI から mold / clang を撤去し **rust‑lld**（Rust 1.90 以降の
+x86_64‑linux 既定リンカー）へ移行すること（6 時間ハング前例のある apt
+ステップの障害面削減が主目的・実行時性能のトレードオフはゼロ）、
+出荷バイナリへの **PGO**（release プロファイルは設定上の最適化余地が無く、
+実行時性能に残された主要手段でした）。BOLT / Intel BOT / Propeller /
+リンカー ICF / LLVM CAS / 成果物への ThinLTO / アロケータ差し替え /
+target‑cpu 多変種は一次調査に基づき不採用・保留・監視のみと判定
+（Plan‑2 §5）。Step 1–5 は 2026‑10‑01〜02 に完了しました。
 
-## 6. セッション タイムライン（圧縮版 — 逐語原文は `git show 88b5e9c:Agent/MEMO.md`）
+- **Step 1（rust‑lld 移行）**: `.cargo/config.toml` の mold 設定を撤去
+  （判断根拠のコメントへ置換）、native.yml の apt ステップ削除、
+  native/README 改写。fuzz-long.yml の apt ステップ削除は週次実行の成功確認後の
+  フォローアップ（R5 — 残件 §7）。
+- **Step 2（PGO トレーニングハーネス）**: `scripts/pgo/train.py`
+  （標準ライブラリ + mm_core のみ・シード固定の決定論的ワークロード・
+  `--measure` モード内蔵・`TRAIN_ROUNDS` で反復数調整）+
+  `scripts/pgo/README.md`。3 OS のランナーで完走を確認。
+- **Step 3（linux‑x86_64 パイロット計測）**: `pgo-measure` ジョブ
+  （workflow_dispatch / コミットメッセージの `[pgo-measure]` マーカー専用）—
+  計装ビルド → トレーニング → `llvm-profdata merge` → baseline / PGO 両者の
+  zigbuild → G2 検査（プロファイル no‑op の検出）→ 交互 A/B 計測。
+  **G1 = PASS**（中央値判定・コールド一貫で最大 ~+10 % の初回実行
+  スループット — BENCH §13）。G2 のしきい値は run #106 のログ全件解析により
+  1 % → 50 % + 陽性プローブ 3 条件へ再校正（13.81 % は fat LTO の良性乖離）。
+  判定統計を min → 側別中央値へ改訂（§3）。
+- **Step 4（PGO 本番組み込み）**: linux‑x86_64 は手動三段階（計装は
+  ホストネイティブビルド）+ 恒久 G2 ゲート、Windows は maturin `--pgo` の
+  三段階が完走、**macOS は計装 fat dylib の終了時 SIGSEGV により非 PGO
+  出荷**（§4.1・判断 (c)）、linux‑aarch64 は対象外。build 3 ジョブへ
+  `llvm-tools-preview`。size‑budget（4 本 18,118,520 B ≤ 20 MB）・
+  run 全体 9 分 21 秒 ≤ 20 分・integration 3 OS が PGO 成果物に対して成功
+  （= テストされた成果物が出荷される成果物）。
+- **Step 5（ドキュメント・記録）**: native/README の PGO 節、BENCH §13
+  （計測 + 判定統計の改訂）、README×2 のエンジン節へ「PGO 最適化済み」を
+  追加（linux‑x86_64 / Windows の 2 プラットフォーム限定・BENCH §13 参照付き）。
+- プロファイルはビルド毎生成・**コミットしません**（ドリフトゼロ・
+  リポジトリ非肥大）。G2 の形状数値（7,618 関数 / 1,052 missing / 13.81 %）は
+  3 run 連続で完全一致 = プロファイルの決定論を再現確認済み。
 
-「第 N」は旧 MEMO のセッション番号（Plan 等の「MEMO 第 8 セッション」参照は
-この表で解決する）。実装・計測の詳細は Plan §9 / BENCH / 各コミットメッセージが
-一次記録。
+### 5.3 Plan‑3.md（NEO‑PLAN‑2026‑003）— Python 下限 3.12 化と abi3t バイナリ（Step 1–5）
 
-| #     | 日付       | 概要                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ----- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1     | 2026‑09‑23 | 環境把握 + コードベース精読。**Phase 0**: native ワークスペース雛形・CI（native.yml 新設）・bench 基盤 + BENCH・`py/native.py` ローダー + `MM_NATIVE`・A1 executor 化・JSON パーサ確定（**jiter** 10.6 vs simd‑json 187.6 vs serde_json 143.6 ms）。ツールチェーン知見 → §4.1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| 2     | 2026‑09‑23 | 並行独立検証（採用ツリーを再実行・全緑）+ Phase 0 精密監査 + 実装差分クロス監査。補完コミット群                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| 3     | 2026‑09‑23 | **Phase 1**: znn‑codec フォーマット中核（ZN ヘッダ・ビット並べ替え・平面分割・huff0/FSE・チャンク並列）— L2 ゴールデン **9,880/9,880 バイト同一**。ユーザ判断 3 件（§1.1）。**virtual‑raw 平面**最適化で 8/8 指標 C 超え                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| 4     | 2026‑09‑24 | **Phase 2**: safetensors 圧縮/解凍パイプライン + バックエンド接続（ジョブ API・ws 契約・stats 形状は legacy 完全互換）。実装バグ 6 件の教訓（ジョブ完了競合・paranoid 二重計上・metadata 不在キー・割り当て爆弾キャップ・sha2 バックエンド・並列ハッシャ逆効果）→ §4。CI 修復 3 件                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 5     | 2026‑09‑25 | Phase 2 精査（5 件修正）+ 実証監査バッテリー ALL CLEAN。**fuzz‑long run 1 の blob_decompress OOM 根因特定・修正**（→ §4.4）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| 6     | 2026‑09‑25 | fuzz run 2 失敗の真因（rss_limit 側）修正 → **run 3 完走 = Phase 1 完了条件消化**。**Phase 3**: デルタ圧縮（1 MiB ストリーミング XOR・公式 streaming コンテナ連鎖・`.neo-delta.json` サイドカー）+ バッチプリミティブ（walk_models/move_with_sidecars）。付録 C SEGFAULT クラス解消実証（K5）・api_version 3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 7     | 2026‑09‑26 | **重大: dev が c3b7919 へ force‑push 巻き戻し** → 12 コミット SHA 回収・マージ復元（→ §1.2 の tip 確認規程）。Phase 3 独立監査: **GIL 解放修正**（walk/move — PyO3 0.29 `py.detach()`、A/B テストで機械固定）→ §4.1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 第 2  | 2026‑09‑26 | fuzz run 5 監視（全 7 ジョブ SUCCESS 消化）+ **Phase 0–3 最終バグチェック**（delta verify スイッチ 1 件修正 + negative findings）。run 6 不ディスパッチ判断（表面不変）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 第 3  | 2026‑09‑26 | **Phase 4**: dtype 大幅拡張（safetensors 0.8 全 22 種・8 平面分割・Neo 拡張帯 128–146・truncation 正式実装）— K14 達成。complex64=コード 130 実証（公式 0.5.4 にコード 9 の arm が無い = L5 E2）。run 6 ディスパッチ（18 h）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 第 4  | 2026‑09‑26 | Phase 4 CI 確認 + 独立精査: 堅牢化 3 件（confirmSingleZipnn 競合 → confirmEpoch / inspect_safetensors_dtypes 非 object ヘッダ / znnInfo 壊れ JSON）+ negative findings                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 第 5  | 2026‑09‑26 | リポジトリ整理（参照ゼロ確認の上 3 件削除）+ **cargo 使用方針の規程化（Plan §3.4.3）** + `native/crates/znn-codec/tests/` 新設（extended_band 統合 4 テスト）+ ドキュメント記入漏れの完全解消                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| 第 6  | 2026‑09‑27 | **Phase 5**: scan / 永続インデックス / hash 5 表記 1 パス / ヘッダ解析 / `models_changed` 更新伝播 — K7–K11 達成（scan 5000 モデル 0.145 s = ×7.5・native==legacy parity）。**O(n²) 重大バグ発見・修正（MoE 6 s → 212 ms）**→ §4.3。api_version 4。macOS universal2 サイズゲート修正（per‑slice + FAT_MAGIC 判定）→ §4.1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| 第 7  | 2026‑09‑27 | CI 全緑確認 + **ユーザ決定 5 件の Plan 反映** + **reqwest / extended‑notify の実測証跡**（→ §4.3 — Plan §3.8/§3.1・BENCH §11.4 が参照する一次記録）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 第 8  | 2026‑09‑27 | Phase 5 最終バグチェック（**6 件修正**: resume seeding のループ停止 / lost handle / 永続インデックス無限成長 / 非 UTF‑8 md でフォルダ一覧全滅 / subFolder 破壊 / create‑folder 未伝播 — 全て回帰テスト化）。**Phase 6 完全実装**（C1–C5・テンソルツリー Rust 事前グループ化 + 遅延インデックス ×104・A3 aiohttp 統一 17 テスト・watch_roots 12+4 テスト — K15 達成・api_version 5）。push 後 CI 失敗 2 件修復（skip ガード欠落・markdownify pip 行）+ **独立精査 10 件修正**（executor 化・ロック順序・pending 上限・設定キャッシュ・孤児 cancel・cloneDeep 相殺・charset・mark 実体化・stale payload・validator 15 ケース）。**C2 設計判断の CI ランナー再現**（Plan T2 が参照）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| 第 9  | 2026‑09‑27 | **Phase 6 最終バグチェック: 機能バグ 0 件**（fresh eyes の negative findings 全領域）。**`tensorTreeRowsIdentical` ゲート新設**（描画行 = collapsed 1 + 全展開 152,462 行を legacy fold と機械照合）。**fallow「未使用 export ゼロ」回復**（13 export + 型 4 を private 化・連鎖含む）+ **fallow の CI ゲート化**。**release ビルドが 1 GiB で OOM → debug .so 規程**（§2.2/§2.3）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 第 10 | 2026‑09‑28 | CI 完了確認（CI #140/141・native #51/52 — native #51 全 14 ジョブ緑。fallow バイナリのランナ動作も実証）。**テストコード精査: テストバグ 0 件・甘さ 4 件修正**（download 書き込みループガードの端到端化 / `.tmp` フィルタ接合部 / type_matcher sibling‑prefix / cancel 条件ベース待ち — 全て mutation 検証）→ §4.5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 第 11 | 2026‑09‑28 | **Plan: Phase 7「ツールチェーン現代化・設定統合」新設（T1–T6）+ 旧 Phase 7 → Phase 8 繰り下げ**（§6.1/§7 リスク表/§9/相互参照 5 箇所を同期）。**T7 zenwebp + ライセンス整備 / T8 requests 2 箇所 aiohttp 化を追加・Phase 8 abi3t ストレッチ削除**。「v1」用語を初版/第一段階へ統一。整合性一掃（生きた Phase 7 参照 5 箇所を Phase 8 へ）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 第 12 | 2026‑09‑28 | **T7 を一気刷新へ改訂**（段階分け廃止 — 静止エンコード + アニメ WebP 保持 + WebP デコードを一括。保安面は L3 fuzz 新ターゲット + デコード parity + 上流 fuzz 精査の**前提条件化**。fuzz 6 ハードコード 2 ワークフローの同期点を明記）。ドキュメント整合性最終チェック（残存「段階」言及は全て意図的と判定）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| 第 13 | 2026‑09‑28 | **MEMO 全面再編（本再編）**: 逐語ログ 2,661 行 → 永続知識（§1–§5）+ 圧縮タイムライン（§6）。原文は git 履歴（`88b5e9c`）から復元可能                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 第 14 | 2026‑09‑28 | **T4（uv 導入）撤回（984f48a）→ 同日復元（撤回の撤回）**: 撤回理由「uv ではフロントエンドのパッケージ管理ができない」は T4 の対象範囲の誤解 — T4 の範囲は元来 **Python の開発・CI 層専用**（pip 置換 + uv.lock。pnpm/フロントエンドは一切変更なし・現状維持）。ユーザの範囲確認（「フロントエンドの懸念のみ」）を受け Plan/MEMO を 25a7f00 から原文復元（完了条件 8 項目・T6 の setup-uv・§2.2 手順 7 も復活）。撤回→復元の経緯は Plan 版数履歴 2.4 + git 履歴（984f48a）に記録                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| 第 15 | 2026‑09‑29 | **Phase 7「ツールチェーン現代化・設定統合」8 項目（T1–T8）を完全実装・自動 QA 完了**（dev へコミット/プッシュ・CI 実走緑は次ターンでユーザ確認）。一次ソース照合（nodejs.org dist / PyPI / crates.io / GitHub API）で全バージョンを確認してから実施。**T3** ruff 0.16.9・**T2** Node 26.10.0 + `@types/node` ^26.6.3（C2 ゲートを Node 26 の V8 で再検証 PASS）・**T5** `[tool.mypy]` pyproject 統合（mypy 2.3.1 自動発見・16 files）+ prettier/stylelint を package.json へ（挙動不変）・**T4** uv 0.12.20（`[dependency-groups]`+uv.lock・setup-uv v10.2.0・`uv pip install --system`・`uv sync --frozen`→207 再現）・**T6** GitHub Actions を **1 action ずつ別コミット**でメジャー更新（checkout/setup-node/setup-python v7・upload-artifact v7・download-artifact v8・pnpm-action v6.1・rust-cache は同一メジャー v2 維持・各 release notes で破壊的変更を一次確認〔runner≥2.327.1・download-artifact v5 の ID ダウンロード変更は name/pattern のみ使用で非影響・upload v7↔download v8 は @actions/artifact v4 相互運用・setup-node v6 の auto-cache npm 限定は明示 cache:pnpm で非影響〕・setup-uv のみ v8+ でメジャータグ無し = v10.2.0 pin）+ 全設定を一次照合（crate は §3.7 一致・pnpm `minimum-release-age` の .npmrc 配置は pnpm 12 で無視 = 死に設定の発見 → 挙動不変を優先し記録のみ §4.1）・**T1** `_sha256_of_file`（native hash_file + フォールバック・preflight を network=io/hash=cpu へ分離・+8 テスト）・**T8** `http_client.fetch_preview` + `resolve_preview_sources`/`write_resolved_previews` 分割 + `_resolve_update_previews`（editor fetch を loop へ）+ save_model_preview(s) async 化・`import requests` 削除（py/ 直接参照ゼロを AST で固定・+12 テスト接合部含む）・**T7** zenwebp 0.4.4（`znn-codec::webp` 純 Rust + mm-core phase7・**api_version 5→6** 4 者同期・L1 +10・L3 fuzz `webp_decode` 7 本目〔native.yml/fuzz-long 同一コミット〕・pytest +9〔静止 parity/アニメ frame+duration 保持/decode parity zenwebp==PIL/フォールバック〕・**AGPL‑3.0 ライセンス整備 (a)–(e)**: Plan §8 + `native/NOTICE` 新設 + README×2 Credits/License + §3.7 crate 表 + Cargo.toml・サイズ実測 release linux-x86_64 **4,110,816 B = 3.92 MiB = 5 MiB 目安の 78 %（2026‑09‑29 に目安 4→5 MB 改定）**〔zenwebp +0.93 MB・budget 内・CI 実測で注視〕）。**罠**: AnimationDecoder のフレームは has_alpha で RGBA/RGB が変わる（長さ判別で RGBA 正規化）/ PIL は WebP の per-frame duration を公開しない（アニメ WebP 入力は native decode_animation で保持）。全 mutation testing で捕捉力実証（.lower() 除去・raise_for_status 削除・duration ハードコード・import requests 再混入）。**ローカル全ゲート緑**（Rust L1 205/mm-core 5/統合 4・clippy -D warnings・pytest 207・ruff/mypy/typecheck/eslint/stylelint/prettier/dep-cruiser/fallow/build/K15 Node26）。Plan §6.2 T1–T8 [x]・§9 Phase 7 [/]（CI 実走待ち）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 第 16 | 2026‑09‑29 | **追加要件 3 件を完遂 + Phase 7 クローズ**。(1) **サイズ目安 4→5 MB/本**（ユーザ決定・Plan 版数 2.6）: native.yml size-budget 4194304→5242880・fat 8388608→10485760（合計 ≤20 MB の R6 ハード上限は維持）・build-native.sh SIZE_BUDGET・Plan §3.3/§6.3/R6/§5.3/T7/§9・MEMO・native README/Cargo.toml・BENCH は注記のみ。(2) **pnpm 12.3.4→12.8.1**（ユーザ指示）: packageManager の integrity は npm base64→**hex 変換が必須**（corepack は semver build metadata 制約で base64 の +/= を拒否 = 「expected a semver version」エラーの実測）。lock は packageManagerDependencies+@pnpm/exe が追従。(3) **Phase 7 バグ精査 = バグ 0 件**: 接合部エッジテスト 2 件追加（editor ギャラリーの http/local/blob/非URL 混在・video プレビューのバイト一致）→ native あり 209 / なし 83+126 skip 両緑。(4) **最新安定版監査**（報告のみ・実装は指示待ち）: 解決済み版ベースで照合 — 遅れは @vueuse/core 14→15（メジャー）・thiserror patch・npm マイナー 16 件（caret 範囲内 lock 古）・bincode/cargo-fuzz/TS7 は意図/除外・Python は互換レンジが設計。(5) **CI 実走緑を確認**: ed86b64→ci#162/native#73・00f185f→ci#163/native#74 全ジョブ success（size-budget・fuzz-smoke 7・abi3 v6・integration×3）。Plan §9 Phase 7 [x]・§6.2 完了条件 [x] クローズ。未決（ユーザ判断待ち）: npm/crate の最新版へのアップグレード実施、.npmrc minimum-release-age 削除/有効化の選択。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 第 17 | 2026‑09‑29 | **依存最新化 + 整理（ユーザ追加指示）**。(1) **最新安定版へアップグレード**（意図的/指示済み除外）: npm = vue 3.5.43・vite 8.3.1・prettier 3.9.9・eslint 10.11.0・typescript-eslint 8.71.0・eslint-plugin-vue 10.11.1・@vitejs/plugin-vue 6.0.9・reka-ui 2.10.5・tailwind-merge 3.7.0・vue-i18n 11.4.12・yaml 2.9.1・markdown-it 15.0.2・postcss 8.5.28・less 4.9.1・lint-staged 17.6.0・**@vueuse/core 15.0.0（メジャー・typecheck/build 緑で互換確認）**。crate = thiserror 2.0.21（lock のみ・Rust ゲートは CI 委譲）。**除外維持**: TypeScript 6.0.3（7 系は指示で除外 → **pnpm-workspace.yaml overrides に typescript: 6.0.3 を新設**し fallow-type-aware の open range による TS7 再解決を遮断）・bincode 2.0.1・cargo-fuzz 0.12.0・pnpm 12.8.1（指示）・Node 26.10.0・Python 互換レンジ。(2) **fallow は 3.27.0 で exact pin**（3.30 の type-aware が TS7 必須のため TS7 除外方針が優先）・**@lucide/vue は 1.48.0 で exact pin**（1.49.0 が当日公開で minimumReleaseAge 既定 1440 に flag → 1 day 経過後に解禁可）。(3) **整理**: `.npmrc` 削除（死に設定）+ `minimumReleaseAgeExclude` 削除（stale）・`minimumReleaseAge` 新設は不要（pnpm 既定 1440）。(4) ゲート全緑（typecheck/lint/lint:css/deps/build/fallow/format/K15 C2・pytest は Python 不変のため再実行不要）。**罠**: 1 GiB で age ゲート検証が OOM（→ §4.1）/ FS リセットで .git・.venv・/tmp ツール群が再消失（§1.2 の復元規程で回復・ツールは "$ARENA_WORKSPACE"/.tools へ永続化）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 第 18 | 2026‑10‑01 | **Phase 7 バグ厳密精査（第 2 弾・fresh eyes）+ CI 耐障害性強化**。機能バグ 0 件を再確認（T1/T7/T8 のコード精読・native API の敵対的境界検証〔canvas ガード/loop u16 境界/品質 clamp/garbage〕・プレビューパイプラインのエッジ電池 15 入力〔APNG/TIFF/CMYK/透明 GIF/disposal/ICC/破損/SVG/1x1〕・loop とアニメ ICC の端到端実証・pnpm 12.8.1 integrity の npm registry 一次照合・zenwebp 0.4.4 = max_stable の crates.io 再照合・api_version 6 の 4 者同期）。**発見と修正 2 件**: (1) **native run #81 integration(ubuntu) 失敗の根因 = テスト flake** — `test_mountinfo_body_is_cached_within_the_ttl` がキャッシュ stamp に絶対原点 `0.0` を使い `time.monotonic()`（= uptime 基準）が TTL 60 s 未満の起動直後ランナーで「失効していない」と誤判定 → 相対原点 `now - (TTL + 1)` へ修正（monotonic=5 s シミュレーションで旧パターンの失敗再現 + 新パターンの決定論性を実証）。(2) **native run #80 cancelled の根因 = apt ステップの 6 h ハング**（mold/clang install・ミラーの一過性ストール・run 全体がジョブ上限で cancelled）→ 全 apt ステップ `timeout-minutes: 10` + 全ジョブ `timeout-minutes: 60`（ci/native/fuzz-long・actionlint 1.7.12 緑）。**テストの甘さ 5 件を修正**（全て mutation 検証: loop=0 ハードコード / icc=b"" 破棄 / except→go 除去 / content_type ステージング退化 を新テストが捕捉）: アニメ loop 数保持（ANIM チャンクをバイト級解析）・アニメ ICC 保持（ICCP バイト一致）・T1 ハッシュ失敗→「go」降格の接合部・FileField（multipart アップロード）分岐 2 経路（史上初のカバレッジ）・`test_webp_decode_rejects_garbage` の pytest.raises 化 + Rust L1 にアニメ ICC 往復テスト（L1 205→206）。ゲート: pytest 214 / 86+128 skip・Rust L1 206+統合 4+mm-core 5・clippy -D warnings・fmt・ruff・mypy・typecheck/eslint/stylelint/deps/fallow/prettier/build・K15+cross-check（Node 26）全緑。**dev tip の CI 実走は push 後・次ターンでユーザ確認**。(3) ゴースト run 修正（311a320）の事後検証: PR #17 は正常系 pull_request run として guard 不活性・main 側 run（CI #171/native #82）は緑・#78 も re-run で緑回復 — 修正は意図どおり機能。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 第 19 | 2026‑10‑01 | **Phase 8 完全実装（third_party 撤去・配布仕上げ・v0.3.0 公開準備）+ README×2/USAGE×3 全面改訂**。(1) **単一経路化**: py/compress.py の旧経路を全削除（2425→1391 行 — ensure_zipnn 一式・Python テンソルループ・旧デルタ・旧ウォーカー・_cleanup_targets。native_core() は不在時 reason() 付き RuntimeError、batch は即エラー応答、単一/デルタは ws 契約どおり zipnn_complete error。inspect は mm_core.safetensors_header へ = B4 完成）。py/native.py から MM_NATIVE/native_mode/_fail 削除（load() 非例外・core_if_enabled = module or None・diagnostics から mode 削除）。T1/T7 の Plan 注記どおり upload ハッシュの hashlib フォールバックとプレビューの PIL 再エンコード・フォールバックを撤去（PIL は非 WebP デコード役として残存）。**設計判断**: 読み取り系（scan/hygiene・header・identify ハッシュ・download 完了時再読）の Python レジリエンス・フォールバックは維持（Plan に撤去指示なし・「grid を絶対に壊さない」不変条件・parity オラクル存続）— テストのエンジン切替は env → core_if_enabled 注入へ移行しゴールデン parity 完全維持。フロントは installFailed/retry/force/compactError + i18n 3 キー削除。(2) **third_party/ 撤去**: ZipNN MIT + FSE BSD‑2 全文を native/NOTICE へ逐語継承。CI の native-diff（L2）+ fuzz-long l2-full 退役（証跡は scripts/l2/results/ 残置 + README に退役記録・golden_diff.py は git 履歴）。integration の MMNEO_SKIP_LEGACY 削除・「Torch cross-check dependencies」へ改称（同時に行った numpy 削除は run #87 で safetensors.torch の実行時 import が露見し復元 — §1.2 の pip 行規程の numpy 前例）。bench 旧 C スクリプトは歴史的ツールとして残置 + エラーガード + run_all.sh ガード。設定掃除（ruff exclude/eslint/fallow/stylelint/prettierignore/gitignore 例外）。(3) **配布機構（Plan §5.3）**: native.yml `publish-native-bin`（main push 専用・3 ビルド成果物を content 判定〔ELF e_machine/FAT_MAGIC/.pyd〕で分類・git add -f・差分時のみ bot コミット・contents: write・ループ不可）+ tags: v* トリガ。.gitignore の *.so 無視は**維持**（dev の debug ビルド誤コミット防止 — force-add で K16 と両立。当初の negation 方式は dev ワークツリーにバイナリが露出するため自己審査で却下）。native-bin/README.md 全面改訂。(4) **v0.3.0 同期**: pyproject/package.json/native workspace（Cargo.lock 追従）/web 再ビルド（version.yaml 0.3.0・locale バンドル hash 更新）。requirements.txt にランタイム契約ヘッダ。サイズ実測 4,110,752 B = 5 MiB 目安の 78.4 %（release プロファイルは既にごり押し最適 = 追加最適化は K2/K3 トレードオフで不採用）。**K16 Linux 実証**（新規 clone 相当 + release バイナリ + python3 -S -E 純標準ライブラリ: import → 圧縮 263 KB→600 B → 解凍 → sha バイト一致・core_version 0.3.0+d35cbf3）。(5) **main run #85 失敗の根因特定・修正（本番バグ）**: watcher クールダウンの「未放送」= monotonic 0.0 既定値 → 起動 60 s 未満のランナーで初回 rescan 抑制（§4.5 の monotonic 教訓の本番側実例）。None sentinel 化 + _FreshBootClock 回帰テスト 2 本（mutation 検証: 旧意味論で 2 本のみ失敗）。(6) **ドキュメント**: README×2 = ZipNN 節を「エンジン: プリビルドの純 Rust コア」へ（4 プラットフォーム表・abi3・L5 相互運用ゲート・非対応平台のデグレード）、「元版からの変更点」に **Backend & engine 差分表**を新設（フォーク元 hayden-cn 2.8.5 を clone しルート +25/−2・設定 +11・フック +12 を一次照合 — 網羅性を機械的に担保）、Development に Rust/uv 手順、構成ツリー刷新、Credits/Qwen 節を現状（Rust エンジン）へ、冗長削減（Why Neo 重複・hero.gif 三重注記・cancel 過剰主張・legacy dtype 脚注）。USAGE×3 = エンジン表・Settings の Search/ZipNN/Download カテゴリ補完（実在する設定 UI と 1:1 化）・サブディレクトリ表示・トラブルシュート 2 行（native 不在理由・アニメ静止画化）・逐张量/可逆の旧表現を mmap/検証付きへ。(7) **テスト再編**: legacy 系 14 本削除（エンジン消滅に伴う — 公式互換の証明は L5 へ一元化）・loader/cancel/missing-core/preview デグレード/_sha256 不在を Phase 8 契約へ書換・walk parity のオラクルをテスト内リファレンスウォーカーへ移設・tests/test_phase8_distribution.py 新設 8 本（requirements==pyproject・バージョン 3 者・third_party 残骸ゼロ・MM_NATIVE 完全撤去・NOTICE 継承・gitignore 方針+add -f・publish main 限定・compress 旧関数の AST 復活防止）。pytest 213 / 81+132 skip・Rust L1 206+4+5・clippy/fmt/ruff/mypy/typecheck/eslint/stylelint/deps/fallow/prettier/build/actionlint 全緑。**Phase 8 の dev CI 実走と main 側 K16 三 OS 消化は push/マージ後（ユーザ確認）**。公開作業（Release/tag/registry/main マージ）はユーザ専任のまま未実施。 |
-| 第 20 | 2026‑10‑01 | **ドキュメント刷新 + 開発用ファイル整理 + main 側 CI 障害の根絶（3 件）+ Plan‑2 策定**。(1) **README×2 / USAGE×3 の全文書き下ろし**（部分編集なし）: バッジ充実（version/CI ステータス/Python 3.10+/Rust 1.85+ edition 2024/PyO3 0.29 abi3/Vue 3.5/TS 6/Tailwind v4/Vite 8/ESLint 10/Prettier 3/Node 26/pnpm 12/4 プラットフォーム）、ユーザ作業メモ（demo-assets/README.md 誘導・撮り直し手順）の完全除去、フォーク元 hayden-cn **2.8.5** と zipnn/zipnn **0.5.4** を clone し一次照合（15→約40 ルート・7→16 py モジュール・+ja ロケール・タグ生成機能は 2.8.5 コードに既に不在 = 削除機能はバッチスキャンのみと確定）、性能数値を BENCH 証跡へ校正（テンソルツリー ~28 倍 → **×104**〔1,329→12.8 ms〕）、C コアのメモリ安全欠陥の構造的修正をエンジン節へ明記、Credits に ZipNN 論文（arXiv:2411.05239）追加 — commits 752ab91 + 6ff1841。(2) **整理**: 退役 bench ハーネス 9 本 + common/gen_synthetic/run_all・scripts/l2 全体・docs/upstream（起票見送り済み草案）・**native/crates/znn-cli・native/benches/json-bench**（Cargo.lock は cargo metadata で整合再生成 -230 行）・pnpm-workspace の `minimumReleaseAgeExclude` 削除（既定ゲートで supply-chain 検証 478 エントリ通過を実測）。l2 証跡は `scripts/bench/results/l2_*.json` へ移設、BENCH/native README/tests コメント/workflow コメントを同步 — cb5eebc。(3) **main run #94 integration(windows) 失敗（3 failed/208 passed）の根因 = 3 層の連鎖**: (a) upload-artifact の LCA 保存により単一ファイルの windows/macos artifact が裸で落ち、**両セルの native テストが開設以来一度も実行されず 81+132 skip で「緑」だった**（dev #92/main #90 のログで実証）。main の checkout に publish bot 由来のコミット済み .pyd が入った #94 で初実行され潜在バグが露見。(b) `stats["folder"]`（生産規約 = normalize_path のスラッシュ形）を `str(Path)`（Windows はバックスラッシュ）と直接比較したテストバグ → `.replace(os.sep, "/")` 規約へ。(c) scan parity ゴールデン 2 本が **NTFS のディレクトリ LastWriteTime 遅延マテリアライズ**（未変更ツリーの 2 連続スキャンで 1–3 ms 漂移）を厳密比較 → `_assert_scan_parity`（**Windows のフォルダ timestamp のみ ≤1500 ms 許容**・他は完全厳密・POSIX は不変）。修正 5d18128 = integration にステージング + **import smoke ガード**（ロード不可なら大量 skip で黙って緑にならずジョブが赤くなる = 黙殺の再発防止）。(4) **Rust 1.99.0 リリース当日ドリフト**: 新 lint `clippy::assert_is_empty` が mm-core lib.rs:409 を検出し native-test 3OS 赤（dev #95）→ §2.3 の再現手順でローカル 1.99 ゲートを実走し `assert_ne!(commit, "")` へ構造修正（5fa3679・#96 全緑）。(5) **自分の修正が生んだ main コンテキストバグ**: ステージングの `mv dir ../` がコミット済み非空 tag dir に衝突し main #98 / PR #97 の integration-ubuntu が赤（`Directory not empty`）→ **ファイル単位マージ**（mkdir -p + find -exec mv -f）へ書き直し、ローカルで 5 コンテキスト（dev/main × 入れ子/裸 + 空ガード）をシミュレートし全通過（e6c707d）。**教訓: dev で緑でも main コンテキスト（コミット済みバイナリあり）は別物 — ワークフロー変更は両コンテキストをローカル再現してから push する**。(6) **`Agent/Plan-2.md` 新設**（NEO‑PLAN‑2026‑002・rust‑lld 移行 + PGO 導入の 5 Step 計画。BOLT/IBOT/Propeller/ICF/CAS/ThinLTO/アロケータ/target‑cpu の不採用・保留根拠を一次ソース付きで収録。**実装はユーザ承認待ち**）。dev tip の CI 実走（#99 相当）と main 側消化は push/マージ後（ユーザ確認）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+(1) CPython 3.10 の EOL（2026‑10‑01）到達を受け **abi3 フロアを py310 から
+py312 へ引き上げ**（ComfyUI の文書化サポート下限と完全一致）、
+(2) **CPython 3.15+ のフリースレッド build 向け abi3t 成果物（PEP 803）を
+4 プラットフォームタグすべてに追加**して 8 本体制へ、(3) ローダーが
+インタプリタの flavour とバージョンを検出して成果物を選択、(4) ユーザ環境での
+自動ビルドは導入しない（Plan‑3 §5 に配布哲学の確認を記録）。
+Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 8 本）まで
+実働を確認しました。
 
-| 第 21 | 2026‑10‑01 | **Plan‑2（NEO‑PLAN‑2026‑002）Step 1–3 実装 + PGO パイプラインのローカル全検証**（ユーザ承認「すべてのタスクを計画通りに最後まで進めてください」）。(1) **Step 1 lld 化**: `.cargo/config.toml` の mold 2 ターゲット節を撤去（判断根拠コメントへ置換）、native.yml native-test の apt clang+mold ステップ削除（run #80 の 6h ハング型障害面の消滅）、native/README §2 書き換え、MEMO §2.2 の apt 行更新。fuzz-long.yml は計画どおり未変更（週次緑確認後に apt 削除 = Plan‑2 R5）。ローカル検証: 1.99 + rust-lld 既定で debug ビルド疎通・clippy -D warnings 0 errors・fmt 緑・test 206+4 緑（rustc が `-B<sysroot>/…/gcc-ld -fuse-ld=lld` を driver へ渡す = rust-lld 実働をリンクコマンドで確認）。(2) **Step 2 train.py**: `scripts/pgo/train.py`（train / --bench-one / --measure の 3 モード、stdlib+mm_core+tests/harness のみ、シード固定）+ `scripts/pgo/README.md`。**スモークで判明した 4 つの設計事実を修正に反映**: (a) `stats.originalBytes` はテンソルペイロード合計でファイルサイズではない（正しさのゲートは SHA‑256 往復が担う）、(b) デルタ pair の摂動は**コンテナのバイトではなくテンソルペイロードへ**適用する（ファイル先頭 XOR はヘッダを壊し「different tensor data sizes」で正しく拒否される = 生産側の健全性も確認）、(c) `move_with_sidecars` は**サイドカーのみ**を動かす（モデル本体はパイプラインが書く — 生産契約どおりのアサートへ修正）、(d) steal ゲートは「破棄して**再計測**」（MAX_STEAL_RETRIES=5 + 汚染サンプルはフラグ付きで記録し None を生まない）。debug バイナリで 30 セクション完走（8MB/120モデル/32MBハッシュで 52.7 s）、--measure は A/B 機構完走（同一バイナリ比 ~1.0）。(3) **Step 3 パイロット基盤**: `build-native.sh --pgo <profdata>`（linux 専用・warn-missing-function 付き）+ `--pgo-train`（mac/win 専用・maturin --pgo 透過）+ 相互排他/存在ガード（4 ケース exit 2 実証）。native.yml へ **`pgo-measure` ジョブ**（計装 host release ビルド → train → llvm-profdata merge〔sysroot 解決〕→ baseline+PGO の zigbuild → **G2 ハードゲート**〔missing/Total ≥1 % で fail〕→ --measure 3 ラウンド → G1 判定 + サイズを job summary へ → レポート artifact）。トリガは **workflow_dispatch + HEAD コミットの `[pgo-measure]` マーカー**（PAT の dispatch 403 制約の回避 = Plan‑2 版数 1.1 の改訂）。native.yml に `workflow_dispatch:` 追加。(4) **PGO プラミングのローカル全検証**（dev プロファイルで内存安全に実施）: 計装ビルド → train.py（profraw 6.4 MB）→ merge（**Total functions: 56,531**）→ `-Cprofile-use` + `-pgo-warn-missing-function` ビルド → **警告 31 件 = 0.055 % で G2 基準（<1 %）クリア**。警告の正体は最適化ビルド側で新規生成される `typed_swap_nonoverlapping` の単相化（良性クラス — G2 しきい値設計の妥当性を実データで確認）。PGO 版バイナリの import + train 完走も確認。(5) **zig cc shim の `-u` 非対応を発見・回避**（§2.3 に恒久記録済み）: 計装リンクの `-u __llvm_profile_runtime` を zig が「unrecognized file extension」で拒否 → shim で `-Wl,-u,<sym>` へ変換（CI の gcc は `-u` をそのまま扱うため CI 無関係）。(6) 文書: native/README に PGO 節 + build-native.sh コマンド表へ --pgo 行、scripts/pgo/README.md 新設、Plan‑2 進捗マーク（Step 1–3 実装 [x]・完了条件は CI 実走待ち [/]・Step 4 は G1 ゲート待ち [ ]）+ 状態行 + 版数 1.1。**pgo-measure 初回 run はこのコミットの `[pgo-measure]` マーカーで起動する — G1 判定と Step 4 配線は次ターン（ユーザが CI 確認を指示したとき）**。 |
+- **Step 1（floor 3.12 化）**: abi3‑py312・`requires-python >=3.12`・
+  ruff py312・mypy 3.12・uv.lock revision 5・CI 解釈系 ×7・abi3‑import セル
+  3.12 / 3.14。
+- **Step 2（ft feature と `<tag>t` ビルド経路）**: mm‑core の feature 再編・
+  `build-native.sh` 8 ターゲット化・toggle ゲート 3 軸・build ×3 への
+  host 3.15.0‑rc.2 t ビルド + GIL / ft 両フレーバの import smoke 追加・
+  ディレクトリ構造での artifact upload。
+- **Step 3（ローダー）**: `is_free_threaded()`（`Py_GIL_DISABLED` /
+  abiflags `t`）・`<tag>t` ルーティング・GIL 3.12 / ft 3.15 の floor ガード・
+  `diagnostics.freeThreaded`・テスト +4。フリースレッド 3.13 / 3.14 は
+  abi3t が未定義のため理由付きでデグレード。
+- **Step 4（CI 拡張）**: abi3‑import 4 セル・size‑budget（found 8 ハード +
+  本別 5/10 MB ハード + 合計 40 MB 目安〔D1・超過は warning のみ〕）・
+  publish 8 エントリ（ディレクトリタグ優先のステージング・bare `.pyd` 拒否
+  〔R7〕）・ubuntu の t integration セル（3.15.0‑rc.2t × フル pytest〔D3〕・
+  torch / tsc / L5 の脚は GIL セル限定へ条件変更）。
+- **Step 5（文書・バッジ）**: README×4・USAGE×4・native/README・pgo README・
+  Plan‑3 の状態更新。
+- **決定事項 D1–D4**: D1 合計サイズ 40 MB・目安化（ユーザ決定）、
+  D2 abi3t は v1 非 PGO（GIL 側の PGO は Plan‑2 のまま維持）、
+  D3 t integration は ubuntu のみ（他 OS は import smoke）、
+  D4 rc ピン → final への振替は manifest への final 掲載後の別コミット。
+- **納品後の安定化**（dev CI の失敗 4 件 + 潜在の誤検出 1 件の修正 —
+  いずれも根因を実証付きで特定）:
+  ① py315 切替後の「Failed to find zig」→ `CARGO_ZIGBUILD_ZIG_COMMAND` の
+  絶対パス pin（§4.1）、
+  ② macOS bash 3.2 の空配列 unbound → `${feat[*]+…}` ガード 3 箇所、
+  ③ toggle ゲートの `cargo metadata -p`（同セレクタは存在しない）→
+  修飾形への変更 + cargo の stderr を CI ログへ転写、
+  ④ ゲートアサートの誤検出潜在バグ（pyo3 の abi3‑pyXY 上向きチェーン →
+  「最小有効 minor」形へ置換・負例 9 ケースで検出力を実証）、
+  ⑤ ubuntu‑t integration の pytest 1 本失敗 = テスト側の 5 段連鎖
+  （autouse のバージョンピン → タグ誤誘導 → プローブ名ハードコード →
+  成果物 4 タグ一括展開による skip ガード不発 → free‑threaded 3.15 の
+  `EXTENSION_SUFFIXES` に `.abi3.so` が無い）— ローダーは正しく拒否しており、
+  誤っていたのはアサート → `_use_real_interpreter` の逃避口 + flavour 準拠の
+  プローブ名 + `test_extension_suffixes_enforce_the_flavour_split`
+  （5 flavour 実測で機械固定）+ aiohttp ウォームアップによる
+  サードパーティ import 漏れの除去（§4.5）。
+- **公開確認**: CI 全ジョブ成功後、publish‑native‑bin の bot コミットが
+  `native/native-bin/` へ **8 本**を配置（abi3 ×4 + abi3t ×4・
+  linux‑x86_64 3.93 / linux‑aarch64 3.36 / linux‑x86_64t 3.96 /
+  linux‑aarch64t 3.36 / macos‑universal2 6.43 / macos‑universal2t 6.43 /
+  windows‑x86_64 3.55 / windows‑x86_64t 3.96 MiB・合計 34.98 MiB =
+  D1 目安内・本別予算内）。
 
-| 第 22 | 2026‑10‑01 | **run #106 の G2 失敗を根因解析して再校正 + Plan‑2 Step 4（出荷ビルドの PGO 化）を配線**。(1) **#106 の位置づけ**: native run #106 は pgo-measure のみ赤（G2: missing 13.81 % ≥ 1 %）で**他の全ジョブは緑 = Step 1（lld 化）の CI 実走検証が完了**（native-test 3OS が apt ステップなしで緑・integration/abi3/size-budget/fuzz-smoke 緑）。pgo-measure 自身も計装ビルド・train・merge・baseline+PGO 両 zigbuild・サイズゲートまで全成功（ランナーは高速: build-linux 2.4 分・pgo-measure は G2 まで 2.3 分）。(2) **根因 = しきい値の較正誤り**（プロファイル no-op ではない）: 警告 1,052 件を全件分類 = ジェネリック実体化 518 + クロージャ 254 + 計装時完全インライン関数のアウトオブライン復元 485（§4.1 の新項目に恒久記録）。Total count 1.21e9 が適用の陽性証拠。旧 <1 % は dev プロファイル実験（0.055 %）由来で release+fat LTO に不適。(3) **修正**: `scripts/pgo/g2_check.py` 新設（4 条件 = Total functions ≥1000 / Total count >0 / missing <50 % / znn_codec プローブ ≥100。**run #106 の実データ再構成で PASS + mutation 5 ケースで検出力を実証**）+ pgo-measure の G2 ステップ差し替え + merge へ `show --all-functions` ダンプ追加 + 計装ビルドへ `MM_CORE_COMMIT` 付与（バージョン定数の乖離源除去）。(4) **Step 4 配線**（ユーザ指示「G1 未達でも突き進む」= Plan‑2 版数 1.2 に決定記録）: native-build-linux へ三段階（計装 host ビルド → train → merge）+ `--pgo` zigbuild + **恒久 G2**、mac/win へ `--pgo-train`（maturin `--pgo`、`src/pgo.rs` 実読で cwd/PATH/llvm-profdata 解決/profraw ゼロ bail を一次確認 → `pgo-command` の相対パスと `llvm-tools-preview` 3 ジョブ追加が正しいと確定）、aarch64 は非 PGO の根拠コメント。universal2 × PGO の §4.4 三択判断は CI 実走で消化（拒否なら macOS のみ非 PGO へ戻す = 1 行 revert）。(5) 文書: Plan‑2 版数 1.2 + G2 定義 + Step 3/4 マーク + R2、native/README PGO 節（出荷組み込み済み・G2 再校正）、scripts/pgo/README（g2_check.py・恒久ゲート化）。ゲート: ruff 緑・prettier 緑・YAML + 埋め込み bash/python 構文検証・g2_check 実データ/mutation 検証。**CI 実走（pgo-measure の G1 初产出 + PGO 出荷ビルド 3 平台 + universal2 判断）は次ターンでユーザが確認を指示**。 |
-| 第 23 | 2026‑10‑01 | **run #107 の実測消化（G1 初产出 = PASS）+ macOS universal2×PGO の判断 (c) 実行 + 計測プロトコル改善**。(1) **#107 の結果**: pgo-measure 緑（G2 再校正が機能: 13.81 % < 50 % + 陽性プローブ全通過）・native-build-linux 緑（三段階 PGO + 恒久 G2・4,122,976 B = +0.30 %）・native-build-windows 緑（maturin --pgo 完走）・**native-build-macos 赤**（下記）→ integration/size-budget/publish は skip。(2) **G1 初実測 = PASS**: compress ×1.126 / decompress ×2.417 / hash ×1.001 / scan ×0.349（steal 破棄 0・汚染 0）。ラウンド別解析で min 比の実体を特定: **両側 round 0 = 冷間ペアの比較**で、定常（round 2）は compress ×1.007 / decompress ×1.000 / scan ×0.990 へ収束。scan ×0.349 は**側内分散 2.1 倍のラウンド選択アーティファクト**（真の退行ではない）。コールドスタート改善（初回解凍 81→196 MB/s）は PGO の配置最適化の既知の強みと整合し、ユーザ可視の利得として記録。(3) **macOS 失敗の根因**: 計装 universal2 wheel のビルド ✓・train.py 全 30 セクション完走 ✓（"done in 5.612 s"）の後、**インタプリタ終了時のプロファイルランタイム flush で SIGSEGV**（37 ms 後）→ profraw 生成不能・最適化リビルド未到達。単一 arch PE/ELF では再現しない fat dylib 特有の障害。macOS ホスト無しではデバッグ不能 → **§4.4 判断 (c) を実行: macOS は非 PGO 出荷**（native.yml へ証拠コメント、1 ステップ revert）。(4) **恒久対策**: train.py `--measure` の JSON へ `roundsA`/`roundsB`（ラウンド別生サンプル）追加 + job summary へラウンド別表を常設出力 + N=3→5 + REGRESSION WATCH 行（ratio < 0.95 の情報表示）+ train.py トレーニングの scan 系重み付け増（cold×5 + warm×20・hygiene/walk×5 = R7 緩和）。ローカルスモーク: debug .so 再ビルド（環境はターン間で全消失していたため §2.2/§2.3 手順で再構築）→ train 完走 27.8 s + measure 完走 + summary スニペット実走検証。(5) **文書**: BENCH §13（ラウンド別全データ・G2 再現性表・サイズ・macOS 判断・但し書き = Step 5 の BENCH 項目完了）、Plan‑2 版数 1.3（§4.4 決定記録・Step 3 完了 [x]・R7 顕在化記録・付録 A 改訂）、native/README（macOS 非 PGO 節 + Windows 実走確認）、scripts/pgo/README（重み付け注記）。**次ターン: #108（[pgo-measure] マーカー付き）の全緑確認 → ユーザが dev→main マージ**。 |
-| 第 24 | 2026‑10‑01 | **run #108 の全緑確認（Step 4 の dev 側完了）+ G1 判定統計を min → 中央値へ改訂**。(1) **#108 = 15 ジョブ中 14 success + publish-native-bin のみ skip**（`refs/heads/main` 限定 = 設計どおり）。linux PGO 三段階 + 恒久 G2 緑（4,123,808 B）・**macOS 非 PGO（判断 (c)）が緑 = SIGSEGV 再現なし**（fat x86_64+arm64・2 分 41 秒）・Windows maturin `--pgo` 三段階完走（3,738,624 B・train 11.9 s）・aarch64 3,526,008 B。G3 = size-budget 4 本 18,118,520 B ≤ 20 MB（FAT は内容検出で 10 MB 予算）・G4 = run 全体 9 分 21 秒 ≤ 20 分・G5 = native-test の apt ゼロ・G6 = L5 GATE 12 項目 PASS + fuzz-smoke + abi3-import 3.10/3.13 + integration 3 OS（linux L5 / macOS 212 passed / Windows 211 passed — すべて `0.3.0+a451adc96` = テストされた成果物 = 出荷される成果物）。CI #197 も緑。(2) **G1 の min 判定が 2 run 連続でアーティファクトを产出** → 判定統計を側別中央値へ改訂（Plan‑2 §2.2 の定義に実装を一致させたもの・版数 1.4）。#108 の compress min ×0.7575（REGRESSION WATCH 発火）は退行ではなく、**min を作ったラウンドが両側で違う**（a = round 4 の 208.27 / b = round 3 の 157.77）ための比だった。反証は 4 点: 同一バイナリの側内変動が最大 2.2 倍（scan 5 倍）・clean round 1 同士は ×0.9992（#107 定常 ×1.007 と一致）・hash が全 5 ラウンド ±0.4 % 以内（ランナー全体の劣化ではなく微小窓のスケジューリングノイズ）・steal ゲート 0 破棄（/proc/stat の steal はこのノイズを捉えない）。中央値では compress ×1.1064 / decompress ×1.1158 / scan ×1.0115 / hash ×0.9992 となり、min ×5.0302 だった scan も収束。実装 = `summarize_workloads()` 新設（min/中央値/best の 3 統計 + `ratioMed`/`ratioBest` 追加・`ratio` は `ratioMin` の別名として後方互換）+ native.yml のレポート表と WATCH を中央値化。#108 実データ再構成で PASS を確認し、埋め込み python を実 JSON で実行検証した。(3) **G2 の決定論の主張を限定**: 5 セル（#106/#107 ×2/#108 ×2）で profiled functions 7,618・missing 1,052（13.81 %）・znn_codec 877 は完全一致するが、**Total count は同一 run の 2 ジョブ間でも ~0.08 % ずれる**（#107: 992,358 / #108: 1,080,225）。BENCH §13.2 の表を丸め値（1.20e9）から実数値へ更新した。#107 → #108 の +6.7 % は train.py の scan 重み付け増が効いた証拠。(4) 文書: BENCH §13.6（サイズ表・ラウンド別全データ・4 点の反証・恒久対策）+ §13.2 更新、Plan‑2 版数 1.4（状態行・§2.2 G1・付録 A‑3 の自己矛盾修正「スループットの最小は最悪窓」・Step 4 完了条件の dev 側達成・Step 5 の BENCH 項チェック）、native/README・scripts/pgo/README の判定統計記述。**次ターン: #109（中央値判定の初実走）の確認 → ユーザが dev→main マージ → publish-native-bin の bot コミット確認で Step 4 完了**。 |
-| 第 25 | 2026‑10‑02 | **Plan‑2 実装完了の収束: 最終バグ精査 + run #109 消化 + ユーザ文書の事実精度修正 + 整理再確認**。(1) **精査（バグなし）**: train.py / g2_check.py / build-native.sh / native.yml（PGO 三段階 + 恒久 G2 + pgo-measure）/ .cargo/config.toml / native/pyproject.toml を全面レビュー — ruff 0.16.9（CI ピン版）check+format 緑・3 ワークフローの YAML 構文緑・bash -n 緑・g2_check.py は mutation 5 変種を全検出 + run #109 実データ形状（missing 13.81 %）で PASS・build-native.sh の `--pgo` RUSTFLAGS 配線（safe な空配列展開イディオム）は空/非空配列とも実測正常。(2) **run #109 確認（API でジョブ一覧 + artifact `pgo-measure-report` を直接取得）**: native 14 success + publish skip（main 限定 = 設計どおり）・CI #198 緑。pgo-measure の**中央値判定が初実走で機能**し、**G1 = 高速ランナーで NOT MET（パリティ）**: compress 定常 ~765 MB/s（#108 の ~2.2 倍）かつ SHA‑NI 無し（hash ~748 MB/s = #108 比 ×0.63）の異質インスタンス — compress ×0.9937 / decompress ×0.996 / scan ×1.0127 / hash ×1.004、負値なし・REGRESSION WATCH（<0.95）非発火・round 0 にコールドペナルティ無し（フロントエンド余裕が PGO の配置利得を吸収 = #107/#108 の遅いランナークラスではコールド一貫 +10 % が引き続き有効）。G2 の決定論的形状（7,618 / 1,052 / 13.81 % / 877）は 3 run 連続で完全再現（pgo-build.log の実カウント = 1,052）。**採用判定は不変**（revert 条件「PGO が負値」に該当なし）→ BENCH §13.7 に全記録 + Plan‑2 v1.5 収束（状態行「実装完了」・§2.2 G1 行へ #109 追記・Step 1/2/4/5 完了条件 [x]・版数履歴の 1.0 孤立行修復・付録 A‑1 追記）。(3) **ユーザ文書の事実精度修正（README×2 + USAGE×3 — すべて一次検証付き）**: unsafe の表述をスコープ正確化（「written without unsafe」→ lint deny + フォーマット中核ゼロ + 唯一の境界 = レビュー済み read‑only mmap〔delta.rs / safetensors_io.rs の 2 箇所・同一パターン〕）/ vendored ZipNN の帰属修正（**フォーク元 v2.8.5 に ZipNN は存在しない**ことを grep で確認 = ZipNN は全体が Neo 側実装。Packages 項を書き直し）/ yaml の来歴（upstream で実使用は yaml 2.6.0・js-yaml は宣言のみ未使用 → yaml を Upgraded 側へ移動）/ 「os.walk per request」→ 再帰 os.scandir（upstream manager.py 実読）/ **macOS 床の実測精密化**（main の実物 fat バイナリを LC_VERSION_MIN_MACOSX / LC_BUILD_VERSION まで直接パース: x86_64 スライス = 10.12・arm64 スライス = 11.0 → 全文書「Intel 10.12+ / Apple Silicon 11+」へ）/ web 配布機構の差分を「What changed」へ追加（元版 = 初回起動時に GitHub Releases から dist.tar.gz 取得・Neo = リポジトリ同梱 = 起動時のアセット取得ゼロ）/ バッジ充実（reka‑ui 2・Stylelint 17・Ruff 0.16.9・ZipNN format 0.5.4 cross‑validated — pnpm‑lock 8.3.1/4.3.3/6.0.3 等・pyproject・CI ピンと全照合）。(4) **整理の再確認（追加削除なし）**: 第 20 セッションの退役ハーネス削除（bench 9 本・scripts/l2・docs/upstream・znn-cli・json-bench）後に残る全ファイルを再走査し、残存ファイルはすべて CI・文書・ランタイムから参照されることを確認（cross_check.py ← k15.mjs --cross-check・json-bench.txt ← BENCH §2・results/_.json ← BENCH 逐語引用・verify_native_binary.py ← native/README・proptest-regressions ← L1）。GitHub Actions 系はユーザ指示により保持。demo-assets/ はユーザ領域のため不変。(5) **次ターン（ユーザ専任）**: dev→main マージ → publish‑native‑bin の bot コミット確認 → マージ後初回の日曜 18:00 UTC fuzz‑long 緑（または dispatch）を確認後に R5 の apt ステップ削除を別コミットで。 |
-| 第 26 | 2026‑10‑03 | **Plan‑3（NEO‑PLAN‑2026‑003）Steps 1–5 を一括実装（各 Step 独立コミット: c5ffa7e / fcdf540 / 07a4d05 / 0ca9847 / 本コミット）**: floor 3.12（abi3‑py312）+ abi3t 8 本体制（`<tag>t`・PEP 803）+ ローダー ft ルーティング/floor ガード + CI 拡張（abi3‑import 4 セル / size‑budget 40 MB 目安〔D1〕/ publish ディレクトリタグ優先 / integration ubuntu t セル〔D3〕）+ 文書・バッジ・記録。一次確認: pyo3 両 feature のホスト依存挙動（guide 実読）・PEP 803 の EXTENSION_SUFFIXES を実解釈系 3.15.0rc2 GIL/ft で実測・setup‑python は rc 版に `freethreaded:` 入力（t サフィックス非対応）・PyPI cp315t 実査（aiohttp/pyyaml 無し → t セルは sdist ビルド、失敗時は縮小の予備方針つき）・maturin wheel glob は `cp315*abi3t*` で命名揺れ耐性。ローカル検証: ruff/mypy/pytest 3.12.15（85+135skip）・staging simulation 5 PASS・cargo スタブ・bash ‑n・prettier。**CI 実走確認は次ターン（ユーザ）**。 |
-| 第 27 | 2026‑10‑03 | **Plan‑3 の dev run（native）37113439219 が 3 失敗 → 全根因を実証付きで特定し修正（+潜在ゲート誤検出 1 件を発見・修正）**。① linux t ビルド「Failed to find zig」= py315 setup‑python 切替で cargo‑zigbuild の探索 ②`python3 -m ziglang` が喪失、③PATH `zig` は ziglang wheel に shim が無く（console script は `python‑zig` のみ）永久不発 → **ツールチェイン導入時に site‑packages 実体を解決し `CARGO_ZIGBUILD_ZIG_COMMAND` を `$GITHUB_ENV` へ pin**（locate.rs の env 契約 = 非空+実在パス、wrapper.rs が同変数を再エクスポートするため 1 pin でジョブ全体を網羅 — 双方実読）。実測: 実 wheel インストールに対し CI と同一スニペットで解決+version、pin のみ・`python3 -m ziglang` 破綻下で cargo zigbuild が `x86_64-unknown-linux-gnu.2.28` を完走し readelf で GLIBC_2.28 floor を確認。② macOS GIL universal2「feat[_]: unbound variable」（line 195）= bash 3.2 は空配列が**ダブルクォート内でも** unbound（linux 5.2/git‑bash 無影響・t ビルド未到達のままジョブ死亡）→ log 3 箇所を `${feat[*]+"${feat[*]}"}` へ統一（実行行 166/196/246 と同イディオム）。実測: **GNU ソースから bash 3.2.57 を自ビルド**してクラッシュ行を再現 → 修正版は空/非空/空白含み要素で正常、`bash -n` は 3.2.57+5.2 双方緑、スタブ cargo + ダミー .so でスクリプト実体（4 ターゲット × GIL/ft）を 3.2.57/5.2 双方で完走。③ native‑test toggle ゲート ft 軸「unexpected argument '-p'」= **cargo metadata に -p セレクタは無い**（cargo 1.99 実測・CI では check=True が stderr を吞み traceback しか残らず）→ `--features mm-core/extension-module,mm-core/ft` 修飾形へ + helper が cargo stderr を surface。④ **潜在誤検出の発見（③の実測解決中に判明）**: pyo3 0.29.2 の abi3‑pyXY は**上向きチェーン**（abi3‑py312 ⇒ py313 ⇒ py314 ⇒ py315 ⇒ 素の abi3・pyo3+pyo3‑ffi Cargo.toml 実読）で、floor = 有効化された最小 pyXY（pyo3‑build‑config `get_abi3_version()` の昇順スキャンを実読）→ Step‑2 の「default に abi3‑py313/314/315 が居たら BUG」は ft 軸を直し次第**必ず誤発火**する状態だった。「最小有効 minor == 12（default）/ == 15（ft）」形へ置換し、ゲート実走 PASS（実ワークスペース・cargo 1.99）+ 合成負例 9 ケース（floor 上昇/低下/欠落・abi3t 漏れ・stable‑abi 欠落・R6 混合・abi3t 将来チェーン 2 種）で検出力を実証。**同 run の陽性確認**: windows は t ビルド（実タグ `cp315-abi3.abi3t-win_amd64.whl`）+ 3.15 GIL/ft import smoke まで全緑 → R4 実証解消。linux GIL 経路も t ステップ直前まで緑。skip 連鎖（abi3‑import/size‑budget/integration/publish）は 3 失敗の下流 = 修正で自動回復の見込み。pgo‑measure は python を切替えないため無関係（pin 不要）。commits: fix(ci) zig pin / fix(build) bash 3.2 ガード / fix(ci) ゲート修正 + docs(MEMO/Plan‑3)。**修正の CI 実走確認は次ターン（ユーザ）**。 |
-| 第 28 | 2026‑10‑03 | **run 37121494488（native #134）= 18 ジョブ中 17 success。前セッションの 3 修正（zig pin / bash 3.2 ガード / toggle ゲート）がすべて実走で解消したことを確認し、残る 1 失敗を根因解析して修正**。失敗は `integration (ubuntu-latest, native-bin-linux, linux-x86_64t, 3.15.0-rc.2, true)` の pytest 1 本のみ（`1 failed, 218 passed, 1 skipped`）= `test_load_finds_prebuilt_and_handshakes`。**根因はテスト側でローダーも abi3t 成果物も無罪**（同セルの他 218 本は実ローダ経由で `linux-x86_64t/mm_core.abi3t.so` を使い切っている）。連鎖 5 段: ① autouse `_supported_interpreter_baseline` が `sys.version_info=(3,12,7)`/`abiflags=''`/`Py_GIL_DISABLED=0` を偽装 → ② `platform_tag()` が `linux-x86_64t` でなく `linux-x86_64` を返す → ③ プローブ名が `mm_core.abi3.so` ハードコード（Phase 0 以来）→ ④ **native-bin-linux アーティファクトは 4 tag 丸ごと**（artifact 11273309005 を DL して実査: linux-x86_64 / linux-aarch64 / linux-x86_64t / linux-aarch64t）で Stage step が全部展開するため `native-bin/linux-x86_64/mm_core.abi3.so` が実在し skip ガードが発火しない → ⑤ free-threaded 3.15 の `EXTENSION_SUFFIXES` = `['.cpython-315t-…so', '.abi3t-x86_64-linux-gnu.so', '.abi3t.so', '.so']` に **`.abi3.so` が無い**（一次ソース = CPython v3.15.0rc2 `Python/dynload_shlib.c`: `.abi3*` 項は `#ifndef Py_GIL_DISABLED` の内側・`.abi3t*` 項は無条件。`FileFinder._find_spec` は `name + suffix` しか照合しない = `_bootstrap_external.py:1386-1395`）ので `import mm_core` が `ModuleNotFoundError` → `load()` は reason「import mm_core failed: No module named 'mm_core'」で False = **正しく拒否したのは load() で、誤っていたのはアサート**。**再現は CI と同一材料で完全一致**: 同一 SHA(09993fb) の `git archive` + 実 CI バイナリ 4 本 + CPython 3.15.0rc2 free-threaded（uv/python-build-standalone。actions/python-versions 版は GLIBC_2.38 要求で sandbox の 2.36 では起動しないため、そちらは同梱 `pyconfig.h` の `Py_GIL_DISABLED 1`/`SOABI_PLATFORM "x86_64-linux-gnu"` と CPython ソースで接合確認）+ pytest 9.1.1 + CI と同一依存（aiohttp 3.14.3 / pyyaml 6.0.3 は sdist ビルド、pillow 12.3.0 は cp315t wheel）→ `1 failed, 218 passed, 1 skipped, 26 warnings`（CI ログと完全一致）+ reason() を実測。陽性対照 = GIL 3.12.15 が同一の `mm_core.abi3.so` を正常 import（api_version 6 / `0.3.0+09993fbc3`）。セル別計算も一致: ubuntu-GIL 220 passed / macos 219+1 / windows 218+2（同テストは `.pyd` vs ハードコード `.abi3.so` で元々 skip）/ ubuntu-t 218+1failed+1skip（skip = numpy 不在の test_phase4_dtypes、t セル設計どおり）。**修正は 2 独立コミット**: (1) `_REAL_VERSION`/`_REAL_ABIFLAGS`/`_REAL_GIL_DISABLED`/`_REAL_FREE_THREADED` をモジュール import 時に退避し `_use_real_interpreter(monkeypatch)` でピンを実ホスト値へ再設定する逃避口を新設、handshake テストをそれで走らせてプローブ名を flavour 準拠（`is_free_threaded()` → `mm_core.abi3t.so` / `mm_core.abi3.so`）へ。GIL ホストでは family 文字列も tag も従来と完全同一なので ubuntu-GIL/macos/windows の挙動は不変（windows は従来どおり skip = 2 skipped 維持）。`core.__file__` の family 一致 + `diagnostics()["freeThreaded"]` 一致をアサート追加。副次利得 = floor 未満ホスト（GIL 3.11 等）でピンが tag を捏造して実 import が未定義シンボルで死ぬ潜在の誤検出も消失（tag None → `tag_rejection_reason()` 付き skip）。回帰テスト `test_extension_suffixes_enforce_the_flavour_split` を新設し、機構を **5 flavour 実測**で固定（3.12.15 GIL / 3.13.16t / 3.14.8t / 3.15.0rc2 GIL / 3.15.0rc2t すべて単独 PASS。実測で判明した重要事実 = **`Py_GIL_DISABLED` ガードは 3.15 で入った**ので 3.13t/3.14t は `.abi3.so` を受理してしまう〔v3.13.9/v3.14.0 の `dynload_shlib.c` 実読〕= ローダーの「abi3t requires 3.15+」早期拒否の根拠は「解決できない」ではなく「解決できてしまうから危ない」。逆に GIL 3.15 は両 family を併記するので abi3-import の「3.15 GIL × abi3t」セルは成立。Windows は `dynload_win.c` + `Include/internal/pycore_importdl.h` 実読で `.pyd` 2 項のみ = family 差がファイル名に存在せず、flavour 分離はディレクトリ名だけが担う)。(2) **調査中に見つけた潜在地雷の除去（別コミット）**: ピンは `sys.version_info` を差し替えるだけなのでサードパーティの import 時分岐にも漏れる — aiohttp `client_ws.py` の `>= (3, 13)` が偽になり `typing_extensions.TypeVar` 経路へ入って、実 3.15 ホストでは `AttributeError: attribute '__default__' of 'typing.TypeVar' objects is not writable`（typing_extensions.py:1754）で死亡、以後は半初期化 aiohttp を掴み `TypeError: ClientTimeout.__init__() got an unexpected keyword argument 'total'`（client.py:253）で全滅（回収不能）。CI が無事だったのは収集順の偶然（アルファベット先頭の `test_phase0_a1_model_info_route.py` がピンなしで先に import）で、`pytest tests/test_phase0_native_loader.py` 単独実行なら 3.15.0rc2t で 12 本中 11 本が失敗することを実証 → モジュール import 時の `importlib.import_module("aiohttp.web")` ウォームアップで除去（修正後は 4 解釈系で単独 12 passed）。**検証**: 修正後フルスイート = 3.15.0rc2t / 3.12.15 とも **220 passed / 1 skipped**、loader 単独 = 3.15.0rc2 GIL 12 passed / 3.14.8t 11 passed + 1 skipped、ruff 0.16.9 check + format 緑。**Gemini 由来の「3.15.0rc3 / lazy‑import リリースブロッカー」情報は本件と無関係**を確認: upstream に `v3.15.0rc3` タグは実在するが `actions/python-versions` の versions‑manifest.json は今も `3.15.0-rc.2` が最新で setup‑python は rc.3 をインストールできず（D4 のピンは現状維持が正解）、失敗は拡張子テーブル 100 %。**前セッションの残リスク「t セルの aiohttp/pyyaml sdist 依存」は発火しなかった**（runner 上で 13.19 s ビルド完了）。§4.3 に flavour×拡張子行列、§4.5 にピン漏れと「実 import 機構を触るテストは偽装解釈系で走らせない」の 3 点セットを恒久記録。Plan‑3 v1.4。**次ターン: この 2 コミットの CI 実走確認 → ユーザが dev→main マージ**。 |
-| 第 29 | 2026‑10‑03 | **Plan‑3 の CI 全緑 + publish 8 本を確認し、Actions キャッシュ逼迫（9.65 GiB / 96.5 %）を根因解析して 3 コミットで対策**。(1) **CI 確認**: dev push #135/#224・PR #29 の #136/#225・main push #137/#226 の 4 run すべて success（native 18/18）= v1.4 の 2 修正が実走で解消。(2) **publish‑native‑bin の bot コミット `208a3ff`**: `native/native-bin/` に 8 本（abi3 4 + abi3t 4・合計 **34.98 MiB** = D1 の 40 MB 目安内、FAT 2 本 6.43 MiB も 10 MB 予算内）→ Plan‑3 の実装 + 公開パイプライン完了。(3) **キャッシュ逼迫の根因（一次ソース = GitHub 公式 Dependency caching reference / Managing caches・rust‑cache v2 の action.yml + dist/save.js + cleanup.ts・REST 実測）**: キャッシュは **ref 単位スコープ × 10 GB/repo（全プラン共通）**で、納品形 dev→PR→main が同一キーを **3 コピー**保存（実測: `v0-rust-native-test-Linux-x64-2c4d122c-412e313b` が main/pull 各 624.07 MiB + dev 550.63 MiB）。**PR run の分は `refs/pull/N/merge` スコープに入り「その PR の再実行からしか復元できない」**ため PR #29 マージ後は 2.505 GiB が完全死蔵、タグ run も同型（`tags: ["v*"]` で v0.3.0 ごとに ~2.4 GiB 増える見込みだった）。**restore‑key フォールバックは `last_accessed_at` を更新する**ので死蔵が LRU eviction を生き残り live が消える = 実証として **fuzz‑long #7（2026‑09‑27 main・全 success）の `v0-rust-fuzz-*` が 6 日後に消滅**（7 日消去の期限より前）。rust‑cache のキー末尾は全 Cargo.toml/lock のハッシュなので世代落ち 6 件 2.061 GiB が残置（cleanup.ts の `rmExcept` は名前ベース照合のため PGO 計測ビルドと本ビルドが両方キャッシュされる = native‑build‑linux 556 MiB の主因）。**上限引き上げは `GET /actions/cache/storage-limit` → HTTP 402「支払方法なし」で不可**。(4) **対策**: ①即時 prune 16 件 / **4.566 GiB**（pull 10 + main 旧世代 6・fuzz‑smoke 500 MiB は現行世代で保持）→ **22 件 / 5.083 GiB（50.8 %）**、②`Swatinem/rust-cache@v2` の **`save-if`**（dist/save.js は `save === "true"` のときだけ保存し restore は常時）に `github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')` を渡す（7 箇所。schedule は default branch 上なので保存される = 週次 ASan が cold にならない。`!= 'pull_request'` は concurrency 注記の ghost PR run 対策）、③公式 "Force deleting cache entries" パターンの **`cache-cleanup.yml` + `scripts/actions_cache_sweep.py`**（PR クローズ時に当該スコープ / 週次 03:40 UTC + dispatch で pull・tags・世代落ち。削除は非破壊）、④native‑bin‑* の **`retention-days: 7`**（live 396 件 / 0.797 GiB・~120 MiB/日の 100 % がこの 3 種。fuzz‑crashes / pgo‑measure‑report は 0.00–0.10 MiB の証拠なので据え置き）。試算: save‑if 前の定常 5.78 GiB + 世代落ち 2.06 = 7.84 GiB（10 GB は「1.2 サイクル分」）→ 後は定常 5.57 GiB。(5) **D4 は依然実行不可**を再実測: CPython 最新タグ `v3.15.0rc3`・**PEP 790 = rc3 実績 2026‑10‑02 / final 予定 2026‑10‑09**・`actions/python-versions` manifest は今も `3.15.0-rc.2`（stable=False・ft 13 本）。振替対象を精密化 = native.yml の `python-version: "3.15.0-rc.2"` **9 箇所** + コメント 5 箇所で、ft セルは `freethreaded: true` 側で切替わるため **`3.15t` という文字列は書かない**（Plan‑3 v1.5 の D4 節に反映）。**検証**: actionlint 1.7.12 / prettier 3.9.9 `--check .` / ruff 0.16.9 check+format / YAML パース + PyYAML 実読（save‑if 7 箇所・upload‑artifact 5 箇所）/ pytest 86 passed + 135 skipped / sweep スクリプトの実リポジトリ dry‑run 3 種（既定 = nothing to prune・`--ref refs/heads/dev` = 10 件 1.991 GiB・`--older-than-days 5` = 0 件）。(6) **CI 実走確認まで完了**: push `4e92a4d` → **native #138 = 16 success + 2 skipped**（publish‑native‑bin / pgo‑measure は dev で skip = 設計どおり）・**CI #227 = success**。native‑test (ubuntu) のジョブログで save‑if の実挙動を確認 = `save-if: true`（式がブール文字列へ評価された証拠）・`Cache hit for: v0-rust-native-test-Linux-x64-2c4d122c-412e313b`（624 MB・full match: true）・post step は **`Cache up-to-date.`**（exact hit なので新規保存なし）。**run 後も 22 件 / 5.083 GiB = 新規エントリ 0 件**（`refs/pull/*` 0・`refs/tags/*` 0）。save‑if=false 側（PR run）は次回の dev→main PR で確認可。**次ターン（ユーザ）**: dev→main マージ → PR クローズ時の cache‑cleanup 確認 → 以降 D4 と Plan‑2 R5。 |
-| 第 30 | 2026‑10‑03 | **PR #30（dev→main）のマージ確認 + cache‑cleanup 初走失敗の根因特定と修正**。(1) **納品サイクル全緑**: PR run native #140 / CI #229 success → マージ（main `ccfe4ea4`）→ push run native #141 / CI #230 success。キャッシュは前後で **22 件 / 5.083 GiB = 新規 0 件**（`refs/pull/*` 0 = **save‑if:false 側の実走確認完了**）。(2) **cache‑cleanup run #1 の `prune-closed-pull-request` だけ失敗**: `no credentials: set GITHUB_TOKEN (in CI) or GH_TOKEN (locally)` で exit 1。**根因** = runner は `GITHUB_TOKEN` を step env に**自動注入しない**（default env 46 変数の表に `*TOKEN*` 0 件 — docs ソース variables.md 実読。token は `secrets.GITHUB_TOKEN` / `github.token` の式コンテキスト専用で `env:`/`with:` の明示受け渡しが必要 — 公式ドキュメントの全使用例もそうなっている）のに workflow が渡しておらず、コメントも「already in the step environment」と誤記。**修正** = 両 job（prune + sweep — sweep も同型の潜在バグで翌日曜 03:40 UTC cron で発火予定だった）の script step に `env: GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` を追加しコメントを訂正（1 コミット）。**失敗の実害ゼロ**: 削除対象 `refs/pull/30/merge` は 0 件（save‑if が PR 保存を阻止済み）で、修正版をローカル実行すると `nothing to prune` / exit 0。re‑run は無意味（旧 workflow sha で再走するため）。**検証**: 失敗のローカル完全再現（token 無し → CI と同一エラー）/ actionlint 1.7.12 / prettier 3.9.9 `--check .` / PyYAML 実読で両 step の env 確認。**次ターン（ユーザ）**: dev→main マージ → PR クローズ時の prune 緑（「nothing to prune」が正解）→ **日曜 03:40 UTC までに main へ**（schedule は default branch の workflow を使う）→ 以降 D4 と Plan‑2 R5。 |
+### 5.4 納品後の CI 運用と保守（2026‑10‑01〜03）
+
+- **GitHub Actions キャッシュ逼迫への対策**（9.65 GiB / 96.5 % →
+  5.08 GiB / 50.8 %）: 即時 prune 16 件 / 4.57 GiB（pull スコープ 10 +
+  main の旧世代 6）+ 構造対策 3 コミット — rust‑cache の `save-if` を
+  main / dev の非 PR イベント限定に（7 箇所）、`cache-cleanup.yml` +
+  `scripts/actions_cache_sweep.py`（PR クローズ時の当該スコープ削除 +
+  週次日曜 03:40 UTC + dispatch）、`native-bin-*` artifact の
+  `retention-days: 7`。スコープ規則と LRU 挙動の一次調査は §4.1。
+  対策後の納品サイクル（dev → PR → main マージ）で新規キャッシュエントリ
+  0 件を確認し、`save-if` の両側（true / false）とも実際の run で検証済み。
+- **cache‑cleanup 初走失敗の修正**: `GITHUB_TOKEN` が step env に渡って
+  いなかった（runner は自動注入しない — §4.1）→ 両 job の script step へ
+  明示（1 コミット）。
+- **watcher の fresh‑boot flake 修正**（main native run #85 失敗の根因）:
+  クールダウンが「未放送」を monotonic 0.0 の既定値で符号化していたため、
+  起動 60 秒未満のランナーで初回 rescan 放送が抑制されていました →
+  None sentinel 化 + 固定時計の回帰テスト（mutation 検証済み・§4.5）。
+- **main 側 CI 障害の解消**: windows integration 3 件（5d18128）・
+  clippy 1.99 ドリフト（5fa3679）・ステージングの dir‑move（e6c707d）を
+  修正し、実行成功を確認。integration は 3 OS とも native テストを実行する
+  構成になりました（import smoke ガード付き）。
+- **CI 耐障害性の強化**: 全 apt ステップへ `timeout-minutes: 10` +
+  全ジョブへ `timeout-minutes: 60`（run #80 の 6 時間ハング → cancelled
+  事案が契機）。actionlint を検証に導入。
+- **開発用ファイルの整理**: 計画期間中使用した計測ハーネス
+  （`scripts/bench/*.py`・`scripts/l2/`・`znn-cli`）は計画完了に伴い
+  ツリーから削除しました（証跡 JSON は `scripts/bench/results/` に残置・
+  原文は git 履歴 — docs/BENCH.md 冒頭注記参照）。
+- **内部計画識別子の完全除去（2026‑10‑04）**: 計画文書（Plan.md・Plan‑2.md・
+  Plan‑3.md）をツリーから削除し（git 履歴に完全保存 — 冒頭注記）、コード・
+  CI・ドキュメント・実行時文字列（Rust のエラー/警告メッセージ、ビルドスクリプト
+  のログ、CI のジョブサマリとアノテーション、bot コミットメッセージの雛形、
+  証跡 JSON の note 欄）から計画文書名と節番号の参照をすべて除去した。
+  ユーザーが ComfyUI のサーバーログや UI で内部の計画識別子を目にする経路は
+  ゼロになった（Python / Rust / TypeScript の全文字列定数を機械走査して確認。
+  配布済みプリビルドバイナリは main での次回 publish‑native-bin 再ビルドで
+  反映される）。
+- **計画後の保守**: `fix(auth)` — HF キー移行が歴史的な設定 ID も読むようにし、
+  表示名統一で永続キーが孤立していた問題を解消（`resolve_setting_key` による
+  吸収・`tests/test_auth_key_migration.py`）。`docs` — ユーザー向け文書
+  （README×4・USAGE×4）から内部計画参照を除去し、日本語・中国語の表現を
+  整備。開発記録（本メモと環境レポート）は Agent/ に保持し、計画文書は
+  完了に伴いツリーから削除しました（git 履歴に保存）。
+
+## 6. 現状のキー値（2026‑10‑03 時点）
+
+- **version 0.3.0**（pyproject / package.json / native workspace / web バンドルで
+  同期済み。**公開作業はユーザ専任・未実施**）。
+- **api_version 6**（4 者同期 — §1.2）。
+- **成果物 8 本**（abi3 ×4 + abi3t ×4・合計 34.98 MiB — §5.3）。
+  PGO 適用済み = linux‑x86_64 と Windows の GIL 成果物。
+- **テスト**: Rust L1 206（znn‑codec）+ 統合 4 + mm‑core 5 /
+  pytest 225 passed（native 成果物 + torch あり・2026‑10‑03 実測）・
+  ci.yml 相当（成果物なし）では成果物依存テストが設計どおり skip。
+- **fuzz 7 ターゲット**（週次日曜 18:00 UTC）。**L5（公式 zipnn 0.5.4 との
+  双方向クロス検証）が恒久の互換性ゲート**。
+- **ツールチェーン**: CI は Node 26.10.0 / pnpm 12.8.1 / ruff 0.16.9 /
+  mypy（pyproject 統合）/ uv。Python floor 3.12・CI の解釈系セルは
+  3.12 / 3.14 / 3.15.0‑rc.2（+ free‑threaded）。
+- `third_party/` は撤去済み = **mm_core 単一エンジン**。読み取り系経路には
+  Python フォールバックが維持されています（§5.1 Phase 8）。
+
+## 7. 残件
+
+- **ユーザ専任**: v0.3.0 の公開作業（GitHub Release・タグ・registry）、
+  `demo-assets/` の本キャプチャ差し替え、CI 実行結果確認の指示。
+- **参照機での計測待ち**: Phase 2 の K2 / K3 再計測（SHA‑NI + NVMe 搭載機）、
+  K10 の 5000 モデル ≤100 ms 確認。
+- **K11 端到端 ≤40 ms**: processed JSON をルートで直接スピルスする設計は
+  `get_model_tensors` の公開契約を変えるため、範囲外と記録済み。
+- **実 UI の手動 QA**: USAGE 改訂時に手順を統合済み
+  （`__mmNeoPerf` の paint 脚計測が K15 の実測手段）。
+- **D4**: native.yml の `3.15.0-rc.2` ピン（`python-version` 9 箇所 +
+  コメント 5 箇所）は、actions/python‑versions の manifest に final 版が
+  掲載されてから別コミットで振替（PEP 790: rc3 は 2026‑10‑02 実績・final は
+  2026‑10‑09 予定）。ft セルは `freethreaded: true` 側で切り替わるため、
+  `3.15t` という文字列は書きません。
+- **Plan‑2 R5**: fuzz-long.yml の apt（clang + mold）ステップ削除 —
+  main へのマージ後の初回週次 run（schedule は default branch 限定）または
+  ユーザ dispatch の成功確認後に別コミットで。
+- **cache‑targets の再考**: native‑build‑linux の `cache-targets: "false"`
+  （registry のみキャッシュ）は保留 — cold ビルドの実測を 1 run で計測して
+  から判断します。

@@ -235,7 +235,7 @@ class HubUploadBackend:
         raise NotImplementedError
 
     def preflight_remote(self, api, repo_id: str, in_repo: str, file_size: int):
-        """Network-only duplicate-check metadata (Plan Phase 7 T1 — split from
+        """Network-only duplicate-check metadata (Phase 7 T1 — split from
         the CPU hash stage). ``None`` = no preflight / go; otherwise a dict
         ``{"needs_hash": bool, "remote_sha": str | None, "url": str}`` the caller
         turns into a duplicate/go decision after hashing on the cpu pool."""
@@ -255,7 +255,7 @@ class HubUploadBackend:
 def _sha256_of_file(path: str) -> str:
     """Lower-case SHA-256 hex of a whole file (upload duplicate preflight).
 
-    Plan Phase 7 T1 / Phase 8: the native ``mm_core.hash_file`` (one pass, GIL
+    Phase 7 T1 / Phase 8: the native ``mm_core.hash_file`` (one pass, GIL
     released, SHA-NI/AVX2 runtime-detected — BENCH §10.2) is the SINGLE path —
     the transitional Python ``hashlib`` loop was retired together with the
     ``MM_NATIVE`` switch. The native notation is upper-case (matching
@@ -342,7 +342,7 @@ async def run_hub_upload(
             Loop variables are bound as defaults: the executor may run this
             closure after the `for item in files` loop moved on (B023).
 
-            Plan Phase 7 T1: the hash is now a single native call
+            Phase 7 T1: the hash is now a single native call
             (``_sha256_of_file``), so the per-chunk ``report_progress`` collapses
             to a phase-level report (hash start/end) — adequate UX (10 GB ≈ 8 s).
             """
@@ -351,7 +351,7 @@ async def run_hub_upload(
             report_progress(file_size, file_size, PHASE_HASH)
             return sha
 
-        # Plan Phase 7 T1: split the NETWORK preflight (model_info) from the CPU
+        # Phase 7 T1: split the NETWORK preflight (model_info) from the CPU
         # HASH stage — the round trip runs on the io pool, the hash on the cpu
         # pool (native releases the GIL, but the pool semantics stay honest:
         # hashing is CPU work, not a syscall-bound read).
@@ -393,7 +393,7 @@ async def run_hub_upload(
         # Hubs that consume the payload opaquely (modelscope_hub) never fire
         # per-chunk upload callbacks; run the hashing pass explicitly so the
         # bar shows real activity, and let the UI render the transfer itself
-        # as indeterminate (see `streams_upload_progress`). Plan T1: hashing is
+        # as indeterminate (see `streams_upload_progress`). T1: hashing is
         # CPU work → the cpu pool (was the io pool). PURELY cosmetic — the
         # transfer itself is the hub SDK's; a failure (e.g. no native core)
         # must never fail the upload.
@@ -489,7 +489,7 @@ class HfBackend(HubUploadBackend):
         return created
 
     def preflight_remote(self, api, repo_id: str, in_repo: str, file_size: int):
-        """Network-only half of the duplicate check (Plan Phase 7 T1).
+        """Network-only half of the duplicate check (Phase 7 T1).
 
         Detects an identical file at the destination BEFORE paying for a
         transfer attempt (the Hub's empty-commit skip is indistinguishable from

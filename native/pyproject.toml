@@ -1,4 +1,4 @@
-# maturin build definition for the native workspace (Plan §3.3).
+# maturin build definition for the native workspace.
 #
 # This file exists so `maturin build|develop` run from `native/` resolve
 # *this* workspace instead of walking up into the repository root's
@@ -6,7 +6,7 @@
 # package). The shipped distribution form of the core is NOT a wheel: the
 # prebuilt extension modules are committed under `native/native-bin/<tag>/`
 # and loaded by `py/native.py` through `sys.path` — no pip, no compiler, no
-# network (Plan §2.1-5). Wheels remain useful for local development
+# network. Wheels remain useful for local development
 # (`maturin develop`) and for CI verification of the abi3 build path.
 
 [build-system]
@@ -17,7 +17,7 @@ build-backend = "maturin"
 manifest-path = "crates/mm-core/Cargo.toml"
 module-name = "mm_core"
 features = ["pyo3/extension-module"]
-# NEO-PLAN-2026-002 Step 4: `maturin build --pgo` (or MATURIN_PGO=1) runs the
+# `maturin build --pgo` (or MATURIN_PGO=1) runs the
 # three-phase PGO flow — instrumented wheel into a temporary venv, this
 # command as the training workload, then the optimized rebuild. train.py is
 # stdlib-only, so the temporary venv needs no extra dependencies. The path is

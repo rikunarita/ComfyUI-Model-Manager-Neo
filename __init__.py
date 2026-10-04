@@ -55,7 +55,7 @@ compress.ZipNNRoutes().add_routes(routes)
 search.SearchRoutes().add_routes(routes)
 identify.IdentifyRoutes().add_routes(routes)
 
-# Startup hygiene (Plan §4.4.4): sweep `.tmp` partials left behind by a
+# Startup hygiene: sweep `.tmp` partials left behind by a
 # crashed/killed ZipNN run and report `.corrupt` verification diagnostics.
 # Background (io pool) so a slow or network-mounted library never delays
 # ComfyUI's boot; failures only log.
@@ -64,7 +64,7 @@ try:
 except Exception:
     pass
 
-# Phase 6 (Plan §4.7.2-2 / §4.8-A3): the optional model-library watcher
+# Phase 6: the optional model-library watcher
 # (setting-gated, default OFF - py/watcher.py) starts with the server and
 # releases its inotify watches on shutdown, and the shared aiohttp session the
 # hub lookups now use is closed with the app instead of leaking at exit.

@@ -10,7 +10,7 @@
 //! `zipnn_core.c` only ever calls `HUF_compress(dst, origChunkSize, src,
 //! srcSize)` = `HUF_compress2(dst, cap, src, len, 255, HUF_TABLELOG_DEFAULT
 //! = 11)` = the 4-stream variant without table repeat — that is the only
-//! path ported (Plan §4.5-5).
+//! path ported.
 
 use super::tree::{HuffCTable, build_c_table};
 use super::weights;

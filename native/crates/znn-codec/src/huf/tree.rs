@@ -4,8 +4,8 @@
 //! with insertion refinement, the two-queue Huffman merge, the max-height
 //! rebalancing, the canonical value assignment) because every one of those
 //! choices shifts code lengths and therefore compressed size — byte-exact
-//! parity with the C core (Plan §6.2 Phase 1: 圧縮率差 ±0.5% は余裕で満たす
-//! ため byte-identical を狙う) and deterministic goldens demand it.
+//! parity with the C core (圧縮率差 ±0.5% は余裕で満たすため
+//! byte-identical を狙う) and deterministic goldens demand it.
 
 use crate::bitstream::highbit32;
 use crate::{CodecError, CodecResult, HUF_TABLELOG_DEFAULT, HUF_TABLELOG_MAX};

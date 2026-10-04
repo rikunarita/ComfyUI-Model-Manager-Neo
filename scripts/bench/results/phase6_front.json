@@ -1,7 +1,7 @@
 {
   "phase": 6,
   "kind": "front",
-  "note": "Headless measurement of the REAL src/utils modules (compiled with the repository tsc). The \"naive\"/\"legacy\" sides are verbatim copies of the pre-Phase-6 component code, inlined here as the before-side of every gate. The gates are same-run ratios, so they hold on any machine; the absolute numbers belong to the env block below (K15 is judged on the reference 8C/16T machine - Plan §2.2). The browser paint leg of K15 is instrumented in the app itself (src/utils/perf.ts: mm.grid.queryToPaint via __mmNeoPerf.summary()).",
+  "note": "Headless measurement of the REAL src/utils modules (compiled with the repository tsc). The \"naive\"/\"legacy\" sides are verbatim copies of the pre-Phase-6 component code, inlined here as the before-side of every gate. The gates are same-run ratios, so they hold on any machine; the absolute numbers belong to the env block below (K15 is judged on the reference 8C/16T machine). The browser paint leg of K15 is instrumented in the app itself (src/utils/perf.ts: mm.grid.queryToPaint via __mmNeoPerf.summary()).",
   "env": {
     "date": "2026-09-27T15:22:23+0000",
     "node": "v20.20.2",

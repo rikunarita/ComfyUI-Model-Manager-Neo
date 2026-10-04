@@ -1,13 +1,12 @@
-//! `mm_core` — the PyO3 extension module of ComfyUI-Model-Manager-Neo
-//! (Plan §4.2).
+//! `mm_core` — the PyO3 extension module of ComfyUI-Model-Manager-Neo.
 //!
-//! API surface by phase (Plan §4.2.2):
+//! API surface by phase:
 //!
 //! * Phase 0 — availability/version handshake (`api_version`, `core_version`),
 //! * **Phase 2 — the ZipNN safetensors jobs**: `zipnn_compress` /
 //!   `zipnn_decompress` (async, polling-based: `job_progress` /
 //!   `job_cancel` / `job_result` / `job_error`) with the end-to-end
-//!   integrity pipeline of Plan §4.4.3 (source sha recording, default-ON
+//!   integrity pipeline (source sha recording, default-ON
 //!   verification, `.corrupt` retreat, paranoid mode),
 //! * Phase 3 — the delta jobs + batch primitives (`api_version` 3),
 //! * Phase 4 — NO surface change: the dtype extension (all 22 safetensors
@@ -16,16 +15,19 @@
 //! * Phase 5 — scan / index / hash,
 //! * Phase 6 — the display tensor tree + the optional library watcher.
 //!
-//! Binding facts (Plan §3.2, §3.3):
+//! Binding facts:
 //!
-//! * **abi3-py310**: one binary per platform covers CPython 3.10 and newer,
+//! * **abi3-py312**: one binary per platform covers CPython 3.12 and newer
+//!   (the `stable-abi` feature); free-threaded CPython 3.15+ is served by the
+//!   sibling **abi3t-py315** artifacts (the `ft` feature, PEP 803 — the two
+//!   flavours are mutually exclusive, enforced by the CI toggle gate),
 //! * long-running APIs never hold the GIL — jobs run on dedicated Rust
-//!   threads and the Python side polls atomics (Plan §4.3),
+//!   threads and the Python side polls atomics,
 //! * `panic = "unwind"` (workspace release profile): panics are caught at the
 //!   PyO3 boundary — and inside job threads via `catch_unwind` — and surface
 //!   as Python exceptions / job errors, never `abort`, which would kill the
 //!   whole ComfyUI process,
-//! * large payloads cross the boundary as **paths**, not buffers (Plan §4.3).
+//! * large payloads cross the boundary as **paths**, not buffers.
 
 // The native core keeps the crate unsafe-free (the single reviewed `unsafe`
 // of the workspace lives in znn-codec's mmap boundary, documented there).
@@ -38,7 +40,7 @@ mod phase5;
 mod phase6;
 mod phase7;
 
-/// Version of the Python-facing API surface (Plan §4.2.2 `api_version()`).
+/// Version of the Python-facing API surface (`api_version()`).
 /// Bumped whenever the surface changes incompatibly; `py/native.py` checks it
 /// after import.
 ///
@@ -58,19 +60,19 @@ mod phase7;
 ///   these directly, so a v3 binary must NOT pass the loader handshake of a v4
 ///   backend (exact-range check in `py/native.py`).
 /// * 5 — Phase 6: the display tensor tree (`safetensors_tensor_tree`, the
-///   Rust pre-grouping of Plan §4.7.3) + the optional library watcher
+///   Rust pre-grouping) + the optional library watcher
 ///   (`watch_start` / `watch_poll` / `watch_stop` / `watch_diagnostics`,
-///   Plan §4.7.2‑2). `py/manager.py` and `py/watcher.py` call these directly,
+///   Phase 6). `py/manager.py` and `py/watcher.py` call these directly,
 ///   so a v4 binary must NOT pass the loader handshake of a v5 backend.
 /// * 6 — Phase 7 (T7): the preview WebP codec (`webp_decode` / `webp_encode` /
 ///   `webp_encode_animation`, the zenwebp-backed pure-Rust encode/decode/
-///   animation of Plan §3.8 追記). `py/utils.py` calls these directly (with a
+///   animation). `py/utils.py` calls these directly (with a
 ///   PIL fallback), so a v5 binary must NOT pass the loader handshake of a v6
 ///   backend.
 const API_VERSION: u32 = 6;
 
 /// `"x.y.z+commit"` — the crate version plus the git commit the binary was
-/// built from (embedded by `build.rs`, Plan §4.2.2 `core_version()`).
+/// built from (embedded by `build.rs`, `core_version()`).
 fn core_version_string() -> String {
     format!(
         "{}+{}",
@@ -81,16 +83,17 @@ fn core_version_string() -> String {
 
 /// The native core of ComfyUI-Model-Manager-Neo.
 ///
-/// Built with the CPython Stable ABI (abi3-py310): this single binary serves
-/// CPython 3.10 and newer. Phase 2 exposed the ZipNN safetensors jobs,
-/// Phase 3 the delta jobs + batch primitives; Phase 4 extended the dtype
-/// coverage INSIDE the codec (no new functions — `api_version` stayed 3);
-/// Phase 5 (`api_version` 4) adds the scan / hygiene / safetensors-header /
-/// hash surface (`scan_models`, `scan_hygiene`, `safetensors_header`,
-/// `hash_file`, `hasher_new`/`update`/`finalize`) + the persistent front-matter
-/// index (the later phases of the refresh plan, Agent/Plan.md); Phase 6
-/// (`api_version` 5) adds the display tensor tree and the optional library
-/// watcher.
+/// Built with the CPython Stable ABI (abi3-py312): this single binary serves
+/// CPython 3.12 and newer. The free-threaded flavour (`abi3t-py315`, PEP 803)
+/// is a separate artifact per platform tag. Phase 2 exposed the ZipNN
+/// safetensors jobs, Phase 3 the delta jobs + batch primitives; Phase 4
+/// extended the dtype coverage INSIDE the codec (no new functions —
+/// `api_version` stayed 3); Phase 5 (`api_version` 4) adds the scan / hygiene
+/// / safetensors-header / hash surface (`scan_models`, `scan_hygiene`,
+/// `safetensors_header`, `hash_file`, `hasher_new`/`update`/`finalize`) + the
+/// persistent front-matter index (the later phases of the refresh plan);
+/// Phase 6 (`api_version` 5) adds the display tensor tree and the optional
+/// library watcher.
 #[pymodule]
 mod mm_core {
     use pyo3::prelude::*;
@@ -156,7 +159,7 @@ mod mm_core {
     /// The parallel batch walk (`mode`: "compress"/"decompress"/
     /// "blockers"); returns a JSON array of paths in the legacy sorted
     /// order. Synchronous — routes call it from executors — with the GIL
-    /// released for the walk itself (Plan §4.2.2 invariant 2).
+    /// released for the walk itself.
     #[pyfunction]
     #[pyo3(signature = (root, opts=None))]
     fn walk_models(
@@ -177,8 +180,7 @@ mod mm_core {
     /// Scan one model type into the listing JSON (the `GET /models/{folder}`
     /// body). `roots` are the type's base folders (pathIndex order); `opts`:
     /// `includeHidden`, `extensions`, `noPreviewUrl`, `previewUrlPrefix`,
-    /// `indexDir`. Synchronous — the GIL is released for the parallel walk
-    /// (Plan §4.2.2 invariant 2).
+    /// `indexDir`. Synchronous — the GIL is released for the parallel walk.
     #[pyfunction]
     #[pyo3(signature = (model_type, roots, opts=None))]
     fn scan_models(
@@ -204,7 +206,7 @@ mod mm_core {
     }
 
     /// The digested safetensors header (`{"metadata": {…}, "tensors": […]}`)
-    /// for the model-detail display (Plan §4.7.3 / B4). Header-only, jiter,
+    /// for the model-detail display. Header-only, jiter,
     /// 32 MiB cap. Synchronous (GIL released). Raises on a non-safetensors /
     /// unreadable / oversized header (the caller degrades to `{}`/`[]`).
     #[pyfunction]
@@ -213,7 +215,7 @@ mod mm_core {
     }
 
     /// Hash a whole file in one pass; returns the requested notations as a JSON
-    /// object (SHA256 / AutoV2 / AutoV1 / CRC32 / BLAKE3 — Plan §4.8‑B2, K8).
+    /// object (SHA256 / AutoV2 / AutoV1 / CRC32 / BLAKE3 — K8).
     /// `algos` defaults to all five. Synchronous (GIL released for the read).
     #[pyfunction]
     #[pyo3(signature = (path, algos=None))]
@@ -221,8 +223,8 @@ mod mm_core {
         super::phase5::hash_file(py, path, algos)
     }
 
-    /// Start an incremental hasher (download inline verification, Plan
-    /// §4.8‑B1 / K7); returns its handle. Feed it each written chunk with
+    /// Start an incremental hasher (download inline verification, K7);
+    /// returns its handle. Feed it each written chunk with
     /// `hasher_update`, then `hasher_finalize` for the digest JSON.
     #[pyfunction]
     #[pyo3(signature = (algos=None))]
@@ -255,13 +257,13 @@ mod mm_core {
     /// The leaf indices address the `tensors` array of `safetensors_header`
     /// for the SAME file. Synchronous (GIL released); raises on an unreadable
     /// / oversized / invalid header (the caller degrades to the frontend's own
-    /// grouping). Plan §4.7.3, Phase 6.
+    /// grouping). Phase 6.
     #[pyfunction]
     fn safetensors_tensor_tree(py: Python<'_>, path: &str) -> PyResult<String> {
         super::phase6::safetensors_tensor_tree(py, path)
     }
 
-    /// Start watching `roots` recursively (Plan §4.7.2‑2 `watch_roots`);
+    /// Start watching `roots` recursively (`watch_roots`);
     /// returns the session handle. `opts`: `debounceMs` (default 500).
     /// A missing root is skipped and reported; a watch-budget exhaustion marks
     /// the session `degraded` so Python falls back to the TTL refresh.
@@ -299,8 +301,8 @@ mod mm_core {
     /// Decode the first frame of a WebP into RGBA: returns
     /// `(rgba, width, height, icc_profile)` (`icc_profile` empty when the file
     /// carries no ICCP chunk). The WebP-decode leg of the preview pipeline and
-    /// the surface the L3 `webp_decode` fuzz target drives (Plan §3.8 追記 /
-    /// T7). GIL released; corrupt / hostile input raises `RuntimeError` (the
+    /// the surface the L3 `webp_decode` fuzz target drives (T7). GIL
+    /// released; corrupt / hostile input raises `RuntimeError` (the
     /// Python caller falls back to the PIL path), never a panic.
     #[pyfunction]
     fn webp_decode(py: Python<'_>, data: &[u8]) -> PyResult<(Vec<u8>, u32, u32, Vec<u8>)> {
@@ -311,7 +313,7 @@ mod mm_core {
     /// `(frames_rgba, width, height, durations_ms, loop_count, icc)`. PIL does
     /// not surface per-frame WebP durations, so an animated WebP preview is
     /// decoded here (durations intact) and re-muxed by `webp_encode_animation`
-    /// (Plan T7). GIL released; a still / corrupt input raises `RuntimeError`.
+    /// GIL released; a still / corrupt input raises `RuntimeError`.
     #[pyfunction]
     #[allow(clippy::type_complexity)] // the flat Python tuple of the animation decode
     fn webp_decode_animation(
@@ -324,7 +326,7 @@ mod mm_core {
     /// Encode an RGBA buffer (`w * h * 4` bytes) into WebP bytes. A non-empty
     /// `icc` is embedded as an ICCP chunk; `quality` (0..=100), `method`
     /// (0..=6) and `lossless` mirror PIL's `save(..., "WEBP")` knobs. GIL
-    /// released (Plan T7).
+    /// released.
     #[pyfunction]
     #[allow(clippy::too_many_arguments)] // flat PyO3 signature (the encoder knobs)
     fn webp_encode(
@@ -343,7 +345,7 @@ mod mm_core {
     /// Encode RGBA frames (each `w * h * 4` bytes) into an **animated** WebP,
     /// preserving per-frame `durations_ms` (missing entry = 100) and
     /// `loop_count` (0 = forever). Keeps an animated GIF / WebP preview
-    /// animated instead of freezing the first frame (Plan T7). GIL released.
+    /// animated instead of freezing the first frame. GIL released.
     #[pyfunction]
     #[allow(clippy::too_many_arguments)] // flat PyO3 signature (frames + durations + knobs)
     fn webp_encode_animation(

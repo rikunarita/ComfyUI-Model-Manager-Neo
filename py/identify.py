@@ -29,7 +29,7 @@ from aiohttp import web
 
 from . import auth, http_client, native, utils
 
-# A3 (Plan §4.8-A3): module constant so the mock tests can point the catalog
+# A3: module constant so the mock tests can point the catalog
 # lookup at a local server (no live API dependency).
 CIVITAI_API_BASE = "https://civitai.com/api/v1"
 
@@ -54,7 +54,7 @@ def _crc32_hex(value: int) -> str:
 def compute_hashes(path: str) -> dict[str, str]:
     """Single streaming pass over the file: every hash notation at once.
 
-    Native path (Phase 5, Plan §4.8-B2 / K8): ``mm_core.hash_file`` computes
+    Native path (Phase 5, K8): ``mm_core.hash_file`` computes
     all five notations in one pass in Rust (SHA-NI / AVX2 backends, GIL
     released), golden-tested against the Python definitions below byte-for-byte
     (upper-case hex, CRC32 byte-swapped, AutoV1 = the 64 KiB window at 1 MiB,
@@ -166,7 +166,7 @@ def _shape_match(version: dict, kind: str, value: str) -> dict:
 async def lookup_by_hashes(hashes: dict[str, str]) -> dict | None:
     """First catalog hit across the hash notations (None when no entry).
 
-    A3 (Plan §4.8-A3): the sequential per-notation probes run on the event loop
+    A3: the sequential per-notation probes run on the event loop
     through the shared aiohttp session. They MUST stay sequential - the first
     hit wins, and firing all five at once would trade one thread hop for five
     round trips the catalog does not need.
@@ -212,7 +212,7 @@ class IdentifyRoutes:
 
             loop = asyncio.get_running_loop()
             try:
-                # A3 (Plan §4.8-A3): the old `run()` did the catalog lookups in
+                # A3: the old `run()` did the catalog lookups in
                 # an io worker AND nested a `cpu_executor().submit(...).result()`
                 # for the hashing - two thread hops, one of them blocking a
                 # worker while waiting on the other pool. The lookups are async

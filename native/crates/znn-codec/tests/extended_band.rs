@@ -1,17 +1,17 @@
 //! Integration tests of the Neo extension band (Phase 4) — PUBLIC API only.
 //!
-//! Per the crate's test organisation (Plan §3.4.3, native/README): unit tests
+//! Per the crate's test organisation (native/README): unit tests
 //! live inline next to the code they exercise (`#[cfg(test)]`, private access);
 //! this `tests/` folder manages the crate-level END-TO-END gates that must
 //! hold through the public surface alone — the same API the `mm_core`
 //! PyO3 layer and `znn-cli` consume. Keeping them here proves the extension
 //! band is a property of the crate's contract, not of its internals.
 //!
-//! Covers (Plan §6.2 Phase 4 完了条件 "全拡張 dtype 往復 green (K14)"):
+//! Covers (Phase 4 完了条件 "全拡張 dtype 往復 green (K14)"):
 //! * every safetensors 0.8 dtype (all 22 spellings) round-trips byte-exactly
 //!   through `compress_tensor`/`decompress_tensor` with the truncation
 //!   auto-selection a production caller applies;
-//! * the dtype-code table matches Plan §4.6.3 exactly (codes, bands, and the
+//! * the dtype-code table matches the assigned codes exactly (codes, bands, and the
 //!   compatibility set that official ZipNN tools can decode);
 //! * codec-level-only pseudo dtypes (complex128/bcomplex32 — no safetensors
 //!   representation) round-trip at the blob level and report their pseudo
@@ -109,7 +109,7 @@ const CASES: &[(&str, u8, bool)] = &[
 fn every_safetensors_dtype_roundtrips_byte_exact() {
     for &(st, code, neo) in CASES {
         let base = scheme_for_st_dtype(st).unwrap_or_else(|| panic!("scheme for {st}"));
-        assert_eq!(base.dtype_code, code, "{st} code (Plan §4.6.3)");
+        assert_eq!(base.dtype_code, code, "{st} code");
         assert_eq!(base.is_neo(), neo, "{st} band");
         assert_eq!(
             dtype::scheme_for_dtype(code).unwrap().band,

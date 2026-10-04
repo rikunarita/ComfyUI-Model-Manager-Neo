@@ -1,20 +1,19 @@
-"""External-change detection for the model library (Plan §4.7.2-2, Phase 6).
+"""External-change detection for the model library (Phase 6).
 
 The `models_changed` invalidation of Phase 5 covers every change the UI itself
 makes (download / rename / move / delete / ZipNN). Files added by *external*
 tools - a `cp` into `models/loras`, a downloader in another terminal, a mounted
 volume that fills up overnight - were only picked up by the 30 s TTL
-revalidation, and only while the manager window was open (Plan §1.2.2 #14).
+revalidation, and only while the manager window was open.
 
 This module adds the OPTIONAL `watch_roots` feature on top of that:
 
 * the Rust core (`mm_core.watch_*`, `znn_codec::watch`) arms `notify` +
-  `notify-debouncer-full` on the model roots with a **500 ms debounce**
-  (Plan §4.7.2-2);
+  `notify-debouncer-full` on the model roots with a **500 ms debounce**;
 * one asyncio task polls the session every [POLL_INTERVAL] seconds, maps the
   changed paths to model types and broadcasts the SAME `models_changed
   {type, reason}` event Phase 5 introduced - so the frontend listener is reused
-  **unchanged** (Plan §6.2 Phase 6: the frontend reuses the Phase-5
+  **unchanged** (the frontend reuses the Phase-5
   `models_changed` listener with no modification);
 * **default OFF** - a ComfyUI setting (`ModelManager.Scan.WatchModelFolders`)
   with an `MM_WATCH_ROOTS` environment override, exactly like the ZipNN
@@ -42,14 +41,14 @@ from typing import Any
 from . import config, native, utils
 
 #: How often the asyncio task drains the native session. The Rust debounce is
-#: 500 ms (Plan §4.7.2-2), so an external change reaches the client in ~1.5 s
+#: 500 ms, so an external change reaches the client in ~1.5 s
 #: worst case - well inside the 30 s TTL it supplements.
 POLL_INTERVAL = 1.0
 
 #: Minimum seconds between two `models_changed` broadcasts for the SAME type.
 #: A bulk copy into a library would otherwise re-scan that type once per poll
 #: cycle; the frontend's generation guard absorbs overlapping scans, but the
-#: scan itself is the expensive part (Plan §4.7.1).
+#: scan itself is the expensive part.
 TYPE_COOLDOWN = 2.0
 
 #: After a watch-budget exhaustion (or any degraded session) wait this long
@@ -261,7 +260,7 @@ def local_roots(base_paths: dict[str, list[str]]) -> tuple[list[str], list[str]]
                 continue
             network = network_mount_of(path)
             if network:
-                # Plan §4.7.2-2: a network root is auto-disabled and left to
+                # A network root is auto-disabled and left to
                 # the TTL polling fallback.
                 skipped.append(f"{model_type}: {path} ({network})")
                 continue

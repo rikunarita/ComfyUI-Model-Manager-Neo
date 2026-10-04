@@ -1,9 +1,9 @@
-"""Plan Phase 0 (Phase 8 single-path): py/native.py loader — platform tags,
+"""Phase 0 (Phase 8 single-path): py/native.py loader — platform tags,
 handshake, diagnostics.
 
 Written against the loader's public surface: ``platform_tag`` / ``load`` /
 ``available`` / ``core`` / ``core_if_enabled`` / ``reason`` / ``core_version``
-/ ``diagnostics`` — plus, since NEO-PLAN-2026-003, the interpreter-flavour
+/ ``diagnostics`` — plus, since the abi3t work (2026-10), the interpreter-flavour
 surface ``is_free_threaded`` / ``tag_rejection_reason`` (abi3t ``<tag>t``
 routing and the GIL-3.12 / free-threaded-3.15 floor guards). Phase 8 removed
 the ``MM_NATIVE`` switch: ``load()`` never raises, it reports
@@ -96,7 +96,7 @@ def _force_interpreter(monkeypatch, *, version=(3, 12, 7), free_threaded=False, 
     ``Py_GIL_DISABLED`` sysconfig value (1/0); ``abiflags`` overrides
     ``sys.abiflags`` (default: ``"t"`` when free_threaded, ``""`` otherwise).
     Passing the two flavour signals independently exercises BOTH OR-paths of
-    ``is_free_threaded()`` (Plan-3 §3.3)."""
+    ``is_free_threaded()``."""
     major, minor, micro = version
     monkeypatch.setattr(sys, "version_info", _VersionInfo(major, minor, micro))
     flags = ("t" if free_threaded else "") if abiflags is None else abiflags
@@ -144,7 +144,7 @@ def _use_real_interpreter(monkeypatch) -> None:
 def _supported_interpreter_baseline(monkeypatch):
     """Pin every test here to a SUPPORTED GIL-3.12 interpreter.
 
-    The floor guards (NEO-PLAN-2026-003) make ``platform_tag()`` / ``load()``
+    The floor guards make ``platform_tag()`` / ``load()``
     depend on the RUNNING interpreter — without this pin the assertions below
     would flip on a 3.11 host (floor rejection instead of a tag) or on a
     free-threaded host (``<tag>t``). Tests that exercise other interpreter
@@ -366,10 +366,10 @@ def test_foreign_sys_modules_mm_core_is_rejected(tmp_path):
 
 
 def test_free_threaded_detection_and_t_tags(monkeypatch):
-    """NEO-PLAN-2026-003: free-threaded 3.15+ is served by ``<tag>t`` (abi3t,
+    """Free-threaded 3.15+ is served by ``<tag>t`` (abi3t,
     PEP 803) on every platform — via BOTH detection signals — while the GIL
     build of the SAME 3.15 interpreter stays on the plain ``<tag>`` (the abi3
-    artifacts load there too; double-shipping is avoided, Plan-3 §2-2)."""
+    artifacts load there too; double-shipping is avoided)."""
     import platform
 
     native = _fresh_native()
@@ -425,8 +425,8 @@ def test_free_threaded_below_315_degrades_with_reason(monkeypatch, tmp_path):
 def test_gil_floor_guard_degrades_with_reason(monkeypatch, tmp_path):
     """GIL < 3.12 (the abi3-py312 floor): refuse BEFORE the import attempt —
     on an older interpreter the 3.12 stable-ABI binary fails with unreadable
-    undefined-symbol errors, so the loader reports the floor instead
-    (Plan-3 §3.3/R8). 3.12 itself is served."""
+    undefined-symbol errors, so the loader reports the floor instead.
+    3.12 itself is served."""
     import platform
 
     native = _fresh_native()
@@ -454,7 +454,7 @@ def test_gil_floor_guard_degrades_with_reason(monkeypatch, tmp_path):
 
 
 def test_diagnostics_reports_free_threaded(monkeypatch):
-    """diagnostics() grows the ``freeThreaded`` key (Plan-3 §3.3) so bug
+    """diagnostics() grows the ``freeThreaded`` key so bug
     reports can tell the flavour the loader routed on."""
     import platform
 

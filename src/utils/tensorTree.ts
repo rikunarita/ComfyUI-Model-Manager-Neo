@@ -1,6 +1,5 @@
 /**
- * The model-detail tensor tree (Plan §4.7.3 "テンソルツリー事前グループ化",
- * Phase 6).
+ * The model-detail tensor tree ("テンソルツリー事前グループ化", Phase 6).
  *
  * A large MoE header (~65k tensors) used to be folded into the display tree IN
  * THE BROWSER: 65k name splits, ~87k node objects, a Map of every dotted path

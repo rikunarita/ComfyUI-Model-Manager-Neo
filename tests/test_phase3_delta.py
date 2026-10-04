@@ -1,4 +1,4 @@
-"""Plan Phase 3 (L4) / Phase 8: delta route/batch goldens (single path).
+"""Phase 3 (L4) / Phase 8: delta route/batch goldens (single path).
 
 The Phase-3 contract, kept verbatim after the Phase-8 removal of the legacy
 vendored C core (the native Rust pipeline is the only engine):
@@ -12,7 +12,7 @@ vendored C core (the native Rust pipeline is the only engine):
   ``scripts/l5/official_cross.py`` — the transition-era cross-path tests
   against the vendored C core were retired together with it);
 * the ``.neo-delta.json`` sidecar keeps ``basePad``/``ftPad`` and gains
-  ``ftSha256`` (Plan §4.4.3: restore verification, ``.corrupt`` retreat);
+  ``ftSha256`` (restore verification, ``.corrupt`` retreat);
 * the Appendix-C SEGFAULT class (padded total % 256 KiB ∈ {1,2,3} — the C
   core died on it, Phase 0 BENCH §4.3 proved the then-production path
   reached it) round-trips through the production route byte-exactly (K5);
@@ -298,8 +298,8 @@ async def test_route_delta_roundtrip_native_golden(prompt_server, model_lib, mon
 @pytest.mark.asyncio
 async def test_delta_segfault_class_totals_roundtrip_native(prompt_server, model_lib, monkeypatch):
     """Padded totals ≡ 1/2/3 (mod 256 KiB): the vendored C core SEGFAULTs
-    (Plan Appendix C; Phase 0 proved the legacy delta route reaches it with
-    real files). The native route must complete — byte-exactly."""
+    (demonstrated against the C core; Phase 0 proved the legacy delta route
+    reaches it with real files). The native route must complete — byte-exactly."""
     _native_core_or_skip()
     ck = model_lib / "checkpoints"
     header_len = 64
@@ -586,7 +586,7 @@ def test_walk_models_matches_the_reference_walkers(model_lib):
 
 
 def test_walk_models_releases_the_gil(tmp_path):
-    """Plan §4.2.2 invariant 2: long-running APIs must not hold the GIL.
+    """Long-running APIs must not hold the GIL (design invariant).
 
     The batch routes call ``walk_models`` from ``cpu_executor`` threads; a
     GIL-holding walk would freeze the ComfyUI event loop (WebSocket
@@ -627,7 +627,7 @@ def test_walk_models_releases_the_gil(tmp_path):
     assert len(got) == 150 * 10, "sanity: the walk found every file"
     assert c1 > c0, (
         "the counter thread made no progress during walk_models — the GIL was held "
-        "for the whole walk (Plan §4.2.2 invariant 2 violation)"
+        "for the whole walk (GIL-discipline violation)"
     )
 
 
@@ -683,7 +683,7 @@ def test_move_with_sidecars_matches_the_python_mover(model_lib):
 
 
 # ---------------------------------------------------------------------------
-# folder batch — native path, identical behaviour QA (Plan §6.2 Phase 3)
+# folder batch — native path, identical behaviour QA (Phase 3)
 # ---------------------------------------------------------------------------
 
 

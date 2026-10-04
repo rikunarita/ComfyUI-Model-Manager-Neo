@@ -1,4 +1,4 @@
-"""Plan §4.8-A1 / §1.2.2 issue 6: the model-detail route must not block the loop.
+"""Quick Win A1: the model-detail route must not block the loop.
 
 Regression test for the Quick Win A1 fix: ``GET /model-manager/model/...``
 used to call ``ModelManager.get_model_info`` inline on the event loop, so a

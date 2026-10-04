@@ -6,7 +6,7 @@ whole pipeline (header parse → per-tensor codec → integrity sha → atomic
 rename) inside one Rust job this module submits and polls at 10 Hz.
 
 The core compresses EVERY safetensors 0.8 dtype through the two
-interoperability bands of Plan §4.6: compatibility-band blobs stay
+interoperability bands: compatibility-band blobs stay
 official-decodable, Neo-extension blobs (f64, complex64, integers, BOOL, MX
 floats) are marked ``znn_neo_extended="1"`` and refused with an explicit error
 by official tools. Per-tensor records live in the file metadata under
@@ -46,7 +46,7 @@ SAFE_SUFFIX = ".safetensors"
 ZNN_ORIGINAL_SIZE_KEY = "znn_neo_original_bytes"
 
 # Phase 2 (native pipeline) integrity records — written by the Rust core
-# (Plan §4.4.3), and stripped by BOTH decompressors so a restored file never
+# and stripped by BOTH decompressors so a restored file never
 # leaks Neo bookkeeping:
 #   znn_neo_src_sha256        SHA-256 of the whole source file (verified on
 #                             restore — default ON; mismatch on a byte-exact
@@ -55,7 +55,7 @@ ZNN_ORIGINAL_SIZE_KEY = "znn_neo_original_bytes"
 #   znn_neo_exact             "1" when the source header was canonical, i.e.
 #                             the restore is byte-exact and the sha is
 #                             ENFORCED; "0" downgrades to the structural
-#                             guarantee (Plan §4.7.4)
+#                             minimum guarantee
 #   znn_neo_src_meta_absent   "1" when the source had no __metadata__ at all
 #   znn_neo_extended          "1" when Neo-extension-band blobs are stored
 #                             (Phase 4, implemented: written by the native
@@ -94,11 +94,11 @@ def _spawn_background(loop: asyncio.AbstractEventLoop, coro) -> None:
 ProgressCb = Callable[[int, int, str], None]
 
 # ---------------------------------------------------------------------------
-# Native (Rust `mm_core`) job path — the Phase 2 switchover (Plan §4.2.3).
+# Native (Rust `mm_core`) job path — the Phase 2 switchover.
 #
 # The Rust core runs the whole pipeline (mmap → per-tensor codec → integrity
 # sha → atomic rename) on its own thread; this side only POLLS the atomic
-# progress at 10 Hz (Plan §4.3 — no GIL-reacquiring callbacks) and keeps the
+# progress at 10 Hz (no GIL-reacquiring callbacks) and keeps the
 # ws event / stats contract byte-identical to the legacy path.
 # ---------------------------------------------------------------------------
 
@@ -128,7 +128,7 @@ _WS_PHASE_FOR_DELTA = {
     "failed": "delta",
 }
 
-# 10 Hz polling (Plan §4.3: "AtomicU64 を Python 側 10 Hz ポーリング").
+# 10 Hz polling ("AtomicU64 を Python 側 10 Hz ポーリング").
 _NATIVE_POLL_INTERVAL = 0.1
 
 
@@ -148,7 +148,7 @@ def native_core():
 
 
 def paranoid_enabled(request=None) -> bool:
-    """Compress-then-immediately-decompress-and-verify (Plan §4.4.3-4).
+    """Compress-then-immediately-decompress-and-verify.
 
     Default OFF. Switches, in precedence order: the ``MM_ZNN_PARANOID``
     environment variable (QA/automation), then the persisted user setting
@@ -166,7 +166,7 @@ def paranoid_enabled(request=None) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Startup cleanup of crash/kill leftovers (Plan §4.4.4)
+# Startup cleanup of crash/kill leftovers
 # ---------------------------------------------------------------------------
 
 # Only delete `.tmp` leftovers OLDER than this: both pipelines commit via
@@ -218,7 +218,7 @@ def cleanup_stray_files() -> dict[str, Any]:
     model never ends in `.tmp`); `.corrupt` files are only REPORTED: they are
     deliberate diagnostics whose compressed source was kept intact, so
     deleting them automatically could destroy the only copy of a failed
-    restore (Plan §4.4.3 — manual QA item "強制終了復旧").
+    restore (manual QA item "強制終了復旧").
     """
     removed: list[str] = []
     corrupt: list[str] = []
@@ -444,7 +444,7 @@ def _run_native_job_sync(mm: Any, task_id: str | None, submit: Callable[..., Any
 
 def _walk_files(folder: str, mode: str, mm: Any) -> list[str]:
     """The batch file set for `mode` — the Rust parallel walk
-    (``mm.walk_models``, Plan §6.2 Phase 3 batch primitive), in the stable
+    (``mm.walk_models``, the Phase 3 batch primitive), in the stable
     sorted order. The bundle-semantics constants come from ``py/utils`` so
     the Python side stays the single source of truth.
     """
@@ -648,7 +648,7 @@ def _delta_sidecar_move(src_model: str, dst_model: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Phase 4 (Plan §4.6.3/§4.6.4): dtype-band classification for the UI
+# Phase 4: dtype-band classification for the UI
 # ---------------------------------------------------------------------------
 
 # The safetensors dtypes whose ZN blobs stay in the UPSTREAM COMPATIBILITY
@@ -778,7 +778,7 @@ class ZipNNRoutes:
 
         @routes.post("/model-manager/zipnn/inspect")
         async def zipnn_inspect(request):
-            """Phase 4 (Plan §4.6.4): the dtype breakdown behind the compress
+            """Phase 4: the dtype breakdown behind the compress
             confirmation ("official-compatible" vs "Neo extended format").
 
             Header-only and cheap, but still off the event loop (K12 lesson:
@@ -807,7 +807,7 @@ class ZipNNRoutes:
 
         @routes.post("/model-manager/zipnn/cancel")
         async def zipnn_cancel(request):
-            """Cooperative cancellation of a running NATIVE job (Plan §4.2.2).
+            """Cooperative cancellation of a running NATIVE job.
 
             The worker observes the flag at tensor/chunk boundaries, removes
             its partial output and reports ``zipnn_complete {ok: false,

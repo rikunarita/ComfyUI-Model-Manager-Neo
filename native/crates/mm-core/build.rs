@@ -1,5 +1,5 @@
 //! Embeds the current git commit into `MM_CORE_COMMIT_HASH` so
-//! `mm_core.core_version()` can report `"x.y.z+commit"` (Plan §4.2.2).
+//! `mm_core.core_version()` can report `"x.y.z+commit"`.
 //!
 //! Resolution order: the `MM_CORE_COMMIT` environment variable (settable by
 //! CI / `scripts/build-native.sh`), then `git rev-parse --short=9 HEAD`,

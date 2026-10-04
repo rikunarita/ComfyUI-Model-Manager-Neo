@@ -1,4 +1,4 @@
-# Actions cache hygiene (NEO-PLAN-2026-003 cleanup).
+# Actions cache hygiene.
 #
 # The repository cache cap is 10 GB per repository on every plan, and caches are
 # scoped per ref. Two consequences bit this repo on 2026-10-03, when the cap was

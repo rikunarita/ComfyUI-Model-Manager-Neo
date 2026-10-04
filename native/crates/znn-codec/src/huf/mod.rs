@@ -6,7 +6,7 @@
 //! encodings `HUF_decompress` understands: 1 byte = RLE (memset) and
 //! cSize == dstSize = stored (memcpy).
 //!
-//! Compatibility contract (Plan §4.5-5):
+//! Compatibility contract:
 //! * [`decompress_block`] accepts every block the C encoder can emit
 //!   (FSE-compressed AND direct weight headers, tableLog 1..=12, RLE,
 //!   stored) and validates hostile input at every step;

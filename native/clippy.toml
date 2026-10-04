@@ -1,6 +1,6 @@
-# clippy configuration (Plan §3.4.2).
+# clippy configuration.
 #
-# MSRV: the Plan named PyO3's 1.83, but the workspace declares
+# MSRV: PyO3's own MSRV is 1.83, but the workspace declares
 # `rust-version = "1.85"` because edition 2024 requires it — duplicating a
 # *lower* value here makes clippy warn about the mismatch on every run, so the
 # two are kept in sync (clippy would also pick the Cargo.toml value up

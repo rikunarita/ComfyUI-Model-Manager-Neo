@@ -572,6 +572,15 @@ base and retires the now‑empty delta folder. Restoration needs the base model,
 and the delta records the fine‑tune's own SHA‑256 so the restore is verified
 end to end.
 
+Delta files are written in the official ZipNN **streaming container** format:
+the official `zipnn` package restores them byte‑exactly (in its byte‑delta
+mode), and Neo in turn restores deltas produced by the official tooling (both
+its single‑container and streaming forms) — both directions are part of the CI
+cross‑validation. `.znn` is also registered in ComfyUI's list of supported
+model extensions (alongside the original's experimental `.gguf`), so delta
+files appear in the grid as managed models and can be restored straight from
+the UI.
+
 <a id="the-engine"></a>
 
 ### 6. The engine: a prebuilt pure‑Rust core
@@ -608,7 +617,7 @@ guideline. The linux-x86_64 and Windows GIL binaries are **PGO-optimized** —
 profile-guided, retrained from a deterministic workload in every CI build —
 measuring up to ~10 % faster first-run throughput against the non-optimized
 build in CI A/B runs ([BENCH §13](docs/BENCH.md)); the abi3t binaries ship
-non-PGO for now (NEO-PLAN-2026-003 D2).
+non-PGO for now.
 
 The port also addressed reliability at its root: during the rewrite work, a
 class of memory-safety defects was demonstrated in the C core's delta path

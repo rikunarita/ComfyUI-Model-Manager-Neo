@@ -1,6 +1,6 @@
 """Phase 5 golden tests — the native Rust scan / hygiene / header / hash paths
 must be byte-for-byte interchangeable with the pure-Python paths they replaced
-(Plan §6.2 Phase 5 "現行 JSON 形状 golden テスト", §4.7.3 header, §4.8-B2 hash).
+(Phase 5 "現行 JSON 形状 golden テスト", header, hash).
 
 Every test runs the SAME fixture through BOTH engines and asserts identical
 output, so a drift in the Rust port (order, preview shape, front-matter parse,
@@ -241,7 +241,7 @@ def test_scan_models_fields_are_correct(tmp_path, monkeypatch, index_cache):
 
 
 def test_scan_models_index_persists_frontmatter(tmp_path, monkeypatch, index_cache):
-    """The persistent index caches front-matter across scans (Plan §4.7.1-3)."""
+    """The persistent index caches front-matter across scans."""
     mm = _require_native()
     import folder_paths
 

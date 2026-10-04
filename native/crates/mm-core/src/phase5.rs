@@ -1,20 +1,19 @@
-//! Phase 5 bindings — scan / hygiene / safetensors header / hashing
-//! (Plan §4.2.2, §4.7, §4.8‑B1/B2).
+//! Phase 5 bindings — scan / hygiene / safetensors header / hashing.
 //!
 //! These are SYNCHRONOUS, GIL-released calls (like `walk_models`): the routes
 //! run them inside executors, and releasing the GIL keeps the ComfyUI event
 //! loop responsive during a multi-thousand-file walk or a multi-gigabyte hash
-//! (Plan §4.2.2 invariant 2 — a held GIL would freeze the websocket progress
+//! (a held GIL would freeze the websocket progress
 //! stream for the whole operation, the exact class of bug Quick Win A1 and the
 //! Phase-3 `walk_models` GIL fix removed).
 //!
 //! Two process-wide registries live here:
 //! * the persistent front-matter [`SiteIndex`] (one per index directory, shared
 //!   across every `scan_models` call so the cache survives both the per-type
-//!   scans of one refresh and process restarts — Plan §4.7.1‑3);
+//!   scans of one refresh and process restarts);
 //! * the incremental hashers (`hasher_new`/`update`/`finalize`) the download
-//!   loop feeds chunk by chunk for inline Civitai verification (Plan §4.8‑B1,
-//!   K7 — the finished download's SHA256 is known without a full re-read).
+//!   loop feeds chunk by chunk for inline Civitai verification (K7 —
+//!   the finished download's SHA256 is known without a full re-read).
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -44,7 +43,7 @@ fn index_registry() -> &'static Mutex<HashMap<PathBuf, Arc<SiteIndex>>> {
 
 /// The shared index for `dir` (created + loaded on first use). The scan updates
 /// it in place and saves it (a no-op when clean), so the cache is warm for the
-/// next refresh AND the next process (Plan §4.7.1‑3).
+/// next refresh AND the next process.
 fn index_for(dir: &Path) -> Arc<SiteIndex> {
     let key = dir.to_path_buf();
     let mut reg = index_registry()
@@ -181,7 +180,7 @@ pub fn scan_hygiene(
 }
 
 /// The digested safetensors header (`{"metadata": {…}, "tensors": […]}`) for
-/// the model-detail display functions (Plan §4.7.3 / B4). Header-only (no data
+/// the model-detail display functions. Header-only (no data
 /// validation), jiter-parsed (K11), 32 MiB cap. Synchronous; the GIL is
 /// released for the read+parse.
 ///
@@ -226,7 +225,7 @@ pub fn hash_file(py: Python<'_>, path: &str, algos: Option<Vec<String>>) -> PyRe
 
 /// Start an incremental hasher for `algos`; returns its handle. The download
 /// loop feeds it each written chunk (`hasher_update`) and finalises at the end
-/// (`hasher_finalize`) — the inline Civitai verification of Plan §4.8‑B1 (K7:
+/// (`hasher_finalize`) — the inline Civitai verification (K7:
 /// no full re-read of a finished download).
 ///
 /// # Errors
@@ -255,7 +254,7 @@ pub fn hasher_new(algos: Option<Vec<String>>) -> u64 {
 }
 
 /// Feed the next chunk (in file order) to a hasher. The chunk is borrowed as
-/// `&[u8]` (a `PyBytes` crosses the boundary zero-copy — Plan §4.2.2). Fast
+/// `&[u8]` (a `PyBytes` crosses the boundary zero-copy). Fast
 /// enough to run under the GIL (the download loop holds it per chunk anyway).
 ///
 /// # Errors

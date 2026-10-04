@@ -1,6 +1,6 @@
-"""Phase 6 / Quick Win A3 - the requests -> aiohttp unification (Plan §4.8-A3).
+"""Phase 6 / Quick Win A3 - the requests -> aiohttp unification.
 
-Plan §6.2 Phase 6 states the acceptance condition for A3: behaviour parity
+The acceptance condition for A3: behaviour parity
 (timeouts / error wording / what the UI shows) plus mock tests that do not
 depend on a live API. Every test here therefore runs against a LOCAL aiohttp server (no network, no
 recorded fixtures to go stale) and pins the parts of the old `requests`
@@ -737,11 +737,11 @@ async def test_hf_searcher_uses_the_recursive_tree_for_sizes(hub_factory, monkey
 # ---------------------------------------------------------------------------
 # Phase 7 / T8 - the preview pipeline's requests -> aiohttp completion (A3).
 #
-# Plan §6.2 Phase 7 T8 moves the LAST two blocking `requests.get` calls
+# Phase 7 T8 moves the LAST two blocking `requests.get` calls
 # (utils.save_model_preview's download-completion fetch and the editor-save
 # fetch) onto the shared aiohttp session, so a stalled CDN no longer pins one
 # of the eight io-executor workers for the 120 s read timeout. These tests pin
-# the behaviour-parity contract the Plan lists: 200 / non-200 (requests wording)
+# the behaviour-parity contract: 200 / non-200 (requests wording)
 # / timeout / missing content-type / the local-preview branch / blob rejection,
 # plus the "no direct requests in py/" invariant.
 # ---------------------------------------------------------------------------
@@ -962,7 +962,7 @@ async def test_write_resolved_previews_rewrites_the_gallery(model_lib):
 
 @pytest.mark.asyncio
 async def test_update_model_junction_resolve_write_then_remove(hub_factory, model_lib):
-    """Junction test (MEMO §4.5 'junction' gap): the editor route resolves the
+    """Junction test (the 'junction' gap discipline): the editor route resolves the
     gallery on the loop (``_resolve_update_previews``) and hands the result to
     ``update_model``, which writes/removes in the executor. Both halves are
     pinned above; this pins the CONNECTION so a signature/plumbing regression

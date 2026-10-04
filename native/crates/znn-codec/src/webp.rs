@@ -1,4 +1,4 @@
-//! Phase 7 (Plan §3.8 追記 / T7) — the preview **WebP** codec.
+//! Phase 7 (T7) — the preview **WebP** codec.
 //!
 //! A thin, adversarial-input-hardened wrapper over [`zenwebp`] (the pure-Rust
 //! VP8/VP8L codec). The preview pipeline in `py/utils.py` decodes an incoming
@@ -17,7 +17,7 @@
 //! Licence: zenwebp is **AGPL-3.0-only OR LicenseRef-Imazen-Commercial**. This
 //! extension is GPL-3.0-only, so it is used under the AGPL-3.0 terms (AGPLv3
 //! §13 explicitly permits combining with GPLv3 works) — see `native/NOTICE`,
-//! the READMEs' Credits and Plan §8.
+//! the READMEs' Credits sections.
 
 use zenwebp::{EncodeRequest, EncoderConfig, ImageInfo, PixelLayout, decoder::LoopCount};
 

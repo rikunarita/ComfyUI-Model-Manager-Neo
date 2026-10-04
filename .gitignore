@@ -221,7 +221,7 @@ node.zip
 # Prebuilt native core (native/native-bin/): the binaries stay IGNORED here on
 # purpose - a dev/PR worktree must never commit a local (debug) build by
 # accident. On `main`, the publish-native-bin job (native.yml) FORCE-adds the
-# eight release artifacts (4 abi3 + 4 abi3t; git add -f, Plan §5.3 / Phase 8
+# eight release artifacts (4 abi3 + 4 abi3t; git add -f, Phase 8
 # distribution): once tracked they clone with the repo regardless of this
 # file, so a fresh clone of main imports mm_core directly - no compiler, no
 # pip, no network (K16). The Windows .pyd needs no rule (no generic *.pyd

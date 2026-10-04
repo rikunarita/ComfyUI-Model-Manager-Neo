@@ -1,4 +1,4 @@
-//! Persistent front-matter index (Phase 5, Plan §4.7.1‑3 / §4.8‑B3).
+//! Persistent front-matter index (Phase 5).
 //!
 //! The library scan re-reads every model's `.md` sidecar header on every
 //! refresh to recover `modelPage` / `website` / `hashes.SHA256` / `baseModel`
@@ -7,15 +7,15 @@
 //! caches that parse against `(mtime_ns, size)` in `_SITE_CACHE`, but the
 //! cache is **process-local**: every ComfyUI restart pays the full re-parse of
 //! the whole library again (the "it takes ~20 s until the grid settles" cost
-//! on network storage — Plan §1.2.2 #9).
+//! on network storage).
 //!
-//! This module makes that cache **persistent** (Plan §4.7.1‑3): a `bincode`
+//! This module makes that cache **persistent**: a `bincode`
 //! snapshot of `(path, mtime_ns, size) → parsed 4-tuple`, guarded by a `blake3`
-//! checksum and swapped in atomically (tempfile → fsync → rename, Plan §4.4.4).
+//! checksum and swapped in atomically (tempfile → fsync → rename).
 //! It is pure *derived* data: a missing / corrupt / checksum-mismatched /
 //! stale-entry snapshot is never an error — the affected entries simply miss
 //! and are re-parsed, and a wholly unreadable file starts an empty index that
-//! the next scan repopulates (Plan §7 R7 "常に派生データ → 自動全再構築").
+//! the next scan repopulates ("常に派生データ → 自動全再構築").
 //!
 //! Design notes:
 //! * the index is keyed by the sidecar's absolute path; validity is the
@@ -25,7 +25,7 @@
 //!   shared by the parallel scan (`rayon`) — hits take a read lock, a miss
 //!   parses OUTSIDE the lock and then upgrades to write;
 //! * the on-disk generation counter is bumped on every save so a future
-//!   differential payload (`?since=<gen>`, Plan §4.7.2‑3) has a handle.
+//!   differential payload (`?since=<gen>`) has a handle.
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -46,7 +46,7 @@ const CHECKSUM_LEN: usize = 32;
 
 /// Cap on cached sidecars.
 ///
-/// The index is pure derived data (Plan §7 R7), so an oversized one is PRUNED
+/// The index is pure derived data, so an oversized one is PRUNED
 /// rather than allowed to grow without bound: without a cap, every sidecar the
 /// library ever had stays in the snapshot forever (a library that churns through
 /// downloads keeps the deleted paths alive), and both the in-memory map and the
@@ -110,11 +110,10 @@ pub struct SiteIndex {
 impl SiteIndex {
     /// Open (or start) the index for `dir`.
     ///
-    /// `dir` is the extension-data directory Python owns (Plan §4.7.1‑3
-    /// "拡張データ dir"); the snapshot lives at `dir/mm-scan-index.bin`. A
+    /// `dir` is the extension-data directory Python owns ("拡張データ dir"); the snapshot lives at `dir/mm-scan-index.bin`. A
     /// `None` dir yields a memory-only index. Any load failure (missing file,
     /// bad magic, checksum mismatch, decode error) degrades to an EMPTY index
-    /// — derived data is always rebuildable (Plan §7 R7), so a corrupt snapshot
+    /// — derived data is always rebuildable, so a corrupt snapshot
     /// is never surfaced as an error.
     #[must_use]
     pub fn open(dir: Option<&Path>) -> Self {
@@ -204,7 +203,7 @@ impl SiteIndex {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    /// Persist the snapshot atomically when dirty (Plan §4.4.4: tempfile →
+    /// Persist the snapshot atomically when dirty (tempfile →
     /// fsync → rename → dir fsync). A no-op when memory-only or clean. Save
     /// failures are swallowed (with the reason returned for logging) — the
     /// index is an optimisation, never a correctness dependency, so a full or
@@ -269,7 +268,7 @@ impl SiteIndex {
         {
             let mut f = std::fs::File::create(&tmp)?;
             f.write_all(&bytes)?;
-            f.sync_all()?; // durability before the rename (Plan §4.4.4)
+            f.sync_all()?; // durability before the rename
         }
         std::fs::rename(&tmp, &path)?;
         if let Some(parent) = path.parent() {
@@ -300,7 +299,7 @@ impl SiteIndex {
         }
         let payload = &bytes[off..];
         if blake3::hash(payload).as_bytes() != &stored {
-            return None; // checksum mismatch (corruption) → rebuild (Plan §7 R7)
+            return None; // checksum mismatch (corruption) → rebuild
         }
         let config = bincode::config::standard();
         let (snapshot, _read): (Snapshot, usize) =
@@ -384,7 +383,7 @@ mod tests {
         let idx = SiteIndex::open(Some(dir.path()));
         assert!(
             idx.is_empty(),
-            "unreadable snapshot → empty index (Plan §7 R7)"
+            "unreadable snapshot → empty index (derived data, rebuilt on demand)"
         );
 
         // a valid-magic-but-corrupt payload also degrades to empty

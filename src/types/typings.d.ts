@@ -9,8 +9,8 @@ export interface SafetensorsTensor {
 }
 
 /**
- * One PRE-ORDER node entry of the Rust-folded display tensor tree (Phase 6,
- * Plan §4.7.3): `[segment, childCount, tensorCount, totalCount, totalParams]`.
+ * One PRE-ORDER node entry of the Rust-folded display tensor tree (Phase 6):
+ * `[segment, childCount, tensorCount, totalCount, totalParams]`.
  * `totalCount` / `totalParams` are SUBTREE aggregates.
  */
 export type TensorTreeNodeTuple = [string, number, number, number, number]
@@ -43,7 +43,7 @@ export interface BaseModel {
   /** Exact safetensors tensor layout; only the detail endpoint provides it. */
   tensors?: SafetensorsTensor[]
   /**
-   * The display tensor tree pre-grouped in Rust (Phase 6, Plan §4.7.3); only
+   * The display tensor tree pre-grouped in Rust (Phase 6); only
    * the detail endpoint provides it. `null`/absent → the frontend folds the
    * tree from `tensors` itself (the pre-Phase-6 behaviour).
    */

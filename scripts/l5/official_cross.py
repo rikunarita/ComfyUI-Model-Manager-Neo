@@ -1,4 +1,4 @@
-"""L5 interop gate (Plan §5.1 L5 / §6.2 Phase 2): Neo ⇄ OFFICIAL zipnn 0.5.4.
+"""L5 interop gate (Phase 2 onward): Neo ⇄ OFFICIAL zipnn 0.5.4.
 
 Runs against a pip-installed ``zipnn==0.5.4`` (the upstream release the
 vendored copy mirrors — this script is the mechanical proof that they
@@ -13,7 +13,7 @@ behave identically) and the REAL Neo artifact (``native-bin`` →
   → ``ZipNN(input_format="torch")`` → uint8 vectors + infos metadata, others
   pass through) must restore through the Neo pipeline with every tensor
   byte-identical to the original (verification reports ``skipped`` — the
-  official recipe records no ``znn_neo_src_sha256``, Plan §4.4.3-4);
+  official recipe records no ``znn_neo_src_sha256``);
 * **delta cross-validation (Phase 3)**: Neo's streaming delta artifacts
   restore through the official ``ZipNN(delta_compressed_type="byte",
   is_streaming=True)`` path byte-exactly, and the official delta output —
@@ -157,8 +157,8 @@ def official_decompress_check(znn_path: str, original: dict) -> list[str]:
     < 128) must decode byte-exactly through the official path, while
     Neo-extension blobs (codes 128-146 — the fixture's I32/U8 tensors are
     compressed since Phase 4) must be REFUSED with the official decoder's
-    explicit `ValueError: Unsupported Dtype` (Plan §4.6.3 failure-mode
-    safety; section E pins this contract in detail)."""
+    explicit `ValueError: Unsupported Dtype` (failure-mode safety;
+    section E pins this contract in detail)."""
     from safetensors import safe_open
     from zipnn import ZipNN
     from zipnn.util_safetensors import (
@@ -549,7 +549,7 @@ def main() -> int:
         print(f"D2-{tag}. official delta ({form}) → Neo decompress: {'PASS' if ok else 'FAIL'}")
 
     # --- E. Phase 4: the Neo extension band vs the official decoder ---------
-    # Plan §6.2 Phase 4: "znn_neo_extended マーカー + 公式 zipnn での失敗
+    # Phase 4: "znn_neo_extended マーカー + 公式 zipnn での失敗
     # モード検証(明示エラーになることを確認)" and the C64 band question
     # ("公式デコーダ可読性の実証 -> 互換帯(9)/Neo 帯(130) 確定"). Every
     # assertion below is a DEMONSTRATION against the pip build, not a

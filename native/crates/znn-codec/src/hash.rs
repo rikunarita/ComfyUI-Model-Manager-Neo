@@ -1,4 +1,4 @@
-//! Multi-algorithm hashing (Phase 5, Plan §4.8‑B1/B2, §4.7 K7/K8).
+//! Multi-algorithm hashing (Phase 5 — K7/K8).
 //!
 //! Two surfaces over ONE streaming pass:
 //! * [`hash_file`] — the `py/identify.py compute_hashes()` replacement: every
@@ -8,12 +8,12 @@
 //!   1 MiB offset; AutoV2 = `SHA256[:10]`). Golden-tested against the Python
 //!   definitions byte-for-byte.
 //! * [`MultiHasher`] — the incremental form the download loop feeds chunk by
-//!   chunk (`hasher_new` / `hasher_update` / `hasher_finalize`, Plan §4.8‑B1),
+//!   chunk (`hasher_new` / `hasher_update` / `hasher_finalize`),
 //!   so a finished download's SHA256 is known WITHOUT the extra full re-read
 //!   the legacy `_sha256_of` did (K7: zero added I/O).
 //!
 //! The incremental hasher borrows each chunk as `&[u8]` at the PyO3 boundary
-//! (a `PyBytes` is a zero-copy borrow — Plan §4.2.2), so the model bytes are
+//! (a `PyBytes` is a zero-copy borrow), so the model bytes are
 //! never copied into Rust; they stream straight from the download buffer.
 
 use std::collections::HashMap;

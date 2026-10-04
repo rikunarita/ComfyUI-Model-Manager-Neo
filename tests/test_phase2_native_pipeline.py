@@ -1,4 +1,4 @@
-"""Plan Phase 2 (L4): the native safetensors pipeline through ``mm_core``.
+"""Phase 2 (L4): the native safetensors pipeline through ``mm_core``.
 
 Drives the REAL Rust artifact (``native/native-bin/<tag>/mm_core.abi3.so``,
 built by ``scripts/build-native.sh`` / CI) via the production loader
@@ -6,7 +6,7 @@ built by ``scripts/build-native.sh`` / CI) via the production loader
 the integrity pipeline (``znn_neo_src_sha256`` recording, default-ON
 verification, ``.corrupt`` retreat, paranoid mode) and the byte-exact
 restore guarantee over the L4 model corpus (``harness.build_corpus`` —
-the plan's corpus classes as synthetic stand-ins, MEMO 2026-09-23).
+the corpus classes as synthetic stand-ins).
 
 Skips cleanly when no native binary exists for this platform (the CI verify
 job); the native workflow's integration job runs it against the artifact.
@@ -258,7 +258,7 @@ def test_no_metadata_source_restores_without_the_key(mm, corpus, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# The integrity pipeline (Plan §4.4.3)
+# The integrity pipeline
 # ---------------------------------------------------------------------------
 
 
@@ -326,7 +326,7 @@ def test_noncanonical_source_downgrades_verification(mm, tmp_path):
     dres = _decompress(mm, znn, back)
     assert dres["verified"] == "structural"
     assert any("structural" in w for w in dres["warnings"])
-    # the tensor payload survived exactly (semantic guarantee, Plan §4.7.4)
+    # the tensor payload survived exactly (semantic guarantee)
     _hdr, tensors = read_safetensors(back)
     assert tensors["w"][2] == payload
 
@@ -356,7 +356,7 @@ def test_official_style_file_without_sha_skips_verification(mm, corpus, tmp_path
 
 
 # ---------------------------------------------------------------------------
-# Job API contract (Plan §4.2.2)
+# Job API contract
 # ---------------------------------------------------------------------------
 
 

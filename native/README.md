@@ -1,7 +1,6 @@
 # `native/` — Rust ネイティブコア ワークスペース
 
-ComfyUI‑Model‑Manager‑Neo の中核処理を Rust へ移行するワークスペースです
-（設計・フェーズ計画は [`Agent/Plan.md`](../Agent/Plan.md) を参照）。
+ComfyUI‑Model‑Manager‑Neo の中核処理を Rust へ移行するワークスペースです。
 
 **Phase 1（znn-codec フォーマット中核）実装済み**: `znn-codec` クレートが
 ZN ヘッダー・ビット並べ替え・平面分割・huff0/FSE（RFC 8878）・チャンク並列
@@ -75,9 +74,9 @@ mm-core（`phase5.rs`）が `scan_models` / `scan_hygiene` / `safetensors_header
 で GIL 解放 = 不変条件 2）。SiteIndex のグローバル レジストリ（indexDir 単位）
 とハッシャ レジストリ（cap 4096）を保持。**任意項目 A3（requests→aiohttp）と
 watch_roots は Phase 6 へ移管**（2026‑09‑27 ユーザ決定。A3 は aiohttp 統一の
-まま **Rust 化しない**〔reqwest 不採用 — Plan §3.8 注記〕、watch_roots は
-notify + notify-debouncer-full **直接採用**〔extended-notify 不導入 — Plan
-§3.1 注記〕。見送り根拠の記録は BENCH §10.5）→ **両方とも Phase 6 で実施済み**。
+まま **Rust 化しない**〔reqwest 不採用〕、watch_roots は
+notify + notify-debouncer-full **直接採用**〔extended-notify 不導入〕。
+見送り根拠の記録は BENCH §10.5）→ **両方とも Phase 6 で実施済み**。
 
 **Phase 6（テンソルツリー事前グループ化 + ファイル監視）実装済み**
 （api_version=**5**、docs/BENCH.md §11 = K15 の証跡）:
@@ -92,7 +91,7 @@ notify + notify-debouncer-full **直接採用**〔extended-notify 不導入 — 
   `header_display_json` と共有（同一 B4 32 MiB キャップ・同一 parse 順）。
   深さ爆発（敵対的な多段ドット名）に備え**再帰ではなく明示スタック**。
 - `watch.rs`（`watch` feature）— notify 8.2.0 + notify-debouncer-full 0.7.0
-  **直接採用**（extended-notify 不導入 — Plan §3.1）。500 ms デバウンス、
+  **直接採用**（extended-notify 不導入）。500 ms デバウンス、
   **ポーリング方式**（notify スレッドは GIL を取らず、重複排除済みの
   パス集合へ追記するだけ = ジョブ API と同一哲学）、`ErrorKind::MaxFilesWatch`
   は `degraded` 理由として報告（Python 側が TTL へ degrade）、
@@ -109,7 +108,7 @@ notify + notify-debouncer-full **直接採用**〔extended-notify 不導入 — 
   prune）— 派生データなので miss は再パースのみ（Python 側 `_SITE_CACHE` の
   4096 上限と同じ発想。削除済みサイドカーの entry が永遠に残る成長を止める）。
 
-## テスト配置と cargo ワークフロー（Plan §3.4.3）
+## テスト配置と cargo ワークフロー
 
 - **単体テスト**: 各 `src/*.rs` のインライン `#[cfg(test)]`（private API に
   触るため — Rust 慣行。`delta` のみ `src/delta/tests.rs` へ分割）。
@@ -124,7 +123,7 @@ notify + notify-debouncer-full **直接採用**〔extended-notify 不導入 — 
 ```
 native/
 ├─ Cargo.toml                 # [workspace] resolver=2、共通 profile / lints
-├─ Cargo.lock                 # ピン留め（コミット対象、Plan §7 R9）
+├─ Cargo.lock                 # ピン留め（コミット対象）
 ├─ pyproject.toml             # maturin ビルド定義（wheel は開発・CI 検証用）
 ├─ .cargo/config.toml         # リンカー方針の記録（rust-lld 既定・target 節は空）
 ├─ rustfmt.toml               # 安定オプションのみ（stable ツールチェーンが正）
@@ -136,20 +135,20 @@ native/
 └─ native-bin/                # 配布用プリビルド成果物（native-bin/README.md 参照）
 ```
 
-## 方針（Plan §3.3/§3.4 の実装対応）
+## 方針
 
 - **edition 2024 / resolver 2**、`rust-version = "1.85"`（edition 2024 の下限。
   PyO3 の MSRV は 1.83 で、clippy.toml の msrv は Cargo.toml と揃えて 1.85）。
 - **abi3-py312**: 1 バイナリで CPython 3.12 以降をカバー（リポジトリの
-  `requires-python >= 3.12` と整合。NEO‑PLAN‑2026‑003 で floor を 3.10 → 3.12 へ
+  `requires-python >= 3.12` と整合。2026‑10 に floor を 3.10 → 3.12 へ
   引き上げ — CPython 3.10 は 2026‑10‑01 に EOL 到達済み・ComfyUI の文書化
   サポート下限が 3.12）。
-- **abi3t-py315（`ft` feature・NEO‑PLAN‑2026‑003）**: フリースレッド CPython
+- **abi3t-py315（`ft` feature）**: フリースレッド CPython
   3.15+ 向けの `<tag>t` 成果物（PEP 803 — 安定 ABI のフリースレッド版）。
   `stable-abi` とは**排他**でビルドする（同時有効化は成果物フレーバをホスト依存に
   するため — native‑test の toggle ゲートが cargo metadata から機械禁止）。
   ビルド host は Python ≥ 3.15 が必要（PyO3 host ≥ target 制約。CI は
-  3.15.0‑rc.2 ピン = Plan‑3 D4、final 着弾後は表記のみ別コミット振替）。
+  3.15.0‑rc.2 ピン、final 着弾後は表記のみ別コミット振替）。
   成果物は 3.15+ の **t / GIL 両 build** がロード可能（逆にフリースレッド build は
   通常の abi3 成果物をロードできない — ローダーが `<tag>t` だけを渡す理由）。
 - **feature 構成**（mm‑core）: `default = ["extension-module", "stable-abi"]` /
@@ -164,7 +163,7 @@ native/
 - **lint**: `clippy::pedantic = warn`（CI は `-D warnings` なので実質 deny）、
   `unsafe_code = deny` + `unsafe_op_in_unsafe_fn = deny` +
   `undocumented_unsafe_blocks = deny`。将来 unsafe を導入する場合は
-  `// SAFETY:` コメント必須（レビュー規則、Plan §3.4.2）。
+  `// SAFETY:` コメント必須（レビュー規則）。
 - **サイズ予算**: release profile（`lto = "fat"` / `codegen-units = 1` / `strip`）で
   1 バイナリ ≤ 5 MB（CI ゲート・目安）。Phase 0 の hello world 実測は 0.4 MB 前後。
 
@@ -176,7 +175,7 @@ native/
 rustup toolchain install stable   # rustfmt / clippy コンポーネント込み
 ```
 
-### 2. リンカー（rust‑lld 既定 — 追加インストール不要、NEO‑PLAN‑2026‑002 Step 1）
+### 2. リンカー（rust‑lld 既定 — 追加インストール不要）
 
 Linux ネイティブビルドは **rustc 同梱の rust‑lld** を使います
 （Rust 1.90 以降、`x86_64-unknown-linux-gnu` の既定リンカー）。
@@ -245,24 +244,25 @@ scripts/build-native.sh --target macos-universal2 --size-gate   # macOS ホス�
 scripts/build-native.sh --target windows-x86_64 --size-gate     # Windows ホスト
 
 # abi3t（<tag>t — フリースレッド CPython 3.15+・PEP 803）。
-# 条件: Python >= 3.15 のホスト解釈系（GIL build で可）・非 PGO（Plan‑3 D2）:
+# 条件: Python >= 3.15 のホスト解釈系（GIL build で可）・非 PGO:
 scripts/build-native.sh --target linux-x86_64t --size-gate
 scripts/build-native.sh --target linux-aarch64t --size-gate
 scripts/build-native.sh --target macos-universal2t --size-gate   # macOS ホスト
 scripts/build-native.sh --target windows-x86_64t --size-gate     # Windows ホスト
 
-# PGO 版（NEO-PLAN-2026-002 — 下記「PGO」節参照）:
+# PGO 版（下記「PGO」節参照）:
 scripts/build-native.sh --target linux-x86_64 --size-gate --pgo /path/merged.profdata
 scripts/build-native.sh --target windows-x86_64 --size-gate --pgo-train  # maturin --pgo（Windows）
-# macOS universal2 は非 PGO 出荷（run #107 実証による §4.4 判断(c) — 下記 PGO 節）
+# macOS universal2 は非 PGO 出荷（run #107 実証による判断 (c) — 下記 PGO 節）
 ```
 
-## PGO（プロファイル誘導最適化 — NEO‑PLAN‑2026‑002）
+## PGO（プロファイル誘導最適化）
 
 配布バイナリの実行時最適化として、計装ベースの PGO が **linux-x86_64 /
 Windows の出荷ビルドに組み込み済み**です（macOS universal2 と
-linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の根拠は
-[`../Agent/Plan-2.md`](../Agent/Plan-2.md)）。
+linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の根拠を
+記録した計画文書は完了に伴いツリーから削除されました — git 履歴から
+復元できます）。
 
 - **トレーナ**: [`scripts/pgo/train.py`](../scripts/pgo/train.py) —
   stdlib + mm_core + tests/harness のみの決定論的ワークロード
@@ -282,7 +282,7 @@ linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の�
   （workflow_dispatch / `[pgo-measure]` コミットマーカーで起動）が
   baseline との A/B 計測（steal ゲート・**側別中央値での判定** —
   min/best は参考並記。run #108 で min 判定のノイズ脆弱性を実証したため
-  Plan‑2 版数 1.4 で改訂 — BENCH §13.6）で G1（compress/decompress +3 %）を
+  2026‑10‑02 の改訂 — BENCH §13.6）で G1（compress/decompress +3 %）を
   job summary へレポートします。
 - **Windows**: ピン留めの maturin 1.15.0 が `--pgo` をネイティブ
   サポート（計装 wheel → 一時 venv で `pgo-command` 実行 → 最適化リビルド
@@ -290,21 +290,21 @@ linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の�
   `build-native.sh --pgo-train` が `--pgo` を透過します。run #107/#108 で
   MSVC 経路の三段階が完走することを実走確認済みです
   （#108 出荷 = 3,738,624 B）。
-- **macOS universal2 = 非 PGO（Plan-2 §4.4 判断 (c)、run #107 で実証）**:
+- **macOS universal2 = 非 PGO（判断 (c)、run #107 で実証）**:
   maturin `--pgo` は計装 universal2 wheel のビルドとトレーニング実行には
   成功しましたが（train.py が全 30 セクション完走・"done in 5.612 s"）、
   **プロセス終了時のプロファイルランタイム書き出し段階で SIGSEGV** し、
   最適化リビルドに到達できませんでした。計装済み FAT dylib 特有の
   障害で、Windows（単一 arch PE）と Linux（単一 arch ELF・自前三段階）
   では再現しません。macOS ホスト無しではデバッグ不能（推測での修正は
-  しない — Plan-2 の原則）のため、macOS は非 PGO 出荷とします。
+  しない — 本ワークスペースの原則）のため、macOS は非 PGO 出荷とします。
   将来的な選択肢は arm64 単一 arch の PGO ビルド（要 upstream 修正待ち）。
   **run #108 で非 PGO 経路の緑を実走確認済み**（fat x86_64 + arm64・
   6,730,080 B・SIGSEGV 再現なし・2 分 41 秒）。
 - **linux-aarch64 は PGO 対象外**: クロスコンパイルかつ ARM ランナーが
-  無く、x86_64 プロファイルの流用は arch 非互換のため禁止（Plan‑2 §4.5）。
+  無く、x86_64 プロファイルの流用は arch 非互換のため禁止。
 - **プロファイルはコミットしません**: ビルド毎生成（ドリフトゼロ・
-  肥大ゼロ。Plan‑2 §4.6）。
+  肥大ゼロ）。
 
 ビルド成果物の検査（arch / glibc 下限 / libpython 非依存 / Mach‑O fat / PE）は、
 readelf・lipo 等の無い環境でも
@@ -313,18 +313,18 @@ readelf・lipo 等の無い環境でも
 
 ### 検証状況（Phase 0 完了、2026‑09‑23、native.yml @ 81854f5 全ジョブ緑）
 
-| ターゲット            | ビルド経路                                                                          | 検証結果                                                                                                       |
-| --------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| linux-x86_64          | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル + CI 緑。import 疎通: CPython **3.10 / 3.11 / 3.13**（410,416 B）                                     |
-| linux-aarch64         | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル（readelf で AArch64 + GLIBC≤2.28 確認）+ CI 緑（383,824 B）                                           |
-| windows-x86_64 (MSVC) | maturin（windows-latest）                                                           | CI 緑。import 疎通: CPython 3.11（163,840 B、`mm_core.pyd`）                                                   |
-| macos-universal2      | maturin universal2 = 両 arch + lipo                                                 | CI 緑。lipo: x86_64+arm64、import 疎通: CPython 3.11 arm64（666,032 B）                                        |
-| linux-x86_64t         | cargo zigbuild `--no-default-features --features extension-module,ft`（非 PGO・D2） | CI 実走待ち（NEO‑PLAN‑2026‑003 で 2026‑10‑03 実装。import 疎通 = 3.15.0‑rc.2 GIL + 3.15.0‑rc.2t の両フレーバ） |
-| linux-aarch64t        | 同上（クロス・非 PGO）                                                              | CI 実走待ち                                                                                                    |
-| macos-universal2t     | maturin `--no-default-features --features ft` universal2（非 PGO）                  | CI 実走待ち（lipo + 両フレーバ import 疎通）                                                                   |
-| windows-x86_64t       | maturin `--no-default-features --features ft`（非 PGO）                             | CI 実走待ち（`mm_core.pyd` — PEP 803 も Windows の拡張子は変えない。GIL 版と `<tag>t` ディレクトリで分離）     |
+| ターゲット            | ビルド経路                                                                          | 検証結果                                                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| linux-x86_64          | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル + CI 緑。import 疎通: CPython **3.10 / 3.11 / 3.13**（410,416 B）                                 |
+| linux-aarch64         | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル（readelf で AArch64 + GLIBC≤2.28 確認）+ CI 緑（383,824 B）                                       |
+| windows-x86_64 (MSVC) | maturin（windows-latest）                                                           | CI 緑。import 疎通: CPython 3.11（163,840 B、`mm_core.pyd`）                                               |
+| macos-universal2      | maturin universal2 = 両 arch + lipo                                                 | CI 緑。lipo: x86_64+arm64、import 疎通: CPython 3.11 arm64（666,032 B）                                    |
+| linux-x86_64t         | cargo zigbuild `--no-default-features --features extension-module,ft`（非 PGO・D2） | CI 実走待ち（2026‑10‑03 実装。import 疎通 = 3.15.0‑rc.2 GIL + 3.15.0‑rc.2t の両フレーバ）                  |
+| linux-aarch64t        | 同上（クロス・非 PGO）                                                              | CI 実走待ち                                                                                                |
+| macos-universal2t     | maturin `--no-default-features --features ft` universal2（非 PGO）                  | CI 実走待ち（lipo + 両フレーバ import 疎通）                                                               |
+| windows-x86_64t       | maturin `--no-default-features --features ft`（非 PGO）                             | CI 実走待ち（`mm_core.pyd` — PEP 803 も Windows の拡張子は変えない。GIL 版と `<tag>t` ディレクトリで分離） |
 
-**NEO‑PLAN‑2026‑003（2026‑10‑03）以降の検証マトリクス**: floor 3.12 化により
+**2026‑10‑03 以降の検証マトリクス**: floor 3.12 化により
 abi3 の CI 検証解釈系は **3.12 / 3.14**（上表 GIL 行の 3.10 / 3.11 / 3.13 は旧 floor
 時代の実証史）。t 4 本の検証解釈系は **3.15.0‑rc.2（GIL）+ 3.15.0‑rc.2t
 （フリースレッド）**— 各 build job の両フレーバ import スモーク + abi3‑import の
@@ -340,7 +340,7 @@ macOS の mm-core は clippy --all-targets とビルド&import 疎通が担保�
 **Linux ホストからの Apple ターゲット クロスビルドは行いません**（実測で確認した
 構造的障害: rustc が macOS cdylib に渡す `-Wl,-exported_symbols_list` と pyo3 の
 `-undefined dynamic_lookup` の引数形を zig cc が誤変換する。zig 0.15.2 / 0.16.0、
-cargo-zigbuild 0.23.4 で確認）。Plan §3.3 の通り macOS 成果物は macOS 上でビルドします。
+cargo-zigbuild 0.23.4 で確認）。macOS 成果物は macOS 上でビルドします。
 参考: `x86_64-pc-windows-gnu`（zig）はコードのクロスコンパイル疎通確認には使えますが、
 配布物は MSVC ビルド（`mm_core.pyd`）です。
 
@@ -362,11 +362,11 @@ cargo-zigbuild 0.23.4 で確認）。Plan §3.3 の通り macOS 成果物は mac
 
 **Phase 2 追加**（同ディレクトリ）:
 
-| モジュール          | 内容                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `safetensors_io.rs` | コンテナ parse（jiter・JSON 順保持・参照実装 0.8.0 の検証規則を逐条ミラー）+ 正準 Writer（safetensors-rust とバイト同一の再シリアライズ）+ `AtomicWriter`（`.tmp` → fsync → 検証 → rename → 親 dir fsync、インライン SHA-256 対応）                                                                                                                        |
-| `znn_tensor.rs`     | テンソル単位 ZN ブロックの生成/復号 + 互換帯 dtype 表（safetensors dtype ↔ ZN コード ↔ torch 名）。fp8 のチャンククランプ（byte14=18 だが実チャンク 128KiB — zipnn.py のクセ）を両方向で再現                                                                                                                                                               |
-| `pipeline.rs`       | `compress_file` / `decompress_file`（Plan §4.3/§4.4.3）: mmap ストリーミング（ピーク RAM = O(最大テンソル)）、ワーストケース H_max ヘッダー予約による**単一書き込みパス**、原本 SHA-256 の並行算出、`znn_neo_src_sha256`/`znn_neo_exact` 記録、解凍時の既定検証（不一致時は圧縮ファイルを保持し復元物を `.corrupt` 退避）、paranoid モード、協調キャンセル |
+| モジュール          | 内容                                                                                                                                                                                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `safetensors_io.rs` | コンテナ parse（jiter・JSON 順保持・参照実装 0.8.0 の検証規則を逐条ミラー）+ 正準 Writer（safetensors-rust とバイト同一の再シリアライズ）+ `AtomicWriter`（`.tmp` → fsync → 検証 → rename → 親 dir fsync、インライン SHA-256 対応）                                                                                                    |
+| `znn_tensor.rs`     | テンソル単位 ZN ブロックの生成/復号 + 互換帯 dtype 表（safetensors dtype ↔ ZN コード ↔ torch 名）。fp8 のチャンククランプ（byte14=18 だが実チャンク 128KiB — zipnn.py のクセ）を両方向で再現                                                                                                                                           |
+| `pipeline.rs`       | `compress_file` / `decompress_file`: mmap ストリーミング（ピーク RAM = O(最大テンソル)）、ワーストケース H_max ヘッダー予約による**単一書き込みパス**、原本 SHA-256 の並行算出、`znn_neo_src_sha256`/`znn_neo_exact` 記録、解凍時の既定検証（不一致時は圧縮ファイルを保持し復元物を `.corrupt` 退避）、paranoid モード、協調キャンセル |
 
 正しい実装の根拠は旧 vendored C ソース（`third_party/zipnn-core/` — Phase 8 で
 撤去。git 履歴で参照可）と safetensors 0.8.0 Rust 実装（一次ソース精読、
@@ -376,8 +376,8 @@ cargo-zigbuild 0.23.4 で確認）。Plan §3.3 の通り macOS 成果物は mac
 機械証明は L5 クロス検証〔native.yml integration・pip zipnn 0.5.4〕が担います）。
 **unsafe はフォーマット中核（Phase 1 範囲）でゼロ**。Phase 2 の追加は
 `safetensors_io::StContainer::open` の **read-only mmap 1 箇所のみ**
-（memmap2 の安全境界。SAFETY コメント付きでレビュー済み — Plan §3.7 が
-選定したゼロコピー設計そのもので、置き換え対象の Python `safe_open` も
+（memmap2 の安全境界。SAFETY コメント付きでレビュー済み — 選定された
+ゼロコピー設計そのもので、置き換え対象の Python `safe_open` も
 同一の mmap 方式。crate の `#![deny(unsafe_code)]` は維持し、当該関数に
 局所 `#[allow]` + SAFETY ブロックを付す形）。
 
@@ -422,13 +422,13 @@ cargo +nightly fuzz run webp_decode      --target x86_64-unknown-linux-gnu -- -m
   `st_parse`（敵対的 safetensors コンテナ + 正準再構築の不変条件:
   「canonical フラグ ⇔ 再シリアライズが原本とバイト同一」）/
   `blob_decompress`（敵対的テンソル ZN ブロック、**割り当てキャップ付き** —
-  整合的な嘘 original_len による OOM 殺人を Err に変える §4.4.2 の要件）/
+  整合的な嘘 original_len による OOM 殺人を Err に変える要件）/
   **Phase 3 追加**: `delta_decompress`（敵対的デルタ連鎖）/ **Phase 7 追加**:
   `webp_decode`（敵対的 WebP → zenwebp デコード経路、canvas 事前ガード）。
 - シードコーパスは実物コンテナ/ブロック/ヘッダー（`fuzz/corpus/`、コミット済み）。
   Phase 1 開発中にファザーが発見した実バグ 3 件（ヘッダー正規形 1 + 整数オーバー
   フロー 2）は修正済みで、クラッシュ入力は回帰シードとしてコーパスに追加済み。
 - ≥8h の本格バジェットは PR ゲートではなく `fuzz-long.yml`（週次スケジュール +
-  手動ディスパッチ、7 ターゲット並列 × 3h = 21h）で消化します（Plan §5.1 L3）。
+  手動ディスパッチ、7 ターゲット並列 × 3h = 21h）で消化します。
 - ローカル 1GiB メモリ環境では release+ASan ビルドが OOM するため `-D`（dev）を
   使用。CI（7GiB+）は release（`-O`）で実行。

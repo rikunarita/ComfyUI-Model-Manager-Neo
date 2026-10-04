@@ -1,4 +1,4 @@
-# rustfmt configuration (Plan §3.4.2).
+# rustfmt configuration.
 #
 # STABLE options only, so `cargo fmt` on the stable toolchain is authoritative
 # (nightly-only knobs such as `imports_granularity` are deliberately NOT used:

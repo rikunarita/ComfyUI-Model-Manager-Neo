@@ -1,6 +1,6 @@
 [package]
 name = "znn-codec"
-description = "Pure-Rust ZipNN codec: ZN header, bit reorder, plane split, huff0/FSE, delta, safetensors I/O, scan and multi-algorithm hashing. No Python dependency (Plan §3.6/§4.5). Phase 1: format core (header/planes/huff0/FSE/codec)."
+description = "Pure-Rust ZipNN codec: ZN header, bit reorder, plane split, huff0/FSE, delta, safetensors I/O, scan and multi-algorithm hashing. No Python dependency. Phase 1: format core (header/planes/huff0/FSE/codec)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,14 +10,14 @@ repository.workspace = true
 [dependencies]
 thiserror = { workspace = true }
 rayon = { workspace = true }
-# Phase 2: safetensors container I/O + the integrity pipeline (Plan §3.7).
+# Phase 2: safetensors container I/O + the integrity pipeline.
 jiter = { workspace = true }
 memmap2 = { workspace = true }
 sha2 = { workspace = true }
 # Phase 3: the parallel directory walk behind `walk_models` (batch
-# primitives — Plan §3.7 "並列 walk ignore 第一候補").
+# primitives — "並列 walk ignore 第一候補").
 ignore = { workspace = true }
-# Phase 5 (Plan §3.7 catalog, §4.7): the library scan (front-matter YAML +
+# Phase 5: the library scan (front-matter YAML +
 # JSON wire shape), the persistent index (bincode snapshot + blake3 checksum)
 # and the multi-algorithm hash pass (sha2 + blake3 + crc32fast).
 serde = { workspace = true }
@@ -26,13 +26,13 @@ bincode = { workspace = true }
 blake3 = { workspace = true }
 crc32fast = { workspace = true }
 yaml-rust2 = { workspace = true }
-# Phase 7 (Plan §3.8 追記 / T7 — プレビュー WebP パイプライン): 純 Rust WebP codec。
+# Phase 7 (T7 — プレビュー WebP パイプライン): 純 Rust WebP codec。
 # `webp` モジュールが preview の encode/decode/animation を担い、mm-core が PyO3 で
 # バインド、fuzz が decode 経路を敵対的 WebP で叩く（L3 新ターゲット）。
 # AGPL-3.0-only OR Imazen-Commercial — 本拡張は GPL-3.0-only なので AGPL-3.0 条件で
-# 組み込む（AGPLv3 §13 = GPLv3 結合許可・native/NOTICE + README Credits + Plan §8）。
+# 組み込む（AGPLv3 §13 = GPLv3 結合許可・native/NOTICE + README Credits）。
 zenwebp = { workspace = true }
-# Phase 6 (Plan §4.7.2-2 `watch_roots`): optional so a consumer that never
+# Phase 6 (`watch_roots`): optional so a consumer that never
 # watches does not pay for the notify dependency tree. mm-core enables it by
 # default (the shipped binaries must expose `mm_core.watch_*`; the RUNTIME
 # switch is the default-OFF ComfyUI setting).
@@ -51,6 +51,6 @@ tempfile = { workspace = true }
 # setting that can never work. The feature stays toggleable for consumers of
 # the codec crate that do not want the notify dependency tree.
 default = ["watch"]
-# Plan §4.7.2-2 `watch_roots` (notify + notify-debouncer-full directly —
-# extended-notify is NOT used, Plan §3.1).
+# `watch_roots` (notify + notify-debouncer-full directly —
+# extended-notify is NOT used).
 watch = ["dep:notify", "dep:notify-debouncer-full"]

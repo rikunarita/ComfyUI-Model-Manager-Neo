@@ -1,6 +1,6 @@
 """Shared aiohttp client for the extension's hub round-trips (Quick Win A3).
 
-Plan §4.8-A3 / §3.8 / §6.2 Phase 6: `search.py`, `information.py` and
+Quick Win A3 (Phase 6): `search.py`, `information.py` and
 `identify.py` used to issue their hub API calls with **blocking `requests.get`
 inside io-executor workers**. Every call therefore cost a thread hop and pinned
 one of the eight IO-pool slots for the whole round trip (DNS + TLS + body),
@@ -8,14 +8,14 @@ timeouts were per-call-site literals, and a slow provider could exhaust the
 pool the scan / preview / hygiene routes share. This module gives all of them
 ONE lazily created `aiohttp.ClientSession` on the server's event loop.
 
-Deliberately NOT Rust (Plan §3.8, user decision 2026-09-27): `reqwest` would
+Deliberately NOT Rust (user decision 2026-09-27): `reqwest` would
 pull a C/asm TLS backend (aws-lc-sys / ring) into the "no compiler needed"
 distribution, measured 4.9 MB for a minimal probe, and `huggingface_hub` 2.x is
 httpx2-based anyway - so a Rust HTTP stack would be a *third* stack, not a
 unification.
 
-Behaviour parity with the `requests` call sites it replaces (Plan §6.2 Phase 6
-A3 "挙動 parity"):
+Behaviour parity with the `requests` call sites it replaces (A3
+"挙動 parity"):
 
 * **timeouts** stay the historical pairs. A `requests` timeout is
   ``(connect, read-between-bytes)``, NOT a total deadline, so it maps to
@@ -58,7 +58,7 @@ HUB_TIMEOUT: SearchTimeout = (10.0, 60.0)
 #: The avatar/owner probes: `timeout=8`.
 AVATAR_TIMEOUT: SearchTimeout = (8.0, 8.0)
 #: `utils.py`'s preview fetch: `timeout=(15, 120)` - now used by
-#: [fetch_preview] (Plan Phase 7 T8 moved the two preview round trips onto the
+#: [fetch_preview] (Phase 7 T8 moved the two preview round trips onto the
 #: shared session; the PIL/write leg stays in the executor).
 PREVIEW_TIMEOUT: SearchTimeout = (15.0, 120.0)
 
@@ -287,7 +287,7 @@ async def fetch_preview(
     """GET a preview URL; return ``(body, content-type)``.
 
     The aiohttp replacement of the two ``requests.get(url, timeout=(15, 120))``
-    calls in ``utils.py``'s preview pipeline (Plan Phase 7 T8): the network
+    calls in ``utils.py``'s preview pipeline (Phase 7 T8): the network
     wait now runs on the event loop instead of pinning one of the eight
     io-executor workers for up to the 120 s read timeout (the same pool-
     exhaustion class A3 removed for the hub calls). A non-2xx status raises

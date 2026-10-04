@@ -1,6 +1,6 @@
-"""Phase 6 - the optional `watch_roots` library watcher (Plan §4.7.2-2).
+"""Phase 6 - the optional `watch_roots` library watcher.
 
-Plan §6.2 Phase 6 states the acceptance condition: *"既定 OFF + degrade 動作 +
+The acceptance condition: *"既定 OFF + degrade 動作 +
 primitive テスト"*. The tests below cover exactly those three:
 
 * **primitives** - the path -> model-type mapping, the network-root skip and
@@ -216,7 +216,7 @@ async def test_external_change_broadcasts_models_changed(prompt_server, tmp_path
 
 @pytest.mark.asyncio
 async def test_degraded_session_falls_back_to_the_ttl(prompt_server, tmp_path, monkeypatch):
-    """An exhausted inotify budget must degrade, not fail (Plan §4.7.2-2)."""
+    """An exhausted inotify budget must degrade, not fail."""
     watcher_mod, service, _root = _make_watcher(monkeypatch, tmp_path)
     started: list[int] = []
     polls = {"n": 0}
