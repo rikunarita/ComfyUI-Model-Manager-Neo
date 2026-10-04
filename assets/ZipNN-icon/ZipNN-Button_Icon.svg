@@ -1,7 +1,7 @@
 <svg width="512" height="512" viewBox="58 58 396 396"
      xmlns="http://www.w3.org/2000/svg">
   <!--
-    FRAMING / 枠合わせメモ  (TIGHT 採用版)
+    FRAMING / 枠合わせメモ  (TIGHT + 強めの影 = 採用版)
 
     viewBox : 58 58 396 396  (1:1)
     panel   : 68,68 to 444,444 (376x376, rx96)
@@ -9,15 +9,17 @@
     margin  : (68-58) * 1.2929 = 12.93px  = 上下左右すべて均等 約13px
     stroke  : 2.5 * 1.2929 = 3.2px（外端は panel 境界ちょうど＝カット無し）
 
-    shadow  : 82,92 348x348 / rx88 / blur 4 / opacity .85
-              実効 bbox = x 70..442 / y 80..452
-              => 枠(58..454) 内に完全収容（L12 T22 R12 B2 user の余裕）
-              左右対称・下端のみ +10 の自然な落ち影。カット線は出ない。
+    shadow  : 88,98 336x320 / rx92 / blur 10 / opacity .9
+              パネルと同芯(x中心256)で y のみ +10 の落ち影。
+              実効 bbox = x 58..454 / y 68..446
+                -> 左右は枠ちょうど(はみ出し 0)、上は 10 user の余裕、
+                   下端は枠の 8 user 手前で収束 = カット線なし。
+              さらに mask(#shadowFade) で y412..452 を alpha 0 へフェード。
+              影の可視部はパネル背後に隠れるため、強い blur でも
+              「ガラスが浮いている」輪郭のにじみとして効く。
 
-    影をもっと強くしたい場合
-      stdDeviation を 10 にすると下端が約13px はみ出します（カット線は出ますが、
-      単色背景に置くと柔らかい影として見えるレベル）。20px の余白を確保できる
-      viewBox="52 52 408 408" なら blur 12 でも完全に収まります。
+    影をもっと弱くしたい場合 : stdDeviation 10 -> 6、rect を 82,92 348x348 に
+    余白を 20px にしたい場合 : viewBox="52 52 408 408" + rect 74,80 364x364 / blur 12
   -->
 
   <style>
@@ -98,11 +100,11 @@
       <stop offset="1" stop-color="var(--accent-3)"/>
     </linearGradient>
 
-    <!-- Shadow: 枠(512^2)内に収まるよう blur を絞る -->
+    <!-- Shadow: 浮遊感を出す強め(σ10)。枠外へはみ出さない寸法に調整済み -->
     <filter id="shadow"
             x="-40%" y="-40%"
             width="180%" height="180%">
-      <feGaussianBlur stdDeviation="4"/>
+      <feGaussianBlur stdDeviation="10"/>
     </filter>
 
     <!-- Blur -->
@@ -133,6 +135,24 @@
             rx="96"/>
     </clipPath>
 
+    <!-- 影の下端フェード: 枠(512^2)の縁で直線的にカットされないようにする -->
+    <linearGradient id="shadowFadeGrad"
+                    x1="0" y1="68"
+                    x2="0" y2="452"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0"   stop-color="#fff"/>
+      <stop offset=".86" stop-color="#fff"/>
+      <stop offset="1"   stop-color="#000"/>
+    </linearGradient>
+
+    <mask id="shadowFade"
+          maskUnits="userSpaceOnUse"
+          x="58" y="58" width="396" height="396">
+      <rect x="58" y="58"
+            width="396" height="396"
+            fill="url(#shadowFadeGrad)"/>
+    </mask>
+
   </defs>
 
 
@@ -141,14 +161,15 @@
        外側には背景・枠線を描画しない
        ========================================================= -->
 
-  <!-- Glass shadow（左右対称・実効 bbox x70..442 / y80..452 → 枠 58..454 に完全収容） -->
-  <rect x="82" y="92"
-        width="348"
-        height="348"
-        rx="88"
+  <!-- Glass shadow（パネルと同芯・y のみ +10 の落ち影 / 下端はマスクでフェード） -->
+  <rect x="88" y="98"
+        width="336"
+        height="320"
+        rx="92"
         fill="var(--shadow)"
-        opacity=".85"
-        filter="url(#shadow)"/>
+        opacity=".9"
+        filter="url(#shadow)"
+        mask="url(#shadowFade)"/>
 
   <!-- Main glass -->
   <rect x="68" y="68"
