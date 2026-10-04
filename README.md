@@ -1,3 +1,9 @@
+> [!CAUTION]
+> **This project is still under active development.** Unexpected bugs may
+> occur, and because features are being added incrementally, some artifacts
+> may still be half-finished. The interfaces may also continue to evolve.
+> Feedback and issue reports are welcome.
+
 <div align="center">
 
 # <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
@@ -217,10 +223,6 @@ coverage: see [the engine table](#the-engine)).
 
 Open the manager from the top‑bar **“Model Manager Neo”** button, the sidebar,
 the `Extensions → Model Manager Neo` menu, or the command palette.
-
-> [!TIP]
-> Neo is under active development — functional and comfortable for daily use,
-> but the interfaces may still evolve. Feedback and issues are welcome.
 
 ---
 
@@ -977,7 +979,7 @@ localisation — itemised in
 GPL‑3.0 license. Per the license, the original copyright notice and the full
 license text are preserved in [`LICENSE`](LICENSE).
 
-### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="26" height="26" align="middle" alt=""> Built with Qwen Studio
+### <img src="https://api.iconify.design/logos/qwen-icon.svg" width="26" height="26" align="middle" alt=""> Built with Qwen Studio
 
 A large part of this fork was built in close collaboration with
 **[Qwen Studio]**: the glassmorphism UI rebuild, the Rust native core, the

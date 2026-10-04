@@ -1,3 +1,9 @@
+> [!CAUTION]
+> **本プロジェクトはまだ開発中です。**予期せぬバグが発生する可能性があり、
+> 機能を追加している途中のため、中途半端な成果物が含まれている場合が
+> あります。インターフェースも今後変わり続ける可能性があります。
+> フィードバックや Issue の報告を歓迎します。
+
 <div align="center">
 
 # <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
@@ -214,10 +220,6 @@ comfy node install comfyui-model-manager-neo
 
 マネージャーは、トップバーの **「Model Manager Neo」** ボタン、サイドバー、
 `Extensions → Model Manager Neo` メニュー、またはコマンドパレットから開きます。
-
-> [!TIP]
-> Neo は積極開発中です — 日常的に使える完成度ですが、インターフェースは
-> まだ進化する可能性があります。フィードバックや Issue を歓迎します。
 
 ---
 
@@ -950,7 +952,7 @@ ZipNN 圧縮、HF/ModelScope アップロード、マルチハブ検索とハッ
 提供されます。ライセンスに従い、オリジナルの著作権表示とライセンス全文は
 [`LICENSE`](LICENSE) に保存されています。
 
-### <img src="https://api.iconify.design/lucide/bot.svg?color=%236366f1" width="26" height="26" align="middle" alt=""> Built with Qwen Studio
+### <img src="https://api.iconify.design/logos/qwen-icon.svg" width="26" height="26" align="middle" alt=""> Built with Qwen Studio
 
 このフォークの大部分は **[Qwen Studio]** との緊密な協働で作られました:
 グラスモフィズム UI への再構築、Rust ネイティブコア、ZipNN 圧縮エンジン、
