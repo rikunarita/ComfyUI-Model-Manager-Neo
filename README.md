@@ -757,9 +757,7 @@ The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
 - **Model‑hub logos** (Civitai, Hugging Face, ModelScope) back the **Open model
   page** button, so a model's origin is recognisable at a glance.
 
-Why pale turquoise of all colours? Because this is **Neo** — and in this
-matrix the blue pill is a folder colour: pale turquoise, lightly frosted,
-and it comes with sparkles.
+_Why pale turquoise of all colours? Because this is **Neo**._
 
 ### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="26" height="26" align="middle" alt=""> Toolchain
 

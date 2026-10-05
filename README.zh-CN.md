@@ -655,8 +655,7 @@ Neo 侧的工作。
 - **模型 hub 标志**（Civitai、Hugging Face、ModelScope）作为**打开模型
   页**按钮的背景，模型来源一眼可辨。
 
-为什么偏偏是淡绿松石？因为这是 **Neo** —— 在这个矩阵里，蓝色药丸是一种
-文件夹颜色：淡绿松石、带一点霜面，还附赠火花。
+_为什么偏偏是淡绿松石？因为这是 **Neo**。_
 
 ### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="26" height="26" align="middle" alt=""> 工具链
 
