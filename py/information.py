@@ -34,10 +34,9 @@ SVG_CACHE_CONTROL = "public, max-age=86400, must-revalidate"
 _SVG_ASSETS = {
     "folder-closed": ("assets", "Folder-Icons", "close-folder_beside-fit.svg"),
     "folder-glyph": ("assets", "Folder-Icons", "close-folder_all-fit.svg"),
-    # Hover-state artwork (turquoise sparkles): FolderIcon.vue swaps to it
-    # while the pointer rests on a folder card. The old SMIL opening/closing
-    # morphs were retired together with their animated SVGs.
-    "folder-hover": ("assets", "Folder-Icons", "folder-hover.svg"),
+    # The old SMIL opening/closing morphs were retired together with their
+    # animated SVGs; a sparkle hover variant came and went the same day
+    # (real-device QA found it cheapened the UI), so hover is float-only.
     "no-preview": ("assets", "NOPREVIEW-Icon", "NO-PREVIEW.svg"),
     "zipnn-button": ("assets", "ZipNN-icon", "ZipNN-Button_Icon.svg"),
     # Model-hub logos, worn as the background of the "open model page" button.

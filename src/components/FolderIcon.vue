@@ -2,22 +2,17 @@
 /**
  * Flat-aurora glass folder icon with a hover float.
  *
- * The artwork lives in `assets/Folder-Icons/` as plain, SMIL-free SVGs, served
- * cached through `/model-manager/assets/<name>.svg`:
- *   - idle  -> close-folder_beside-fit.svg (the regular look),
- *   - hover -> folder-hover.svg (turquoise sparkles rise above the folder).
- *
- * The old SMIL opening/closing morphs (and their one-second hover gates) are
- * gone: hovering a card swaps the artwork and starts a plain CSS floating
- * bob; leaving swaps back and the folder settles at once.
+ * The artwork lives in `assets/Folder-Icons/` as a plain, SMIL-free SVG served
+ * cached through `/model-manager/assets/<name>.svg`. The old SMIL
+ * opening/closing morphs (and their one-second hover gates) are gone: hovering
+ * a card starts a plain CSS floating bob; leaving settles the folder at once.
+ * A sparkle hover variant existed for a day; real-device QA found it cheapened
+ * the UI, so the icon stays sparkle-free.
  */
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { assetUrl } from 'utils/media'
 
-const SOURCES = {
-  idle: assetUrl('folder-closed'),
-  hover: assetUrl('folder-hover'),
-} as const
+const SRC = assetUrl('folder-closed')
 
 const hovering = ref(false)
 
@@ -30,13 +25,11 @@ const leave = () => {
 }
 
 defineExpose({ enter, leave })
-
-const src = computed(() => (hovering.value ? SOURCES.hover : SOURCES.idle))
 </script>
 
 <template>
   <img
-    :src="src"
+    :src="SRC"
     :class="['size-full object-contain', hovering && 'mm-folder-float']"
     alt=""
     draggable="false"

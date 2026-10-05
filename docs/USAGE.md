@@ -141,8 +141,8 @@ folders whose name starts with `.`).
   (or decompresses, shown inverted) with the same confirmation and progress as
   the detail‑window button; on folder cards it runs the folder batch.
 - **Folder cards** — a hand‑drawn pale‑turquoise glass folder (_because this
-  is **Neo**_). Hovering makes the folder float and raise a few sparkles;
-  leaving settles it back at once. Type‑root cards also carry the
+  is **Neo**_). Hovering makes the folder float; leaving settles it back at
+  once. Type‑root cards also carry the
   **aggregate size of their model type**.
 - **Duplicate warning** — a model whose recorded SHA256 matches another file in
   the library shows a red alert with the duplicate's path in the detail window.

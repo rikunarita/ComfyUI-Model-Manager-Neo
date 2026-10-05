@@ -55,6 +55,9 @@
   native/README.md に文書化済みです（Plan‑3 §5 に回答記録）。
 - **`demo-assets/` はユーザ管理領域**: セッションは変更しません。
 - **CI 実行結果の確認**: ユーザが指示したときにセッションが実施します。
+- **フォルダアイコンはスパークル無し**（2026‑10‑05・実機 QA 決定）: アイコン
+  刷新と同時に導入したスパークル版ホバーアートワークは「UI 品質を損ねる」の
+  実機指摘を受け同日撤去。ホバー表現は CSS フロートのみとします。
 
 ### 1.2 開発ワークフロー規程
 
@@ -342,9 +345,10 @@ check=True` で cargo の stderr を握り潰すと CI ログに traceback し�
   （87k ノードを materialize しません）。**描画行の順序は
   `tensorTreeRowsIdentical` ゲート**が legacy fold と機械照合します
   （collapsed + 全展開 152,462 行）。
-- SMIL アニメーションの `<img>`（フォルダアイコン）に `decoding="async"` は
-  **意図的に非適用**（タイムライン再開挙動が変わるため）。
-  `loading="lazy"` は仮想スクロール済みのため不導入。
+- フォルダアイコンの `<img>` は 2026‑10‑05 の刷新で静的 SVG になったため
+  `decoding="async"` を適用済み。旧規程「SMIL アニメーションの `<img>` に
+  decoding=async は意図的に非適用（タイムライン再開挙動が変わる）」は SMIL
+  退役とともに過去のもの。`loading="lazy"` は仮想スクロール済みのため不導入。
 - `scripts/bench/front/k15.mjs` は `--cross-check` 無しなら native 不要・約 30 秒
   （縮小パラメータで約 6 秒）。pnpm ストア外の tsc は `MMNEO_TSC` で渡します。
 
@@ -788,6 +792,9 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 
 - **ユーザ専任**: v0.3.0 の公開作業（GitHub Release・タグ・registry）、
   `demo-assets/` の本キャプチャ差し替え、CI 実行結果確認の指示。
+  なお 2026‑10‑05 のフォルダアイコン刷新以降、`hero.webm` /
+  `view-folders.avif` 等は刷新前（アンバー icon・開閉アニメ）の姿を写すため、
+  差し替えは新 UI 基準で実施します。
 - **参照機での計測待ち**: Phase 2 の K2 / K3 再計測（SHA‑NI + NVMe 搭載機）、
   K10 の 5000 モデル ≤100 ms 確認。
 - **K11 端到端 ≤40 ms**: processed JSON をルートで直接スピルスする設計は
@@ -805,3 +812,28 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 - **cache‑targets の再考**: native‑build‑linux の `cache-targets: "false"`
   （registry のみキャッシュ）は保留 — cold ビルドの実測を 1 run で計測して
   から判断します。
+
+## 8. セッション 2026‑10‑05 — フォルダアイコン刷新（Flat Aurora）と SMIL 退役
+
+- **経緯**: デザイン案は 4 案（A–D）→ 詰め 3 案（D2 群）→ モダンフラット進化
+  3 案（E1–E3）の順で提示し、ユーザ決定で **E1 "Flat Aurora"**（ペール
+  ターコイズの 2 ストップグラデ＋クリスプな半透明ガラス＝フロスト blur 無し
+  ＋ファイルシート）を採用。ギャラリーはワークスペース
+  `design/folder-icon-proposals*.html` に保存（ID 衝突回避のためインライン
+  SVG へサフィックス付与）。
+- **資産**: `assets/Folder-Icons/` は最終的に **2 文件** —
+  `close-folder_beside-fit.svg`（カード）/ `close-folder_all-fit.svg`
+  （ブレッドクラムグリフ）。`folder-opening-animation.svg` /
+  `folder-closing-animation.svg`（SMIL）と、一旦追加した `folder-hover.svg`
+  （スパークル）は削除済み（§1.1 の実機 QA 決定）。
+- **コード**: `FolderIcon.vue` = 静的 `<img>` ＋ CSS フロート
+  （1.9 s 連続ボブ・`translateY(-5%)`）。1 秒ゲーティングのステートマシンは
+  撤去。`py/information.py` の `_SVG_ASSETS` は `folder-closed` /
+  `folder-glyph` のみ（フォルダ系）。
+- **文書**: README / USAGE ×4 言語のフォルダアイコン挙動記述を刷新
+  （ホバー＝フロートのみ）。ペールターコイズ採用由来のユーモア
+  「_数ある色からペールターコイズを選んだのは、これが **Neo** だからです。_」
+  （斜体・パンチライン一行のみ）はユーザ指示の意図的記載。
+- **検証知見**: SVG の視覚検証は **resvg-js**（`@resvg/resvg-js`）を使用。
+  cairosvg は SVG フィルタ（feGaussianBlur 等）を silently 無視するため、
+  グラスモフィズム表現の検証には**不適**（接地影がぼやけない等で誤判定する）。
