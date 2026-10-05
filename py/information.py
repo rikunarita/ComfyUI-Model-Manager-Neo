@@ -32,8 +32,9 @@ HF_API_BASE = "https://huggingface.co/api"
 SVG_CACHE_CONTROL = "public, max-age=86400, must-revalidate"
 
 _SVG_ASSETS = {
-    "folder-closed": ("assets", "Folder-Icons", "close-folder_beside-fit.svg"),
-    "folder-glyph": ("assets", "Folder-Icons", "close-folder_all-fit.svg"),
+    # Usage-named artwork: the card icon and the tiny breadcrumb glyph.
+    "folder-card": ("assets", "Folder-Icons", "folder-card.svg"),
+    "folder-glyph": ("assets", "Folder-Icons", "folder-glyph.svg"),
     # The old SMIL opening/closing morphs were retired together with their
     # animated SVGs; a sparkle hover variant came and went the same day
     # (real-device QA found it cheapened the UI), so hover is float-only.

@@ -12,7 +12,7 @@
 import { ref } from 'vue'
 import { assetUrl } from 'utils/media'
 
-const SRC = assetUrl('folder-closed')
+const SRC = assetUrl('folder-card')
 
 const hovering = ref(false)
 
