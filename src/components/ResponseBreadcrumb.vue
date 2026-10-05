@@ -15,7 +15,7 @@
         class="mm-transition flex min-w-0 shrink-10 items-center gap-1 rounded-mm-ctl border-0 bg-transparent px-1 text-mm-muted-fg hover:bg-mm-fg/8 hover:text-mm-accent"
         @click="item.command?.()"
       >
-        <!-- the all-fit folder glyph earns its keep at tiny sizes -->
+        <!-- the breadcrumb glyph variant earns its keep at tiny sizes -->
         <img :src="folderGlyph" class="size-7 shrink-0" alt="" draggable="false" />
         <span class="truncate">{{ item.label }}</span>
       </button>
@@ -37,8 +37,9 @@ import { ref } from 'vue'
 import { type BreadcrumbItem } from 'types/breadcrumb'
 import { assetUrl } from 'utils/media'
 
-/** `close-folder_all-fit.svg` reads best at small sizes: breadcrumb glyphs.
- *  Served cached like the rest of the artwork (optimization B-2). */
+/** `folder-glyph.svg` (the tiny-size tuning of `folder-card.svg`) reads best
+ *  at small sizes: breadcrumb glyphs. Served cached like the rest of the
+ *  artwork (optimization B-2). */
 const folderGlyph = assetUrl('folder-glyph')
 
 interface Props {

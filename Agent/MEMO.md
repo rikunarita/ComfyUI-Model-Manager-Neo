@@ -822,13 +822,13 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   `design/folder-icon-proposals*.html` に保存（ID 衝突回避のためインライン
   SVG へサフィックス付与）。
 - **資産**: `assets/Folder-Icons/` は最終的に **2 文件** —
-  `close-folder_beside-fit.svg`（カード）/ `close-folder_all-fit.svg`
-  （ブレッドクラムグリフ）。`folder-opening-animation.svg` /
+  用途名へリネーム済み: `folder-card.svg`（カード）/ `folder-glyph.svg`
+  （ブレッドクラムグリフ）。配送キーも `folder-card` / `folder-glyph` で同期。`folder-opening-animation.svg` /
   `folder-closing-animation.svg`（SMIL）と、一旦追加した `folder-hover.svg`
   （スパークル）は削除済み（§1.1 の実機 QA 決定）。
 - **コード**: `FolderIcon.vue` = 静的 `<img>` ＋ CSS フロート
   （1.9 s 連続ボブ・`translateY(-5%)`）。1 秒ゲーティングのステートマシンは
-  撤去。`py/information.py` の `_SVG_ASSETS` は `folder-closed` /
+  撤去。`py/information.py` の `_SVG_ASSETS` は `folder-card` /
   `folder-glyph` のみ（フォルダ系）。
 - **文書**: README / USAGE ×4 言語のフォルダアイコン挙動記述を刷新
   （ホバー＝フロートのみ）。ペールターコイズ採用由来のユーモア
