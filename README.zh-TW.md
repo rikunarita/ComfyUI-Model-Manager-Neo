@@ -655,8 +655,7 @@ Neo 側的工作。
 - **模型 hub 標誌**（Civitai、Hugging Face、ModelScope）作為**開啟模型
   頁**按鈕的背景，模型來源一眼可辨。
 
-為什麼偏偏是淡綠松石？因為這是 **Neo** —— 在這個矩陣裡，藍色藥丸是一種
-資料夾顏色：淡綠松石、帶一點霜面，還附贈火花。
+為什麼偏偏是淡綠松石？因為這是 **Neo**。
 
 ### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="26" height="26" align="middle" alt=""> 工具鏈
 
