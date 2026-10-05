@@ -645,7 +645,7 @@ Neo 侧的工作。
 
 界面使用 `assets/` 中手工制作的玻璃拟态资产包：
 
-- **文件夹卡片**静止时显示一只玻璃文件夹；悬停时 artwork 切换为带火花的版本并
+- **文件夹卡片**静止时显示一只玻璃文件夹；悬停时图标切换为带火花的版本并
   开始轻柔的 CSS 浮动（上下起伏），指针离开后换回静止图标。SVG 为不含 SMIL 的
   纯矢量文件，通过 HTTP 以 ETag 和一天 max‑age 提供服务，所有卡片共享同一份
   缓存副本。
@@ -654,6 +654,9 @@ Neo 侧的工作。
   （`image/svg+xml`）形式提供，因此绝不会被栅格化。
 - **模型 hub 标志**（Civitai、Hugging Face、ModelScope）作为**打开模型
   页**按钮的背景，模型来源一眼可辨。
+
+为什么偏偏是淡绿松石？因为这是 **Neo** —— 在这个矩阵里，蓝色药丸是一种
+文件夹颜色：淡绿松石、带一点霜面，还附赠火花。
 
 ### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="26" height="26" align="middle" alt=""> 工具链
 
