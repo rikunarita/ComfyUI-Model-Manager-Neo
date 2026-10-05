@@ -732,7 +732,7 @@ SHA256 重複警告、サブディレクトリ表示と種別ルートの合計�
 - **モデルハブのロゴ**（Civitai・Hugging Face・ModelScope）は
   **モデルページを開く**ボタンの背景になり、モデルの出所が一目で分かります。
 
-数ある色からペールターコイズを選んだのは、これが **Neo** だからです。
+_数ある色からペールターコイズを選んだのは、これが **Neo** だからです。_
 
 ### <img src="https://api.iconify.design/lucide/hammer.svg?color=%2365a30d" width="26" height="26" align="middle" alt=""> ツールチェーン
 

@@ -140,8 +140,8 @@ folders whose name starts with `.`).
 - **ZipNN corner button** (top right, next to the star) — one click compresses
   (or decompresses, shown inverted) with the same confirmation and progress as
   the detail‑window button; on folder cards it runs the folder batch.
-- **Folder cards** — a hand‑drawn pale‑turquoise glass folder (because this
-  is **Neo**). Hovering makes the folder float and raise a few sparkles;
+- **Folder cards** — a hand‑drawn pale‑turquoise glass folder (_because this
+  is **Neo**_). Hovering makes the folder float and raise a few sparkles;
   leaving settles it back at once. Type‑root cards also carry the
   **aggregate size of their model type**.
 - **Duplicate warning** — a model whose recorded SHA256 matches another file in
