@@ -6,7 +6,7 @@
   height="768"
   fill="none"
 >
-  <title>Closed folder (beside-fit) - pale turquoise flat-aurora glass with file sheets</title>
+  <title>Folder hover state - turquoise sparkles rise above the flat-aurora glass folder</title>
 
   <defs>
     <!-- ============ GRADIENTS (two stops only) ============ -->
@@ -93,4 +93,10 @@
   </g>
   <use xlink:href="#e1-glassPath" href="#e1-glassPath" stroke="#FFFFFF" stroke-opacity="0.85" stroke-width="4" stroke-linejoin="round"/>
   <use xlink:href="#e1-glassPath" href="#e1-glassPath" stroke="#35C8E8" stroke-width="1.5" opacity="0.40" stroke-linejoin="round"/>
+  <!-- ============ SPARKLES (hover state only, flat solid) ============ -->
+  <g fill="#1FA5AC">
+    <path d="M560 148 c4 16.2 8.5 20.8 25 25 c-16.5 4.2 -21 8.8 -25 25 c-4 -16.2 -8.5 -20.8 -25 -25 c16.5 -4.2 21 -8.8 25 -25 Z" opacity="0.90"/>
+    <path d="M648 118 c2.8 11.4 6 14.6 17.6 17.6 c-11.6 3 -14.8 6.2 -17.6 17.6 c-2.8 -11.4 -6 -14.6 -17.6 -17.6 c11.6 -3 14.8 -6.2 17.6 -17.6 Z" opacity="0.70"/>
+    <path d="M700 186 c2 8.2 4.3 10.5 12.6 12.6 c-8.3 2.1 -10.6 4.4 -12.6 12.6 c-2 -8.2 -4.3 -10.5 -12.6 -12.6 c8.3 -2.1 10.6 -4.4 12.6 -12.6 Z" opacity="0.55"/>
+  </g>
 </svg>
