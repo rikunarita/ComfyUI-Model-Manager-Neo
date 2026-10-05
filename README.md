@@ -159,8 +159,9 @@ type and size chips, the search bar, and the type / sort / card‑size selectors
 
 ![Folder explorer view](demo-assets/view-folders.avif)
 
-The **Folder** layout one level deep, with the breadcrumb trail and the animated
-glass folder cards that open when the pointer rests on them.
+The **Folder** layout one level deep, with the breadcrumb trail and the
+pale‑turquoise glass folder cards: resting the pointer on a card makes its
+folder float and raise a few sparkles.
 
 ### 3. Model detail, editing, and the Hugging Face upload
 
@@ -243,8 +244,8 @@ the `Extensions → Model Manager Neo` menu, or the command palette.
 - Adjustable card size (presets plus fully custom dimensions).
 - Toggle visibility of hidden (`.`‑prefixed) files without restarting.
 - Image **and video** previews — any preview opens in a fullscreen
-  **lightbox** — glass folder artwork with hover open/close animations, and a
-  glass no‑preview fallback.
+  **lightbox** — pale‑turquoise glass folder artwork that floats and sparkles
+  on hover, and a glass no‑preview fallback.
 - Type‑root folder cards carry the **aggregate size of their type** (a
   lightweight capacity dashboard), and models whose recorded SHA256 matches
   another file in the library raise a red **duplicate warning** in the detail
@@ -745,13 +746,11 @@ The manager header was redesigned into explicit, icon‑driven actions:
 
 The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
 
-- **Folder cards** show a static glass folder at rest. Resting the pointer on a
-  card for at least one second plays the opening animation (an SMIL morph);
-  staying away for a full second plays the closing animation, after which the
-  card settles back onto the static icon — casual pass‑overs never make the
-  folder flap. The SVGs are inlined into the bundle as data URIs, so every card
-  owns its SVG document: no extra requests, and gradient ids can never collide
-  between cards.
+- **Folder cards** show a static pale‑turquoise glass folder at rest. Hovering
+  a card swaps the artwork to the sparkle variant and starts a gentle CSS
+  floating bob; leaving swaps back to the static icon. The SVGs are plain
+  vector files (no SMIL) served over HTTP with an ETag and a day‑long max‑age,
+  so every card shares a single cached copy.
 - **Breadcrumb trails** prefix every segment with the small folder glyph.
 - **Models without a preview** use the glass `NO-PREVIEW` artwork, served as
   vector (`image/svg+xml`) so it is never rasterised.

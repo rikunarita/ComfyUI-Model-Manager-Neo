@@ -1,97 +1,63 @@
 <script setup lang="ts">
 /**
- * Glassmorphism folder icon with hover animations.
+ * Flat-aurora glass folder icon with a hover float.
  *
- * The artwork lives in `assets/Folder-Icons/` as SMIL-animated SVGs. It is
- * inlined into the bundle with `?raw` and served through data URIs, so
- *   - no runtime fetch is needed (the ComfyUI extension path never matters),
- *   - every instance gets its OWN svg document, so the gradient ids inside
- *     the artwork can never collide between the many folder cards,
- *   - swapping the <img> node restarts the SMIL timeline, which is how the
- *     opening/closing animations replay on every hover.
+ * The artwork lives in `assets/Folder-Icons/` as plain, SMIL-free SVGs, served
+ * cached through `/model-manager/assets/<name>.svg`:
+ *   - idle  -> close-folder_beside-fit.svg (the regular look),
+ *   - hover -> folder-hover.svg (turquoise sparkles rise above the folder).
  *
- * States: idle -> close-folder_beside-fit.svg (the regular look),
- * hover >= 1 s -> folder-opening-animation.svg, unhover >= 1 s ->
- * folder-closing-animation.svg (0.2 s delay + 1.35 s morph), then idle.
+ * The old SMIL opening/closing morphs (and their one-second hover gates) are
+ * gone: hovering a card swaps the artwork and starts a plain CSS floating
+ * bob; leaving swaps back and the folder settles at once.
  */
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { assetUrl } from 'utils/media'
 
-/**
- * The artwork is served over HTTP with an ETag + max-age, so the browser
- * decodes each animation once per session and every folder card shares the
- * cached copy. Swapping `<img src>` still restarts the SMIL timeline, which is
- * how the opening/closing morphs replay on hover.
- */
 const SOURCES = {
   idle: assetUrl('folder-closed'),
-  opening: assetUrl('folder-opening'),
-  closing: assetUrl('folder-closing'),
+  hover: assetUrl('folder-hover'),
 } as const
 
-/** 0.2s begin delay + 1.35s morph, with a little slack. */
-const CLOSING_MS = 1700
-
-/**
- * The animations are gated on sustained hover: the opening morph starts only
- * after the pointer rested on the folder for a full second, and the closing
- * morph only after it stayed away for a full second - casual pass-overs no
- * longer make the folder flap.
- */
-const HOVER_GATE_MS = 1000
-
-const state = ref<'idle' | 'opening' | 'closing'>('idle')
-const seq = ref(0)
-let openTimer: ReturnType<typeof setTimeout> | undefined
-let closeTimer: ReturnType<typeof setTimeout> | undefined
-let settleTimer: ReturnType<typeof setTimeout> | undefined
-
-const clearTimers = () => {
-  if (openTimer) clearTimeout(openTimer)
-  if (closeTimer) clearTimeout(closeTimer)
-  if (settleTimer) clearTimeout(settleTimer)
-  openTimer = closeTimer = settleTimer = undefined
-}
-
-const play = (next: 'opening' | 'closing') => {
-  seq.value++
-  state.value = next
-}
+const hovering = ref(false)
 
 const enter = () => {
-  if (closeTimer) clearTimeout(closeTimer)
-  closeTimer = undefined
-  if (state.value === 'opening') return
-  if (openTimer) return
-  openTimer = setTimeout(() => {
-    openTimer = undefined
-    play('opening')
-  }, HOVER_GATE_MS)
+  hovering.value = true
 }
 
 const leave = () => {
-  if (openTimer) clearTimeout(openTimer)
-  openTimer = undefined
-  if (state.value !== 'opening') return
-  if (closeTimer) return
-  closeTimer = setTimeout(() => {
-    closeTimer = undefined
-    play('closing')
-    settleTimer = setTimeout(() => {
-      settleTimer = undefined
-      state.value = 'idle'
-    }, CLOSING_MS)
-  }, HOVER_GATE_MS)
+  hovering.value = false
 }
 
 defineExpose({ enter, leave })
 
-onBeforeUnmount(clearTimers)
-
-const src = computed(() => SOURCES[state.value])
+const src = computed(() => (hovering.value ? SOURCES.hover : SOURCES.idle))
 </script>
 
 <template>
-  <!-- :key forces a fresh <img> (fresh SMIL document) per state change -->
-  <img :key="seq" :src="src" class="size-full object-contain" alt="" draggable="false" />
+  <img
+    :src="src"
+    :class="['size-full object-contain', hovering && 'mm-folder-float']"
+    alt=""
+    draggable="false"
+    decoding="async"
+  />
 </template>
+
+<style scoped>
+/* Gentle bob while the pointer rests on the folder card. */
+.mm-folder-float {
+  animation: mm-folder-float 1.9s ease-in-out infinite;
+}
+
+@keyframes mm-folder-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-5%);
+  }
+}
+</style>
