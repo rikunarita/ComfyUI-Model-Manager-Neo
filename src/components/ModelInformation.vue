@@ -21,34 +21,30 @@
     </div>
 
     <!--
-      Same scroll + pinned-copy treatment as the base-info table: the copy
-      button rides on the wrapper (left edge of the visible panel), never on
-      the scrolling content, and copies the row under the pointer.
+      Same scroll + per-row sticky copy treatment as the base-info table:
+      each row ends with a sticky copy cell pinned to the visible right edge
+      while the table scrolls sideways.
     -->
-    <div v-if="rows.length && !editing" class="group relative">
-      <CopyRowButton :text="hoverText" />
-      <ResponseScroll class="overflow-x-auto">
-        <table class="w-full border-collapse border border-mm-border">
-          <tbody>
-            <tr
-              v-for="row in rows"
-              :key="row.id"
-              class="h-8 border-b border-mm-border"
-              @mouseenter="hoverText = rowText(row)"
+    <ResponseScroll v-if="rows.length && !editing" class="overflow-x-auto">
+      <table class="w-full border-collapse border border-mm-border">
+        <tbody>
+          <tr v-for="row in rows" :key="row.id" class="group h-8 border-b border-mm-border">
+            <td
+              class="w-40 border-r border-mm-border bg-mm-fg/6 px-4 text-mm-muted-fg backdrop-blur-sm"
             >
-              <td
-                class="w-40 border-r border-mm-border bg-mm-fg/6 px-4 text-mm-muted-fg backdrop-blur-sm"
-              >
-                {{ labelOf(row) }}
-              </td>
-              <td class="px-4 break-all text-mm-fg">
-                <InformationValue :row="row" />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </ResponseScroll>
-    </div>
+              {{ labelOf(row) }}
+            </td>
+            <td class="px-4 break-all text-mm-fg">
+              <InformationValue :row="row" />
+            </td>
+            <!-- Sticky copy cell: visible-range right edge, per row. -->
+            <td class="sticky right-0 w-8 min-w-8 px-1 group-hover:bg-mm-bg/85">
+              <CopyRowButton :text="rowText(row)" />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </ResponseScroll>
 
     <!-- Edit mode: scalar fields become inputs; the preview list a textarea. -->
     <div v-if="editing && draft" class="flex flex-col gap-3">
@@ -314,9 +310,6 @@ const { metadata, model } = useModelMetadata()
 const { description } = useModelDescription()
 
 const rows = computed<InformationRow[]>(() => buildInformationRows(description.value))
-
-/** Value of the row the pointer rests on; what the pinned copy button copies. */
-const hoverText = ref('')
 
 /** Plain-text form of a row value, for the hover-revealed copy button. */
 const rowText = (row: InformationRow) =>

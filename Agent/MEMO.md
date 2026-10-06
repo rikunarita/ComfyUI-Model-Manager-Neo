@@ -861,9 +861,11 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   疑い）が原因 → `h-10` ＋トリガー `h-8` 固定・active blur 撤去で構造的に
   整列。(2) 基本情報/Information テーブルの行ホバーでコピーボタン浮上
   （`hooks/clipboard.ts` の `useCopyText` 共有・トースト付き）。行末配置は
-  テーブルがパネルから溢れるとボタンも流れて見えなくなるため、**表示範囲の
-  左端へピン留め**（ラッパー `group relative` ＋ `ResponseScroll` 横スクロール
-  ポート、ボタンは `CopyRowButton.vue` へ共有化＝fallow dupes 対策）へ改修。
+  テーブルがパネルから溢れるとボタンも流れて見えなくなるため横スクロールポート
+  （`ResponseScroll overflow-x-auto`）へ収容。単一ボタンの左端ピン留めは「1 行
+  （垂直中央の行）にしか出ない」との実機指摘を受け撤去し、**行毎の sticky セル**
+  （`position: sticky; right: 0`＝溢れる行では表示範囲の右端に固定、収まる行では
+  行末）へ再構成。ボタンは `CopyRowButton.vue` へ共有化（fallow dupes 対策）。
   (3) **「ノードをクリップボードへコピー」機能は撤去**（詳細アクション行＋
   カードホバー列のボタン・`copyModelNode`・i18n キー `copyNode` /
   `modelCopied`・README/USAGE 記述すべて）。README へ削除機能節を追加。
