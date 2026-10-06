@@ -3,7 +3,7 @@
   "modelManager": "模型管理器",
   "openModelManager": "打开模型管理器",
   "searchModels": "搜索模型",
-  "modelCopied": "模型节点已复制到剪贴板",
+
   "unSupportedModelType": "不支持的模型类型：{0}",
   "download": "下载",
   "downloadList": "下载列表",
@@ -235,7 +235,7 @@
   "selectFolder": "选择文件夹",
   "openModelPage": "打开模型页面",
   "addNode": "向画布添加节点",
-  "copyNode": "复制节点到剪贴板",
+
   "loadWorkflow": "从预览载入工作流",
   "noPreviewWorkflow": "该模型没有可用于载入工作流的预览图",
   "editModel": "编辑模型",
@@ -315,6 +315,8 @@
   "identifyTriggerWords": "触发词",
   "identifyFiles": "该版本的文件",
   "identifyHashes": "文件哈希",
+  "copiedToClipboard": "已复制到剪贴板",
+  "copyRow": "复制该行内容",
   "copyCommand": "复制命令",
   "searchNoResults": "无结果",
   "searchFailed": "搜索失败",

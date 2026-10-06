@@ -22,14 +22,25 @@
 
     <table v-if="rows.length && !editing" class="w-full border-collapse border border-mm-border">
       <tbody>
-        <tr v-for="row in rows" :key="row.id" class="h-8 border-b border-mm-border">
+        <tr v-for="row in rows" :key="row.id" class="group h-8 border-b border-mm-border">
           <td
             class="w-40 border-r border-mm-border bg-mm-fg/6 px-4 text-mm-muted-fg backdrop-blur-sm"
           >
             {{ labelOf(row) }}
           </td>
-          <td class="px-4 break-all text-mm-fg">
+          <td class="relative px-4 break-all text-mm-fg">
             <InformationValue :row="row" />
+            <!-- Hover-revealed copy button for the row value. -->
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              class="absolute top-1/2 right-1 -translate-y-1/2 bg-mm-bg/80 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+              :title="$t('copyRow')"
+              :aria-label="$t('copyRow')"
+              @click.stop="copyText(rowText(row))"
+            >
+              <Copy class="size-3.5" />
+            </Button>
           </td>
         </tr>
       </tbody>
@@ -260,13 +271,14 @@
 </template>
 
 <script setup lang="ts">
-import { Folder, FolderOpen, Info, Pencil } from '@lucide/vue'
+import { Folder, FolderOpen, Info, Pencil, Copy } from '@lucide/vue'
 import { computed, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import InformationValue from 'components/InformationValue.vue'
 import { Button } from 'components/ui/button'
 import { Input } from 'components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
+import { useCopyText } from 'hooks/clipboard'
 import { useModelDescription, useModelMetadata } from 'hooks/model'
 import { useToast } from 'hooks/toast'
 import { type BaseModel, type SafetensorsTensor } from 'types/typings'
@@ -297,6 +309,12 @@ const { metadata, model } = useModelMetadata()
 const { description } = useModelDescription()
 
 const rows = computed<InformationRow[]>(() => buildInformationRows(description.value))
+
+const { copyText } = useCopyText()
+
+/** Plain-text form of a row value, for the hover-revealed copy button. */
+const rowText = (row: InformationRow) =>
+  row.kind === 'links' ? (row.values ?? []).join('\n') : String(row.value ?? '')
 
 /** Localised labels win; verbatim keys render as-is. */
 const labelOf = (row: InformationRow) => {

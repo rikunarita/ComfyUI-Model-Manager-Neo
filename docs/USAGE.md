@@ -157,7 +157,7 @@ folders whose name starts with `.`).
   network, no hashing) listing orphaned preview / notes files, models without
   any preview (with a shortcut into their editor) and empty folders; selected
   entries are removed through the usual Danger confirmation.
-- **Hover actions** (flat layout, large cards) — **Add node**, **Copy node**,
+- **Hover actions** (flat layout, large cards) — **Add node**,
   **Load workflow from preview**, **Open model page** (the button wears the
   source platform's logo as its background when the platform is known).
 - **Drag to the graph** — drag any card onto the canvas:
@@ -191,9 +191,17 @@ base‑info table, and two tabs.
 
 - **Download to local** — the download‑icon button in the action row saves the
   model file to your machine as an attachment (file name exactly as in the
-  library). The whole action row (ZipNN, star, hub page, identify, graph
-  actions, local download, edit, delete) shares one button size inside a
+  library). The whole action row (ZipNN, star, hub page, identify, add node,
+  upload to hub, local download, edit, delete) shares one button size inside a
   single inline scroll row.
+- **Upload to hub** — the upload‑icon button in the action row opens the shared
+  upload wizard with this model prefilled: pick Hugging Face or ModelScope and
+  the wizard skips the type / model steps, landing on the upload form with the
+  model path already filled in.
+- **Copy row values** — hovering a row of the base‑info table (type, directory,
+  sub‑folder, file name, size, dates) or of the Information table reveals a
+  copy button at the row's end; one click puts that row's value on the
+  clipboard.
 - **Description** tab — rendered Markdown stored in a `*.md` file next to the
   model. Links open in a new tab.
 - **Information** tab — a table of everything recorded about the model

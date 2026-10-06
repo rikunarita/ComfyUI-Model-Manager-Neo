@@ -1083,17 +1083,6 @@ export const useModelNodeAction = () => {
     })
   })
 
-  const copyModelNode = wrapperToastError((model: BaseModel) => {
-    const node = createNode(model)
-    app.canvas.copyToClipboard([node])
-    toast.add({
-      severity: 'success',
-      summary: t('success'),
-      detail: t('modelCopied'),
-      life: 2000,
-    })
-  })
-
   const loadPreviewWorkflow = wrapperToastError(async (model: BaseModel) => {
     // `model.preview` is a single URL string OR a gallery array (scan_models
     // emits an array when a model has several previews). BUG FIX: this used to
@@ -1140,7 +1129,6 @@ export const useModelNodeAction = () => {
   return {
     addModelNode,
     dragToAddModelNode,
-    copyModelNode,
     loadPreviewWorkflow,
     openModelPage,
   }
