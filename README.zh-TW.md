@@ -54,7 +54,7 @@
 **目錄**
 
 - [Why Neo?](#why-neo) · [截圖](#screenshots) · [安裝](#installation) · [功能](#features)
-- [模型搜尋與多平台發現](#search) · [ZipNN 無失真壓縮](#zipnn) · [與原版相比改變了什麼](#what-changed) · [被移除的功能：批次掃描](#removed-feature)
+- [模型搜尋與多平台發現](#search) · [ZipNN 無失真壓縮](#zipnn) · [與原版相比改變了什麼](#what-changed) · [被移除的功能：批次掃描](#removed-feature) · [被移除的功能：複製節點](#removed-feature-copy-node)
 - [文件](#documentation) · [開發](#development) · [致謝與歸屬](#credits) · [授權](#license)
 
 ---
@@ -243,7 +243,7 @@ Node.js 也不需要編譯器 —— 一次普通的 `import` 即可載入核心
 - 拖到已有節點上以**填充匹配的輸入**（存在歧義時精確匹配）。
 - 將 **embedding** 拖到文字區以追加 `(embedding:name:1.0)`。
 - 將預覽圖拖到節點圖上以**載入其中內嵌的工作流**。
-- **新增** / **複製** 按鈕：放置節點，或複製到 ComfyUI 的剪貼簿。
+- **新增** 按鈕：把節點放置到畫布。
 
 </details>
 
@@ -696,6 +696,15 @@ Markdown 筆記一起呈現；沒有預覽的模型在網格中直接帶上隨�
 ---
 
 <a id="documentation"></a>
+
+<a id="removed-feature-copy-node"></a>
+
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 被移除的功能：複製節點到剪貼簿
+
+**「複製節點到剪貼簿」**按鈕（模型詳細操作列與卡片懸停列均已移除）已刪除：
+把半設定的載入器節點複製進 ComfyUI 內部剪貼簿，容易與圖譜自身的複製/貼上
+流程衝突；而其實際目的（把載入器節點放到畫布上）由拖曳卡片或**新增節點**
+按鈕更直接地達成。
 
 ## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> 文件
 

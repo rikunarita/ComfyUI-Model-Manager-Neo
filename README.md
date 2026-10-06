@@ -59,7 +59,8 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
   [Features](#features)
 - [Model search & discovery](#search) · [ZipNN lossless compression](#zipnn) ·
   [What changed from the original](#what-changed) ·
-  [Removed feature: batch scan](#removed-feature)
+  [Removed feature: batch scan](#removed-feature) ·
+  [Removed feature: copy node](#removed-feature-copy-node)
 - [Documentation](#documentation) · [Development](#development) ·
   [Credits & Attribution](#credits) · [License](#license)
 
@@ -272,7 +273,7 @@ the `Extensions → Model Manager Neo` menu, or the command palette.
 - Drag onto an existing node to **fill a matching input** (exact when ambiguous).
 - Drag an **embedding** into a text area to append `(embedding:name:1.0)`.
 - Drag a preview image onto the graph to **load an embedded workflow**.
-- **Add** / **Copy** buttons to place a node or copy it to ComfyUI's clipboard.
+- **Add** button to place a node on the canvas.
 
 </details>
 
@@ -805,6 +806,17 @@ installation's saved setting.
 ---
 
 <a id="documentation"></a>
+
+<a id="removed-feature-copy-node"></a>
+
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> Removed feature: copy node to clipboard
+
+The **"Copy node to clipboard"** button — in the model detail action row and
+the card hover column alike — is gone. Copying a half‑configured loader node
+into ComfyUI's internal clipboard kept colliding with the graph's own
+copy/paste flow, and the real goal (a loader node on the canvas) is served
+better by dragging the card — or the **Add node** button — straight onto the
+graph.
 
 ## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> Documentation
 

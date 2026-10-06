@@ -120,15 +120,6 @@
               <Plus class="size-5" />
             </Button>
             <Button
-              variant="ghost"
-              class="size-[2.7rem]"
-              :title="$t('copyNode')"
-              :aria-label="$t('copyNode')"
-              @click.stop="copyModelNode(model)"
-            >
-              <Copy class="size-5" />
-            </Button>
-            <Button
               v-show="hasPreview"
               variant="ghost"
               class="size-[2.7rem]"
@@ -194,7 +185,6 @@
 
 <script setup lang="ts">
 import {
-  Copy,
   Download,
   ExternalLink,
   Loader2,
@@ -405,7 +395,7 @@ const identifyByHash = async () => {
   }
 }
 
-const { addModelNode, copyModelNode, loadPreviewWorkflow } = useModelNodeAction()
+const { addModelNode, loadPreviewWorkflow } = useModelNodeAction()
 
 /** The workflow action needs a real preview (the NO-PREVIEW artwork is not one). */
 const hasPreview = computed(() => normalizePreviews(props.model.preview).length > 0)

@@ -59,7 +59,8 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 - [Why Neo?](#why-neo) · [スクリーンショット](#screenshots) · [インストール](#installation) ·
   [機能](#features)
 - [モデル検索とマルチプラットフォーム探索](#search) · [ZipNN 可逆圧縮](#zipnn) ·
-  [元版からの変更点](#what-changed) · [削除された機能: バッチスキャン](#removed-feature)
+  [元版からの変更点](#what-changed) · [削除された機能: バッチスキャン](#removed-feature) ·
+  [削除された機能: ノードコピー](#removed-feature-copy-node)
 - [ドキュメント](#documentation) · [開発](#development) ·
   [クレジットと帰属](#credits) · [ライセンス](#license)
 
@@ -267,7 +268,7 @@ comfy node install comfyui-model-manager-neo
 - 既存ノードへドラッグして**一致する入力へ投入**（曖昧な場合は正確に）。
 - **embedding** をテキストエリアへドラッグして `(embedding:name:1.0)` を追記。
 - プレビュー画像をグラフへドラッグして**埋め込みワークフローを読込**。
-- **追加** / **コピー** ボタンでノード配置、または ComfyUI のクリップボードへ複製。
+- **追加** ボタンでノードをキャンバスへ配置。
 
 </details>
 
@@ -779,6 +780,16 @@ Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備え�
 ---
 
 <a id="documentation"></a>
+
+<a id="removed-feature-copy-node"></a>
+
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 削除された機能: ノードをクリップボードへコピー
+
+**「ノードをクリップボードへコピー」**ボタン（モデル詳細のアクション行と
+カードのホバー列の両方）は削除されました。半構成のローダーノードを
+ComfyUI 内部クリップボードへ複製する挙動はグラフ自身のコピー&ペーストと
+衝突しがちで、本来の目的（キャンバスへローダーノードを置くこと）は
+カードのドラッグ、または**ノードを追加**ボタンで直接達成できるためです。
 
 ## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> ドキュメント
 

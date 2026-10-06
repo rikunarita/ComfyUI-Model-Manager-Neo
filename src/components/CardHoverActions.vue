@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Copy, ExternalLink, Plus, Workflow } from '@lucide/vue'
+import { ExternalLink, Plus, Workflow } from '@lucide/vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from 'components/ui/button'
@@ -12,7 +12,7 @@ const { model } = defineProps<{ model: Model }>()
 
 const { t } = useI18n()
 const { cardSize } = useConfig()
-const { addModelNode, copyModelNode, loadPreviewWorkflow, openModelPage } = useModelNodeAction()
+const { addModelNode, loadPreviewWorkflow, openModelPage } = useModelNodeAction()
 
 /**
  * The workflow action needs a REAL preview: models without one carry the
@@ -52,16 +52,6 @@ const showActions = computed(() => cardSize.value.width > 120 && cardSize.value.
         @click.stop="addModelNode(model)"
       >
         <Plus class="size-4" />
-      </Button>
-      <Button
-        variant="secondary"
-        size="icon-sm"
-        class="rounded-full"
-        :title="t('copyNode')"
-        :aria-label="t('copyNode')"
-        @click.stop="copyModelNode(model)"
-      >
-        <Copy class="size-4" />
       </Button>
       <Button
         v-show="hasPreview"

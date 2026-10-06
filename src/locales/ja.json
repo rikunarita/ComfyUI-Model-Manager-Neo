@@ -3,7 +3,7 @@
   "modelManager": "Model Manager Neo",
   "openModelManager": "Model Manager Neo を開く",
   "searchModels": "モデルを検索",
-  "modelCopied": "モデルノードをクリップボードにコピーしました",
+
   "unSupportedModelType": "未対応のモデル種別です: {0}",
   "download": "ダウンロード",
   "downloadList": "ダウンロード一覧",
@@ -235,7 +235,7 @@
   "selectFolder": "フォルダを選択",
   "openModelPage": "モデルページを開く",
   "addNode": "グラフにノードを追加",
-  "copyNode": "ノードをクリップボードへコピー",
+
   "loadWorkflow": "プレビューからワークフローを読込",
   "noPreviewWorkflow": "ワークフローを読み込めるプレビュー画像がないモデルです",
   "editModel": "モデルを編集",
@@ -315,6 +315,8 @@
   "identifyTriggerWords": "トリガーワード",
   "identifyFiles": "このバージョンのファイル",
   "identifyHashes": "ファイルハッシュ",
+  "copiedToClipboard": "クリップボードへコピーしました",
+  "copyRow": "行の内容をコピー",
   "copyCommand": "コマンドをコピー",
   "searchNoResults": "結果なし",
   "searchFailed": "検索失敗",

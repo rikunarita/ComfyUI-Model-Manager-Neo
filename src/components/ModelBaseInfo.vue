@@ -114,12 +114,23 @@
         <tr
           v-for="item in information"
           :key="item.key"
-          class="h-8 border-b border-mm-border whitespace-nowrap"
+          class="group h-8 border-b border-mm-border whitespace-nowrap"
         >
           <td class="border-r border-mm-border bg-mm-fg/6 px-4 backdrop-blur-sm">
             {{ $t(`info.${item.key}`) }}
           </td>
-          <td class="overflow-hidden px-4 break-all text-ellipsis">
+          <td class="relative overflow-hidden px-4 break-all text-ellipsis">
+            <!-- Hover-revealed copy button for the row value. -->
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              class="absolute top-1/2 right-1 -translate-y-1/2 bg-mm-bg/80 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+              :title="$t('copyRow')"
+              :aria-label="$t('copyRow')"
+              @click.stop="copyText(item.display)"
+            >
+              <Copy class="size-3.5" />
+            </Button>
             <Tooltip :delay-duration="800">
               <TooltipTrigger as-child>
                 <span>{{ item.display }}</span>
@@ -152,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { CircleAlert, FolderOpen } from '@lucide/vue'
+import { CircleAlert, Copy, FolderOpen } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ResponseInput from 'components/ResponseInput.vue'
@@ -162,6 +173,7 @@ import { Button } from 'components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { Tree } from 'components/ui/tree'
+import { useCopyText } from 'hooks/clipboard'
 import { useModelBaseInfo, useModelFolder, useModels } from 'hooks/model'
 import { useToast } from 'hooks/toast'
 import { type Model } from 'types/typings'
@@ -171,6 +183,7 @@ const editable = defineModel<boolean>('editable')
 
 const { t } = useI18n()
 const { toast } = useToast()
+const { copyText } = useCopyText()
 
 const { baseInfo, pathIndex, subFolder, basename, extension, type, modelFolders, model } =
   useModelBaseInfo()

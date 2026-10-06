@@ -54,7 +54,7 @@
 **目录**
 
 - [Why Neo?](#why-neo) · [截图](#screenshots) · [安装](#installation) · [功能](#features)
-- [模型搜索与多平台发现](#search) · [ZipNN 无损压缩](#zipnn) · [与原版相比改变了什么](#what-changed) · [被移除的功能：批量扫描](#removed-feature)
+- [模型搜索与多平台发现](#search) · [ZipNN 无损压缩](#zipnn) · [与原版相比改变了什么](#what-changed) · [被移除的功能：批量扫描](#removed-feature) · [被移除的功能：复制节点](#removed-feature-copy-node)
 - [文档](#documentation) · [开发](#development) · [致谢与归属](#credits) · [许可证](#license)
 
 ---
@@ -243,7 +243,7 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
 - 拖到已有节点上以**填充匹配的输入**（存在歧义时精确匹配）。
 - 将 **embedding** 拖到文本区以追加 `(embedding:name:1.0)`。
 - 将预览图拖到节点图上以**加载其中内嵌的工作流**。
-- **添加** / **复制** 按钮：放置节点，或复制到 ComfyUI 的剪贴板。
+- **添加** 按钮：把节点放置到画布。
 
 </details>
 
@@ -696,6 +696,15 @@ Markdown 笔记一起呈现；没有预览的模型在网格中直接带上随�
 ---
 
 <a id="documentation"></a>
+
+<a id="removed-feature-copy-node"></a>
+
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 被移除的功能：复制节点到剪贴板
+
+**"复制节点到剪贴板"**按钮（模型详情操作行与卡片悬停列均已移除）已删除：
+把半配置的加载器节点复制进 ComfyUI 内部剪贴板，容易与图自身的复制/粘贴
+流程冲突；而其真实目的（把加载器节点放到画布上）由拖拽卡片或**添加节点**
+按钮更直接地达成。
 
 ## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> 文档
 
