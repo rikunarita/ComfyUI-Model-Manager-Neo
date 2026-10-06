@@ -349,6 +349,13 @@ check=True` で cargo の stderr を握り潰すと CI ログに traceback し�
   `decoding="async"` を適用済み。旧規程「SMIL アニメーションの `<img>` に
   decoding=async は意図的に非適用（タイムライン再開挙動が変わる）」は SMIL
   退役とともに過去のもの。`loading="lazy"` は仮想スクロール済みのため不導入。
+- **v-html 注入の生 svg は `size-*` クラスを必ず付ける**（2026‑10‑06 実機バグ）:
+  `Button.vue` 基底の `[&_svg:not([class*='size-'])]:size-4` フォールバックが
+  クラス無し svg を 16px へ縮め、ラッパー側の `[&>svg]:size-5`（特異度 0,1,1）は
+  同フールバック（0,2,1）に負ける。Lucide 兄弟アイコンは明示 `size-*` を持つため
+  `:not(...)` で除外され 20px のまま → 同一行で HashReverse アイコンだけ小さく
+  見える原因になった。対策は svg ルートへ `size-5` クラスを注入して
+  フォールバック対象から外すこと（`HashReverseIcon.vue`）。
 - `scripts/bench/front/k15.mjs` は `--cross-check` 無しなら native 不要・約 30 秒
   （縮小パラメータで約 6 秒）。pnpm ストア外の tsc は `MMNEO_TSC` で渡します。
 
