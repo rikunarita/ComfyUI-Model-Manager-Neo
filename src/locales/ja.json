@@ -27,6 +27,7 @@
   "uploadFile": "ファイルをアップロード",
   "uploadFromLocalFile": "ローカルファイルからアップロード",
   "uploadToHub": "Hugging Face / ModelScope へアップロード",
+  "prefillModelMissing": "プリフィル対象のモデルがライブラリに見つかりません — 手動で選択してください。",
   "account": "アカウント",
   "uploadToHf": "Hugging Face へアップロード",
   "uploadToMs": "ModelScope へアップロード",

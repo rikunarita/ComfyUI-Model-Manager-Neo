@@ -27,6 +27,7 @@
   "uploadFile": "Upload File",
   "uploadFromLocalFile": "Upload from Local File",
   "uploadToHub": "Upload to Hugging Face / ModelScope",
+  "prefillModelMissing": "The prefilled model is no longer in the library - please pick it manually.",
   "account": "account",
   "uploadToHf": "Upload to Hugging Face",
   "uploadToMs": "Upload to ModelScope",

@@ -308,6 +308,13 @@ const stepTextClass = (label: string) => (label.length > 8 ? 'text-xs' : '')
 interface Props {
   /** Folder batch mode: upload these files instead of a single selection. */
   files?: { type: string; pathIndex: number; fullname: string; sizeBytes?: number }[]
+  /**
+   * Prefill from the model detail dialog: the platform step still runs
+   * first, but once a hub is picked the type / model steps resolve
+   * themselves and the wizard lands on the upload form with this model
+   * already selected (path in repo included).
+   */
+  initialModel?: { type: string; pathIndex: number; fullname: string }
 }
 const props = defineProps<Props>()
 
@@ -403,11 +410,35 @@ const pathInRepo = ref<string>()
 const provider = ref<'hf' | 'modelscope'>('hf')
 
 /**
- * Platform step: pick the hub and advance (batch mode jumps to the form,
- * the single-model flow to the type grid). Re-picking another platform
- * re-checks the account name for it.
+ * Prefill support (model detail dialog): resolve the requested model out of
+ * the cache-first folder listing and select it exactly like a manual pick.
+ * Returns false when the model is gone (deleted between the two dialogs),
+ * in which case the caller falls back to the manual wizard.
  */
-const chooseProvider = (next: 'hf' | 'modelscope') => {
+const resolvePrefill = async (): Promise<boolean> => {
+  const target = props.initialModel
+  if (!target) return false
+  currentType.value = target.type
+  await fetchModels(target.type)
+  const hit = modelList.value.find(
+    item => item.pathIndex === target.pathIndex && genModelFullName(item) === target.fullname,
+  )
+  if (!hit) {
+    currentType.value = undefined
+    modelList.value = []
+    return false
+  }
+  selectedModel.value = hit
+  pathInRepo.value = genModelFullName(hit)
+  return true
+}
+
+/**
+ * Platform step: pick the hub and advance (batch mode jumps to the form,
+ * a prefilled model straight to it too, and the plain single-model flow to
+ * the type grid). Re-picking another platform re-checks the account name.
+ */
+const chooseProvider = async (next: 'hf' | 'modelscope') => {
   if (provider.value !== next) {
     provider.value = next
     whoamiName.value = undefined
@@ -417,7 +448,19 @@ const chooseProvider = (next: 'hf' | 'modelscope') => {
   // The window title names the chosen platform from here on.
   const item = dialog.stack.value.find(entry => entry.key === 'model-manager-hf-upload')
   if (item) item.title = t(next === 'hf' ? 'uploadToHf' : 'uploadToMs')
-  stepValue.value = folderMode.value ? 'upload' : 'type'
+  if (folderMode.value) {
+    stepValue.value = 'upload'
+    return
+  }
+  if (props.initialModel) {
+    if (await resolvePrefill()) {
+      stepValue.value = 'upload'
+      return
+    }
+    // The prefilled model vanished mid-flight: say so, then go manual.
+    toast.add({ severity: 'warn', summary: t('prefillModelMissing'), life: 5000 })
+  }
+  stepValue.value = 'type'
 }
 
 const whoamiName = ref<string>()
