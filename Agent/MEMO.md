@@ -859,7 +859,9 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   ズレは `TabsList` の `h-9` 対トリガー実高 32px のオーバーフローと、
   active トリガーの `backdrop-blur-md`（transform 済みダイアログ内での描画ズレ
   疑い）が原因 → `h-10` ＋トリガー `h-8` 固定・active blur 撤去で構造的に
-  整列。(2) 基本情報/Information テーブルの行ホバーでコピーボタン浮上
+  整列。なお実機再指摘（ピル右端が列境界に接し非等間隔）を受け、最終形は
+  **等インセットのセグメントコントロール**: TabsList `gap-1` ＋トラック
+  `bg-mm-bg/60`（active ピル四周すべて 4px）。(2) 基本情報/Information テーブルの行ホバーでコピーボタン浮上
   （`hooks/clipboard.ts` の `useCopyText` 共有・トースト付き）。行末配置は
   テーブルがパネルから溢れるとボタンも流れて見えなくなるため横スクロールポート
   （`ResponseScroll overflow-x-auto`）へ収容。単一ボタンの左端ピン留めは「1 行
