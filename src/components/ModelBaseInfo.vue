@@ -105,48 +105,51 @@
       `table-fixed` + a hard-coded `w-32` label column used to overflow the
       translated labels into the value column ("table is broken").
     -->
-    <table class="w-full border-collapse border border-mm-border">
-      <colgroup>
-        <col class="w-[1%]" />
-        <col />
-      </colgroup>
-      <tbody>
-        <tr
-          v-for="item in information"
-          :key="item.key"
-          class="group h-8 border-b border-mm-border whitespace-nowrap"
-        >
-          <td class="border-r border-mm-border bg-mm-fg/6 px-4 backdrop-blur-sm">
-            {{ $t(`info.${item.key}`) }}
-          </td>
-          <td class="relative overflow-hidden px-4 break-all text-ellipsis">
-            <!-- Hover-revealed copy button for the row value. -->
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              class="absolute top-1/2 right-1 -translate-y-1/2 bg-mm-bg/80 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-              :title="$t('copyRow')"
-              :aria-label="$t('copyRow')"
-              @click.stop="copyText(item.display)"
+    <!--
+      SCROLL + PINNED COPY: wide rows (long paths, locale-wide labels) used to
+      push the value - and the copy button riding inside its cell - out of the
+      panel with no way to scroll. The table now lives in a horizontal scroll
+      port, and the hover-revealed copy button is pinned to the LEFT edge of
+      the VISIBLE panel (absolute on this wrapper, not on the scrolling
+      content), copying whichever row the pointer rests on.
+    -->
+    <div class="group relative">
+      <CopyRowButton :text="hoverText" />
+      <ResponseScroll class="overflow-x-auto">
+        <table class="w-full border-collapse border border-mm-border">
+          <colgroup>
+            <col class="w-[1%]" />
+            <col />
+          </colgroup>
+          <tbody>
+            <tr
+              v-for="item in information"
+              :key="item.key"
+              class="h-8 border-b border-mm-border whitespace-nowrap"
+              @mouseenter="hoverText = item.display"
             >
-              <Copy class="size-3.5" />
-            </Button>
-            <Tooltip :delay-duration="800">
-              <TooltipTrigger as-child>
-                <span>{{ item.display }}</span>
-              </TooltipTrigger>
-              <TooltipContent
-                v-if="!['pathIndex', 'basename'].includes(item.key)"
-                side="top"
-                class="max-w-lg"
-              >
-                {{ item.display }}
-              </TooltipContent>
-            </Tooltip>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+              <td class="border-r border-mm-border bg-mm-fg/6 px-4 backdrop-blur-sm">
+                {{ $t(`info.${item.key}`) }}
+              </td>
+              <td class="px-4 break-all">
+                <Tooltip :delay-duration="800">
+                  <TooltipTrigger as-child>
+                    <span>{{ item.display }}</span>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    v-if="!['pathIndex', 'basename'].includes(item.key)"
+                    side="top"
+                    class="max-w-lg"
+                  >
+                    {{ item.display }}
+                  </TooltipContent>
+                </Tooltip>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </ResponseScroll>
+    </div>
 
     <!--
       Duplicate-model warning: another file in the library carries the same
@@ -163,9 +166,10 @@
 </template>
 
 <script setup lang="ts">
-import { CircleAlert, Copy, FolderOpen } from '@lucide/vue'
+import { CircleAlert, FolderOpen } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import CopyRowButton from 'components/CopyRowButton.vue'
 import ResponseInput from 'components/ResponseInput.vue'
 import ResponseScroll from 'components/ResponseScroll.vue'
 import ResponseSelect from 'components/ResponseSelect.vue'
@@ -173,7 +177,6 @@ import { Button } from 'components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
 import { Tree } from 'components/ui/tree'
-import { useCopyText } from 'hooks/clipboard'
 import { useModelBaseInfo, useModelFolder, useModels } from 'hooks/model'
 import { useToast } from 'hooks/toast'
 import { type Model } from 'types/typings'
@@ -183,7 +186,8 @@ const editable = defineModel<boolean>('editable')
 
 const { t } = useI18n()
 const { toast } = useToast()
-const { copyText } = useCopyText()
+/** Value of the row the pointer rests on; what the pinned copy button copies. */
+const hoverText = ref('')
 
 const { baseInfo, pathIndex, subFolder, basename, extension, type, modelFolders, model } =
   useModelBaseInfo()
