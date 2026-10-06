@@ -106,50 +106,50 @@
       translated labels into the value column ("table is broken").
     -->
     <!--
-      SCROLL + PINNED COPY: wide rows (long paths, locale-wide labels) used to
-      push the value - and the copy button riding inside its cell - out of the
+      SCROLL + PER-ROW COPY: wide rows (long paths, locale-wide labels) used to
+      push the value - and any button riding inside its cell - out of the
       panel with no way to scroll. The table now lives in a horizontal scroll
-      port, and the hover-revealed copy button is pinned to the LEFT edge of
-      the VISIBLE panel (absolute on this wrapper, not on the scrolling
-      content), copying whichever row the pointer rests on.
+      port, and every row ends with a sticky copy cell: `position: sticky;
+      right: 0` pins it to the RIGHT edge of the visible scroll port while the
+      row overflows, and leaves it at the row's end when it does not.
     -->
-    <div class="group relative">
-      <CopyRowButton :text="hoverText" />
-      <ResponseScroll class="overflow-x-auto">
-        <table class="w-full border-collapse border border-mm-border">
-          <colgroup>
-            <col class="w-[1%]" />
-            <col />
-          </colgroup>
-          <tbody>
-            <tr
-              v-for="item in information"
-              :key="item.key"
-              class="h-8 border-b border-mm-border whitespace-nowrap"
-              @mouseenter="hoverText = item.display"
-            >
-              <td class="border-r border-mm-border bg-mm-fg/6 px-4 backdrop-blur-sm">
-                {{ $t(`info.${item.key}`) }}
-              </td>
-              <td class="px-4 break-all">
-                <Tooltip :delay-duration="800">
-                  <TooltipTrigger as-child>
-                    <span>{{ item.display }}</span>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    v-if="!['pathIndex', 'basename'].includes(item.key)"
-                    side="top"
-                    class="max-w-lg"
-                  >
-                    {{ item.display }}
-                  </TooltipContent>
-                </Tooltip>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </ResponseScroll>
-    </div>
+    <ResponseScroll class="overflow-x-auto">
+      <table class="w-full border-collapse border border-mm-border">
+        <colgroup>
+          <col class="w-[1%]" />
+          <col />
+        </colgroup>
+        <tbody>
+          <tr
+            v-for="item in information"
+            :key="item.key"
+            class="group h-8 border-b border-mm-border whitespace-nowrap"
+          >
+            <td class="border-r border-mm-border bg-mm-fg/6 px-4 backdrop-blur-sm">
+              {{ $t(`info.${item.key}`) }}
+            </td>
+            <td class="px-4 break-all">
+              <Tooltip :delay-duration="800">
+                <TooltipTrigger as-child>
+                  <span>{{ item.display }}</span>
+                </TooltipTrigger>
+                <TooltipContent
+                  v-if="!['pathIndex', 'basename'].includes(item.key)"
+                  side="top"
+                  class="max-w-lg"
+                >
+                  {{ item.display }}
+                </TooltipContent>
+              </Tooltip>
+            </td>
+            <!-- Sticky copy cell: visible-range right edge, per row. -->
+            <td class="sticky right-0 w-8 min-w-8 px-1 group-hover:bg-mm-bg/85">
+              <CopyRowButton :text="item.display" />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </ResponseScroll>
 
     <!--
       Duplicate-model warning: another file in the library carries the same
@@ -186,8 +186,6 @@ const editable = defineModel<boolean>('editable')
 
 const { t } = useI18n()
 const { toast } = useToast()
-/** Value of the row the pointer rests on; what the pinned copy button copies. */
-const hoverText = ref('')
 
 const { baseInfo, pathIndex, subFolder, basename, extension, type, modelFolders, model } =
   useModelBaseInfo()
