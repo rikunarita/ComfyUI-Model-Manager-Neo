@@ -200,8 +200,9 @@ base‑info table, and two tabs.
   model path already filled in.
 - **Copy row values** — hovering a row of the base‑info table (type, directory,
   sub‑folder, file name, size, dates) or of the Information table reveals a
-  copy button at the row's end; one click puts that row's value on the
-  clipboard.
+  copy button pinned to the left edge of the visible table panel (the tables
+  scroll sideways whenever a row is wider than the panel); one click puts the
+  hovered row's value on the clipboard.
 - **Description** tab — rendered Markdown stored in a `*.md` file next to the
   model. Links open in a new tab.
 - **Information** tab — a table of everything recorded about the model

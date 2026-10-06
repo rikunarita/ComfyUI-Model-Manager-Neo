@@ -20,31 +20,35 @@
       </Button>
     </div>
 
-    <table v-if="rows.length && !editing" class="w-full border-collapse border border-mm-border">
-      <tbody>
-        <tr v-for="row in rows" :key="row.id" class="group h-8 border-b border-mm-border">
-          <td
-            class="w-40 border-r border-mm-border bg-mm-fg/6 px-4 text-mm-muted-fg backdrop-blur-sm"
-          >
-            {{ labelOf(row) }}
-          </td>
-          <td class="relative px-4 break-all text-mm-fg">
-            <InformationValue :row="row" />
-            <!-- Hover-revealed copy button for the row value. -->
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              class="absolute top-1/2 right-1 -translate-y-1/2 bg-mm-bg/80 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-              :title="$t('copyRow')"
-              :aria-label="$t('copyRow')"
-              @click.stop="copyText(rowText(row))"
+    <!--
+      Same scroll + pinned-copy treatment as the base-info table: the copy
+      button rides on the wrapper (left edge of the visible panel), never on
+      the scrolling content, and copies the row under the pointer.
+    -->
+    <div v-if="rows.length && !editing" class="group relative">
+      <CopyRowButton :text="hoverText" />
+      <ResponseScroll class="overflow-x-auto">
+        <table class="w-full border-collapse border border-mm-border">
+          <tbody>
+            <tr
+              v-for="row in rows"
+              :key="row.id"
+              class="h-8 border-b border-mm-border"
+              @mouseenter="hoverText = rowText(row)"
             >
-              <Copy class="size-3.5" />
-            </Button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+              <td
+                class="w-40 border-r border-mm-border bg-mm-fg/6 px-4 text-mm-muted-fg backdrop-blur-sm"
+              >
+                {{ labelOf(row) }}
+              </td>
+              <td class="px-4 break-all text-mm-fg">
+                <InformationValue :row="row" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </ResponseScroll>
+    </div>
 
     <!-- Edit mode: scalar fields become inputs; the preview list a textarea. -->
     <div v-if="editing && draft" class="flex flex-col gap-3">
@@ -271,14 +275,15 @@
 </template>
 
 <script setup lang="ts">
-import { Folder, FolderOpen, Info, Pencil, Copy } from '@lucide/vue'
+import { Folder, FolderOpen, Info, Pencil } from '@lucide/vue'
 import { computed, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
+import CopyRowButton from 'components/CopyRowButton.vue'
 import InformationValue from 'components/InformationValue.vue'
+import ResponseScroll from 'components/ResponseScroll.vue'
 import { Button } from 'components/ui/button'
 import { Input } from 'components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from 'components/ui/tooltip'
-import { useCopyText } from 'hooks/clipboard'
 import { useModelDescription, useModelMetadata } from 'hooks/model'
 import { useToast } from 'hooks/toast'
 import { type BaseModel, type SafetensorsTensor } from 'types/typings'
@@ -310,7 +315,8 @@ const { description } = useModelDescription()
 
 const rows = computed<InformationRow[]>(() => buildInformationRows(description.value))
 
-const { copyText } = useCopyText()
+/** Value of the row the pointer rests on; what the pinned copy button copies. */
+const hoverText = ref('')
 
 /** Plain-text form of a row value, for the hover-revealed copy button. */
 const rowText = (row: InformationRow) =>
