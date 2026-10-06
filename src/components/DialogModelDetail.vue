@@ -139,6 +139,21 @@
               <Workflow class="size-5" />
             </Button>
             <!--
+              UPLOAD TO HUB: opens the shared upload wizard prefilled with
+              this model. The platform step still runs first; picking a hub
+              then skips the type / model steps and lands on the upload form
+              with the model path already filled in.
+            -->
+            <Button
+              variant="ghost"
+              class="size-[2.7rem]"
+              :title="$t('uploadToHub')"
+              :aria-label="$t('uploadToHub')"
+              @click.stop="openHubUpload"
+            >
+              <Upload class="size-5" />
+            </Button>
+            <!--
               DOWNLOAD TO LOCAL: streams the stored file to the browser as an
               attachment (backend route serves it verbatim with a
               Content-Disposition filename of the model name as-is).
@@ -187,10 +202,12 @@ import {
   Plus,
   Star,
   Trash2,
+  Upload,
   Workflow,
 } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DialogHfUpload from 'components/DialogHfUpload.vue'
 import DialogIdentifyHash from 'components/DialogIdentifyHash.vue'
 import HashReverseIcon from 'components/HashReverseIcon.vue'
 import ModelContent from 'components/ModelContent.vue'
@@ -227,6 +244,26 @@ const props = defineProps<Props>()
 const { t } = useI18n()
 const { toast, confirm } = useToast()
 const dialog = useDialog()
+
+/**
+ * Open the shared hub-upload wizard (the same one the header and the
+ * selection bulk bar use) with this model prefilled, so the user only
+ * picks a hub and edits the upload form.
+ */
+const openHubUpload = () => {
+  dialog.open({
+    key: 'model-manager-hf-upload',
+    title: t('uploadToHub'),
+    content: DialogHfUpload,
+    contentProps: {
+      initialModel: {
+        type: props.model.type,
+        pathIndex: props.model.pathIndex,
+        fullname: genModelFullName(props.model),
+      },
+    },
+  })
+}
 const { remove, update, data: modelsData } = useModels()
 
 const editable = ref(false)

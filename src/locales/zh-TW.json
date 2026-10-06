@@ -27,6 +27,7 @@
   "uploadFile": "上傳檔案",
   "uploadFromLocalFile": "從本地檔案上傳",
   "uploadToHub": "上傳到 Hugging Face / ModelScope",
+  "prefillModelMissing": "預填的模型已不在庫中——請手動選擇。",
   "account": "帳號",
   "uploadToHf": "上傳到 Hugging Face",
   "uploadToMs": "上傳到 ModelScope",

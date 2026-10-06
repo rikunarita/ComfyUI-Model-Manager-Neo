@@ -820,7 +820,21 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   （registry のみキャッシュ）は保留 — cold ビルドの実測を 1 run で計測して
   から判断します。
 
-## 8. セッション 2026‑10‑05 — フォルダアイコン刷新（Flat Aurora）と SMIL 退役
+## 8. セッション 2026‑10‑06 — ハブアップロードのプリフィル導線
+
+- モデル詳細ダイアログの行動列へ **Upload ボタン**を追加（`Upload` lucide）。
+  共有 wizard `DialogHfUpload.vue` を `contentProps.initialModel`
+  （`{ type, pathIndex, fullname }`）で開く。
+- wizard 側は `platform` ステップを維持したまま、hub 選択時にプリフィルが
+  あれば `type` / `model` を自動解決（`useModels` キャッシュ優先の
+  `fetchModels` 経由）して `upload` フォームへ直飛。**専用画面は不追加**、
+  バックエンド無変更。プリフィル対象が消えていた場合は警告トースト
+  （`prefillModelMissing`・4 言語）後、通常の手動 wizard へフォールバック。
+- 先行例: `SelectionBulkBar.vue` の `files` バッチモードと同じ
+  `dialog.open({ key: 'model-manager-hf-upload', ... })` 経路を流用
+  （`chooseProvider` のタイトル書換えが同 key を引くため必須）。
+
+## 9. セッション 2026‑10‑05 — フォルダアイコン刷新（Flat Aurora）と SMIL 退役
 
 - **経緯**: デザイン案は 4 案（A–D）→ 詰め 3 案（D2 群）→ モダンフラット進化
   3 案（E1–E3）の順で提示し、ユーザ決定で **E1 "Flat Aurora"**（ペール
