@@ -68,18 +68,14 @@ jobs:
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - name: Install mold + clang (sanitizer linking)
-        # A hung `apt-get` (mirror stall) once burned the full 6 h job limit and
-        # got the whole push run cancelled (2026-09-30, run #80, native-test
-        # ubuntu: the step ran 14:36 -> 20:37 without output). A 10 min step
-        # budget fails fast instead - the job goes red in minutes and a re-run
-        # picks a healthy mirror (the same step took <20 s in runs #79/#81).
-        timeout-minutes: 10
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang mold
-          sudo ln -sf "$(command -v mold)" /usr/local/bin/ld.mold
-
+      # No apt step: fuzz builds link with nightly's default rust-lld and the
+      # ASan runtime ships inside rustc (self-contained compiler-rt,
+      # linker-independent) - see native/.cargo/config.toml's linker policy.
+      # Neither mold nor clang is referenced by any fuzz invocation (no
+      # -fuse-ld=mold anywhere). Dropping apt also removes the mirror-stall
+      # failure surface this step once guarded (a hung `apt-get` burned the
+      # full 6 h job limit and cancelled the whole push run - 2026-09-30,
+      # run #80).
       - name: Install cargo-fuzz 0.12.0 (pinned — see fuzz-smoke note)
         run: |
           curl -sSfL https://github.com/rust-fuzz/cargo-fuzz/releases/download/0.12.0/cargo-fuzz-0.12.0-x86_64-unknown-linux-musl.tar.gz \
