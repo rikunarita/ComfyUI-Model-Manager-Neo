@@ -71,7 +71,7 @@ jobs:
       # is expensive here: the 7 ASan nightly fuzz targets would rebuild from
       # scratch (measured 2026-10-03: the fuzz-long entry had already been
       # LRU-evicted by the PR/tag copies).
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@63fed3e2fecf6f7b51dc6f043341b79ef82a9ae7 # v2.9.2
         with:
           workspaces: native/crates/znn-codec/fuzz
           save-if: >-
