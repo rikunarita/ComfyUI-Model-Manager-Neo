@@ -13,7 +13,7 @@
         folder batch flow then goes straight to the form, the single-model
         flow continues through type and model selection.
       -->
-      <TabsList v-if="folderMode" class="grid w-full grid-cols-2">
+      <TabsList v-if="folderMode">
         <TabsTrigger value="platform" class="max-w-full min-w-0">
           <span class="w-full truncate" :class="stepTextClass($t('selectPlatform'))">{{
             $t('selectPlatform')
@@ -25,7 +25,7 @@
           }}</span>
         </TabsTrigger>
       </TabsList>
-      <TabsList v-else class="grid w-full grid-cols-4">
+      <TabsList v-else>
         <TabsTrigger value="platform" class="max-w-full min-w-0">
           <span class="w-full truncate" :class="stepTextClass($t('selectPlatform'))">{{
             $t('selectPlatform')

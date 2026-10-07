@@ -59,7 +59,7 @@
       </div>
 
       <Tabs default-value="0" class="mt-4">
-        <TabsList class="grid w-full grid-cols-2">
+        <TabsList>
           <TabsTrigger value="0">{{ $t('description') }}</TabsTrigger>
           <TabsTrigger value="1">{{ $t('information') }}</TabsTrigger>
         </TabsList>

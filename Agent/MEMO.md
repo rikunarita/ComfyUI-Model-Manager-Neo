@@ -779,7 +779,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 
 ## 6. 現状のキー値（2026‑10‑03 時点）
 
-- **version 0.3.0**（pyproject / package.json / native workspace / web バンドルで
+- **version 0.3.1**（pyproject / package.json / native workspace / web バンドルで
   同期済み。**公開作業はユーザ専任・未実施**）。
 - **api_version 6**（4 者同期 — §1.2）。
 - **成果物 8 本**（abi3 ×4 + abi3t ×4・合計 34.98 MiB — §5.3）。
@@ -797,7 +797,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 
 ## 7. 残件
 
-- **ユーザ専任**: v0.3.0 の公開作業（GitHub Release・タグ・registry）、
+- **ユーザ専任**: v0.3.1 の公開作業（GitHub Release・タグ・registry）、
   `demo-assets/` の本キャプチャ差し替え、CI 実行結果確認の指示。
   なお 2026‑10‑05 のフォルダアイコン刷新以降、`hero.webm` /
   `view-folders.avif` 等は刷新前（アンバー icon・開閉アニメ）の姿を写すため、
