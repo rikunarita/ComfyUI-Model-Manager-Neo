@@ -54,7 +54,7 @@
 **目录**
 
 - [Why Neo?](#why-neo) · [截图](#screenshots) · [安装](#installation) · [功能](#features)
-- [模型搜索与多平台发现](#search) · [ZipNN 无损压缩](#zipnn) · [与原版相比改变了什么](#what-changed) · [被移除的功能：批量扫描](#removed-feature) · [被移除的功能：复制节点](#removed-feature-copy-node)
+- [模型搜索与多平台发现](#search) · [ZipNN 无损压缩](#zipnn) · [与原版相比改变了什么](#what-changed) · [被移除的功能](#removed-features)
 - [文档](#documentation) · [开发](#development) · [致谢与归属](#credits) · [许可证](#license)
 
 ---
@@ -570,8 +570,7 @@ WebP 编解码使用 zenwebp（AGPL‑3.0）—— 全文见
 本节按 GPL‑3.0 许可证的要求明示 fork 的差异。比较基准为
 [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
 **v2.8.5**。功能被保留并扩展；被_移除_的共有三样：PrimeVue 依赖本身、
-批量扫描功能，以及复制节点按钮 —— 见[被移除的功能：批量扫描](#removed-feature)
-与[被移除的功能：复制节点](#removed-feature-copy-node)。
+批量扫描功能，以及复制节点按钮 —— 见[被移除的功能](#removed-features)。
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="26" height="26" align="middle" alt=""> 界面
 
@@ -670,9 +669,13 @@ flat config** + **Prettier** + **Stylelint 17**，Python 后端 **Ruff** +
 
 ---
 
+<a id="removed-features"></a>
+
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 被移除的功能
+
 <a id="removed-feature"></a>
 
-## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 被移除的功能：批量扫描
+### <img src="https://api.iconify.design/lucide/scan-search.svg?color=%23ef4444" width="26" height="26" align="middle" alt=""> 批量扫描
 
 **「批量扫描模型信息」** 功能已被移除，因为它是冗余的：模型详情窗口
 直接从 safetensors 头部读取该模型的 `__metadata__`，连同文件旁的
@@ -694,11 +697,9 @@ Markdown 笔记一起呈现；没有预览的模型在网格中直接带上随�
 > 影响 —— 它始终按需从磁盘读取；单个模型仍可通过详情窗口的哈希反查
 > 在 Civitai 目录中识别。
 
----
-
 <a id="removed-feature-copy-node"></a>
 
-## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 被移除的功能：复制节点到剪贴板
+### <img src="https://api.iconify.design/lucide/clipboard-x.svg?color=%23ef4444" width="26" height="26" align="middle" alt=""> 复制节点到剪贴板
 
 **"复制节点到剪贴板"**按钮（模型详情操作行与卡片悬停列均已移除）已删除：
 把半配置的加载器节点复制进 ComfyUI 内部剪贴板，容易与图自身的复制/粘贴

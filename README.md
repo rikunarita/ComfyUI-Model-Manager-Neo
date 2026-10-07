@@ -59,8 +59,7 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
   [Features](#features)
 - [Model search & discovery](#search) · [ZipNN lossless compression](#zipnn) ·
   [What changed from the original](#what-changed) ·
-  [Removed feature: batch scan](#removed-feature) ·
-  [Removed feature: copy node](#removed-feature-copy-node)
+  [Removed features](#removed-features)
 - [Documentation](#documentation) · [Development](#development) ·
   [Credits & Attribution](#credits) · [License](#license)
 
@@ -666,8 +665,7 @@ requires. The comparison baseline is
 [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
 **v2.8.5**. Functionality is preserved and extended; three things were _removed_:
 the PrimeVue dependency itself, the batch‑scan feature and the copy‑node button
-— see [Removed feature: batch scan](#removed-feature) and
-[Removed feature: copy node](#removed-feature-copy-node).
+— see [Removed features](#removed-features).
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="26" height="26" align="middle" alt=""> Interface
 
@@ -775,9 +773,13 @@ three OSes, and the official‑`zipnn` cross‑validation (see
 
 ---
 
+<a id="removed-features"></a>
+
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> Removed features
+
 <a id="removed-feature"></a>
 
-## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> Removed feature: batch scan
+### <img src="https://api.iconify.design/lucide/scan-search.svg?color=%23ef4444" width="26" height="26" align="middle" alt=""> Batch scan
 
 The **“Batch scan model information”** feature has been removed. It was
 redundant: the model detail window reads that model's `__metadata__` straight
@@ -804,11 +806,9 @@ installation's saved setting.
 > disk, on demand — and individual models can still be identified against the
 > Civitai catalog with the detail window's hash reverse‑lookup.
 
----
-
 <a id="removed-feature-copy-node"></a>
 
-## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> Removed feature: copy node to clipboard
+### <img src="https://api.iconify.design/lucide/clipboard-x.svg?color=%23ef4444" width="26" height="26" align="middle" alt=""> Copy node to clipboard
 
 The **"Copy node to clipboard"** button — in the model detail action row and
 the card hover column alike — is gone. Copying a half‑configured loader node
