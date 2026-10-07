@@ -933,7 +933,8 @@ jobs:
       # materialised in this job) and handed to the harness via MMNEO_TSC.
       - name: Tensor-tree wire cross-check (Rust == TypeScript)
         if: matrix.tag == 'linux-x86_64'
-        run: |
+        run:
+          | # zizmor: ignore[adhoc-packages] typescript is version-pinned to the repo's devDependency (6.0.3) and installed outside the pnpm store BY DESIGN (see the comment above); its subtree is throwaway and the pin is checked against package.json in review
           mkdir -p /tmp/mmneo-tsc && cd /tmp/mmneo-tsc
           npm init -y >/dev/null
           npm install --no-audit --no-fund --silent typescript@6.0.3 >/dev/null
