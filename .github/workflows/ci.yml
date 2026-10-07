@@ -82,8 +82,12 @@ jobs:
       - name: Format
         run: pnpm format:check
 
+      # `pnpm exec vite build`, not `pnpm build`: the package.json build
+      # script prepends `pnpm install --frozen-lockfile` (a local one-shot
+      # convenience), but CI already installed the exact lockfile above -
+      # this skips the redundant second install pass.
       - name: Build
-        run: pnpm build
+        run: pnpm exec vite build
 
       # Phase 6 / C5: the K15 measurement base runs on every push.
       # It compiles the REAL src/utils modules with the repository's tsc and

@@ -54,7 +54,7 @@
 **目錄**
 
 - [Why Neo?](#why-neo) · [截圖](#screenshots) · [安裝](#installation) · [功能](#features)
-- [模型搜尋與多平台發現](#search) · [ZipNN 無失真壓縮](#zipnn) · [與原版相比改變了什麼](#what-changed) · [被移除的功能：批次掃描](#removed-feature) · [被移除的功能：複製節點](#removed-feature-copy-node)
+- [模型搜尋與多平台發現](#search) · [ZipNN 無失真壓縮](#zipnn) · [與原版相比改變了什麼](#what-changed) · [被移除的功能](#removed-features)
 - [文件](#documentation) · [開發](#development) · [致謝與歸屬](#credits) · [授權](#license)
 
 ---
@@ -569,8 +569,8 @@ WebP 編解碼使用 zenwebp（AGPL‑3.0）—— 全文見
 
 本節按 GPL‑3.0 授權的要求明示 fork 的差異。比較基準為
 [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
-**v2.8.5**。功能被保留並擴充套件；被_移除_的只有兩樣：PrimeVue 相依本身，
-以及批次掃描功能 —— 見[被移除的功能：批次掃描](#removed-feature)。
+**v2.8.5**。功能被保留並擴展；被_移除_的共有三樣：PrimeVue 相依本身、
+批次掃描功能，以及複製節點按鈕 —— 見[被移除的功能](#removed-features)。
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="26" height="26" align="middle" alt=""> 介面
 
@@ -669,9 +669,13 @@ flat config** + **Prettier** + **Stylelint 17**，Python 後端 **Ruff** +
 
 ---
 
+<a id="removed-features"></a>
+
+## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 被移除的功能
+
 <a id="removed-feature"></a>
 
-## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 被移除的功能：批次掃描
+### <img src="https://api.iconify.design/lucide/scan-search.svg?color=%23ef4444" width="26" height="26" align="middle" alt=""> 批次掃描
 
 **「批次掃描模型資訊」** 功能已被移除，因為它是冗餘的：模型詳細視窗
 直接從 safetensors 頭部讀取該模型的 `__metadata__`，連同檔案旁的
@@ -693,18 +697,18 @@ Markdown 筆記一起呈現；沒有預覽的模型在網格中直接帶上隨�
 > 影響 —— 它始終按需從磁碟讀取；單個模型仍可透過詳細視窗的雜湊反查
 > 在 Civitai 目錄中識別。
 
----
-
-<a id="documentation"></a>
-
 <a id="removed-feature-copy-node"></a>
 
-## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 被移除的功能：複製節點到剪貼簿
+### <img src="https://api.iconify.design/lucide/clipboard-x.svg?color=%23ef4444" width="26" height="26" align="middle" alt=""> 複製節點到剪貼簿
 
 **「複製節點到剪貼簿」**按鈕（模型詳細操作列與卡片懸停列均已移除）已刪除：
 把半設定的載入器節點複製進 ComfyUI 內部剪貼簿，容易與圖譜自身的複製/貼上
 流程衝突；而其實際目的（把載入器節點放到畫布上）由拖曳卡片或**新增節點**
 按鈕更直接地達成。
+
+---
+
+<a id="documentation"></a>
 
 ## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> 文件
 

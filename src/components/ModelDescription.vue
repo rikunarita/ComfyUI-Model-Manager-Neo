@@ -120,14 +120,16 @@ const exitEditMode = () => {
 }
 </script>
 
-<style lang="less" module>
+<style module>
 .markdown-body {
   /*
-   * BUG FIX: Tailwind v4 no longer resolves the LESS-time `theme()` helper
-   * inside SFC module styles — the literal string `theme("fontFamily.sans")`
-   * ended up in the built CSS and the declarations were dropped as invalid.
-   * The resolved default-theme values are inlined instead (identical to what
-   * Tailwind v3 emitted for these keys).
+   * BUG FIX: Tailwind v4 no longer resolves the `theme()` helper inside SFC
+   * module styles — the literal string `theme("fontFamily.sans")` ended up in
+   * the built CSS and the declarations were dropped as invalid. The resolved
+   * default-theme values are inlined instead (identical to what Tailwind v3
+   * emitted for these keys). This block is plain CSS with native nesting —
+   * the former `lang="less"` used no LESS-specific features, so the `less` /
+   * `postcss-less` toolchain was dropped.
    */
   font-family:
     ui-sans-serif,
