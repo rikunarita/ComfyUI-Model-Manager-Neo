@@ -443,7 +443,7 @@ jobs:
           PYTHONPATH=native/native-bin/linux-x86_64t "$PY315" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
           PYTHONPATH=native/native-bin/linux-x86_64t "$PY315T" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-bin-linux
           # Verification-only: on `main` the publish job commits these eight
@@ -560,7 +560,7 @@ jobs:
       # Two tag directories (not a bare file) so the download-artifact LCA
       # keeps the tag segments — the windows/macos shapes must stay
       # distinguishable for the size-budget and publish staging.
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-bin-macos
           # Verification-only, 7 days — see the native-bin-linux upload.
@@ -654,7 +654,7 @@ jobs:
           PYTHONPATH=native/native-bin/windows-x86_64t "$PY315" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
           PYTHONPATH=native/native-bin/windows-x86_64t "$PY315T" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-bin-windows
           # Verification-only, 7 days — see the native-bin-linux upload.
@@ -1027,7 +1027,7 @@ jobs:
 
       - name: Upload crash artifacts (if any)
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fuzz-crashes
           path: native/crates/znn-codec/fuzz/artifacts/
@@ -1253,7 +1253,7 @@ jobs:
             echo "Sizes: baseline ${base_size} B / pgo ${pgo_size} B (budget 5242880 B; G3 enforced by --size-gate above)."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pgo-measure-report
           path: |
