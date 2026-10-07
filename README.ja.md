@@ -638,9 +638,10 @@ codec は zenwebp（AGPL‑3.0）を使用 — 全文は [`native/NOTICE`](nativ
 
 この節は GPL‑3.0 ライセンスが求める通り、フォークの差分を明示します。
 比較の基準は [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
-**v2.8.5** です。機能は保持・拡張されており、_削除_されたのは 2 つ —
-PrimeVue 依存そのものと、バッチスキャン機能です
-（[削除された機能: バッチスキャン](#removed-feature)参照）。
+**v2.8.5** です。機能は保持・拡張されており、_削除_されたのは 3 つ —
+PrimeVue 依存そのもの、バッチスキャン機能、ノードコピーボタンです
+（[削除された機能: バッチスキャン](#removed-feature)、
+[削除された機能: ノードコピー](#removed-feature-copy-node)参照）。
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="26" height="26" align="middle" alt=""> インターフェース
 
@@ -779,8 +780,6 @@ Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備え�
 
 ---
 
-<a id="documentation"></a>
-
 <a id="removed-feature-copy-node"></a>
 
 ## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 削除された機能: ノードをクリップボードへコピー
@@ -790,6 +789,10 @@ Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備え�
 ComfyUI 内部クリップボードへ複製する挙動はグラフ自身のコピー&ペーストと
 衝突しがちで、本来の目的（キャンバスへローダーノードを置くこと）は
 カードのドラッグ、または**ノードを追加**ボタンで直接達成できるためです。
+
+---
+
+<a id="documentation"></a>
 
 ## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> ドキュメント
 

@@ -569,8 +569,9 @@ WebP 編解碼使用 zenwebp（AGPL‑3.0）—— 全文見
 
 本節按 GPL‑3.0 授權的要求明示 fork 的差異。比較基準為
 [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
-**v2.8.5**。功能被保留並擴充套件；被_移除_的只有兩樣：PrimeVue 相依本身，
-以及批次掃描功能 —— 見[被移除的功能：批次掃描](#removed-feature)。
+**v2.8.5**。功能被保留並擴展；被_移除_的共有三樣：PrimeVue 相依本身、
+批次掃描功能，以及複製節點按鈕 —— 見[被移除的功能：批次掃描](#removed-feature)
+與[被移除的功能：複製節點](#removed-feature-copy-node)。
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="26" height="26" align="middle" alt=""> 介面
 
@@ -695,8 +696,6 @@ Markdown 筆記一起呈現；沒有預覽的模型在網格中直接帶上隨�
 
 ---
 
-<a id="documentation"></a>
-
 <a id="removed-feature-copy-node"></a>
 
 ## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> 被移除的功能：複製節點到剪貼簿
@@ -705,6 +704,10 @@ Markdown 筆記一起呈現；沒有預覽的模型在網格中直接帶上隨�
 把半設定的載入器節點複製進 ComfyUI 內部剪貼簿，容易與圖譜自身的複製/貼上
 流程衝突；而其實際目的（把載入器節點放到畫布上）由拖曳卡片或**新增節點**
 按鈕更直接地達成。
+
+---
+
+<a id="documentation"></a>
 
 ## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> 文件
 

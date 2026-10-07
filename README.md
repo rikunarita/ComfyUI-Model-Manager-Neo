@@ -541,7 +541,7 @@ bottom bar** — or use the corner button on a folder card — and every
 follow their models) and **moved into the bundle folder `<name>_DeltaZNN`**;
 the original folder disappears once it empties. Models that are already
 compressed in place (single-model button, auto-compress settings, or older
-versions) join the bundle as they are - moved, not re-compressed - so no
+versions) join the bundle as they are — moved, not re-compressed — so no
 compressed straggler remains beside it. A `*_DeltaZNN` bundle is
 sealed:
 
@@ -664,9 +664,10 @@ loader's exact reason instead of failing silently.
 This section makes the fork's differences explicit, as the GPL‑3.0 license
 requires. The comparison baseline is
 [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
-**v2.8.5**. Functionality is preserved and extended; two things were _removed_:
-the PrimeVue dependency itself, and the batch‑scan feature — see
-[Removed feature: batch scan](#removed-feature).
+**v2.8.5**. Functionality is preserved and extended; three things were _removed_:
+the PrimeVue dependency itself, the batch‑scan feature and the copy‑node button
+— see [Removed feature: batch scan](#removed-feature) and
+[Removed feature: copy node](#removed-feature-copy-node).
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="26" height="26" align="middle" alt=""> Interface
 
@@ -805,8 +806,6 @@ installation's saved setting.
 
 ---
 
-<a id="documentation"></a>
-
 <a id="removed-feature-copy-node"></a>
 
 ## <img src="https://api.iconify.design/lucide/trash-2.svg?color=%23ef4444" width="34" height="34" align="middle" alt=""> Removed feature: copy node to clipboard
@@ -817,6 +816,10 @@ into ComfyUI's internal clipboard kept colliding with the graph's own
 copy/paste flow, and the real goal (a loader node on the canvas) is served
 better by dragging the card — or the **Add node** button — straight onto the
 graph.
+
+---
+
+<a id="documentation"></a>
 
 ## <img src="https://api.iconify.design/lucide/book-open.svg?color=%237c3aed" width="34" height="34" align="middle" alt=""> Documentation
 

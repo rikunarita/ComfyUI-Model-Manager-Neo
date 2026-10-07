@@ -192,15 +192,15 @@ base‑info table, and two tabs.
 - **Download to local** — the download‑icon button in the action row saves the
   model file to your machine as an attachment (file name exactly as in the
   library). The whole action row (ZipNN, star, hub page, identify, add node,
-  upload to hub, local download, edit, delete) shares one button size inside a
-  single inline scroll row.
+  load workflow, upload to hub, local download, edit, delete) shares one button
+  size inside a single inline scroll row.
 - **Upload to hub** — the upload‑icon button in the action row opens the shared
   upload wizard with this model prefilled: pick Hugging Face or ModelScope and
   the wizard skips the type / model steps, landing on the upload form with the
   model path already filled in.
 - **Copy row values** — hovering a row of the base‑info table (type, directory,
   sub‑folder, file name, size, dates) or of the Information table reveals a
-  copy button at the end of that row - a sticky cell, so it stays at the right
+  copy button at the end of that row — a sticky cell, so it stays at the right
   edge of the visible panel even while the table scrolls sideways (wide rows);
   one click puts that row's value on the clipboard.
 - **Description** tab — rendered Markdown stored in a `*.md` file next to the
@@ -577,7 +577,7 @@ bar (or use the corner button on a folder card). After a confirmation, every
 follow their models — and every compressed file is **moved into the bundle
 folder `<name>_DeltaZNN`** (the original folder disappears once it empties). Models that are already
 compressed in place (single-model button, auto-compress settings, or older
-versions) join the bundle as they are - moved, not re-compressed. Such a
+versions) join the bundle as they are — moved, not re-compressed. Such a
 bundle folder is sealed: only ZipNN content (`*.znn.*` models, `*.znn`
 delta files) can live inside it (uploads, downloads and moves of plain models
 into it are refused). The bundle's ZipNN button is **inverted**; pressing it
