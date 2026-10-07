@@ -91,10 +91,14 @@ jobs:
       - name: Sweep dead scopes and superseded generations
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # template-injection hardening (zizmor): the dispatch input reaches
+          # the shell through an env binding, never through direct ${{ }}
+          # expansion inside the run block.
+          OLDER_THAN_DAYS: ${{ github.event.inputs.older_than_days || '0' }}
         run: |
           set -euo pipefail
           extra=()
-          days="${{ github.event.inputs.older_than_days || '0' }}"
+          days="$OLDER_THAN_DAYS"
           if [[ "$days" != "0" ]]; then
             extra+=(--older-than-days "$days")
           fi

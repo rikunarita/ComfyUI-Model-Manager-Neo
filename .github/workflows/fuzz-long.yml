@@ -87,8 +87,12 @@ jobs:
         run: cargo +nightly fuzz build -O --target x86_64-unknown-linux-gnu "${{ matrix.target }}"
 
       - name: Fuzz ${{ matrix.target }} for the scheduled budget
+        env:
+          # template-injection hardening (zizmor): dispatch input via env
+          # binding instead of direct ${{ }} expansion in the run block.
+          FUZZ_HOURS: ${{ github.event.inputs.hours || '3' }}
         run: |
-          HOURS="${{ github.event.inputs.hours || '3' }}"
+          HOURS="$FUZZ_HOURS"
           SECS=$(( HOURS * 3600 ))
           # ASan allocator tuning: the default quarantine (256 MB) + lazy
           # page release retains hundreds of MB of already-freed pages over

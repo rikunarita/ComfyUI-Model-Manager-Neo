@@ -409,9 +409,13 @@ jobs:
       # flavours (the ft leg also asserts the GIL is really disabled, so a
       # mis-installed GIL interpreter cannot pass as the free-threaded one).
       - name: Import smoke (linux-x86_64t artifact, CPython 3.15 GIL + free-threaded)
+        env:
+          # template-injection hardening (zizmor): step outputs via env binding.
+          PY315: ${{ steps.py315.outputs.python-path }}
+          PY315T: ${{ steps.py315t.outputs.python-path }}
         run: |
-          PYTHONPATH=native/native-bin/linux-x86_64t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
-          PYTHONPATH=native/native-bin/linux-x86_64t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/linux-x86_64t "$PY315" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/linux-x86_64t "$PY315T" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -508,9 +512,13 @@ jobs:
           freethreaded: true
 
       - name: Import smoke (macos-universal2t artifact, CPython 3.15 GIL + free-threaded arm64)
+        env:
+          # template-injection hardening (zizmor): step outputs via env binding.
+          PY315: ${{ steps.py315.outputs.python-path }}
+          PY315T: ${{ steps.py315t.outputs.python-path }}
         run: |
-          PYTHONPATH=native/native-bin/macos-universal2t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15 arm64):', mm_core.api_version(), mm_core.core_version())"
-          PYTHONPATH=native/native-bin/macos-universal2t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t arm64):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/macos-universal2t "$PY315" -c "import mm_core; print('abi3t import OK (GIL 3.15 arm64):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/macos-universal2t "$PY315T" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t arm64):', mm_core.api_version(), mm_core.core_version())"
 
       # Two tag directories (not a bare file) so the download-artifact LCA
       # keeps the tag segments — the windows/macos shapes must stay
@@ -590,9 +598,13 @@ jobs:
           freethreaded: true
 
       - name: Import smoke (windows-x86_64t artifact, CPython 3.15 GIL + free-threaded)
+        env:
+          # template-injection hardening (zizmor): step outputs via env binding.
+          PY315: ${{ steps.py315.outputs.python-path }}
+          PY315T: ${{ steps.py315t.outputs.python-path }}
         run: |
-          PYTHONPATH=native/native-bin/windows-x86_64t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
-          PYTHONPATH=native/native-bin/windows-x86_64t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/windows-x86_64t "$PY315" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/windows-x86_64t "$PY315T" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
 
       - uses: actions/upload-artifact@v7
         with:
