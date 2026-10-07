@@ -11,3 +11,12 @@ overrides:
   # user decision). fallow-type-aware's open `typescript` range would otherwise
   # re-resolve to 7.x on update; pin the whole tree to the 6.x toolchain.
   typescript: "6.0.3"
+  # CVE-2026-93749 (GHSA-68fv-2mgg-jv7q, HIGH, CVSS 8.7): event-loop DoS via
+  # indexed source-map section offsets, fixed in 1.2.2 (released 2026-09-30).
+  # Nothing depends on it directly; it arrives via build-time toolchain
+  # (@tailwindcss/node, @vue/compiler-*, postcss) and via @intlify/
+  # message-compiler, whose esm-bundler build (the one Vite bundles) only
+  # carries a `/// <reference types="source-map-js" />` comment — verified
+  # 2026-10-07: zero source-map traces in the shipped web/ bundle. An
+  # override is the only pnpm-native way to force the fixed floor tree-wide.
+  source-map-js: "1.2.2"
