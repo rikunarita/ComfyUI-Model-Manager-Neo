@@ -92,9 +92,11 @@
   （型を残すと連鎖で unused‑types 警告に落ちます）。
 - **fuzz‑long の再ディスパッチはファズ表面が変わったときだけ**: 表面不変なら
   既存 run の証跡と週次スケジュール（日曜 18:00 UTC・7 ターゲット）が
-  担保します。PAT からの `workflow_dispatch` は 403
-  （Actions 権限不足と default‑branch 制約）になるため、GitHub UI からの
-  手動ディスパッチはユーザに依頼します。
+  担保します。PAT からの `workflow_dispatch` はかつて 403（Actions 権限不足）
+  だったが、2026‑10‑07 に当日発行 PAT からの dev への dispatch（hours=1・
+  run 37572923805）が成功（204）= 成否はトークンの Actions 権限次第。
+  成功すればセッション自身がディスパッチして CI 検証まで完結でき、403 の
+  場合は従来どおり GitHub UI からユーザへ依頼します。
 - **GitHub Actions の更新は 1 action ずつ別コミット**（bisect 可能にするため）。
 - **コミット前に必ず `pnpm build` を実行する**: `pnpm dev` は
   `web/manager-dev.js` を書き出す前に **`web/` ディレクトリ全体を削除する**
@@ -814,12 +816,18 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   2026‑10‑09 予定）。ft セルは `freethreaded: true` 側で切り替わるため、
   `3.15t` という文字列は書きません。
 - **Plan‑2 R5**: fuzz-long.yml の apt（clang + mold）ステップ削除 —
-  **dev 完了（2026‑10‑07）**: native.yml fuzz-smoke と fuzz-long.yml の双方から
-  削除した（mold は -fuse-ld 参照ゼロの不参照・clang は rustc 同梱
-  compiler‑rt で不要 = native/.cargo/config.toml の方針どおり）。dev push の
-  fuzz-smoke（7 ターゲット × 60 s・ASan・gnu・rust-lld）成功で CI セル検証
-  済み。main 反映後の初回週次 run（schedule は default branch 限定）または
-  ユーザ dispatch が fuzz-long 側の最終確認。
+  **完了・検証済み（2026‑10‑07）**: native.yml fuzz-smoke と fuzz-long.yml の
+  双方から削除した（mold は -fuse-ld 参照ゼロの不参照・clang は rustc 同梱
+  compiler‑rt で不要 = native/.cargo/config.toml の方針どおり）。証跡は三点:
+  ① 2026‑10‑04 の週次 run（main@736fbe4・旧ファイル = apt あり）7/7 success
+  = R5 の前提「rust‑lld 移行後の初回週次成功」は削除時点で既に充足済み
+  （-O + 3 h が rust‑lld で成立し、mold はインストール済みだが不参照）、
+  ② dev push の fuzz-smoke（7 ターゲット × 60 s・ASan・-D・clang/mold 無し）
+  success、③ PAT から fuzz-long を dev へ hours=1 で dispatch
+  （run 37572923805・新ファイル）— 全 7 ジョブの「Build fuzz target
+  (release + ASan, gnu)」ステップ success = **-O ビルドも clang/mold 不要**
+  を実証（1 h 予算のファズ本体は通常の週次 run と同じ挙動で apt 削除と
+  無関係）。
 - **cache‑targets の再考**: native‑build‑linux の `cache-targets: "false"`
   （registry のみキャッシュ）は保留 — cold ビルドの実測を 1 run で計測して
   から判断します。
@@ -903,7 +911,11 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   `#removed-feature` / `#removed-feature-copy-node` は小見出し位置に保持。
 - **Plan‑2 R5 完了（コミット 2f751fb・§7 参照）**: native.yml fuzz-smoke と
   fuzz-long.yml の apt（clang + mold）ステップ削除。dev push の fuzz-smoke
-  成功（7:49・ステップ一覧に apt 無し）でセル検証済み。native/README の
+  成功（7:49・ステップ一覧に apt 無し）でセル検証済み。さらに PAT からの
+  dev dispatch（hours=1・run 37572923805・新ファイル）で全 7 ジョブの
+  release+ASan ビルドステップが成功 = -O も clang/mold 不要を実証
+  （証跡三点の詳細は §7 R5）。2026‑10‑04 の週次 run（旧ファイル・apt あり・
+  main@736fbe4）7/7 success も R5 前提の充足として確認した。native/README の
   「CI の apt ステップも撤去済み」記述はこれで全ジョブに対して真になった。
 - **ci.yml の二重 pnpm install 解消（コミット be9e51b）**: Build ステップを
   `pnpm exec vite build` へ（package.json の build スクリプト前置 install は
