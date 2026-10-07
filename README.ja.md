@@ -815,6 +815,8 @@ ComfyUI 内部クリップボードへ複製する挙動はグラフ自身のコ
   計測記録。
 - [`native/README.md`](native/README.md) — Rust ワークスペース: レイアウト・
   テストピラミッド・ファジング構成・プリビルドバイナリの生成方法。
+- [`SECURITY.md`](SECURITY.md) — 脆弱性の非公開報告手順・対象範囲の定義・
+  push のたびに CI が回すセキュリティゲートの一覧。
 
 ---
 
@@ -906,6 +908,14 @@ CI は ERROR 級の指摘で失敗します。
 abi3t 成果物を 3.15 の GIL/フリースレッド両 build で import 疎通し、pytest スイート
 全体（フリースレッド 3.15t セルを含む）と公式 `zipnn` クロス検証を
 Linux・Windows・macOS で実行します。
+
+**セキュリティゲート**は上記すべてと並んで `Security` ワークフローが
+担当します: **CodeQL**（default setup・extended クエリスイート —
+TypeScript/Vue・Python・Rust・Actions 設定そのもの）、**OSV-Scanner**
+（4 つの依存面すべて。PR は新規混入の脆弱性でゲート）、**Gitleaks**
+（GitHub 自身の push protection と並走する全履歴シークレット走査）、
+**zizmor**（ワークフロー加固）。accept した検出はすべて理由付きで
+記録されています — 詳細は [`SECURITY.md`](SECURITY.md)。
 
 ### 2. プロジェクト構成
 

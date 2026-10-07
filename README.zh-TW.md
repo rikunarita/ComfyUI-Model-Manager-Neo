@@ -730,6 +730,8 @@ Markdown 筆記一起呈現；沒有預覽的模型在網格中直接帶上隨�
   測量記錄。
 - [`native/README.md`](native/README.md) —— Rust 工作區：佈局、測試
   金字塔、fuzz 配置與預建置二進位的生成方式。
+- [`SECURITY.md`](SECURITY.md) —— 如何私下回報漏洞、範圍界定，以及
+  每次 push 都會執行的 CI 安全關卡。
 
 ---
 
@@ -816,6 +818,13 @@ ESLint + Stylelint + Prettier，後端 Ruff），外加完整的 `pnpm typecheck
 smoke fuzz、在 CPython 3.12 與 3.14 下 import abi3 產物、在 3.15 的
 GIL/自由執行緒兩種建置下 import abi3t 產物，並在 Linux、Windows、macOS 上
 執行完整 pytest 套件（含自由執行緒 3.15t 單元）與官方 `zipnn` 交叉驗證。
+
+**安全關卡**與上述檢查並行，由 `Security` 工作流程承載：**CodeQL**
+（default setup、extended 查詢套件 —— TypeScript/Vue、Python、Rust 以及
+Actions 設定本身）、**OSV-Scanner**（全部四個相依面；PR 以新引入的漏洞
+攔截）、**Gitleaks**（與 GitHub 自帶 push protection 並行的全歷史金鑰
+掃描）與 **zizmor**（工作流程加固）；所有接受的風險都附有書面理由 ——
+詳見 [`SECURITY.md`](SECURITY.md)。
 
 ### 2. 專案結構
 

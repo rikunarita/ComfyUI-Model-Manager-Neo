@@ -842,6 +842,8 @@ Further reading:
   performance claim in this README.
 - [`native/README.md`](native/README.md) — the Rust workspace: layout, test
   pyramid, fuzzing setup and how the prebuilt binaries are produced.
+- [`SECURITY.md`](SECURITY.md) — how to report a vulnerability privately,
+  what counts as in scope, and the security gates CI runs on every push.
 
 ---
 
@@ -933,6 +935,15 @@ platform artifacts (four abi3 + four abi3t), enforces the size budget, smoke‑f
 imports the abi3 artifact under CPython 3.12 and 3.14 and the abi3t artifact
 under both 3.15 builds (GIL and free-threaded), and runs the full pytest
 suite — including a free-threaded 3.15t cell — plus the official‑`zipnn` cross‑validation on Linux, Windows and macOS.
+
+**Security gates** run beside all of the above in the `Security` workflow:
+**CodeQL** (default setup, extended query suite — TypeScript/Vue, Python,
+Rust and the Actions configuration itself), **OSV-Scanner** (all four
+dependency surfaces; pull requests are gated on newly introduced
+vulnerabilities), **Gitleaks** (full-history secret sweeps beside GitHub's
+own push protection) and **zizmor** (workflow hardening), with every
+accepted finding recorded with its reason — see
+[`SECURITY.md`](SECURITY.md).
 
 ### 2. Project structure
 
