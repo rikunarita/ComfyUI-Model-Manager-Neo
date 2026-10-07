@@ -1,0 +1,29 @@
+# OSV-Scanner configuration — native/ (NEO-PLAN-2026-004, Step 2).
+#
+# Applies to native/Cargo.lock only (per-directory config semantics — see the
+# root osv-scanner.toml header). Both entries are RustSec INFORMATIONAL
+# "unmaintained" advisories: they have no fixed version by construction
+# (introduced 0.0.0-0, no fix event), so no expiry is set — an expiry would
+# only re-report the identical unfixable advisory. Each reason names the
+# concrete event that SHOULD trigger re-review.
+
+# RUSTSEC-2025-0141 "Bincode is unmaintained".
+# bincode 2.0.1 is the TRUE stable release — the crates.io max_stable 3.0.0
+# is a compile_error! name-squat placeholder (Agent/MEMO §4.1). Usage here is
+# narrow: the persistent front-matter index encoding, guarded by blake3
+# integrity checks and automatic full-rebuild-on-corruption, never parsing
+# untrusted bytes. No successor crate is designated upstream.
+# Re-review trigger: a maintained bincode successor emerges, or the index
+# format is revisited.
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0141"
+reason = "Informational unmaintained advisory; no successor version exists (3.0.0 is a name-squat placeholder). Local-only index encoding with blake3 integrity + rebuild-on-corruption. See Agent/Plan-4.md D4."
+
+# RUSTSEC-2024-0436 "paste - no longer maintained".
+# paste is a compile-time proc-macro helper (identifier concatenation) pulled
+# in transitively; it has zero runtime surface in the shipped binaries.
+# Re-review trigger: the transitive dependents drop it, or a maintained
+# replacement becomes the ecosystem norm.
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+reason = "Informational unmaintained advisory; proc-macro (compile-time only, no runtime surface), transitive dependency. See Agent/Plan-4.md D4."

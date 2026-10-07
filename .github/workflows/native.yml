@@ -51,6 +51,12 @@ on:
   # (the PGO pilot) and for on-demand re-verification.
   workflow_dispatch:
 
+# Least privilege for every job (zizmor excessive-permissions / CodeQL
+# actions/missing-workflow-permissions). The ONLY writer is publish-native-bin,
+# which elevates itself with a job-level `permissions: contents: write`.
+permissions:
+  contents: read
+
 concurrency:
   # NOTE (2026-09-30 incident, run #78): `group: native-${{ github.ref }}` is
   # NOT collision-free. When a PR is merged seconds after opening, GitHub can
@@ -91,9 +97,13 @@ jobs:
       run:
         working-directory: native
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — head 89b1218 2026-10-07; see .github/zizmor.yml
         with:
           components: rustfmt, clippy
 
@@ -119,7 +129,12 @@ jobs:
       # (rust-cache dist/save.js returns early), and the cache lookup falls back
       # to the default branch, so PR/tag/feature runs still start warm from
       # main's entries.
-      - uses: Swatinem/rust-cache@v2
+      # cache-poisoning hardening (zizmor): tag runs are the release-
+      # verification runs of this workflow — they must NOT read previously
+      # cached CI state (cold build is the point); push/PR/dispatch keep the
+      # cache with the unchanged save-if write policy below.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native
           save-if: >-
@@ -127,7 +142,7 @@ jobs:
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       # pyo3's build script wants a Python interpreter present.
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -250,31 +265,42 @@ jobs:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — head 89b1218 2026-10-07; see .github/zizmor.yml
         with:
           targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
           # llvm-profdata for the PGO merge below.
           components: llvm-tools-preview
 
       # Cache write policy — see native-test.
-      - uses: Swatinem/rust-cache@v2
+      # cache-poisoning hardening (zizmor): tag runs are the release-
+      # verification runs of this workflow — they must NOT read previously
+      # cached CI state (cold build is the point); push/PR/dispatch keep the
+      # cache with the unchanged save-if write policy below.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native
           save-if: >-
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
       # Phase 7 T4: uv replaces pip in the CI layer (drop-in
       # `uv pip install --system` against the setup-python interpreter).
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          enable-cache: true
+          # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
+          # (release verification builds cold); unchanged elsewhere.
+          enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install cross toolchain (pinned)
         run: |
@@ -375,7 +401,7 @@ jobs:
       # 3.15.0-rc.2 GIL (PyO3 requires host >= target; the pin stays until
       # the 3.15 final lands in the runner manifest — the
       # ABI froze at rc1, so the final is a label-only swap).
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315
         with:
           python-version: "3.15.0-rc.2"
@@ -399,7 +425,7 @@ jobs:
             fi
           done
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315t
         with:
           python-version: "3.15.0-rc.2"
@@ -409,11 +435,15 @@ jobs:
       # flavours (the ft leg also asserts the GIL is really disabled, so a
       # mis-installed GIL interpreter cannot pass as the free-threaded one).
       - name: Import smoke (linux-x86_64t artifact, CPython 3.15 GIL + free-threaded)
+        env:
+          # template-injection hardening (zizmor): step outputs via env binding.
+          PY315: ${{ steps.py315.outputs.python-path }}
+          PY315T: ${{ steps.py315t.outputs.python-path }}
         run: |
-          PYTHONPATH=native/native-bin/linux-x86_64t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
-          PYTHONPATH=native/native-bin/linux-x86_64t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/linux-x86_64t "$PY315" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/linux-x86_64t "$PY315T" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-bin-linux
           # Verification-only: on `main` the publish job commits these eight
@@ -433,30 +463,41 @@ jobs:
     timeout-minutes: 60
     runs-on: macos-latest # arm64; universal2 covers x86_64 as well
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — head 89b1218 2026-10-07; see .github/zizmor.yml
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
           # llvm-tools-preview removed with the macOS non-PGO decision
           # (run #107 evidence — see the build step comment below).
 
       # Cache write policy — see native-test.
-      - uses: Swatinem/rust-cache@v2
+      # cache-poisoning hardening (zizmor): tag runs are the release-
+      # verification runs of this workflow — they must NOT read previously
+      # cached CI state (cold build is the point); push/PR/dispatch keep the
+      # cache with the unchanged save-if write policy below.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native
           save-if: >-
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
       # Phase 7 T4: uv replaces pip in the CI layer.
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          enable-cache: true
+          # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
+          # (release verification builds cold); unchanged elsewhere.
+          enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install maturin (pinned)
         run: uv pip install --system maturin==1.15.0
@@ -490,7 +531,7 @@ jobs:
       # 3.15.0-rc.2. The wheel naming check is done by build-native.sh's
       # cp315*abi3t* glob + the
       # .abi3t.so extraction (both fail loudly on a mismatch).
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315
         with:
           python-version: "3.15.0-rc.2"
@@ -501,21 +542,25 @@ jobs:
       - name: Verify universal2t fat binary
         run: lipo -info native/native-bin/macos-universal2t/mm_core.abi3t.so
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315t
         with:
           python-version: "3.15.0-rc.2"
           freethreaded: true
 
       - name: Import smoke (macos-universal2t artifact, CPython 3.15 GIL + free-threaded arm64)
+        env:
+          # template-injection hardening (zizmor): step outputs via env binding.
+          PY315: ${{ steps.py315.outputs.python-path }}
+          PY315T: ${{ steps.py315t.outputs.python-path }}
         run: |
-          PYTHONPATH=native/native-bin/macos-universal2t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15 arm64):', mm_core.api_version(), mm_core.core_version())"
-          PYTHONPATH=native/native-bin/macos-universal2t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t arm64):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/macos-universal2t "$PY315" -c "import mm_core; print('abi3t import OK (GIL 3.15 arm64):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/macos-universal2t "$PY315T" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t arm64):', mm_core.api_version(), mm_core.core_version())"
 
       # Two tag directories (not a bare file) so the download-artifact LCA
       # keeps the tag segments — the windows/macos shapes must stay
       # distinguishable for the size-budget and publish staging.
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-bin-macos
           # Verification-only, 7 days — see the native-bin-linux upload.
@@ -533,29 +578,40 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — head 89b1218 2026-10-07; see .github/zizmor.yml
         with:
           # llvm-profdata for maturin --pgo (resolved from the rustc sysroot).
           components: llvm-tools-preview
 
       # Cache write policy — see native-test.
-      - uses: Swatinem/rust-cache@v2
+      # cache-poisoning hardening (zizmor): tag runs are the release-
+      # verification runs of this workflow — they must NOT read previously
+      # cached CI state (cold build is the point); push/PR/dispatch keep the
+      # cache with the unchanged save-if write policy below.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native
           save-if: >-
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
       # Phase 7 T4: uv replaces pip in the CI layer.
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          enable-cache: true
+          # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
+          # (release verification builds cold); unchanged elsewhere.
+          enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install maturin (pinned)
         run: uv pip install --system maturin==1.15.0
@@ -575,7 +631,7 @@ jobs:
       # t artifact is separated ONLY by its windows-x86_64t directory (the
       # upload below carries the
       # directory structure and the publish staging is directory-tag-first).
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315
         with:
           python-version: "3.15.0-rc.2"
@@ -583,18 +639,22 @@ jobs:
       - name: Build windows-x86_64t (MSVC, abi3t, non-PGO)
         run: ./scripts/build-native.sh --target windows-x86_64t --size-gate
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315t
         with:
           python-version: "3.15.0-rc.2"
           freethreaded: true
 
       - name: Import smoke (windows-x86_64t artifact, CPython 3.15 GIL + free-threaded)
+        env:
+          # template-injection hardening (zizmor): step outputs via env binding.
+          PY315: ${{ steps.py315.outputs.python-path }}
+          PY315T: ${{ steps.py315t.outputs.python-path }}
         run: |
-          PYTHONPATH=native/native-bin/windows-x86_64t "${{ steps.py315.outputs.python-path }}" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
-          PYTHONPATH=native/native-bin/windows-x86_64t "${{ steps.py315t.outputs.python-path }}" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/windows-x86_64t "$PY315" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/windows-x86_64t "$PY315T" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-bin-windows
           # Verification-only, 7 days — see the native-bin-linux upload.
@@ -635,12 +695,12 @@ jobs:
             freethreaded: true
             tag: linux-x86_64t
     steps:
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
           freethreaded: ${{ matrix.freethreaded }}
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: native-bin-linux
           path: native-bin
@@ -683,7 +743,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [native-build-linux, native-build-macos, native-build-windows]
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: native-bin-*
           path: artifacts
@@ -767,9 +827,13 @@ jobs:
             freethreaded: true
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
           freethreaded: ${{ matrix.freethreaded || false }}
@@ -777,12 +841,14 @@ jobs:
       # Phase 7 T4: uv replaces pip in the CI layer. The torch CPU wheel
       # (~200 MB) install below is where uv's resolve+install speedup and the
       # download cache pay off the most.
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          enable-cache: true
+          # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
+          # (release verification builds cold); unchanged elsewhere.
+          enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Fetch the built native artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ matrix.artifact }}
           path: native/native-bin/_staging
@@ -873,7 +939,8 @@ jobs:
       # materialised in this job) and handed to the harness via MMNEO_TSC.
       - name: Tensor-tree wire cross-check (Rust == TypeScript)
         if: matrix.tag == 'linux-x86_64'
-        run: |
+        run:
+          | # zizmor: ignore[adhoc-packages] typescript is version-pinned to the repo's devDependency (6.0.3) and installed outside the pnpm store BY DESIGN (see the comment above); its subtree is throwaway and the pin is checked against package.json in review
           mkdir -p /tmp/mmneo-tsc && cd /tmp/mmneo-tsc
           npm init -y >/dev/null
           npm install --no-audit --no-fund --silent typescript@6.0.3 >/dev/null
@@ -907,16 +974,23 @@ jobs:
       run:
         working-directory: native/crates/znn-codec/fuzz
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@nightly # floating branch by policy (D2) — head 0e28dd9 2026-10-07; see .github/zizmor.yml
         with:
           components: rust-src
 
       # Cache write policy — see native-test. (The 7 x 3 h fuzz-long workflow
       # caches the same workspace under its own job key; its schedule runs on
       # the default branch, so it keeps writing there.)
-      - uses: Swatinem/rust-cache@v2
+      # cache-poisoning hardening (zizmor): no cache read on tag runs — see
+      # the native-test rust-cache comment.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native/crates/znn-codec/fuzz
           save-if: >-
@@ -953,7 +1027,7 @@ jobs:
 
       - name: Upload crash artifacts (if any)
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fuzz-crashes
           path: native/crates/znn-codec/fuzz/artifacts/
@@ -993,28 +1067,39 @@ jobs:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — head 89b1218 2026-10-07; see .github/zizmor.yml
         with:
           targets: x86_64-unknown-linux-gnu
           components: llvm-tools-preview
 
       # Cache write policy — see native-test.
-      - uses: Swatinem/rust-cache@v2
+      # cache-poisoning hardening (zizmor): tag runs are the release-
+      # verification runs of this workflow — they must NOT read previously
+      # cached CI state (cold build is the point); push/PR/dispatch keep the
+      # cache with the unchanged save-if write policy below.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native
           save-if: >-
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          enable-cache: true
+          # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
+          # (release verification builds cold); unchanged elsewhere.
+          enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install cross toolchain (pinned, same as native-build-linux)
         run: uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0
@@ -1168,7 +1253,7 @@ jobs:
             echo "Sizes: baseline ${base_size} B / pgo ${pgo_size} B (budget 5242880 B; G3 enforced by --size-gate above)."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pgo-measure-report
           path: |
@@ -1194,9 +1279,9 @@ jobs:
       contents: write
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked] the publish bot commits+pushes the rebuilt artifacts to main (contents: write, scoped to this job); no artifact upload happens here
 
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: native-bin-*
           path: artifacts

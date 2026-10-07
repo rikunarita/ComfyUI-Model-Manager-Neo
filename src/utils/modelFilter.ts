@@ -65,9 +65,15 @@ const ESCAPED_STAR_RE = /\\\*/g
 const buildTokenRegex = (raw: string): RegExp => {
   try {
     const escaped = raw.replace(REGEX_SPECIAL_RE, '\\$&').replace(ESCAPED_STAR_RE, '.*')
-    return new RegExp(escaped, 'i')
+    // security/detect-non-literal-regexp triage (NEO-PLAN-2026-004 Step 8):
+    // `escaped` cannot carry user-injected regex syntax — EVERY special is
+    // backslash-escaped above and only the intentional `*` -> `.*` wildcard
+    // (the documented search semantics) is restored. The raw-token fallback
+    // below is the historical behaviour for a pattern that fails to compile;
+    // a fully-escaped pattern cannot fail, so it is unreachable in practice.
+    return new RegExp(escaped, 'i') // eslint-disable-line security/detect-non-literal-regexp
   } catch {
-    return new RegExp(raw, 'i')
+    return new RegExp(raw, 'i') // eslint-disable-line security/detect-non-literal-regexp
   }
 }
 

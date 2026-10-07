@@ -1,0 +1,61 @@
+# zizmor configuration — see https://docs.zizmor.sh/configuration/
+#
+# Policy (NEO-PLAN-2026-004): every ignore below is line-scoped and carries
+# its justification. Line-scoped ignores are deliberately brittle: when
+# native.yml shifts, a suppressed finding RE-APPEARS and forces re-review
+# (fail-safe direction). Re-run `zizmor --offline .github` after any workflow
+# edit and refresh the line numbers here if — and only if — the justification
+# still holds.
+#
+# NOT ignored here (handled in the workflows themselves):
+#   - template-injection: fixed via env bindings (2026-10-07, Step 1)
+#   - artipacked: persist-credentials: false everywhere; the single publish-bot
+#     checkout carries an inline `# zizmor: ignore[artipacked]` with its reason
+#   - adhoc-packages: inline ignore with reason (typescript@6.0.3 cross-check)
+#   - excessive-permissions: top-level `permissions: contents: read` added
+
+rules:
+  unpinned-uses:
+    # Project policy (Agent/Plan-4.md D2): dtolnay/rust-toolchain's @stable /
+    # @nightly are BRANCHES by design — this project's toolchain policy is
+    # deliberately version-floating (Agent/MEMO §10: "dtolnay/rust-toolchain
+    # @stable・バージョンピン無しの方針どおり"; toolchain drift is caught by
+    # the CI gates themselves — precedent: the clippy 1.99 drift fix 5fa3679).
+    # SHA-pinning would freeze the toolchain and contradict that policy, so
+    # these two refs are held at ref-pin; everything else stays on zizmor's
+    # default hash-pin policy (restated explicitly so the exception is
+    # visible). The branch heads are annotated in the workflows and rotate;
+    # the annotation dates the last audit.
+    config:
+      policies:
+        dtolnay/rust-toolchain: ref-pin
+        "*": hash-pin
+
+  cache-poisoning:
+    # native.yml is flagged because its `tags: v*` trigger makes it a
+    # "release workflow" that reads CI caches. Both primitives are already
+    # mitigated in the workflow itself (2026-10-07, Step 1):
+    #   1. WRITES are restricted to trusted events by every rust-cache
+    #      `save-if` (non-PR pushes to main/dev only — the authoritative
+    #      comment lives at native.yml's native-test rust-cache step);
+    #   2. READS on tag runs are disabled: rust-cache steps are skipped and
+    #      setup-uv gets `enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}`,
+    #      so release verification builds COLD — exactly zizmor's primary
+    #      remediation ("release workflows should not read from the cache").
+    # zizmor 1.30.1 does not evaluate those conditional expressions (all 11
+    # findings report confidence=Low; the suggested `lookup-only` auto-fix
+    # would break the main/dev cache-save policy, so it is refused).
+    # Re-evaluate removing these ignores when zizmor >= 1.31.0 ships
+    # (docs: cache-mode awareness + conditional-disable recognition).
+    ignore:
+      - native.yml:136 # Swatinem/rust-cache (native-test) — if: !tags + save-if
+      - native.yml:285 # Swatinem/rust-cache (native-build-linux)
+      - native.yml:299 # astral-sh/setup-uv (native-build-linux) — enable-cache conditional
+      - native.yml:483 # Swatinem/rust-cache (native-build-macos)
+      - native.yml:496 # astral-sh/setup-uv (native-build-macos)
+      - native.yml:597 # Swatinem/rust-cache (native-build-windows)
+      - native.yml:610 # astral-sh/setup-uv (native-build-windows)
+      - native.yml:844 # astral-sh/setup-uv (abi3-import matrix)
+      - native.yml:992 # Swatinem/rust-cache (fuzz-smoke)
+      - native.yml:1086 # Swatinem/rust-cache (pgo-measure)
+      - native.yml:1098 # astral-sh/setup-uv (pgo-measure)

@@ -12,6 +12,12 @@ on:
     branches: [main, dev]
   pull_request:
 
+# Least privilege for every job (zizmor excessive-permissions / CodeQL
+# actions/missing-workflow-permissions): nothing in this workflow writes
+# back to the repository.
+permissions:
+  contents: read
+
 jobs:
   verify:
     # Bound any hang (e.g. a stalled package mirror) far below GitHub's 6 h
@@ -19,17 +25,21 @@ jobs:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         # no `version:` on purpose - see the header note
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 26.10.0
           cache: pnpm
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -40,12 +50,35 @@ jobs:
       # __init__.py -> utils.pip_install still run inside the USER's ComfyUI
       # Python, where uv cannot be assumed. `enable-cache` persists uv's
       # download cache (keyed on requirements.txt / pyproject.toml / uv.lock).
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
       - name: Python dependencies
+        env:
+          # Plan-4 S6.3 trial: ask OSV for known MAL (malicious-package)
+          # advisories during uv operations, blocking quarantined PyPI
+          # distributions before they execute. Opt-in preview feature of uv
+          # (announced 2026-06-08); it targets sync-family commands, so its
+          # effect on `uv pip install` is observed, not assumed. Rollback
+          # rule (Plan-4 D5): ANY failure or stall attributable to this env
+          # removes it in the same session.
+          UV_MALWARE_CHECK: "1"
         run: uv pip install --system -r requirements.txt mypy ruff==0.16.9 pytest pytest-asyncio aiohttp pyyaml requests pillow
+
+      # Plan-4 Step 6 (observation slot, D5): uv audit — the uv-native
+      # dependency audit (OSV backend, reads uv.lock directly; Astral
+      # measured 4-10x faster than pip-audit). The command is PREVIEW
+      # ("unstable, breaking changes possible"), so it is NON-BLOCKING:
+      # the authoritative Python SCA gate is osv-full in security.yml,
+      # which scans the same uv.lock. Findings go to the job summary for
+      # visibility; promote to blocking once uv audit leaves preview.
+      # Local run: `pnpm py:audit`.
+      - name: Python dependency audit (uv audit — preview, non-blocking)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          uv audit --preview-features audit-command 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile

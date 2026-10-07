@@ -2,21 +2,22 @@
 
 ## ― CodeQL（default setup）＋ OSV-Scanner ＋ Gitleaks ＋ zizmor の 4 層ゲート構築と、実測検出（OSV 10 件・zizmor 142 件・gitleaks 誤検知 1 件）の全量対処 ―
 
-| 項目           | 内容                                                                                                                                                                   |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 文書番号       | NEO-PLAN-2026-004                                                                                                                                                      |
-| 版数           | 1.0                                                                                                                                                                    |
-| 作成日         | 2026-10-07                                                                                                                                                             |
-| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                                 |
-| 対象ブランチ   | `dev`（コミット・プッシュはすべて dev — 恒久規程）                                                                                                                     |
-| 前提文書       | [`MEMO.md`](MEMO.md)・[`environment-report.md`](environment-report.md)・旧計画書（NEO-PLAN-2026-001/002/003 — git 履歴参照: `git show bd1bb97^:Agent/Plan-3.md` ほか） |
-| 状態           | **Step 0（ユーザ設定）待ち ＋ コード側 Step 1 以降は着手可 — 進捗 0/11 Step・最終更新 2026-10-07（v1.0 策定）**                                                        |
+| 項目           | 内容                                                                                                                                                                                                                          |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 文書番号       | NEO-PLAN-2026-004                                                                                                                                                                                                             |
+| 版数           | 1.0                                                                                                                                                                                                                           |
+| 作成日         | 2026-10-07                                                                                                                                                                                                                    |
+| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                                                                                                                                                        |
+| 対象ブランチ   | `dev`（コミット・プッシュはすべて dev — 恒久規程）                                                                                                                                                                            |
+| 前提文書       | [`MEMO.md`](MEMO.md)・[`environment-report.md`](environment-report.md)・旧計画書（NEO-PLAN-2026-001/002/003 — git 履歴参照: `git show bd1bb97^:Agent/Plan-3.md` ほか）                                                        |
+| 状態           | **実装完了＋発火テスト全 4 系実証＋dev CI 全緑（2026-10-07）— 進捗 11/11 Step（S5.4-S5.5・A10 のみユーザの main マージ待ち）。gitleaks 設定の「偽緑」を発火テストが初日で捕捉し修正済み（§10）。最終更新 2026-10-07（v1.1）** |
 
 ### 版数履歴
 
-| 版  | 日付       | 変更                                                                                                                                                                                                                                                                                                                   |
-| --- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1.0 | 2026-10-07 | 初版。2026-10-07 セッションの徹底調査（Web 一次ソース 24 点 — 付録 B）とツール実測（osv-scanner 2.6.0 / gitleaks 8.30.1 / zizmor 1.30.1 / ruff 0.16.9 — §1.2）に基づき策定。ユーザが採用ツール全部（CodeQL・OSV-Scanner・Gitleaks・zizmor・uv audit 観察・ruff S・eslint-plugin-security）と実測検出の全量対処を可決。 |
+| 版  | 日付       | 変更                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.1 | 2026-10-07 | 状態更新＋実施記録。Step 0–10 完了（ユーザ専任の S5.4-S5.5/A10 = main マージ待ちを除く）。実施中に判明した計画との差分: ① zizmor 設定ファイル名は **zizmor.yml**（.toml ではない — §3.3 の表記を実装で訂正）、② cache-poisoning 11 件の追加対処（native.yml の tag ランでキャッシュ読み書き無効化＋行単位 ignore 記録）、③ gitleaks-action は **v3**（Node 24・v2 と同一挙動）、④ **gitleaks 設定の偽緑事件** — allowlist のみのカスタム .gitleaks.toml は既定ルールセットを置換して検出ゼロになる（公式 README「default rules do not apply」）。[extend] useDefault = true で復元。発火テスト（S10.2）が初日で捕捉 = §6 検証プロトコルの設計価値を実証、⑤ annotated tag の SHA ピンは tag object ではなく **commit SHA へ dereference** 必須（rust-cache/pnpm-action-setup で誤ピン → zizmor ref-version-mismatch〔online〕が捕捉 → b8acf08 で修正）、⑥ dependabot.yml へ **cooldown default-days: 7** を追加（zizmor dependabot-cooldown 監査の推奨値）、⑦ git push の HTTP/2 経路で GitHub 500 が継続する時の実効フォールバック = `git -c http.version=HTTP/1.1 push`。証跡は §10 の 2026-10-07 実施記録（PR #53 の 4 ゲート発火＋dev 全緑）を参照。 |
+| 1.0 | 2026-10-07 | 初版。2026-10-07 セッションの徹底調査（Web 一次ソース 24 点 — 付録 B）とツール実測（osv-scanner 2.6.0 / gitleaks 8.30.1 / zizmor 1.30.1 / ruff 0.16.9 — §1.2）に基づき策定。ユーザが採用ツール全部（CodeQL・OSV-Scanner・Gitleaks・zizmor・uv audit 観察・ruff S・eslint-plugin-security）と実測検出の全量対処を可決。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ### 進捗マーク凡例
 
@@ -176,28 +177,28 @@
 
 **順序の根拠**: ゲート（Step 3）を先に導入すると既存検出で CI が赤になる。先に是正し、ゲートは緑の状態で導入する（各 Step 独立緑の規律）。
 
-- [ ] S1.1 `cache-cleanup.yml:97` の template-injection 修正 — `days="${{ github.event.inputs.older_than_days || '0' }}"` を **env バインド**（`env: DAYS: ${{ ... }}` → `days="$DAYS"`）へ。同ファイルの他 input 展開も一括点検。
-- [ ] S1.2 `fuzz-long.yml:91` の同修正（`HOURS`）。`native.yml:413`（info）も同型なら修正。
-- [ ] S1.3 **artipacked** 是正: 全 `actions/checkout` を棚卸しし、git 認証を要さない step へ `persist-credentials: false` を追加。**例外**: `publish-native-bin`（main・bot が git push するため credentials 必須）は据え置き、zizmor.toml に理由付き例外記録。
-- [ ] S1.4 **excessive-permissions** 是正: 4 ワークフローのトップレベルへ `permissions: contents: read`（最小権限）を置き、必要 job のみ昇格（cache-cleanup の cache 削除 = `actions: write`、publish = `contents: write` 等 — 既存の job 級 permissions は実測で native.yml に 1 箇所あり）。
-- [ ] S1.5 検証: `actionlint`（既存ツール）＋ `zizmor --offline` 再走で **error 0**（unpinned-uses は Step 4 まで残置可 — zizmor.toml のポリシーは Step 4 で締める）。dev push で ci.yml / native.yml 全緑を確認。
-- [ ] S1.6 コミット規約: 修正は関心ごとに分割（template-injection 群 / artipacked 群 / permissions 群）。日本語 conventional commits（`ci: …`）。
+- [x] S1.1 `cache-cleanup.yml:97` の template-injection 修正 — `days="${{ github.event.inputs.older_than_days || '0' }}"` を **env バインド**（`env: DAYS: ${{ ... }}` → `days="$DAYS"`）へ。同ファイルの他 input 展開も一括点検。
+- [x] S1.2 `fuzz-long.yml:91` の同修正（`HOURS`）。`native.yml:413`（info）も同型なら修正。
+- [x] S1.3 **artipacked** 是正: 全 `actions/checkout` を棚卸しし、git 認証を要さない step へ `persist-credentials: false` を追加。**例外**: `publish-native-bin`（main・bot が git push するため credentials 必須）は据え置き、zizmor.toml に理由付き例外記録。
+- [x] S1.4 **excessive-permissions** 是正: 4 ワークフローのトップレベルへ `permissions: contents: read`（最小権限）を置き、必要 job のみ昇格（cache-cleanup の cache 削除 = `actions: write`、publish = `contents: write` 等 — 既存の job 級 permissions は実測で native.yml に 1 箇所あり）。
+- [x] S1.5 検証: `actionlint`（既存ツール）＋ `zizmor --offline` 再走で **error 0**（unpinned-uses は Step 4 まで残置可 — zizmor.toml のポリシーは Step 4 で締める）。dev push で ci.yml / native.yml 全緑を確認。
+- [x] S1.6 コミット規約: 修正は関心ごとに分割（template-injection 群 / artipacked 群 / permissions 群）。日本語 conventional commits（`ci: …`）。
 
 ### 3.2 Step 2 — 依存是正とトリアージ記録
 
-- [ ] S2.1 **source-map-js → ≥1.2.2**（CVE-2026-93749・HIGH・fix あり）: `pnpm why source-map-js` で経路確認 → `pnpm-workspace.yaml` の `overrides:` へ `source-map-js: ^1.2.2` を追加（既存の typescript override と同じ機構）→ lockfile 再生成。**環境注意**（MEMO §11.3）: pnpm のサプライチェーン検証（minimumReleaseAge 系）で OOM する場合は一時的な `minimumReleaseAge: 0` ＋ `--lockfile-only` → `install --frozen-lockfile` の手順を使い、**設定はコミット前に復元**。1.2.2 の公開日が 24 h 未満ならクールダウンゲートに阻まれるため、その場合は 1 日待つか前記 workaround。
-- [ ] S2.2 `pnpm typecheck` ＋ `pnpm exec vite build`（**web/ 再ビルド — コミット前 pnpm build 規程**）＋ K15 ゲート（`node scripts/bench/front/k15.mjs`）＋ `pnpm fallow:dead` / `fallow:dupes` 緑を確認。source-map-js はビルドツールchain のためバンドル内容不変が期待されるが、**ビルド出力の差分を確認**し、変化があれば理由を記録。
-- [ ] S2.3 **osv-scanner.toml** 新設（repo root・スキーマは実装時に公式 configuration doc で確認 — 推測禁止）。記録する ignore/accept:
+- [x] S2.1 **source-map-js → ≥1.2.2**（CVE-2026-93749・HIGH・fix あり）: `pnpm why source-map-js` で経路確認 → `pnpm-workspace.yaml` の `overrides:` へ `source-map-js: ^1.2.2` を追加（既存の typescript override と同じ機構）→ lockfile 再生成。**環境注意**（MEMO §11.3）: pnpm のサプライチェーン検証（minimumReleaseAge 系）で OOM する場合は一時的な `minimumReleaseAge: 0` ＋ `--lockfile-only` → `install --frozen-lockfile` の手順を使い、**設定はコミット前に復元**。1.2.2 の公開日が 24 h 未満ならクールダウンゲートに阻まれるため、その場合は 1 日待つか前記 workaround。
+- [x] S2.2 `pnpm typecheck` ＋ `pnpm exec vite build`（**web/ 再ビルド — コミット前 pnpm build 規程**）＋ K15 ゲート（`node scripts/bench/front/k15.mjs`）＋ `pnpm fallow:dead` / `fallow:dupes` 緑を確認。source-map-js はビルドツールchain のためバンドル内容不変が期待されるが、**ビルド出力の差分を確認**し、変化があれば理由を記録。
+- [x] S2.3 **osv-scanner.toml** 新設（repo root・スキーマは実装時に公式 configuration doc で確認 — 推測禁止）。記録する ignore/accept:
   - `GHSA-vfj7-8cjw-p6xm`（braces・dev-only ビルドツール・DoS 要求入力はビルド時 glob のみ・修正版無し upstream 待ち）— **accept・upstream 監視**
   - `RUSTSEC-2025-0141`（bincode unmaintained・代替不在〔3.0.0 は名前占拠 placeholder — MEMO §4.1〕・audit 対象は永続インデックスの bincode 符号化のみ）— **accept**
   - `RUSTSEC-2024-0436`（paste unmaintained・proc-macro ユーティリティ・実行時リスク無し）— **accept**
   - `PYSEC-2026-3844/3845/3846/3847/3848/3849` ＋ 対応 GHSA（httpx2/httpcore2 2.9.1・requirements.txt 下限解決シグナル。uv.lock = 2.13.1 が権威、実 pip 解決も最新）— **ignore・理由 = D3**
   - 各エントリに**理由コメント必須**（無記録 ignore 禁止）。
-- [ ] S2.4 再実測: `osv-scanner scan source --lockfile ...`（4 本）で **検出 0 件**（設定済み ignore 除く）を確認。実測出力を §10 進捗ログへ転記。
+- [x] S2.4 再実測: `osv-scanner scan source --lockfile ...`（4 本）で **検出 0 件**（設定済み ignore 除く）を確認。実測出力を §10 進捗ログへ転記。
 
 ### 3.3 Step 3 — セキュリティゲート導入（security.yml ＋ 設定ファイル）
 
-- [ ] S3.1 `.github/workflows/security.yml` 新設。設計:
+- [x] S3.1 `.github/workflows/security.yml` 新設。設計:
 
 ```yaml
 name: Security
@@ -241,21 +242,21 @@ jobs:
 - `osv-scanner.toml` は OSV-Scanner が既定で参照する（設定ファイル名・パスは実装時に公式 doc で確認し、必要なら scan-args へ明示）。
 - gitleaks job: `gitleaks/gitleaks-action@v2`（個人アカウント = ライセンスキー不要・実証済み）。PR イベント時は差分走査、push/schedule 時は全履歴が既定挙動 — 実装時に action の README で挙動を確認し、full-history を週次で確実に走る形にする。
 - zizmor job: `zizmorcore/zizmor-action`（SARIF → `github/codeql-action/upload-sarif`）。online audit 用に `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` を env 明示（runner は自動注入しない — MEMO §4.1）。
-- [ ] S3.2 `.gitleaks.toml` 新設: `dtype.rs` 誤検知の allowlist（path ＋ regex 限定・理由コメント付き）。allowlist は**最小スコープ**（ファイル全体ではなく該当行パターン）にする。
-- [ ] S3.3 `zizmor.toml` 新設: unpinned-uses ポリシー（Step 4 完了後は strict）、publish-native-bin の persist-credentials 例外（S1.3）、その他の accepted finding を理由付き記録。
-- [ ] S3.4 検証: dev push で security.yml 全 job 緑 → **Security タブへ SARIF 3 ソース（OSV/zizmor/CodeQL〔Step 0 済みなら〕）が反映**されたことを確認（スクリーンショット or API: `GET /repos/.../code-scanning/analyses`）。actionlint 緑。
-- [ ] S3.5 1 ワークフロー 1 コミット原則: security.yml＋3 設定ファイルは「ゲート導入」として 1 コミットにまとめる（分割すると中間コミットで CI が赤くなるため。bisect 単位 = ゲート全体）。
+- [x] S3.2 `.gitleaks.toml` 新設: `dtype.rs` 誤検知の allowlist（path ＋ regex 限定・理由コメント付き）。allowlist は**最小スコープ**（ファイル全体ではなく該当行パターン）にする。
+- [x] S3.3 `zizmor.toml` 新設: unpinned-uses ポリシー（Step 4 完了後は strict）、publish-native-bin の persist-credentials 例外（S1.3）、その他の accepted finding を理由付き記録。
+- [x] S3.4 検証: dev push で security.yml 全 job 緑 → **Security タブへ SARIF 3 ソース（OSV/zizmor/CodeQL〔Step 0 済みなら〕）が反映**されたことを確認（スクリーンショット or API: `GET /repos/.../code-scanning/analyses`）。actionlint 緑。
+- [x] S3.5 1 ワークフロー 1 コミット原則: security.yml＋3 設定ファイルは「ゲート導入」として 1 コミットにまとめる（分割すると中間コミットで CI が赤くなるため。bisect 単位 = ゲート全体）。
 
 ### 3.4 Step 4 — SHA ピニング移行
 
-- [ ] S4.1 対象 10 参照を棚卸し（実測リスト）: `actions/checkout@v7` / `actions/setup-node@v7` / `actions/setup-python@v7` / `actions/upload-artifact@v7` / `actions/download-artifact@v8` / `pnpm/action-setup@v6` / `astral-sh/setup-uv@v10.2.0` / `Swatinem/rust-cache@v2` / `dtolnay/rust-toolchain@stable` / `dtolnay/rust-toolchain@nightly`。＋ Step 3 で追加した 3 action（osv reusable ×2・zizmor-action・gitleaks-action・upload-sarif）。
-- [ ] S4.2 **dtolnay/rust-toolchain の 2 参照は floating のまま**（`@stable`/`@nightly` は意図的に最新版を追うプロジェクト方針 — MEMO「dtolnay/rust-toolchain@stable・バージョンピン無しの方針どおり」）。`zizmor.toml` に例外＋理由を記録し、tag の後ろに `# ...` コメントで**当該 tag の現時点 SHA を併記**する運用（GitHub 公式推奨表記）にする。
-- [ ] S4.3 其余の全参照を**コミット SHA ピン**へ（`@v7 # v7.x.x` 形式で tag をコメント併記）。**1 action 1 コミット**（恒久規程）。SHA は実装時に GitHub API で解決（推測禁止）。
-- [ ] S4.4 zizmor.toml の unpinned-uses ポリシーを strict 化し、`zizmor` 再走で unpinned 検出 0（例外 2 参照のみ）を確認。dev push で ci/native/fuzz-smoke 全緑。
+- [x] S4.1 対象 10 参照を棚卸し（実測リスト）: `actions/checkout@v7` / `actions/setup-node@v7` / `actions/setup-python@v7` / `actions/upload-artifact@v7` / `actions/download-artifact@v8` / `pnpm/action-setup@v6` / `astral-sh/setup-uv@v10.2.0` / `Swatinem/rust-cache@v2` / `dtolnay/rust-toolchain@stable` / `dtolnay/rust-toolchain@nightly`。＋ Step 3 で追加した 3 action（osv reusable ×2・zizmor-action・gitleaks-action・upload-sarif）。
+- [x] S4.2 **dtolnay/rust-toolchain の 2 参照は floating のまま**（`@stable`/`@nightly` は意図的に最新版を追うプロジェクト方針 — MEMO「dtolnay/rust-toolchain@stable・バージョンピン無しの方針どおり」）。`zizmor.toml` に例外＋理由を記録し、tag の後ろに `# ...` コメントで**当該 tag の現時点 SHA を併記**する運用（GitHub 公式推奨表記）にする。
+- [x] S4.3 其余の全参照を**コミット SHA ピン**へ（`@v7 # v7.x.x` 形式で tag をコメント併記）。**1 action 1 コミット**（恒久規程）。SHA は実装時に GitHub API で解決（推測禁止）。
+- [x] S4.4 zizmor.toml の unpinned-uses ポリシーを strict 化し、`zizmor` 再走で unpinned 検出 0（例外 2 参照のみ）を確認。dev push で ci/native/fuzz-smoke 全緑。
 
 ### 3.5 Step 5 — dependabot.yml
 
-- [ ] S5.1 `.github/dependabot.yml` 新設:
+- [x] S5.1 `.github/dependabot.yml` 新設:
 
 ```yaml
 version: 2
@@ -279,48 +280,48 @@ updates:
     target-branch: dev
 ```
 
-- [ ] S5.2 **pip エコシステムは追加しない**（理由: `requirements.txt` は pyproject と test_phase8_distribution.py が機械同期するランタイム契約。Dependabot に requirements.txt を単独更新させると parity 規律が壊れる。uv エコシステムが pyproject+uv.lock を更新し、requirements.txt への反映は既存の手動同期規律に従う）。
-- [ ] S5.3 zizmor は dependabot.yml も解析対象（設定追加時に再走）。actionlint 対象外ファイルなので prettier ゲートのみ（YAML）。
-- [ ] S5.4 **有効化は main マージ後**（設定は既定ブランチから読まれる — §1.3）。dev push 後は「ファイル存在・構文有効・zizmor 緑」までを確認し、発効確認はユーザのマージ後（§10 に記録）。
-- [ ] S5.5 初回 Dependabot PR の挙動確認（target: dev・groups・ignore が効いているか）を main マージ後に実施し記録。
+- [x] S5.2 **pip エコシステムは追加しない**（理由: `requirements.txt` は pyproject と test_phase8_distribution.py が機械同期するランタイム契約。Dependabot に requirements.txt を単独更新させると parity 規律が壊れる。uv エコシステムが pyproject+uv.lock を更新し、requirements.txt への反映は既存の手動同期規律に従う）。
+- [x] S5.3 zizmor は dependabot.yml も解析対象（設定追加時に再走）。actionlint 対象外ファイルなので prettier ゲートのみ（YAML）。
+- [!] S5.4 **有効化は main マージ後**（設定は既定ブランチから読まれる — §1.3）。dev push 後は「ファイル存在・構文有効・zizmor 緑」までを確認し、発効確認はユーザのマージ後（§10 に記録）。
+- [!] S5.5 初回 Dependabot PR の挙動確認（target: dev・groups・ignore が効いているか）を main マージ後に実施し記録。
 
 ### 3.6 Step 6 — uv audit ＋ UV_MALWARE_CHECK（観察枠）
 
-- [ ] S6.1 package.json へ `"py:audit": "uv audit"` を追加（ローカル用。preview 版のため CI ゲート化しない — D5）。
-- [ ] S6.2 ci.yml の Python 依存インストール後段に**非ブロッキング** step（`uv audit`・`continue-on-error: true`・job summary へ出力転記）。preview 安定後にブロッキング化を再評価（§10 に評価記録）。
-- [ ] S6.3 `UV_MALWARE_CHECK=1` を ci.yml の uv step env へ試用追加（OSV MAL advisory 照会。**ロールバック基準**: uv sync が失敗/遅延する事象が 1 回でも出たら即削除し記録）。native.yml への展開は ci.yml で 2 週無事故を確認してから。
-- [ ] S6.4 uv audit の実測出力（検出 0 件期待 — uv.lock は httpx2 2.13.1 等でクリーン）を §10 へ記録。
+- [x] S6.1 package.json へ `"py:audit": "uv audit"` を追加（ローカル用。preview 版のため CI ゲート化しない — D5）。
+- [x] S6.2 ci.yml の Python 依存インストール後段に**非ブロッキング** step（`uv audit`・`continue-on-error: true`・job summary へ出力転記）。preview 安定後にブロッキング化を再評価（§10 に評価記録）。
+- [x] S6.3 `UV_MALWARE_CHECK=1` を ci.yml の uv step env へ試用追加（OSV MAL advisory 照会。**ロールバック基準**: uv sync が失敗/遅延する事象が 1 回でも出たら即削除し記録）。native.yml への展開は ci.yml で 2 週無事故を確認してから。
+- [x] S6.4 uv audit の実測出力（検出 0 件期待 — uv.lock は httpx2 2.13.1 等でクリーン）を §10 へ記録。
 
 ### 3.7 Step 7 — ruff S rules（flake8-bandit）有効化
 
-- [ ] S7.1 `pyproject.toml` の `[tool.ruff.lint] select` へ `"S"` を追加。`per-file-ignores`: `"tests/*" = ["S101"]`（assert は pytest の作法）、必要なら `"scripts/**"` へ限定 ignore。
-- [ ] S7.2 生産コード ~22 件のトリアージ表を作成し、**修正 / 個別 `# noqa: Sxxx`（理由コメント付き）/ 設定 ignore** の 3 択で全件を決定:
+- [x] S7.1 `pyproject.toml` の `[tool.ruff.lint] select` へ `"S"` を追加。`per-file-ignores`: `"tests/*" = ["S101"]`（assert は pytest の作法）、必要なら `"scripts/**"` へ限定 ignore。
+- [x] S7.2 生産コード ~22 件のトリアージ表を作成し、**修正 / 個別 `# noqa: Sxxx`（理由コメント付き）/ 設定 ignore** の 3 択で全件を決定:
   - S110（try-except-pass）×10 — 既存 ignore の SIM105 と同根の「意図的な防御的ガード」（pyproject コメントに前例あり）→ 個別 noqa ＋理由、または SIM105 と同じ哲学で限定 ignore
   - S301（pickle）×2 — `private.key` は設計上の pickle（.gitignore 済み・ローカル専用）→ noqa＋理由
   - S106 ×3 / S108 ×2 / S603 ×2 / S310 ×2 / S112 ×1 — 実コードを確認し個別判断（S603 は build スクリプトの subprocess 想定）
-- [ ] S7.3 `pnpm py:lint` 緑・`pnpm py:format:check` 緑・pytest 全緑（225 件水準）を確認。mypy 影響なし（型変更を伴う場合のみ再走）。
-- [ ] S7.4 トリアージ表を §10 進捗ログへ転記（次セッションの参照用）。
+- [x] S7.3 `pnpm py:lint` 緑・`pnpm py:format:check` 緑・pytest 全緑（225 件水準）を確認。mypy 影響なし（型変更を伴う場合のみ再走）。
+- [x] S7.4 トリアージ表を §10 進捗ログへ転記（次セッションの参照用）。
 
 ### 3.8 Step 8 — eslint-plugin-security 導入
 
-- [ ] S8.1 devDependency 追加（4.0.1 以上・2026-06-12 に flat config 既定化済み。pnpm のサプライチェーン検証は §3.2 S2.1 と同じ workaround 規程）。
-- [ ] S8.2 `eslint.config.js`（flat）へ recommended を追加。検出をトリアージ（修正 / rule-level off ＋理由コメント）。
-- [ ] S8.3 `pnpm lint` / `pnpm typecheck` / `pnpm fallow:dead` / `pnpm fallow:dupes` / `pnpm format:check` 緑。**web/ に影響する変更が出た場合は pnpm build ＋ K15 再走**（rule 追加のみならバンドル不変が期待される — 差分確認を記録）。
+- [x] S8.1 devDependency 追加（4.0.1 以上・2026-06-12 に flat config 既定化済み。pnpm のサプライチェーン検証は §3.2 S2.1 と同じ workaround 規程）。
+- [x] S8.2 `eslint.config.js`（flat）へ recommended を追加。検出をトリアージ（修正 / rule-level off ＋理由コメント）。
+- [x] S8.3 `pnpm lint` / `pnpm typecheck` / `pnpm fallow:dead` / `pnpm fallow:dupes` / `pnpm format:check` 緑。**web/ に影響する変更が出た場合は pnpm build ＋ K15 再走**（rule 追加のみならバンドル不変が期待される — 差分確認を記録）。
 
 ### 3.9 Step 9 — SECURITY.md・Private vulnerability reporting・ドキュメント同期
 
-- [ ] S9.1 `SECURITY.md` 新設（英語・簡潔）: サポート版数、private vulnerability reporting の手順（Step 0 でユーザが有効化）、報告時の期待応答。README×4 の Documentation 節からリンク。
-- [ ] S9.2 README×4 の Development / Quality gates 節へ**セキュリティゲート段落**を追加（CodeQL default setup・security.yml の 4 ジョブ・Dependabot・ruff S / eslint-plugin-security。既存の「Quality is enforced by a five-level test pyramid」段落の隣接に配置）。ツールチェーン表・バッジの追加は既存様式に従う（過剰なバッジ追加はしない — 既存の選別様式を尊重）。
-- [ ] S9.3 MEMO へ本セッション記録（新設 §11）＋ §1.2 開発ワークフロー規程へ「security.yml の運用（SARIF 集約・ignore は理由付き設定ファイル）」を追加。
-- [ ] S9.4 prettier 緑（md は lint-staged が自動整形）。
+- [x] S9.1 `SECURITY.md` 新設（英語・簡潔）: サポート版数、private vulnerability reporting の手順（Step 0 でユーザが有効化）、報告時の期待応答。README×4 の Documentation 節からリンク。
+- [x] S9.2 README×4 の Development / Quality gates 節へ**セキュリティゲート段落**を追加（CodeQL default setup・security.yml の 4 ジョブ・Dependabot・ruff S / eslint-plugin-security。既存の「Quality is enforced by a five-level test pyramid」段落の隣接に配置）。ツールチェーン表・バッジの追加は既存様式に従う（過剰なバッジ追加はしない — 既存の選別様式を尊重）。
+- [x] S9.3 MEMO へ本セッション記録（新設 §11）＋ §1.2 開発ワークフロー規程へ「security.yml の運用（SARIF 集約・ignore は理由付き設定ファイル）」を追加。
+- [x] S9.4 prettier 緑（md は lint-staged が自動整形）。
 
 ### 3.10 Step 10 — ゲート発火テスト（mutation 規律）と総合検収
 
-- [ ] S10.1 **OSV-Scanner PR ゲート発火**: 一時ブランチで既知脆弱ピン（例: devDependency へ `source-map-js@1.2.1`）を追加 → PR 作成 → osv-pr ジョブが **fail ＋ PR アノテーション表示**を確認 → ブランチ削除（main へはマージしない）。
-- [ ] S10.2 **Gitleaks 発火**: 一時ブランチで**擬似シークレット**（高エントロピー乱数文字列を `api_key = "..."` 形式で配置。provider pattern を使うと push protection に阻まれるため generic パターンのみ）をコミット → push → gitleaks ジョブ fail を確認 → revert コミットで削除し、**履歴に残った擬似シークレットは allowlist せず「テスト用の無効文字列」である旨を .gitleaks.toml に理由付き記録**（または発火テスト専用ブランチを push 後に削除して履歴ごと除去 — どちらを採るかは実装時に gitleaks-action のブランチ走査挙動を確認して決定）。
-- [ ] S10.3 **zizmor 発火**: 一時ブランチで `${{ github.event.issue.title }}` を run ブロックへ意図的に配置 → fail 確認 → revert。
-- [ ] S10.4 **CodeQL 発火（optional・時間許せば）**: テスト PR で意図的に脆弱な Python スニペット（例: `eval(request.params)` 型）を配置 → code scanning PR チェックが High+ で fail することを確認 → revert。default setup の PR 解析は main 向け PR のみである点に注意（dev 同士の PR では発火しない — D1）。
-- [ ] S10.5 総合検収（§8）を全項目チェックし、証跡（run 番号・コミット SHA・実測出力）を §10 進捗ログと MEMO へ記録。
+- [x] S10.1 **OSV-Scanner PR ゲート発火**: 一時ブランチで既知脆弱ピン（例: devDependency へ `source-map-js@1.2.1`）を追加 → PR 作成 → osv-pr ジョブが **fail ＋ PR アノテーション表示**を確認 → ブランチ削除（main へはマージしない）。
+- [x] S10.2 **Gitleaks 発火**: 一時ブランチで**擬似シークレット**（高エントロピー乱数文字列を `api_key = "..."` 形式で配置。provider pattern を使うと push protection に阻まれるため generic パターンのみ）をコミット → push → gitleaks ジョブ fail を確認 → revert コミットで削除し、**履歴に残った擬似シークレットは allowlist せず「テスト用の無効文字列」である旨を .gitleaks.toml に理由付き記録**（または発火テスト専用ブランチを push 後に削除して履歴ごと除去 — どちらを採るかは実装時に gitleaks-action のブランチ走査挙動を確認して決定）。
+- [x] S10.3 **zizmor 発火**: 一時ブランチで `${{ github.event.issue.title }}` を run ブロックへ意図的に配置 → fail 確認 → revert。
+- [x] S10.4 **CodeQL 発火（optional・時間許せば）**: テスト PR で意図的に脆弱な Python スニペット（例: `eval(request.params)` 型）を配置 → code scanning PR チェックが High+ で fail することを確認 → revert。default setup の PR 解析は main 向け PR のみである点に注意（dev 同士の PR では発火しない — D1）。
+- [x] S10.5 総合検収（§8）を全項目チェックし、証跡（run 番号・コミット SHA・実測出力）を §10 進捗ログと MEMO へ記録。
 
 ---
 
@@ -398,18 +399,18 @@ updates:
 
 ## 8. 検収基準（総合）
 
-- [ ] A1. Step 0 のユーザ設定が API/run で確認できる（CodeQL 初期解析完了・Dependabot alerts 有効・private vulnerability reporting 有効）。
-- [ ] A2. dev push で `security.yml` 全 job 緑（osv-full / zizmor / gitleaks）＋ ci.yml / native.yml の既存ゲート全緑。
-- [ ] A3. PR（dev→main）で osv-pr 差分ゲートと CodeQL results check が動作（S10 の発火テストで実証）。
-- [ ] A4. GitHub Security タブへ SARIF 3 ソース（CodeQL・OSV-Scanner・zizmor）が反映。
-- [ ] A5. OSV-Scanner 実測 0 件（osv-scanner.toml の理由付き ignore/accept のみ残存）。
-- [ ] A6. zizmor 実測 0 件（zizmor.toml の文書化例外のみ残存: dtolnay ×2・publish persist-credentials）。
-- [ ] A7. gitleaks 全履歴緑（.gitleaks.toml allowlist 1 件 = dtype.rs 誤検知のみ）。
-- [ ] A8. 全 action 参照が SHA ピン（例外 2 参照はコメントに SHA 併記）。
-- [ ] A9. `pnpm py:lint`（ruff S 込み）・`pnpm lint`（eslint-plugin-security 込み）・typecheck・format:check・fallow dead/dupes・pytest・K15・rs 系ゲートすべて緑。
-- [ ] A10. dependabot.yml が main マージ後に発効し、初回 PR が target-branch dev・groups・TS7 ignore どおりに出ることの確認（ユーザのマージ後 — §10 に記録）。
-- [ ] A11. SECURITY.md・README×4・MEMO の同期が完了し prettier 緑。
-- [ ] A12. 発火テスト 4 系（OSV PR・gitleaks・zizmor・CodeQL〔optional〕）の「混ぜて失敗・復元して成功」証跡が §10 に揃う。
+- [x] A1. Step 0 のユーザ設定が API/run で確認できる（CodeQL 初期解析完了・Dependabot alerts 有効・private vulnerability reporting 有効）。
+- [x] A2. dev push で `security.yml` 全 job 緑（osv-full / zizmor / gitleaks）＋ ci.yml / native.yml の既存ゲート全緑。
+- [x] A3. PR（dev→main）で osv-pr 差分ゲートと CodeQL results check が動作（S10 の発火テストで実証）。
+- [x] A4. GitHub Security タブへ SARIF 3 ソース（CodeQL・OSV-Scanner・zizmor）が反映。
+- [x] A5. OSV-Scanner 実測 0 件（osv-scanner.toml の理由付き ignore/accept のみ残存）。
+- [x] A6. zizmor 実測 0 件（zizmor.toml の文書化例外のみ残存: dtolnay ×2・publish persist-credentials）。
+- [x] A7. gitleaks 全履歴緑（.gitleaks.toml allowlist 1 件 = dtype.rs 誤検知のみ）。
+- [x] A8. 全 action 参照が SHA ピン（例外 2 参照はコメントに SHA 併記）。
+- [x] A9. `pnpm py:lint`（ruff S 込み）・`pnpm lint`（eslint-plugin-security 込み）・typecheck・format:check・fallow dead/dupes・pytest・K15・rs 系ゲートすべて緑。
+- [!] A10. dependabot.yml が main マージ後に発効し、初回 PR が target-branch dev・groups・TS7 ignore どおりに出ることの確認（ユーザのマージ後 — §10 に記録）。
+- [x] A11. SECURITY.md・README×4・MEMO の同期が完了し prettier 緑。
+- [x] A12. 発火テスト 4 系（OSV PR・gitleaks・zizmor・CodeQL〔optional〕）の「混ぜて失敗・復元して成功」証跡が §10 に揃う。
 
 **計画完了時の後始末**（Plan 1–3 の前例継承）: 本計画書は全 Step 完了後にツリーから削除し、git 履歴を一次記録とする（MEMO 冒頭注記の様式に合わせる）。削除前に成果サマリーを MEMO へ転記する。
 
@@ -417,23 +418,53 @@ updates:
 
 ## 9. 進捗管理表
 
-| Step | 名称                   | 状態  | 証跡（commit / run / 実測） | 更新日     |
-| ---- | ---------------------- | ----- | --------------------------- | ---------- |
-| 0    | ユーザ設定             | `[!]` | —（ユーザ操作待ち）         | 2026-10-07 |
-| 1    | ワークフロー加固       | `[ ]` | —                           | 2026-10-07 |
-| 2    | 依存是正＋トリアージ   | `[ ]` | —                           | 2026-10-07 |
-| 3    | セキュリティゲート導入 | `[ ]` | —                           | 2026-10-07 |
-| 4    | SHA ピニング           | `[ ]` | —                           | 2026-10-07 |
-| 5    | dependabot.yml         | `[ ]` | —                           | 2026-10-07 |
-| 6    | uv audit 観察枠        | `[ ]` | —                           | 2026-10-07 |
-| 7    | ruff S 有効化          | `[ ]` | —                           | 2026-10-07 |
-| 8    | eslint-plugin-security | `[ ]` | —                           | 2026-10-07 |
-| 9    | SECURITY.md＋文書同期  | `[ ]` | —                           | 2026-10-07 |
-| 10   | 発火テスト＋総合検収   | `[ ]` | —                           | 2026-10-07 |
+| Step | 名称                   | 状態   | 証跡（commit / run / 実測）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 更新日     |
+| ---- | ---------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| 0    | ユーザ設定             | `[x]`  | API 実測: CodeQL default-setup = configured / extended / languages 6（actions・javascript・javascript-typescript・python・rust・typescript）・vulnerability-alerts 204・private-vulnerability-reporting enabled・初期解析 4 言語完了（Rust/JS-TS/Python 0 results・Actions 32 = dev 側で解消済み）                                                                                                                                                                                                                                         | 2026-10-07 |
+| 1    | ワークフロー加固       | `[x]`  | 2ccc021（template-injection env バインド）・772e63a（tag ラン cache 無効化）・eee0fbc（artipacked ×11）・e902108（adhoc ignore）・9fd3da3（permissions）・0121654（zizmor.yml）。native PR run（47ea794）**18/18 success**。zizmor: template-injection/artipacked/excessive-permissions 0                                                                                                                                                                                                                                                  | 2026-10-07 |
+| 2    | 依存是正＋トリアージ   | `[x]`  | b70e6d2（source-map-js 1.2.2 override・**バンドル 6 ファイル byte 同一**・K15 PASS）・a4bea3a（osv-scanner.toml ×2）。実測: osv-scanner 2.6.0 =「No issues found」EXIT 0（設定 2 ファイルの per-directory 自動ロードを確認）                                                                                                                                                                                                                                                                                                               | 2026-10-07 |
+| 3    | セキュリティゲート導入 | `[x]`  | b859ec2（security.yml + .gitleaks.toml）。**Security run = dev push 7 回連続 success**（44ef4da/2803e06/630e6bd/97d37c9/c1e0e3a/1025bbd/6fdfdb7）。SARIF 集約確認: Security タブ analyses に osv-scanner（0 results）・zizmor・CodeQL×4 言語                                                                                                                                                                                                                                                                                               | 2026-10-07 |
+| 4    | SHA ピニング           | `[x]`  | 0302acc〜44ef4da の 9 コミット（1 action 1 コミット）＋ b8acf08（annotated-tag 誤ピン修正）。dtolnay ×7 は ref-pin 方針（zizmor.yml policies）。実測: zizmor **online**「No findings to report」EXIT 0（ref-version-mismatch 8 件は修正で解消）                                                                                                                                                                                                                                                                                            | 2026-10-07 |
+| 5    | dependabot.yml         | `[x]`* | 2803e06。npm/cargo/uv/github-actions・target dev・月曜 04:00 UTC・**cooldown 7 日**・TS ignore。zizmor 緑。*S5.4/S5.5（発効と初回 PR 確認）はユーザの main マージ後                                                                                                                                                                                                                                                                                                                                                                        | 2026-10-07 |
+| 6    | uv audit 観察枠        | `[x]`  | 630e6bd（py:audit スクリプト・ci.yml 非ブロッキング step・UV_MALWARE_CHECK=1）。ローカル実測: 61 pkg 解決 31 ms・検出 0・exit 0。ci.yml 緑（preview 警告は --preview-features audit-command で抑止）                                                                                                                                                                                                                                                                                                                                       | 2026-10-07 |
+| 7    | ruff S 有効化          | `[x]`  | 97d37c9。select+S・ignore S110/S112（SIM105 と同根の文書化姿勢）・per-file-ignores（tests/pgo/l5）・個別 noqa 6 箇所（S301×2/S603×2/S310×2 = 全て理由コメント付き）。実測: ruff check「All checks passed」・mypy Success・pytest の sandbox 1 件失敗は stash 対照で**本変更と無関係**と証明（CI 3.12 緑）                                                                                                                                                                                                                                  | 2026-10-07 |
+| 8    | eslint-plugin-security | `[x]`  | c1e0e3a（v4.2.0・flat recommended）。初回 166 warnings を全件トリアージ: object-injection ×151 global off（誤検知工場）・dev ツールの fs/regexp ×13 スコープ off・modelFilter.ts ×2 は inline disable＋設計理由（全特殊文字エスケープ済み）。実測: eslint 検出ゼロ・バンドル byte 同一・fallow 緑                                                                                                                                                                                                                                          | 2026-10-07 |
+| 9    | SECURITY.md＋文書同期  | `[x]`  | 1025bbd（SECURITY.md 英語新設＋README×4 の Further reading/Quality gates へセキュリティゲート節・prettier 緑）＋本コミット（MEMO §11・§1.2 規程追加）                                                                                                                                                                                                                                                                                                                                                                                      | 2026-10-07 |
+| 10   | 発火テスト＋総合検収   | `[x]`  | **PR #53**（test/security-gate-firing・5c5edd4→cd9bb4d）: osv-pr **failure**（braces@3.0.2 = GHSA-grv7-fg5c-xmjg）/ gitleaks **failure**（擬似シークレット）/ zizmor results-check **failure**（template-injection）/ CodeQL results-check **failure**（py/command-line-injection）— 4 系すべて「混ぜて失敗」。PR クローズ＋ブランチ削除（remote+local+prune）で「復元して成功」: dev 6fdfdb7 の Security **success**・gitleaks 全履歴**no leaks**・osv「No issues found」。**副産物: gitleaks 設定の偽緑を発見し修正（6fdfdb7・v1.1 ④）** | 2026-10-07 |
 
 ---
 
 ## 10. 進捗ログ（セッション別・最新在上）
+
+### 2026-10-07（実施）— Step 0–10 完了（S5.4/S5.5・A10 のみユーザの main マージ待ち）
+
+**Step 0 検証（ユーザ設定完了の API 実測）**: CodeQL default-setup = `configured`・`query_suite: extended`・`schedule: weekly`・languages = actions / javascript / javascript-typescript / python / rust / typescript（**4 面＋Actions すべて**）。初期解析完了（main@7f4d131d: Rust 0・JS/TS 0・Python 0・Actions 32 = unpinned-tag 21＋missing-workflow-permissions 11 → Step 1/4 で dev 側解消、main へはマージ後に自動クローズ）。`vulnerability-alerts` 204・private-vulnerability-reporting enabled・dependabot_security_updates enabled。
+
+**Step 1（6 コミット: 2ccc021→0121654）**: 詳細実測で計画時の想定外 2 種を追加対処 — cache-poisoning error ×11（native.yml の `tags: v*` = リリース検証ランのキャッシュ読み。rust-cache ×6 へ step 級 `if: !startsWith(github.ref,'refs/tags/')`、setup-uv ×5 へ `enable-cache: ${{ !startsWith(...) }}` = 公式 remediation の条件式パターン。zizmor 1.30.1 は条件式を評価しない〔1.31.0 で cache-mode 認識予定・未リリース〕ため .github/zizmor.yml に行単位 ignore を理由付き記録）と adhoc-packages info ×1（typescript@6.0.3 の意図的 ad-hoc install — inline ignore）。artipacked ×12 → persist-credentials: false ×11＋publish 例外 1（inline ignore）。excessive-permissions ×12 → トップレベル `permissions: contents: read` ×3 ワークフロー。検証: actionlint 緑・zizmor error 0（unpinned 除く）・native PR run 18/18 success・dev push CI 緑。
+
+**Step 2（b70e6d2・a4bea3a）**: source-map-js override → **出荷バンドル 6 ファイル byte 同一**（version.yaml の build_time のみ）= 影響ゼロの実測証明。K15 PASS（証跡 JSON は誤って上書きしたため即復元 — 教訓: ローカル K15 は必ず `--json-out /tmp/...`）。fallow dead は新 override を unused-dependency-overrides で**warn 報告するが exit 0**（スキーマ既定 warn — CI ゲート影響なし）。osv-scanner.toml は per-directory 意味論のため root＋native/ の 2 ファイル（公式 configuration doc 準拠）。再実測「No issues found」EXIT 0。
+
+**Step 3（b859ec2）**: security.yml（osv-pr/osv-full 条件分岐・zizmor GHAS モード〔SARIF・PR ブロックは code-scanning results check が担う〕・gitleaks v3〔fetch-depth 0〕）。cron 月曜 03:00 UTC。SHA ピンは導入時点から実施。**dev push の Security run は以降 7 回連続 success**。
+
+**Step 4（9＋1 コミット: 0302acc→44ef4da・b8acf08）**: 10 参照を SHA ピン化（1 action 1 コミット規程）。dtolnay/rust-toolchain ×7 は**ブランチ参照**（tag 不在を API で確認 = 構造的に SHA ピン不能）ため D2 の ref-pin 方針を zizmor.yml policies に明文化＋uses 行へ監査日と head SHA をコメント併記。**事故と回収**: 初回の SHA 解決で annotated tag 2 種（rust-cache v2.9.2・pnpm/action-setup v6.1.0）の **tag object SHA** を誤って記録 → zizmor online の ref-version-mismatch ×8 が捕捉 → git/tags API で commit SHA へ dereference して修正（b8acf08）。online-audits 採用が初日で誤ピンを捕えた実例。最終実測: zizmor **online**「No findings to report」EXIT 0。
+
+**Step 5（2803e06）**: dependabot.yml 4 エコシステム（npm groups 2・cargo /native・uv /・github-actions = SHA ピンの陳腐化防止）。target-branch dev・月曜 04:00 UTC・typescript 完全 ignore（override と package.json の同期移動は Dependabot 不能 = ユーザ決定 2026-09-29 の番人）。zizmor の dependabot-cooldown 監査（4 medium）→ **cooldown default-days: 7** 追加で解消（pnpm minimumReleaseAge と同一思想）。pip エコシステム不設定の理由を D10 としてファイル冒頭に記録。発効は main マージ後（S5.4/S5.5 = ユーザ待ち）。
+
+**Step 6（630e6bd）**: `pnpm py:audit`（--preview-features audit-command で警告抑止）・ci.yml へ非ブロッキング audit step（GITHUB_STEP_SUMMARY 転記）＋ UV_MALWARE_CHECK=1 試用（ロールバック規程をコメント化）。ローカル実測 61 pkg/31 ms/検出 0。ci.yml 緑 = preview コマンドの CI 無害性を実証。native.yml への展開は 2 週無事故後（S6.3 規程）。
+
+**Step 7（97d37c9）**: ruff S 有効化。実測 805 件の内訳を確定（tests 772 = S101×767/S106×3/S108×2・生産 33）し per-file-ignores＋ignore S110/S112（SIM105 と同根の文書化姿勢）＋個別 noqa 6 箇所（S301: private.key の legacy pickle ×2・S603: pip_install と train.py の自己再 exec・S310: api.github.com 固定の urlopen ×2 — 全箇所理由コメント付き）。RUF100（unused noqa）2 件は独立コメント行の `# noqa:` 接頭辞が原因 → 文言を「S603 triage:」形へ変更して解消。検証: ruff All checks passed・format 45 files・mypy Success・**pytest の sandbox 1 件失敗（test_missing_core_fails_the_task_with_the_loader_reason）は `git stash` 対照で本変更と無関係と証明**（/usr の Python 3.11 環境要因 — リポジトリ要件は 3.12+、CI 3.12 は緑）。
+
+**Step 8（c1e0e3a）**: eslint-plugin-security **4.2.0**（調査時の 4.0.1 より新しい安定版）。**地雷**: `configs.recommended` は単一オブジェクト（配列ではない）— スプレッドは ESLint を「object is not iterable」でクラッシュさせる（config に NOTE 記録）。初回 166 warnings（0 errors）を全件トリアージ: detect-object-injection ×151 = global off（computed bracket アクセス全 flag の誤検知工場・taint 経路ゼロ）、k15.mjs/vite.config の fs・regexp ×13 = dev ツール限定スコープ off、**modelFilter.ts の new RegExp ×2 = inline disable＋設計理由**（全特殊文字エスケープ後の `*`→`.*` 復元 = README の検索仕様そのもの・raw フォールバックは完全エスケープ済みパターンのため実際上到達不能）。実測: eslint 検出ゼロ・**再ビルドでバンドル byte 同一**（変更はコメントと行末注釈のみ）・fallow 緑。
+
+**Step 9（1025bbd）**: SECURITY.md を自然な英語で新設（private vulnerability reporting 手順・サポート方針・in/out of scope の具体例・5 層の CI ゲート説明・accept 記録の所在）。README×4 の Further reading へ SECURITY.md 行、Quality gates 節 CI 段落の直後へ「セキュリティゲート」段落（各言語の既存文体準拠）。prettier --check 緑。
+
+**Step 10（PR #53）**: 使い捨てブランチ test/security-gate-firing に 4 プローブ（braces@3.0.2 = GHSA-grv7-fg5c-xmjg・乱数生成の擬似 api_key〔provider pattern ではないため push protection は通過 — 予測どおり〕・firing-probe.yml の `${{ github.event.issue.title }}` 直接展開・firing-probe/probe.py の `os.system(request.args...)`）。**ローカル事前実測で 3 工具すべての発火を確認してから** PR 作成（PAT の pulls:write 可用を実測）。結果（run: Security @ cd9bb4de）: **osv-pr failure / gitleaks failure / zizmor results-check failure / CodeQL results-check failure** = 4 系すべて「混ぜて失敗」。副次観察: CodeQL の Analyze ×4 ジョブ自体は success（解析は緑・ゲートは results check が赤 = 設計どおりの分離）、zizmor job も success（GHAS モード = SARIF 集約・ブロックは results check が担う）。PR クローズ（証跡コメント付き）＋ remote/local ブランチ削除＋`git fetch --prune` で「復元して成功」: gitleaks 全履歴 **no leaks**・dev 6fdfdb7 の Security/CI **success**・native 1025bbd **18/18 success**。
+
+**発火テストが捕捉した重大欠陥（本セッション最大の成果）**: 初版 .gitleaks.toml は allowlist のみを宣言していたため、gitleaks は**検出ルール ゼロ**で走り「no leaks found」の**偽緑**を報告していた（カスタム設定は既定ルールセットを**置換**する — 公式 README「define your own configuration, default rules do not apply」）。制御実験で決定論的に再現（設定なし = 検出 / 設定あり = どの allowlist 条目でも全検出が消滅 / `[extend] useDefault = true` で復元）。修正（6fdfdb7）: extend useDefault ＋ allowlist を generic-api-key ルールスコープの `[[rules]]` 拡張へ移行（v8.25+ の `[[rules.allowlists]]` 様式・secret 完全一致 1 文字列のみ）。修正後の全履歴スキャンが発火テスト自身のプローブを検出 = **修正と発火の双方を一度に実証**。さらに dev 側の履歴走査で **Agent/Plan-4.md 内の同一引用 2 件**（dtype.rs 誤検知の逐語記録）を新たに発見 → allowlist の secret スコープ（場所非依存）で正当に吸収。**mutation 規律なしでは恒久偽緑として残っていた** — §6 検証プロトコルの設計価値の自己実証。
+
+**その他の運用知見（MEMO §11 へ転記）**: ① native run 37655092156（97d37c9）は 14/14 物化ジョブすべて success なのに run 全体が failure = **4 つの abi3-import ジョブが物化されないランナー起動失敗クラス**（次の 1025bbd〔上位集合〕が 18/18 success = 一過性の実証）。run 失敗 ≠ job 失敗: jobs API の total_count と上位集合 run で判定する。② git push が「remote: Internal Server Error」（Request ID 付き）で継続失敗 → **API 経由の ref 作成は成功**（receive-pack 経路特有）→ `git -c http.version=HTTP/1.1 push` で即時解消（GitHub status は全コンポーネント operational だった）。③ lint-staged はステージされた .py へ ruff を実行する → 意図的に規則違反するプローブファイルは `# ruff: noqa` が必要（hook 失敗の「Task killed: prettier」表示は ruff タスク失敗の巻き添え表示）。④ 1 GiB 環境で lint-staged の prettier が kill されることがある → 事前の `pnpm exec prettier --write` で回避可能。
+
+**残件（ユーザ専任）**: S5.4/S5.5・A10 = dev→main マージ（dependabot.yml 発効・CodeQL の main 側 32 アラートの自動クローズ・publish-native-bin 再ビルド）。マージ後の初回 Dependabot PR（月曜 04:00 UTC 以降）の形状確認（target dev・groups・TS ignore・cooldown）を次セッションで記録する。native run 6fdfdb7 の完走確認も次セッション冒頭で実施。
 
 ### 2026-10-07 — 計画策定（v1.0）
 

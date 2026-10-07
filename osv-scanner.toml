@@ -1,0 +1,53 @@
+# OSV-Scanner configuration — repository root (NEO-PLAN-2026-004, Step 2).
+#
+# Scope semantics (official docs, google.github.io/osv-scanner/configuration):
+# this file applies ONLY to the manifests/lockfiles in THIS directory
+# (pnpm-lock.yaml, uv.lock, requirements.txt) — it does not propagate to child
+# directories. native/Cargo.lock is governed by native/osv-scanner.toml.
+#
+# Policy: every entry carries a reason and, for accepted VULNERABILITIES (an
+# upstream fix may still appear), an expiry that forces re-review. Entries are
+# as narrow as the mechanism allows (advisory-ID or package@version scoped),
+# so any NEW advisory on the same package still fails the scan.
+
+# --- npm: braces (build toolchain only) -----------------------------------
+# CVE-2026-93687 / GHSA-vfj7-8cjw-p6xm (HIGH, CVSS 8.7): stack-exhaustion DoS
+# through deeply nested brace-expansion patterns. OSV reports NO fixed version
+# (last_affected 3.0.3 — queried 2026-10-07). braces enters the tree only
+# through dev/build tooling (micromatch chains of the eslint/tailwind/vite
+# stack); it is never shipped in web/ and never expands untrusted input — the
+# patterns are literals from this repository's own config/source.
+# On expiry: re-query OSV; extend only while no fixed version exists.
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2027-01-07
+reason = "No upstream fix (last_affected 3.0.3); build-time-only dependency, expansion patterns are repository literals, not untrusted input."
+
+# --- PyPI: httpx2/httpcore2 floor-resolution artifacts --------------------
+# requirements.txt is the loose-floor RUNTIME CONTRACT (kept in sync with
+# pyproject.toml; the equality is pinned mechanically by
+# tests/test_phase8_distribution.py). OSV-Scanner resolves manifests
+# best-effort and reports the FLOOR versions (httpx2/httpcore2 2.9.1), which
+# its own docs warn "may not be the version that is installed". The
+# authoritative lock (uv.lock) resolves BOTH packages to 2.13.1 — unaffected
+# (verified 2026-10-07) — and a user's `pip install -r requirements.txt`
+# resolves to the latest release as well. These overrides are scoped to the
+# exact 2.9.1 floor: if uv.lock ever REGRESSES to a 2.9.x line, the override
+# still matches by design (D3 of the plan) — the real guard is that uv.lock is
+# the scanned source of truth for the dev/CI environment. Any OTHER version
+# of httpx2/httpcore2 gaining an advisory remains reported.
+[[PackageOverrides]]
+name = "httpx2"
+version = "2.9.1"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-07
+reason = "requirements.txt floor-resolution artifact (PYSEC-2026-3845..3849 + aliases); uv.lock pins 2.13.1 which is unaffected. Re-review when the huggingface_hub floor moves."
+
+[[PackageOverrides]]
+name = "httpcore2"
+version = "2.9.1"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-07
+reason = "requirements.txt floor-resolution artifact (PYSEC-2026-3844 + alias); uv.lock pins 2.13.1 which is unaffected. Re-review when the huggingface_hub floor moves."

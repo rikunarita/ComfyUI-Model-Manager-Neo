@@ -1,0 +1,35 @@
+# Gitleaks configuration (NEO-PLAN-2026-004, Step 3 — rewritten in Step 10).
+#
+# CRITICAL, learned the hard way (S10.2 firing test, 2026-10-07): a custom
+# .gitleaks.toml REPLACES the built-in ruleset unless it extends it. The first
+# version of this file declared only an allowlist, so gitleaks ran with ZERO
+# detection rules and reported a false "no leaks found" — locally AND in CI.
+# `[extend] useDefault = true` below is what keeps the ~150 default detectors
+# alive. The Plan-4 §6 firing protocol (prove every gate actually fires on a
+# deliberately planted finding) exists precisely to catch this class of silent
+# disarmament — and it did, on day one.
+
+[extend]
+useDefault = true
+
+# Extend ONLY the generic-api-key rule with a scoped allowlist; every other
+# attribute of the rule is inherited and allowlist arrays are appended (see
+# the gitleaks README "Configuration" section). Narrowest possible
+# suppression: exactly one literal string is allowlisted (the quoted CPython
+# dtype name); every other detector finding still reports.
+#
+# Known sites of the false positive (Agent/Plan-4.md A.3):
+#   - native/crates/znn-codec/src/dtype.rs:49 — a //! doc comment QUOTES
+#     `KeyError: torch.complex128` as evidence that complex128/bcomplex32
+#     have no safetensors 0.8 representation (verified against the pip
+#     package 2026-09-26). generic-api-key mistakes the quoted dtype name
+#     for a credential.
+#   - Agent/Plan-4.md — documents that false positive verbatim (surfaced by
+#     the Step-10 firing test itself).
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "quoted CPython dtype name (torch.complex128), not a credential"
+  regexTarget = "secret"
+  regexes = ['''^torch\.complex128$''']

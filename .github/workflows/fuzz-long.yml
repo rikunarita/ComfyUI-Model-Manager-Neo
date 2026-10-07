@@ -23,6 +23,12 @@ on:
         type: choice
         options: ["1", "2", "3", "4", "5"]
 
+# Least privilege for every job (zizmor excessive-permissions): the fuzz
+# matrix only reads the tree and uploads crash artifacts (runtime-token
+# scoped, no GITHUB_TOKEN permissions needed).
+permissions:
+  contents: read
+
 concurrency:
   group: fuzz-long
   cancel-in-progress: false
@@ -48,9 +54,13 @@ jobs:
       run:
         working-directory: native/crates/znn-codec/fuzz
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@nightly # floating branch by policy (D2) — head 0e28dd9 2026-10-07; see .github/zizmor.yml
         with:
           components: rust-src
 
@@ -61,7 +71,7 @@ jobs:
       # is expensive here: the 7 ASan nightly fuzz targets would rebuild from
       # scratch (measured 2026-10-03: the fuzz-long entry had already been
       # LRU-evicted by the PR/tag copies).
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: native/crates/znn-codec/fuzz
           save-if: >-
@@ -87,8 +97,12 @@ jobs:
         run: cargo +nightly fuzz build -O --target x86_64-unknown-linux-gnu "${{ matrix.target }}"
 
       - name: Fuzz ${{ matrix.target }} for the scheduled budget
+        env:
+          # template-injection hardening (zizmor): dispatch input via env
+          # binding instead of direct ${{ }} expansion in the run block.
+          FUZZ_HOURS: ${{ github.event.inputs.hours || '3' }}
         run: |
-          HOURS="${{ github.event.inputs.hours || '3' }}"
+          HOURS="$FUZZ_HOURS"
           SECS=$(( HOURS * 3600 ))
           # ASan allocator tuning: the default quarantine (256 MB) + lazy
           # page release retains hundreds of MB of already-freed pages over
@@ -105,7 +119,7 @@ jobs:
 
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fuzz-crashes-${{ matrix.target }}
           path: native/crates/znn-codec/fuzz/artifacts/

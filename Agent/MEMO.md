@@ -112,6 +112,44 @@
 - **`core` ダンプをコミットに含めない**（.gitignore 対象外のため
   `git status` で確認）。`native-bin/` の `.so` / `.pyd` は gitignore 対象
   （main / tag で CI が生成し、publish bot のみが force‑add します）。
+- **セキュリティゲートの運用（2026‑10‑07・NEO‑PLAN‑2026‑004）**: 5 層体制 =
+  CodeQL default setup（Extended・ユーザ設定側）+ security.yml（OSV‑Scanner
+  PR 差分/定期フル・zizmor GHAS モード・gitleaks）。ignore/accept は必ず
+  **理由付き設定ファイル**（osv‑scanner.toml ×2 / .github/zizmor.yml /
+  .gitleaks.toml）に記録し、無記録の抑止を禁止する。zizmor.yml の
+  cache‑poisoning 行単位 ignore は**意図的に壊れやすい**（行ずれで検出が
+  復活 = 再レビュー強制のフェイルセーフ）。新規ゲートは導入時に必ず
+  発火テスト（混ぜて失敗・復元して成功）で捕捉力を証明する。
+- **gitleaks 設定は `[extend] useDefault = true` が必須**: カスタム
+  .gitleaks.toml は既定ルールセットを**置換**する（allowlist だけ書くと
+  検出ルール ゼロ の偽緑 — 2026‑10‑07 に発火テストで実証・公式 README
+  「default rules do not apply」）。allowlist は generic‑api-key への
+  ルールスコープ `[[rules]]` + `[[rules.allowlists]]`（v8.25+ 様式）。
+- **SHA ピンは commit SHA へ解決する**: annotated tag は /git/ref/tags の
+  object.sha が **tag object** を指すため /git/tags で dereference 必須
+  （rust-cache/pnpm‑action‑setup で誤ピン前例 — zizmor online の
+  ref‑version‑mismatch が捕捉）。dtolnay/rust‑toolchain の @stable/@nightly
+  は**ブランチ**（tag 不在）のため ref‑pin 方針（zizmor.yml policies +
+  uses 行へ監査日と head SHA のコメント併記）。
+- **git push が「remote: Internal Server Error」で継続失敗したら
+  `git -c http.version=HTTP/1.1 push` を試す**（2026‑10‑07 実証: API 経由の
+  ref 作成は成功する receive‑pack 経路固有の障害。GitHub status は
+  operational 表示のままだった）。
+- **ローカルの K15 実行は必ず `--json-out /tmp/...` 付きで**: 引数なしは
+  既定出力先が `scripts/bench/results/phase6_front.json` = **証跡 JSON を
+  上書きする**（§1.2 の再生成禁止規程違反。2026‑10‑07 に違反→即時復元の
+  前例）。
+- **Actions の run 失敗 ≠ job 失敗**: ジョブが物化されない run 失敗
+  （ランナー起動失敗クラス）が存在する（前例: native run 37655092156 =
+  14/14 物化ジョブすべて success なのに run failure・abi3‑import 4 セル
+  不明。次の上位集合 push が 18/18 success で一過性を実証）。判定は
+  jobs API の total_count と上位集合 run の結果で行う。
+- **lint‑staged はステージされた .py へ ruff を実行する**: 意図的に規則
+  違反するファイル（発火プローブ等）は `# ruff: noqa` 必須。hook 失敗時の
+  「Task killed: prettier --write」表示は**他タスク失敗の巻き添え表示**で
+  あることがある（真因は ruff タスクだった前例）。1 GiB 環境では prettier
+  タスク自体が kill されることもあり、事前の `pnpm exec prettier --write`
+  が回避策。
 - **セッション冒頭はリモートの dev tip を確認する**: 外部からの force‑push
   巻き戻し（2026‑09‑26）から 12 コミットの SHA を GitHub API + ローカル
   reflog で回収・マージした復旧前例があります。`.git` 自体を失った場合は
@@ -960,3 +998,55 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   方式へ修正し、CI 観測値の両方向ベクタを回帰テストにピン留め
   （mutation 検証済み）。ローカル検証: rustfmt / clippy -D warnings /
   znn‑codec 206 単体 + 4 統合 全パス（rustc 1.99.0 = CI stable 同版）。
+
+## 11. セッション 2026‑10‑07（夜）— 脆弱性スキャン体制の構築（NEO‑PLAN‑2026‑004）
+
+- **Plan‑4.md（NEO‑PLAN‑2026‑004）を策定し、Step 0–10 を同一セッションで
+  完了**した（S5.4/S5.5・A10 = dependabot.yml の発効と初回 PR 確認のみ
+  ユーザの dev→main マージ待ち）。詳細な実施記録・証跡・事故と回収は
+  **Plan‑4 §10 の「2026‑10‑07（実施）」**が一次ソース。以下は要点のみ。
+- **体制（確立済み）**: CodeQL default setup（Extended・JS/TS+.vue・Python・
+  Rust build‑none・Actions — ユーザ設定）/ security.yml = OSV‑Scanner
+  （PR 差分 + push/週次フル・SARIF・月曜 03:00 UTC）+ zizmor（GHAS モード・
+  1.30.1 ピン・online audits）+ gitleaks（v3・fetch‑depth 0・週次全履歴）/
+  dependabot.yml（npm・cargo・uv・github‑actions / target dev / cooldown 7 日）/
+  uv audit 観察枠（非ブロッキング・UV_MALWARE_CHECK=1 試用）/ ruff S /
+  eslint‑plugin‑security 4.2.0 / 全 action SHA ピン（dtolnay のみ ref‑pin 方針）。
+- **実測検出は全量対処済み**: source‑map‑js 1.2.1→1.2.2（CVE‑2026‑93749・
+  override・**バンドル byte 同一**を実証）/ braces・bincode・paste は
+  advisory‑ID スコープの理由付き accept（ignoreUntil 2027‑01‑07 = 四半期
+  再レビュー）/ requirements.txt の httpx2/httpcore2 下限シグナル 6 件は
+  package@version スコープの ignore（uv.lock 2.13.1 が権威）/ zizmor 142 件
+  （template‑injection error 2・artipacked 12・excessive‑permissions 12・
+  cache‑poisoning 11・unpinned 60・adhoc 1）→ **online/offline とも
+  「No findings to report」**（ignore 13 は全て理由付き記録）。
+- **最大の教訓（§1.2 へ規程化済み）**: gitleaks 設定の**偽緑** — allowlist
+  のみのカスタム設定が既定ルールを全置換し、ローカルと CI の双方で「no leaks」の
+  虚偽報告。発火テスト（PR #53 の 4 プローブ）が初日で捕捉し、
+  `[extend] useDefault = true` + ルールスコープ allowlist へ修正（6fdfdb7）。
+  修正後の全履歴スキャンがプローブ自体を検出 = 修正と発火の双方を一度に実証。
+- **発火テスト証跡（PR #53・クローズ済み）**: osv‑pr failure（braces@3.0.2 =
+  GHSA‑grv7‑fg5c‑xmjg）/ gitleaks failure（擬似 api_key・push protection は
+  provider pattern のみ阻止するため通過 = 予測どおり）/ zizmor results‑check
+  failure（template‑injection）/ CodeQL results‑check failure
+  （py/command‑line‑injection）。復元側: PR クローズ + ブランチ削除 +
+  prune で dev = gitleaks no leaks・Security success・native 18/18 success
+  （1025bbd）。
+- **concurrency の落とし穴（2026‑10‑07 実例）**: 失敗 run の
+  rerun‑failed‑jobs は**元の run の ref の concurrency グループへ再参加する**
+  ため、`cancel‑in‑progress: true` のグループ（native‑refs/heads/dev）では
+  旧コミットの再実行が**新コミットの in‑progress run をキャンセルする**。
+  flake 検証の再実行は「より新しい run が走っていないこと」を確認してから
+  行う（前例: 6fdfdb7 の再実行が dcd5624 の native run を cancelled にした）。
+- **CI 側の観察**: CodeQL の main 側 Actions アラート 32 件
+  （unpinned‑tag 21 + missing‑workflow‑permissions 11）は dev で解消済み・
+  main へのマージ後の再解析で自動クローズされる見込み（要確認）。
+  Security run は dev push 7 回連続 success。ci.yml の pytest（3.12）は
+  ruff S 導入後も緑（sandbox 3.11 の 1 件失敗は stash 対照で無関係と証明）。
+- **残件・監視計画**: ① native run 6fdfdb7 の完走確認（次セッション冒頭）、
+  ② main マージ後の Dependabot 初回 PR 形状確認（S5.4/S5.5・A10）、
+  ③ zizmor 1.31.0 着弾時の cache‑poisoning ignore 13 件の削除再評価、
+  ④ UV_MALWARE_CHECK=1 の native.yml 展開（ci.yml 2 週無事故後）、
+  ⑤ uv audit のブロッキング昇格（preview 卒業後）、⑥ osv‑scanner.toml の
+  ignoreUntil 2027‑01‑07 三件（braces/httpx2/httpcore2）の四半期再レビュー、
+  ⑦ CodeQL PR チェックのしきい値（High or higher）運用観察。
