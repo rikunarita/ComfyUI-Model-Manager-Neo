@@ -211,12 +211,32 @@ fn stat_times_ns(meta: &fs::Metadata) -> (i64, i64) {
     (c, m)
 }
 
-/// `round(ns / 1e6)` exactly as Python computes it: an f64 division (with the
-/// same >2^53 precision behaviour) then round-half-to-even. `round_ties_even`
-/// (stable since 1.77) IS Python's `round()` for floats — verified against
-/// `round(st_ctime_ns/1e6)` on a live stat.
+/// `round(ns / 1e6)` bit-for-bit as CPython computes it (`py/manager.py`:
+/// `round(stat.st_ctime_ns / 1000000)` for createdAt/updatedAt).
+///
+/// CPython's `int / int` is a CORRECTLY ROUNDED f64 of the exact rational
+/// quotient, and `round()` on that float is half-to-even. The naive
+/// `(ns as f64) / 1e6` is NOT the same: epoch nanoseconds exceed 2^53, so
+/// `ns as f64` first quantises to a 256 ns grid and the half-to-even decision
+/// flips for quotients within ~1.3e-4 of a `.5` boundary — about 1 in 10,000
+/// timestamps off by one ms (the 2026-10-07 macOS CI golden-parity flake in
+/// `test_scan_survives_a_non_utf8_sidecar`: updatedAt …337 vs …338).
+///
+/// The integer split below is provably identical to CPython for every i64:
+/// `q` (|q| < 2^53) and `r` (< 1e6) are exact in f64; the inner rounding of
+/// `r/1e6` (≤ 2^-54) can never move the sum across the outer f64 grid's
+/// decision midpoints because `r/1e6` sits ≥ 1/(1e6·2^13) away from every
+/// midpoint (its denominator 1e6 shares only 2^6 with the 2^13 grid, and an
+/// odd numerator can never cancel that); the one exact tie `r == 500_000`
+/// forms `q + 0.5`, itself exact in f64, where both paths round half-to-even.
+/// `div_euclid`/`rem_euclid` floor like Python's `divmod`, so negative `ns`
+/// (pre-epoch mtimes) round identically too. Cross-checked against CPython on
+/// 3M random values (modern-epoch, negative, small and 2^53-boundary ranges)
+/// plus the i64 extremes: zero divergence (the naive form: 41).
 fn ns_to_ms(ns: i64) -> i64 {
-    ((ns as f64) / 1_000_000.0).round_ties_even() as i64
+    let q = ns.div_euclid(1_000_000);
+    let r = ns.rem_euclid(1_000_000);
+    ((q as f64) + (r as f64) / 1_000_000.0).round_ties_even() as i64
 }
 
 // ---------------------------------------------------------------------------
@@ -1157,6 +1177,28 @@ mod tests {
         assert_eq!(ns_to_ms(2_500_000), 2); // 2.5 → 2 (even)
         assert_eq!(ns_to_ms(1_400_000), 1); // 1.4 → 1
         assert_eq!(ns_to_ms(1_600_000), 2); // 1.6 → 2
+
+        // Regression vectors for the 2026-10-07 macOS CI golden-parity flake:
+        // epoch ns exceed 2^53, where the former `(ns as f64) / 1e6` quantised
+        // to a 256 ns grid and flipped the half-to-even decision near `.5`
+        // boundaries (~1 in 10,000 timestamps). Every expected value below is
+        // CPython's `round(ns / 1000000)`; the three epoch-scale vectors each
+        // diverged under the old formula (…777/…778 rounded UP to …338,
+        // …221 rounded DOWN to …954 — the direction observed in CI).
+        assert_eq!(ns_to_ms(1_791_356_884_337_499_777), 1_791_356_884_337);
+        assert_eq!(ns_to_ms(1_791_356_884_337_499_778), 1_791_356_884_337);
+        assert_eq!(ns_to_ms(1_707_307_865_954_500_221), 1_707_307_865_955);
+
+        // Negative ns (pre-epoch mtimes): div_euclid/rem_euclid floor like
+        // Python's divmod, ties stay half-to-even toward the even neighbour.
+        assert_eq!(ns_to_ms(-1), 0);
+        assert_eq!(ns_to_ms(-500_000), 0); // -0.5 → -0 (even)
+        assert_eq!(ns_to_ms(-1_500_000), -2); // -1.5 → -2 (even)
+        assert_eq!(ns_to_ms(0), 0);
+
+        // i64 extremes: |q| < 2^53 keeps the quotient part exact in f64.
+        assert_eq!(ns_to_ms(i64::MAX), 9_223_372_036_855);
+        assert_eq!(ns_to_ms(i64::MIN), -9_223_372_036_855);
     }
 
     #[test]
