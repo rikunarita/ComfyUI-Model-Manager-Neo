@@ -296,7 +296,7 @@ jobs:
 
       # Phase 7 T4: uv replaces pip in the CI layer (drop-in
       # `uv pip install --system` against the setup-python interpreter).
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
           # (release verification builds cold); unchanged elsewhere.
@@ -493,7 +493,7 @@ jobs:
           python-version: "3.12"
 
       # Phase 7 T4: uv replaces pip in the CI layer.
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
           # (release verification builds cold); unchanged elsewhere.
@@ -607,7 +607,7 @@ jobs:
           python-version: "3.12"
 
       # Phase 7 T4: uv replaces pip in the CI layer.
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
           # (release verification builds cold); unchanged elsewhere.
@@ -841,7 +841,7 @@ jobs:
       # Phase 7 T4: uv replaces pip in the CI layer. The torch CPU wheel
       # (~200 MB) install below is where uv's resolve+install speedup and the
       # download cache pay off the most.
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
           # (release verification builds cold); unchanged elsewhere.
@@ -1095,7 +1095,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
           # (release verification builds cold); unchanged elsewhere.
