@@ -47,6 +47,7 @@
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^26.6.3",
     "@vitejs/plugin-vue": "^6.0.9",
+    "braces": "3.0.2",
     "dependency-cruiser": "18.4.0",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",

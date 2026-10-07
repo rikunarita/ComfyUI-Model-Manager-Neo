@@ -1,0 +1,15 @@
+# Firing probe (NEO-PLAN-2026-004 S10.3) — NEVER MERGE.
+# Canonical zizmor template-injection pattern: untrusted event context
+# expanded directly into a shell. Exists only on this branch so the zizmor
+# SARIF upload produces a NEW high-severity alert on the test PR.
+name: firing-probe
+
+on: issues
+
+permissions: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ github.event.issue.title }}"
