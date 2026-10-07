@@ -7,8 +7,11 @@
  *   3. eslint-plugin-vue      — flat/recommended (via vue-eslint-parser)
  *   4. eslint-plugin-tailwindcss — Tailwind v4 class hygiene
  *   5. eslint-plugin-import-x — import hygiene & ordering (alias-aware)
- *   6. project overrides      — parsers, globals, rule tuning
- *   7. eslint-config-prettier — MUST stay last: disables stylistic rules
+ *   6. eslint-plugin-security — Node/security anti-patterns (flat/recommended,
+ *                               NEO-PLAN-2026-004 Step 8; per-rule tuning in
+ *                               the project overrides layer below)
+ *   7. project overrides      — parsers, globals, rule tuning
+ *   8. eslint-config-prettier — MUST stay last: disables stylistic rules
  *                               that would conflict with Prettier
  *
  * Class *ordering* is delegated to prettier-plugin-tailwindcss (see the
@@ -19,6 +22,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import eslintConfigPrettier from 'eslint-config-prettier'
 import importX from 'eslint-plugin-import-x'
+import security from 'eslint-plugin-security'
 import tailwindcss from 'eslint-plugin-tailwindcss'
 import pluginVue from 'eslint-plugin-vue'
 import globals from 'globals'
@@ -55,6 +59,11 @@ export default tseslint.config(
 
   // ---- Tailwind CSS v4 ---------------------------------------------------------
   tailwindcss.configs.recommended,
+
+  // ---- Security anti-patterns (eslint-plugin-security >= 4.0.1, flat config) ----
+  // NOTE: `configs.recommended` is a SINGLE config object in this plugin
+  // (not an array) — spread would crash ESLint ("object is not iterable").
+  security.configs.recommended,
 
   // ---- Imports -----------------------------------------------------------------
   {
@@ -180,8 +189,34 @@ export default tseslint.config(
         },
       ],
 
+      // Security (eslint-plugin-security — NEO-PLAN-2026-004 Step 8) --------
+      // detect-object-injection flags EVERY computed bracket access
+      // (obj[dynamicKey]) — 151 hits in this codebase, all idiomatic store /
+      // locale / models-by-type lookups, zero taint paths (the shipped
+      // extension never evals or deserialises around them). The rule is the
+      // plugin's well-known false-positive factory; disabled globally, while
+      // the rest of the recommended set stays on. The two REAL signal sites
+      // found on adoption (search-token RegExp construction in
+      // src/utils/modelFilter.ts) are triaged inline with reasons, and the
+      // dev-tool fs/path findings are scoped off below.
+      'security/detect-object-injection': 'off',
+
       // Core ----------------------------------------------------------------------
       'no-empty': ['error', { allowEmptyCatch: true }],
+    },
+  },
+
+  // ---- Dev/build tooling scope ----------------------------------------------------
+  // The K15 bench harness and the Vite config are file/path TOOLS: reading and
+  // writing non-literal paths is their entire purpose (bench fixtures, JSON
+  // outputs, bundle emission), and their RegExp uses compile copies of legacy
+  // code for measurement. The shipped extension itself never touches node:fs.
+  {
+    name: 'mm-neo/rules-devtools',
+    files: ['scripts/**/*.{js,mjs,cjs,ts}', 'vite.config.ts', '*.config.{js,mjs,cjs,ts}'],
+    rules: {
+      'security/detect-non-literal-fs-filename': 'off',
+      'security/detect-non-literal-regexp': 'off',
     },
   },
 
