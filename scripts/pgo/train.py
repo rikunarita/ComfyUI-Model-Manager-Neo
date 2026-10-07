@@ -516,7 +516,7 @@ def measure(a_dir: str, b_dir: str, rounds: int, json_out: str | None, workdir: 
                 for attempt in range(MAX_STEAL_RETRIES):
                     steal0 = _steal_ticks()
                     wall0 = time.monotonic()
-                    proc = subprocess.run(
+                    proc = subprocess.run(  # noqa: S603  # fixed-argv self re-exec for the subprocess-isolation gate protocol (MEMO §3); no shell, no external input
                         [
                             sys.executable,
                             str(Path(__file__).resolve()),

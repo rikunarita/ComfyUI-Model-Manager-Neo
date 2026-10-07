@@ -177,7 +177,7 @@ class ApiKey:
             pass
         # Legacy pickle written by older versions of this extension.
         try:
-            store = self._sanitize(pickle.loads(raw))
+            store = self._sanitize(pickle.loads(raw))  # noqa: S301  # legacy private.key format: local-only, gitignored, written by this extension itself; migrated to JSON immediately below
             self._store = store
             self._update()  # rewrite as JSON immediately
             utils.print_info("Migrated private.key from pickle to JSON")

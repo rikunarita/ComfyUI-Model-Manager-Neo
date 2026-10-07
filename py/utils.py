@@ -1056,7 +1056,7 @@ def save_dict_pickle_file(filename: str, data: Any) -> None:
 
 def load_dict_pickle_file(filename: str) -> dict:
     with open(filename, "rb") as f:
-        return pickle.load(f)
+        return pickle.load(f)  # noqa: S301  # private.key store: local-only, gitignored, written by save_dict_pickle_file above; auth.py migrates it to JSON on load
 
 
 def resolve_setting_key(key: str) -> str:
@@ -1211,4 +1211,7 @@ def is_installed(package_name: str):
 
 
 def pip_install(package_name: str):
-    subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)
+    # S603 triage (NEO-PLAN-2026-004): fixed argv (no shell); the only call
+    # site (__init__.py) feeds names parsed from this extension's OWN bundled
+    # requirements.txt, never user input.
+    subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)  # noqa: S603

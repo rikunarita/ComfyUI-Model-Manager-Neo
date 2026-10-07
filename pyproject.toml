@@ -123,7 +123,7 @@ line-length = 120
 extend-exclude = ["web", "downloads", "demo"]
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "UP", "C4", "SIM", "RET", "RUF", "PIE"]
+select = ["E", "W", "F", "I", "B", "UP", "C4", "SIM", "RET", "RUF", "PIE", "S"]
 ignore = [
     # The ComfyUI entry point mutates `folder_paths.supported_pt_extensions`
     # BEFORE importing the extension modules, and heavy deps (PIL, zipnn)
@@ -132,7 +132,27 @@ ignore = [
     # The defensive `try: ... except Exception: pass` guards around optional
     # reporting read clearer here than contextlib.suppress blocks.
     "SIM105",
+    # S110/S112 are the flake8-bandit view of the SAME documented stance as
+    # SIM105 above: optional reporting/cleanup paths deliberately swallow
+    # exceptions silently so a failing side-channel can never take the
+    # extension (or ComfyUI) down with it. The pickle/subprocess/url-open
+    # families stay ENABLED and are triaged per site with reasoned noqa
+    # comments (NEO-PLAN-2026-004 Step 7).
+    "S110",
+    "S112",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest asserts ARE the test idiom (S101); the auth-store fixtures pass
+# literal `password=`/`token=` arguments by nature of what they test (S106);
+# /tmp scratch paths in tests are sandboxed by pytest's tmp fixtures or
+# deliberate (S108).
+"tests/*" = ["S101", "S106", "S108"]
+# The PGO training harness and the L5 official-zipnn cross-validation gate
+# are plain-stdlib scripts whose in-run verification mechanism IS `assert`
+# (no pytest on those paths — train.py must stay stdlib-only by design).
+"scripts/pgo/*" = ["S101"]
+"scripts/l5/*" = ["S101"]
 
 [tool.ruff.format]
 docstring-code-format = false
