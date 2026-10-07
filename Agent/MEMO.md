@@ -533,6 +533,24 @@ total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのスト�
   「成果物不足」と「解釈系非対応」を区別する。
   副次利得: floor 未満ホストでピンが tag を捏造し、実 import が未定義
   シンボルで失敗する潜在の誤検出も同時に消えます。
+- **浮動小数点変換の parity は「乖離窓」をピン留めする（単一サンプルでは
+  検出不能）**: `ns_to_ms` の旧実装 `(ns as f64)/1e6` は epoch ns > 2^53 で
+  f64 変換が 256 ns 量子へ不可逆となり、.5 境界近傍で round_ties_even の
+  判定が反転 — CPython の `round(int/int)`（int/int は**正確な商の正しい
+  丸め**）と約 1/10,000 のタイムスタンプで 1 ms 乖離した（実測:
+  2026‑10‑07 macOS integration の test_scan_survives_a_non_utf8_sidecar
+  1 件失敗・直前 9 run 連続緑・再実行は緑 = 典型 flake 像）。旧単体テストは
+  live-stat 1 サンプル＋小さい合成値（<2^53 = 変換が正確な領域）のみで
+  構造的に検出不能。修正 = 整数商＋余り（div_euclid/rem_euclid →
+  `q + f64(r)/1e6`。|q|<2^53 で q は f64 正確、r/1e6 の内側丸め誤差 ≤2^-54
+  は判定中点（奇数×2^-13）へ届かない = 分母 1e6 と 2^13 の共通因子 2^6 では
+  奇数分子が相殺しないため。唯一の完全タイ r=500_000 は q+0.5 が f64 正確）
+  = **全 i64 で CPython とビット一致することを証明可能**。負 ns は
+  div_euclid が Python divmod と同じ floor 意味論で一致。検証 = 実測乖離 ns
+  の両方向ベクタ 3 本の回帰ピン（mutation 検証: 旧実装で CI 観測値ちょうど
+  で失敗・新実装で成功）＋ CPython との 3M ランダム照合（現代 epoch・負・
+  小値・2^53 境界・i64 極値）で乖離ゼロ（旧式 41 件）。**教訓: 丸め・精度の
+  parity 契約は、実測された乖離ベクタと両方向をテストに固定する。**
 
 ## 5. 完了した計画とその成果（過去に何をしたか）
 
@@ -935,3 +953,10 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   publish-native-bin が 0dce243 で成果物再ビルド）。新 fuzz-long.yml は main 上の
   ため、2026‑10‑11（日）18:00 UTC の週次 run からは通常運用（3 h 予算）で
   そのまま回る。
+- **`ns_to_ms` parity 修正（znn‑codec scan.rs・fix(native) コミット）**:
+  v0.3.2 push（036fd74）の native run で macOS integration が 1 件失敗した
+  根因は §4.5 の浮動小数点変換の罠（バージョン更新とは無関係の潜在 flake。
+  失敗ジョブ再実行は緑・乖離率 ≈1/10,000/タイムスタンプ）。整数商＋余り
+  方式へ修正し、CI 観測値の両方向ベクタを回帰テストにピン留め
+  （mutation 検証済み）。ローカル検証: rustfmt / clippy -D warnings /
+  znn‑codec 206 単体 + 4 統合 全パス（rustc 1.99.0 = CI stable 同版）。
