@@ -814,8 +814,12 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   2026‑10‑09 予定）。ft セルは `freethreaded: true` 側で切り替わるため、
   `3.15t` という文字列は書きません。
 - **Plan‑2 R5**: fuzz-long.yml の apt（clang + mold）ステップ削除 —
-  main へのマージ後の初回週次 run（schedule は default branch 限定）または
-  ユーザ dispatch の成功確認後に別コミットで。
+  **dev 完了（2026‑10‑07）**: native.yml fuzz-smoke と fuzz-long.yml の双方から
+  削除した（mold は -fuse-ld 参照ゼロの不参照・clang は rustc 同梱
+  compiler‑rt で不要 = native/.cargo/config.toml の方針どおり）。dev push の
+  fuzz-smoke（7 ターゲット × 60 s・ASan・gnu・rust-lld）成功で CI セル検証
+  済み。main 反映後の初回週次 run（schedule は default branch 限定）または
+  ユーザ dispatch が fuzz-long 側の最終確認。
 - **cache‑targets の再考**: native‑build‑linux の `cache-targets: "false"`
   （registry のみキャッシュ）は保留 — cold ビルドの実測を 1 run で計測して
   から判断します。
@@ -874,3 +878,44 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 - **検証知見**: SVG の視覚検証は **resvg-js**（`@resvg/resvg-js`）を使用。
   cairosvg は SVG フィルタ（feGaussianBlur 等）を silently 無視するため、
   グラスモフィズム表現の検証には**不適**（接地影がぼやけない等で誤判定する）。
+
+## 10. セッション 2026‑10‑07 — ユーザ向け文書の校正・「削除された機能」再構成・CI 簡約・LESS 退役
+
+- **ユーザ向け文書の校正（README×4 / USAGE×4・コミット d08aee4）**:
+  (1) `<a id="documentation">` アンカーが「削除された機能: ノードコピー」節の
+  直前に誤配置され目次リンクが誤ジャンプしていた → 本来の見出し直下へ移動＋
+  `---` 区切り補完。(2)「元版からの変更点」導入の「削除されたのは 2 つ」→
+  3 つ（copy-node 節の後追い追加時に導入文が未更新だった）。(3) zh-TW の
+  動詞 extended 誤変換「擴充套件」（=拡張パッケージ・名詞）→「擴展」
+  （他の 11 箇所は extension の名詞用法で正当なため非変更）。
+  (4) USAGE のモデル詳細アクション行ボタン列挙（"The whole action row" =
+  網羅表現）に load workflow（v-show=hasPreview・add node と upload to hub の間）
+  が欠落 → ソース順どおり追加（4 言語）。(5) 英文の半角ハイフン " - " 4 箇所を
+  全角ダッシュへ統一（em-dash 127 箇所に対する逸脱）。数値主張（16 modules /
+  42 routes / 5 hash / 7 fuzz / 22 dtype / v0.3.1 / api_version 6）と
+  パッケージ差分はフォーク元 v2.8.5 ソースとの一次照合で正確を確認。
+  内部リンクは github-slugger 実装で全解決を機械検証。
+- **「削除された機能」節の再構成（README×4・コミット 3e78934）**:
+  batch scan / copy node の 2 つの H2 を、H2「Removed features」＋ H3 小見出し
+  （scan-search / clipboard-x・26px）の 1 セクションへ再構成（What changed 配下
+  と同じ階層様式・H3 間の `---` は撤去）。`#removed-features` 新設、目次と
+  「元版からの変更点」導入の参照を単一リンクへ集約。既存 deep-link のために
+  `#removed-feature` / `#removed-feature-copy-node` は小見出し位置に保持。
+- **Plan‑2 R5 完了（コミット 2f751fb・§7 参照）**: native.yml fuzz-smoke と
+  fuzz-long.yml の apt（clang + mold）ステップ削除。dev push の fuzz-smoke
+  成功（7:49・ステップ一覧に apt 無し）でセル検証済み。native/README の
+  「CI の apt ステップも撤去済み」記述はこれで全ジョブに対して真になった。
+- **ci.yml の二重 pnpm install 解消（コミット be9e51b）**: Build ステップを
+  `pnpm exec vite build` へ（package.json の build スクリプト前置 install は
+  ローカル一発実行用。CI では前段の install ステップと重複していた）。
+- **LESS 退役（コミット 1970abe）**: `lang="less"` は ModelDescription.vue の
+  1 ファイルのみ・内容もネストだけで LESS 固有構文ゼロ（機械走査で実証）→
+  `<style module>`（ネイティブ CSS ネスト）へ変換し devDeps から less /
+  postcss-less を削除。ビルド出力 CSS は modules ハッシュ正規化後に
+  **バイト同一**（67,781 chars・23/23 ルール）= 挙動等価を実証。web/ バンドル
+  再ビルドを同梱。K15 ゲート・fallow dead/dupes も PASS。
+- **CI 証跡**: dev push（1970abe）で ci.yml verify + native.yml 全ジョブ
+  success（fuzz-smoke / integration ×4 / builds ×3 / abi3-import ×4 /
+  size-budget・publish は main 専用のため skipped）。native-test のログで
+  stable ツールチェーンが **rustc 1.99.0** へ更新されたことを確認
+  （dtolnay/rust-toolchain@stable・バージョンピン無しの方針どおり）。
