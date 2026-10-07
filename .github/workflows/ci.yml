@@ -55,7 +55,30 @@ jobs:
           enable-cache: true
 
       - name: Python dependencies
+        env:
+          # Plan-4 S6.3 trial: ask OSV for known MAL (malicious-package)
+          # advisories during uv operations, blocking quarantined PyPI
+          # distributions before they execute. Opt-in preview feature of uv
+          # (announced 2026-06-08); it targets sync-family commands, so its
+          # effect on `uv pip install` is observed, not assumed. Rollback
+          # rule (Plan-4 D5): ANY failure or stall attributable to this env
+          # removes it in the same session.
+          UV_MALWARE_CHECK: "1"
         run: uv pip install --system -r requirements.txt mypy ruff==0.16.9 pytest pytest-asyncio aiohttp pyyaml requests pillow
+
+      # Plan-4 Step 6 (observation slot, D5): uv audit — the uv-native
+      # dependency audit (OSV backend, reads uv.lock directly; Astral
+      # measured 4-10x faster than pip-audit). The command is PREVIEW
+      # ("unstable, breaking changes possible"), so it is NON-BLOCKING:
+      # the authoritative Python SCA gate is osv-full in security.yml,
+      # which scans the same uv.lock. Findings go to the job summary for
+      # visibility; promote to blocking once uv audit leaves preview.
+      # Local run: `pnpm py:audit`.
+      - name: Python dependency audit (uv audit — preview, non-blocking)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          uv audit --preview-features audit-command 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
