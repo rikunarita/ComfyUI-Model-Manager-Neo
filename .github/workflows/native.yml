@@ -142,7 +142,7 @@ jobs:
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       # pyo3's build script wants a Python interpreter present.
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -290,7 +290,7 @@ jobs:
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -401,7 +401,7 @@ jobs:
       # 3.15.0-rc.2 GIL (PyO3 requires host >= target; the pin stays until
       # the 3.15 final lands in the runner manifest — the
       # ABI froze at rc1, so the final is a label-only swap).
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315
         with:
           python-version: "3.15.0-rc.2"
@@ -425,7 +425,7 @@ jobs:
             fi
           done
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315t
         with:
           python-version: "3.15.0-rc.2"
@@ -488,7 +488,7 @@ jobs:
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -531,7 +531,7 @@ jobs:
       # 3.15.0-rc.2. The wheel naming check is done by build-native.sh's
       # cp315*abi3t* glob + the
       # .abi3t.so extraction (both fail loudly on a mismatch).
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315
         with:
           python-version: "3.15.0-rc.2"
@@ -542,7 +542,7 @@ jobs:
       - name: Verify universal2t fat binary
         run: lipo -info native/native-bin/macos-universal2t/mm_core.abi3t.so
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315t
         with:
           python-version: "3.15.0-rc.2"
@@ -602,7 +602,7 @@ jobs:
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -631,7 +631,7 @@ jobs:
       # t artifact is separated ONLY by its windows-x86_64t directory (the
       # upload below carries the
       # directory structure and the publish staging is directory-tag-first).
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315
         with:
           python-version: "3.15.0-rc.2"
@@ -639,7 +639,7 @@ jobs:
       - name: Build windows-x86_64t (MSVC, abi3t, non-PGO)
         run: ./scripts/build-native.sh --target windows-x86_64t --size-gate
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315t
         with:
           python-version: "3.15.0-rc.2"
@@ -695,7 +695,7 @@ jobs:
             freethreaded: true
             tag: linux-x86_64t
     steps:
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
           freethreaded: ${{ matrix.freethreaded }}
@@ -833,7 +833,7 @@ jobs:
           # credentials; keep none persisted on the runner.
           persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
           freethreaded: ${{ matrix.freethreaded || false }}
@@ -1091,7 +1091,7 @@ jobs:
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
