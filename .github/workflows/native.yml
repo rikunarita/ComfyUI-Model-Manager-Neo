@@ -51,6 +51,12 @@ on:
   # (the PGO pilot) and for on-demand re-verification.
   workflow_dispatch:
 
+# Least privilege for every job (zizmor excessive-permissions / CodeQL
+# actions/missing-workflow-permissions). The ONLY writer is publish-native-bin,
+# which elevates itself with a job-level `permissions: contents: write`.
+permissions:
+  contents: read
+
 concurrency:
   # NOTE (2026-09-30 incident, run #78): `group: native-${{ github.ref }}` is
   # NOT collision-free. When a PR is merged seconds after opening, GitHub can

@@ -12,6 +12,12 @@ on:
     branches: [main, dev]
   pull_request:
 
+# Least privilege for every job (zizmor excessive-permissions / CodeQL
+# actions/missing-workflow-permissions): nothing in this workflow writes
+# back to the repository.
+permissions:
+  contents: read
+
 jobs:
   verify:
     # Bound any hang (e.g. a stalled package mirror) far below GitHub's 6 h

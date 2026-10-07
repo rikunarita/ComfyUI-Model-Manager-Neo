@@ -23,6 +23,12 @@ on:
         type: choice
         options: ["1", "2", "3", "4", "5"]
 
+# Least privilege for every job (zizmor excessive-permissions): the fuzz
+# matrix only reads the tree and uploads crash artifacts (runtime-token
+# scoped, no GITHUB_TOKEN permissions needed).
+permissions:
+  contents: read
+
 concurrency:
   group: fuzz-long
   cancel-in-progress: false
