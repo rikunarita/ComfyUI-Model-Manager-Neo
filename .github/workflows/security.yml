@@ -1,0 +1,125 @@
+# Security gates (NEO-PLAN-2026-004, Step 3) — SCA, Actions-config and secrets.
+#
+# Three tools, one workflow, all DB-less and cache-free (the 10 GB/repo Actions
+# cache stays untouched — see Agent/MEMO §4.1 for why that matters here):
+#
+#   osv-pr / osv-full  OSV-Scanner (google reusable workflows). Scans the four
+#                      dependency surfaces — pnpm-lock.yaml, uv.lock,
+#                      native/Cargo.lock, requirements.txt — against OSV.dev
+#                      (GHSA + RustSec + PyPI advisories). PRs get the DIFF
+#                      scan (fails only on newly introduced vulnerabilities);
+#                      push/schedule/dispatch get the full scan whose SARIF
+#                      lands in the Security tab. Triage (accepted findings
+#                      with reasons + expiries) lives in /osv-scanner.toml and
+#                      /native/osv-scanner.toml — per-directory config
+#                      semantics, see their headers.
+#   zizmor             Actions/Dependabot/pre-commit configuration security
+#                      (template injection, unpinned uses, artipacked, ...).
+#                      Advanced-Security mode: SARIF -> Security tab, and PR
+#                      blocking rides the code-scanning results check (the
+#                      repo's "High or higher" threshold). zizmor's own
+#                      exceptions are recorded in .github/zizmor.yml.
+#   gitleaks           Secret scanning over git history — complements GitHub's
+#                      native secret scanning (partner patterns at push time)
+#                      with full-history sweeps and the repo's .gitleaks.toml
+#                      allowlist. Personal-account repo => no GITLEAKS_LICENSE
+#                      needed (gitleaks-action README).
+#
+# Trigger note: CodeQL default setup covers main pushes / PRs-to-main / weekly.
+# This workflow additionally covers DEV pushes, so the working branch gets the
+# same SCA/Actions/secret eyes on every push (Agent/Plan-4.md D1).
+#
+# Schedule: Monday 03:00 UTC — deliberately clear of the Sunday 03:40 UTC
+# cache sweep and the Sunday 18:00 UTC fuzz-long budget.
+name: Security
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+# Least privilege at the top; each job elevates only what its SARIF upload or
+# PR interaction needs (the pattern cache-cleanup.yml established).
+permissions: {}
+
+jobs:
+  # PR gate: only NEW vulnerabilities introduced by the PR fail the run.
+  osv-pr:
+    if: github.event_name == 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    permissions:
+      actions: read
+      security-events: write # SARIF upload to the Security tab
+      contents: read
+    # (timeout lives inside the reusable workflow — caller jobs of a reusable
+    #  workflow cannot set timeout-minutes.)
+
+  # Full scan on push / schedule / dispatch: SARIF keeps the Security tab
+  # current and the run fails on any un-triaged finding.
+  osv-full:
+    if: github.event_name != 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    with:
+      # One argv per line (the action splits scan-args by newline), so the
+      # --lockfile=<path> form is REQUIRED. Exactly the four surfaces that
+      # were verified locally on 2026-10-07 (No issues found, exit 0).
+      scan-args: |-
+        --lockfile=pnpm-lock.yaml
+        --lockfile=uv.lock
+        --lockfile=native/Cargo.lock
+        --lockfile=requirements.txt
+    permissions:
+      actions: read
+      security-events: write
+      contents: read
+
+  zizmor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      security-events: write # SARIF upload
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Advanced-Security mode (default): findings go to the Security tab as
+      # stateful, triageable alerts instead of failing the run — PR blocking
+      # is the code-scanning results check's job. `version` pins the zizmor
+      # binary to the release the findings baseline was measured against
+      # (1.30.1, 2026-10-07); bump it deliberately, not implicitly.
+      # online-audits adds the API-backed audits (ref confusion & co).
+      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          version: "1.30.1"
+          online-audits: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write # the action annotates/comments secret findings on PRs
+    steps:
+      # Full history: push events scan the pushed range, PR events the PR
+      # diff, and the weekly schedule sweeps ALL commits (measured locally
+      # 2026-10-07: 333 commits / 47 MB in 11.3 s).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # v3 = the Node 24 runtime of the action (behaviour identical to v2).
+      # No GITLEAKS_LICENSE: this repository belongs to a personal account,
+      # which the action's README exempts. Allowlist: /.gitleaks.toml.
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          # The runner does NOT export GITHUB_TOKEN into step environments on
+          # its own (Agent/MEMO §4.1 — cache-cleanup run #1 failed on this).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

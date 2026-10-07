@@ -1,0 +1,17 @@
+# Gitleaks configuration (NEO-PLAN-2026-004, Step 3).
+#
+# Policy: allowlist entries are as narrow as possible (exact secret regex, not
+# paths or rules) and carry their justification. The full-history baseline was
+# measured 2026-10-07 (gitleaks 8.30.1, 333 commits / 47.06 MB / 11.3 s):
+# exactly ONE finding, the false positive recorded below.
+
+[allowlist]
+description = "Documented false positives — see Agent/Plan-4.md A.3"
+# native/crates/znn-codec/src/dtype.rs:49 — a //! doc comment QUOTES the
+# CPython exception text `KeyError: torch.complex128` (evidence that
+# complex128/bcomplex32 have no safetensors 0.8 representation, verified
+# against the pip package 2026-09-26). The generic-api-key rule mistakes the
+# quoted dtype name for a credential. The regex targets the SECRET field
+# exactly, so any other high-entropy string in the same file — or this string
+# attached to a real credential pattern — is still reported.
+regexes = ['''^torch\.complex128$''']
