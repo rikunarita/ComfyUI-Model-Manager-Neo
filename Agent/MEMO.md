@@ -824,10 +824,10 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   （-O + 3 h が rust‑lld で成立し、mold はインストール済みだが不参照）、
   ② dev push の fuzz-smoke（7 ターゲット × 60 s・ASan・-D・clang/mold 無し）
   success、③ PAT から fuzz-long を dev へ hours=1 で dispatch
-  （run 37572923805・新ファイル）— 全 7 ジョブの「Build fuzz target
-  (release + ASan, gnu)」ステップ success = **-O ビルドも clang/mold 不要**
-  を実証（1 h 予算のファズ本体は通常の週次 run と同じ挙動で apt 削除と
-  無関係）。
+  （run 37572923805・新ファイル）— 全 7 ジョブ completed success
+  （-O ビルド成功 + 1 h 予算完走: 合計 ≈3.25 億 execs・crash/OOM/timeout 0・
+  peak RSS 最大 226 MB ≤ 上限 4096・ジョブ毎 ≈65 分）= **clang/mold 不要を
+  端到端で実証**し、R5 クローズ。
 - **cache‑targets の再考**: native‑build‑linux の `cache-targets: "false"`
   （registry のみキャッシュ）は保留 — cold ビルドの実測を 1 run で計測して
   から判断します。
@@ -931,3 +931,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   size-budget・publish は main 専用のため skipped）。native-test のログで
   stable ツールチェーンが **rustc 1.99.0** へ更新されたことを確認
   （dtolnay/rust-toolchain@stable・バージョンピン無しの方針どおり）。
+  後日談: ユーザが PR #50 で main へマージ（ec4ddb3・main の CI/native 全緑・
+  publish-native-bin が 0dce243 で成果物再ビルド）。新 fuzz-long.yml は main 上の
+  ため、2026‑10‑11（日）18:00 UTC の週次 run からは通常運用（3 h 予算）で
+  そのまま回る。
