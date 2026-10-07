@@ -103,7 +103,7 @@ jobs:
           # credentials; keep none persisted on the runner.
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — head 89b1218 2026-10-07; see .github/zizmor.yml
         with:
           components: rustfmt, clippy
 
@@ -271,7 +271,7 @@ jobs:
           # credentials; keep none persisted on the runner.
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — head 89b1218 2026-10-07; see .github/zizmor.yml
         with:
           targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
           # llvm-profdata for the PGO merge below.
@@ -469,7 +469,7 @@ jobs:
           # credentials; keep none persisted on the runner.
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — head 89b1218 2026-10-07; see .github/zizmor.yml
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
           # llvm-tools-preview removed with the macOS non-PGO decision
@@ -584,7 +584,7 @@ jobs:
           # credentials; keep none persisted on the runner.
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — head 89b1218 2026-10-07; see .github/zizmor.yml
         with:
           # llvm-profdata for maturin --pgo (resolved from the rustc sysroot).
           components: llvm-tools-preview
@@ -980,7 +980,7 @@ jobs:
           # credentials; keep none persisted on the runner.
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@nightly # floating branch by policy (D2) — head 0e28dd9 2026-10-07; see .github/zizmor.yml
         with:
           components: rust-src
 
@@ -1073,7 +1073,7 @@ jobs:
           # credentials; keep none persisted on the runner.
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — head 89b1218 2026-10-07; see .github/zizmor.yml
         with:
           targets: x86_64-unknown-linux-gnu
           components: llvm-tools-preview

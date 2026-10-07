@@ -60,7 +60,7 @@ jobs:
           # credentials; keep none persisted on the runner.
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@nightly # floating branch by policy (D2) — head 0e28dd9 2026-10-07; see .github/zizmor.yml
         with:
           components: rust-src
 

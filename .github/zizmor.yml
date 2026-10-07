@@ -15,6 +15,22 @@
 #   - excessive-permissions: top-level `permissions: contents: read` added
 
 rules:
+  unpinned-uses:
+    # Project policy (Agent/Plan-4.md D2): dtolnay/rust-toolchain's @stable /
+    # @nightly are BRANCHES by design — this project's toolchain policy is
+    # deliberately version-floating (Agent/MEMO §10: "dtolnay/rust-toolchain
+    # @stable・バージョンピン無しの方針どおり"; toolchain drift is caught by
+    # the CI gates themselves — precedent: the clippy 1.99 drift fix 5fa3679).
+    # SHA-pinning would freeze the toolchain and contradict that policy, so
+    # these two refs are held at ref-pin; everything else stays on zizmor's
+    # default hash-pin policy (restated explicitly so the exception is
+    # visible). The branch heads are annotated in the workflows and rotate;
+    # the annotation dates the last audit.
+    config:
+      policies:
+        dtolnay/rust-toolchain: ref-pin
+        "*": hash-pin
+
   cache-poisoning:
     # native.yml is flagged because its `tags: v*` trigger makes it a
     # "release workflow" that reads CI caches. Both primitives are already
