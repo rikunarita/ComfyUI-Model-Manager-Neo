@@ -92,6 +92,10 @@ jobs:
         working-directory: native
     steps:
       - uses: actions/checkout@v7
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -256,6 +260,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -450,6 +458,10 @@ jobs:
     runs-on: macos-latest # arm64; universal2 covers x86_64 as well
     steps:
       - uses: actions/checkout@v7
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -561,6 +573,10 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -806,6 +822,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
       - uses: actions/setup-python@v7
         with:
@@ -948,6 +968,10 @@ jobs:
         working-directory: native/crates/znn-codec/fuzz
     steps:
       - uses: actions/checkout@v7
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -1037,6 +1061,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -1244,7 +1272,7 @@ jobs:
       contents: write
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7 # zizmor: ignore[artipacked] the publish bot commits+pushes the rebuilt artifacts to main (contents: write, scoped to this job); no artifact upload happens here
 
       - uses: actions/download-artifact@v8
         with:

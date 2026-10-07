@@ -20,6 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v6
         # no `version:` on purpose - see the header note

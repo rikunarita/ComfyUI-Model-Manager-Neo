@@ -58,6 +58,10 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
       - uses: actions/setup-python@v7
         with:
@@ -83,6 +87,10 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
 
       - uses: actions/setup-python@v7
         with:
