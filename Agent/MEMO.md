@@ -1032,6 +1032,12 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   （py/command‑line‑injection）。復元側: PR クローズ + ブランチ削除 +
   prune で dev = gitleaks no leaks・Security success・native 18/18 success
   （1025bbd）。
+- **concurrency の落とし穴（2026‑10‑07 実例）**: 失敗 run の
+  rerun‑failed‑jobs は**元の run の ref の concurrency グループへ再参加する**
+  ため、`cancel‑in‑progress: true` のグループ（native‑refs/heads/dev）では
+  旧コミットの再実行が**新コミットの in‑progress run をキャンセルする**。
+  flake 検証の再実行は「より新しい run が走っていないこと」を確認してから
+  行う（前例: 6fdfdb7 の再実行が dcd5624 の native run を cancelled にした）。
 - **CI 側の観察**: CodeQL の main 側 Actions アラート 32 件
   （unpinned‑tag 21 + missing‑workflow‑permissions 11）は dev で解消済み・
   main へのマージ後の再解析で自動クローズされる見込み（要確認）。
