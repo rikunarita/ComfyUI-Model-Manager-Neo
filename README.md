@@ -15,7 +15,7 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 **Vue 3 + Tailwind CSS v4 + reka‑ui**, with its entire hot path — the ZipNN
 compression engine included — running in a **prebuilt pure‑Rust core**.
 
-![Version](https://img.shields.io/badge/version-0.3.0-6366f1.svg)
+![Version](https://img.shields.io/badge/version-0.3.1-6366f1.svg)
 ![License](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![CI](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/ci.yml/badge.svg?branch=main)

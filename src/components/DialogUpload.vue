@@ -1,7 +1,7 @@
 <template>
   <div class="h-full px-4">
     <Tabs v-model="stepValue" class="flex h-full flex-col">
-      <TabsList class="grid w-full grid-cols-3">
+      <TabsList>
         <TabsTrigger :value="1">{{ $t('selectModelType') }}</TabsTrigger>
         <TabsTrigger :value="2" :disabled="stepValue === 1">{{
           $t('selectSubdirectory')

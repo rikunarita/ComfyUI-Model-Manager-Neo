@@ -601,7 +601,7 @@ dependencies = [
 
 [[package]]
 name = "mm-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "pyo3",
  "serde",
@@ -1361,7 +1361,7 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[package]]
 name = "znn-codec"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bincode",
  "blake3",
