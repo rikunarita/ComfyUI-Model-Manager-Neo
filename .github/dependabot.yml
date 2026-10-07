@@ -1,0 +1,105 @@
+# Dependabot version updates (NEO-PLAN-2026-004, Step 5).
+#
+# Activation: GitHub reads this file FROM THE DEFAULT BRANCH — it takes effect
+# once merged to main (user-exclusive step). Version-update PRs target `dev`
+# (the working branch, per the project's standing rule); Dependabot SECURITY
+# updates (the settings toggle) always target the default branch `main` —
+# after merging one there, port the same bump to dev (cherry-pick) so the dev
+# security gates stay green (Agent/Plan-4.md progress log, 2026-10-07).
+#
+# NOT configured (deliberate — Agent/Plan-4.md D10): the `pip` ecosystem.
+# requirements.txt is the runtime contract kept in SYNC with pyproject.toml
+# (equality pinned mechanically by tests/test_phase8_distribution.py); a
+# Dependabot edit to either file alone would break that parity. Python moves
+# through the `uv` ecosystem below (pyproject.toml + uv.lock together), and
+# requirements.txt follows by the established manual-sync rule.
+version: 2
+updates:
+  # ---- frontend (pnpm-lock.yaml) ------------------------------------------
+  - package-ecosystem: npm
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      # UTC — after the Monday 03:00 security scans
+      time: "04:00"
+    # Supply-chain cooldown (zizmor dependabot-cooldown, recommended 7 days):
+    # never auto-propose a version published less than a week ago — the same
+    # philosophy as the pnpm minimumReleaseAge gate (Agent/MEMO §4.1) and the
+    # dependency-cooldown practice uv's own security post recommends.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps"
+    groups:
+      # Grouped PRs keep the weekly noise to at most two per ecosystem.
+      production:
+        dependency-type: production
+      development:
+        dependency-type: development
+    ignore:
+      # The whole tree is pinned to the 6.x TypeScript toolchain by BOTH
+      # package.json ("typescript": "6.0.3") and the pnpm-workspace.yaml
+      # override (user decision 2026-09-29 — TypeScript 7 excluded
+      # project-wide). Dependabot cannot move the pin and the override
+      # together, so TypeScript updates stay a manual, coordinated edit.
+      - dependency-name: typescript
+
+  # ---- Rust native core (native/Cargo.lock) --------------------------------
+  - package-ecosystem: cargo
+    directory: "/native"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+    # Supply-chain cooldown (zizmor dependabot-cooldown, recommended 7 days):
+    # never auto-propose a version published less than a week ago — the same
+    # philosophy as the pnpm minimumReleaseAge gate (Agent/MEMO §4.1) and the
+    # dependency-cooldown practice uv's own security post recommends.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps(native)"
+
+  # ---- Python dev/CI layer (pyproject.toml + uv.lock) ----------------------
+  # Dependabot's uv ecosystem updates pyproject.toml and uv.lock together
+  # (officially supported since 2025-03-13; Astral publishes the guide).
+  - package-ecosystem: uv
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+    # Supply-chain cooldown (zizmor dependabot-cooldown, recommended 7 days):
+    # never auto-propose a version published less than a week ago — the same
+    # philosophy as the pnpm minimumReleaseAge gate (Agent/MEMO §4.1) and the
+    # dependency-cooldown practice uv's own security post recommends.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps(py)"
+
+  # ---- CI itself (SHA-pinned actions & reusable workflows) -----------------
+  # Dependabot updates SHA pins in place (keeping the `# vX.Y.Z` comments),
+  # which is what keeps the Step-4 hash-pinning from going stale. The
+  # dtolnay/rust-toolchain BRANCH refs (@stable/@nightly, floating by policy
+  # — Agent/Plan-4.md D2) carry no version semantics and are left alone;
+  # should a PR ever propose touching them, close it.
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+    # Supply-chain cooldown (zizmor dependabot-cooldown, recommended 7 days):
+    # never auto-propose a version published less than a week ago — the same
+    # philosophy as the pnpm minimumReleaseAge gate (Agent/MEMO §4.1) and the
+    # dependency-cooldown practice uv's own security post recommends.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "ci"
