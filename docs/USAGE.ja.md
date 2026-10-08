@@ -68,8 +68,8 @@ comfy node install comfyui-model-manager-neo
 | 入口                                  | 場所                                                     |
 | ------------------------------------- | -------------------------------------------------------- |
 | **トップバーの「Model Manager Neo」** | ComfyUI トップバー（設定の歯車の隣）                     |
+| **メインメニュー**                    | **Model Manager Neo** 項目を 1 クリックで直接開きます    |
 | **旧式メニューボタン**                | 旧スタイルのメニューコンテナ（フロントエンドにある場合） |
-| **Extensions メニュー**               | `Extensions → Model Manager Neo`                         |
 | **コマンドパレット**                  | `Comfy.ModelManager.Open` コマンド                       |
 
 マネージャーは**非モーダルウィンドウ**です: ComfyUI の上に浮かびますが、

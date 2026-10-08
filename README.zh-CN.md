@@ -211,8 +211,8 @@ comfy node install comfyui-model-manager-neo
 Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心（平台覆盖
 见[引擎表](#the-engine-a-prebuilt-pure-rust-core)）。
 
-通过顶栏的 **「Model Manager Neo」** 按钮、旧式菜单按钮、
-`Extensions → Model Manager Neo` 菜单或命令面板打开管理器。
+通过顶栏的 **「Model Manager Neo」** 按钮、主菜单中的
+**Model Manager Neo** 条目、旧式菜单按钮或命令面板打开管理器。
 
 ---
 

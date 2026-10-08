@@ -68,8 +68,8 @@ There are four entry points; they all do the same thing:
 | Entry point                            | Where                                                        |
 | -------------------------------------- | ------------------------------------------------------------ |
 | **“Model Manager Neo” top‑bar button** | the ComfyUI top bar (next to the settings gear)              |
+| **Main menu entry**                    | **Model Manager Neo**, directly in the main menu list        |
 | **Legacy menu button**                 | the old‑style menu container, if your frontend still has one |
-| **Extensions menu**                    | `Extensions → Model Manager Neo`                             |
 | **Command palette**                    | the `Comfy.ModelManager.Open` command                        |
 
 The manager is a **non‑modal window**: it floats above ComfyUI but the canvas
