@@ -25,7 +25,10 @@ app.registerExtension({
   ],
   menuCommands: [
     {
-      path: ['Extensions'],
+      // Empty path = top-level leaf in the main menu: the entry sits in the
+      // same list as every other menu and opens the manager with one click,
+      // instead of hiding one level down under "Extensions".
+      path: [],
       commands: ['Comfy.ModelManager.Open'],
     },
   ],
