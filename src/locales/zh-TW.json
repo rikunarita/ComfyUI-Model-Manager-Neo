@@ -160,7 +160,7 @@
     "hideSearchCivitai": "在模型搜尋中隱藏 Civitai 結果",
     "watchModelFolders": "監視模型資料夾的外部更改",
     "watchModelFoldersTooltip": "檢測其他程式（複製到 models/、其他下載器）新增或刪除的模型，並在約 1.5 秒內重新整理受影響的列表，而不必等待 30 秒的重新校驗。預設關閉：在 Linux 上每個資料夾會佔用一個 inotify watch，網路掛載的資料夾會被自動跳過（它們繼續使用定期重新整理）。",
-    "perfMarks": "記錄 UI 效能標記（K15）",
+    "perfMarks": "記錄 UI 效能標記",
     "perfMarksTooltip": "使用 performance.mark 測量網格重算/繪製與張量樹建置，並將樣本儲存在環形緩衝區中。在瀏覽器控制檯執行 __mmNeoPerf.summary() 即可檢視 P50/P95/P99（毫秒）。預設關閉；關閉時每個測量點只有一次布林判斷的開銷。"
   },
   "modelTypeLabel": {
