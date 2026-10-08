@@ -134,11 +134,11 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
   **[reka-ui]** プリミティブ + **Tailwind CSS v4** + **[Lucide]** アイコンへ
   置き換わりました（ソースを読んで調整できる shadcn-vue スタイルの
   コンポーネント群）。
-- <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **第一級のノードグラフ統合** — モデルをキャンバスへドラッグしてノードを
+- <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **ファーストクラスのノードグラフ統合** — モデルをキャンバスへドラッグしてノードを
   生成/入力、embedding をテキストエリアへドラッグ、プレビュー画像に埋め込まれた
   ワークフローの読込。
 - <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **レスポンシブ** — デスクトップ・モバイル・マルチスクリーン環境を想定した設計。
-- <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **現代的なツールチェーン** — Vite 8（Rolldown）、TypeScript 6、ESLint 10
+- <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **モダンなツールチェーン** — Vite 8（Rolldown）、TypeScript 6、ESLint 10
   flat config、Prettier、Stylelint、Ruff、clippy、husky + lint‑staged。
   決定的で lint クリーンなビルド。
 
@@ -231,8 +231,8 @@ comfy node install comfyui-model-manager-neo
 拡張機能の_実行_に Node.js もコンパイラも不要です — コアのロードは単なる
 `import` です（対応プラットフォームは[エンジンの表](#the-engine)参照）。
 
-マネージャーは、トップバーの **「Model Manager Neo」** ボタン、旧メニューの
-ボタン、`Extensions → Model Manager Neo` メニュー、またはコマンドパレット
+マネージャーは、トップバーの **「Model Manager Neo」** ボタン、メインメニューの
+**Model Manager Neo** 項目、旧メニューのボタン、またはコマンドパレット
 から開きます。
 
 ---

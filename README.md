@@ -232,8 +232,9 @@ in [`native/native-bin/`](native/native-bin), so neither Node.js nor a compiler
 is required to _run_ the extension — a plain `import` loads the core (platform
 coverage: see [the engine table](#the-engine)).
 
-Open the manager from the top‑bar **“Model Manager Neo”** button, the legacy
-menu button, the `Extensions → Model Manager Neo` menu, or the command palette.
+Open the manager from the top‑bar **“Model Manager Neo”** button, the
+**Model Manager Neo** entry in the main menu, the legacy menu button, or the
+command palette.
 
 ---
 

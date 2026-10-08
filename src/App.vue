@@ -171,7 +171,6 @@ onMounted(() => {
       app.ui?.settings.getSettingValue('ModelManager.Scan.IncludeHiddenFiles') ?? false
     const hiddenIcon = includeHidden ? 'pi pi-eye' : 'pi pi-eye-slash'
     const hiddenTooltip = includeHidden ? t('hideHiddenFiles') : t('showHiddenFiles')
-
     if (firstOpenManager.value) {
       models.refresh(true)
       firstOpenManager.value = false
@@ -240,6 +239,10 @@ onMounted(() => {
       ],
       minWidth: cardWidth * 2 + gutter + 42,
       minHeight: (cardWidth / aspect) * 0.5 + 162,
+      // Wider than the generic 60 vw fallback: the manager is a grid of cards
+      // and earns the extra columns. Capped so ultrawide screens keep a
+      // sensible card density instead of one endless row.
+      defaultSize: { width: Math.min(Math.floor(window.innerWidth * 0.8), 1600) },
     })
   }
 

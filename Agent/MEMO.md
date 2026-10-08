@@ -1122,3 +1122,26 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   内部リンク/アンカー全解決・zh‑TW への簡体字混入走査（40 字種）を
   機械実施。CI 証跡: 42521be / f62b5a7 / 205da27 の CI・Security・native
   全 success（881489f は push 時点 in_progress）。
+
+## 13. セッション 2026‑10‑08（夕）— メインメニュー直置き・既定幅拡大・表記改善
+
+- **メインメニュー直置き（feat コミット）**: `menuCommands` の `path` を
+  `['Extensions']` から `[]` へ。ComfyUI_frontend の一次ソースで検証:
+  `menuItemStore.registerMenuGroup` は空 path でコマンドをトップレベルの
+  リーフとして登録し、`ui/menu/MenuItems.vue` はリーフを MenuAction
+  （直接クリック行）として描画する → ハンバーガーメニューのリストに
+  **Model Manager Neo** が 1 クリック項目として直置きされる（KJNodes と
+  同階層・ただしサブメニューではない）。`menubarLabel` は `command.label`
+  へフォールバック（commandStore）するため表示名は不変。旧 ComfyUI
+  （legacy frontend）は本体から撤去済み = 消費側は ComfyUI_frontend のみ。
+- **既定幅拡大**: manager ダイアログは `defaultSize` 未指定で
+  GlobalDialogStack の汎用フォールバック `innerWidth * 0.6` だったため、
+  `defaultSize: { width: min(innerWidth * 0.8, 1600) }` を明示
+  （ジオメトリはセッション内メモリのみ・永続化なし = 次回起動から反映）。
+- **表記**: ja「現代的」→「モダン」、「第一級」→「ファーストクラス」
+  （en/zh の対応語は各言語で自然なため不変）。入口記述は 8 文書すべて
+  メインメニュー直置きの実装へ自然に統合。
+- **環境**: 本セッションは pnpm 導入に成功（`minimumReleaseAge: 0` を
+  一時的に pnpm-workspace.yaml へ置いて `--frozen-lockfile`、導入後に復元
+  — §11.3 の手順どおり・3.8 s）。以降のコミットは husky フック
+  （lint-staged + typecheck）を通常どおり通過。
