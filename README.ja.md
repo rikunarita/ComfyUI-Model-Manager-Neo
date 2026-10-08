@@ -45,11 +45,11 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ![mypy](https://img.shields.io/badge/mypy-static_types-2A6DB2.svg)
 ![Fallow](https://img.shields.io/badge/Fallow-dead_code_%C2%B7_dupes-2E7D32.svg)
 
-![CodeQL](https://img.shields.io/badge/CodeQL-SAST_%C2%B7_extended_suite-24292E.svg?logo=github&logoColor=white)
-![OSV-Scanner](https://img.shields.io/badge/OSV--Scanner-SCA_%C2%B7_4_lockfiles-4285F4.svg)
+![CodeQL](https://img.shields.io/badge/CodeQL-SAST-24292E.svg?logo=github&logoColor=white)
+![OSV-Scanner](https://img.shields.io/badge/OSV--Scanner-SCA-4285F4.svg)
 ![Gitleaks](https://img.shields.io/badge/Gitleaks-secret_scanning-C0392B.svg)
 ![zizmor](https://img.shields.io/badge/%F0%9F%8C%88_zizmor-Actions_hardening-8E44AD.svg)
-![cargo-fuzz](https://img.shields.io/badge/cargo--fuzz-7_targets_%C2%B7_weekly-DEA584.svg?logo=rust&logoColor=black)
+![cargo-fuzz](https://img.shields.io/badge/cargo--fuzz-Fuzzing-DEA584.svg?logo=rust&logoColor=black)
 
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
