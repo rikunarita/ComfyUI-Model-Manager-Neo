@@ -7,7 +7,7 @@
 
 # <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
 
-### 浏览 · 下载 · 上传 · 拖放 —— 优雅地管理你的模型。
+### 浏览 · 下载 · 上传 · 拖放 —— 所有模型，尽在一处。
 
 在 **Vue 3 + Tailwind CSS v4 + reka‑ui** 之上重新构建的 ComfyUI 模型管理器，
 采用现代玻璃拟态界面重新设计；包括 ZipNN 压缩引擎在内的所有热点路径，
@@ -73,8 +73,7 @@
 
 ## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="34" height="34" align="middle" alt=""> Why Neo?
 
-**ComfyUI‑Model‑Manager‑Neo** 继承了优秀的原版管理器，并从零开始重建了
-整个使用体验：
+**ComfyUI‑Model‑Manager‑Neo** 从零开始重建了原版管理器：
 
 **1. Neo 新增**
 
@@ -91,14 +90,14 @@
 - <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **经过验证的内存安全压缩** —— Rust 引擎通过 lint 禁止 `unsafe` 代码：
   格式核心完全不含 `unsafe`，唯一需要它的边界（只读内存映射）经过了安全
   评审并有文档记录。引擎还由七个持续 fuzz 目标加固，每次还原都会与压缩时
-  记录的 SHA‑256 校验。与官方 `zipnn` 0.5.4 包的格式兼容性是一项 CI 关卡，
+  记录的 SHA‑256 进行校验。与官方 `zipnn` 0.5.4 包的格式兼容性是一项 CI 关卡，
   每次 push 都会双向交叉验证。
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **ZipNN 无损压缩** —— 就地压缩与解压 safetensors 模型（`.znn.safetensors`）、
   将整个文件夹批量打包为密封的 `<name>_DeltaZNN` 包、把微调模型相对其
   基础模型缩小为极小的**差分文件**。
 - <img src="https://api.iconify.design/lucide/upload-cloud.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **上传到 Hugging Face / ModelScope** —— 把任意本地模型直接发布到 Hugging Face
   或 ModelScope 仓库（需要时自动创建仓库，可选私有、附带相关资产并显示
-  实时进度）。ModelScope 支持——下载、上传、搜索与认证——为 Neo 全新集成。
+  实时进度）。ModelScope 支持——下载、上传、搜索与认证——是 Neo 的全新集成。
 - <img src="https://api.iconify.design/lucide/radar.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **多 hub 搜索与哈希识别** —— 在同一个输入框中并行搜索 Hugging Face、
   ModelScope 与 Civitai，并能用哈希把任意本地文件反查到 Civitai 目录。
 - <img src="https://api.iconify.design/lucide/list-checks.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **多选** —— 勾选模型与文件夹卡片，一次性加入工作流或删除。
@@ -109,7 +108,7 @@
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf_xet` 加速** —— Hugging Face 传输在可用时使用分块、去重的 Xet 协议。
 - <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **日语与繁體中文语言包** —— 在 English 与简体中文之外，新增完整的日语
   与繁體中文（zh-TW）语言包。界面语言跟随 ComfyUI 自身的设置；地区子标签
-  （`ja-JP` 等）折叠到其基础语言，Hant 文字系统标签（`zh-Hant`、
+  （`ja-JP` 等）按其基础语言处理，Hant 文字系统标签（`zh-Hant`、
   `zh-Hant-TW` 等）选择繁體中文包。
 
 **2. 刷新与增强**
@@ -148,7 +147,7 @@
 
 ![文件夹资源管理器视图](demo-assets/view-folders.avif)
 
-**文件夹**布局的第一层，带面包屑路径，以及指针停留时会轻轻浮起的淡绿松石
+**文件夹**布局的第一层，带面包屑路径，以及悬停时会轻轻浮起的淡绿松石
 玻璃文件夹卡片。
 
 ### 3. 模型详情、编辑与 Hugging Face 上传
@@ -212,7 +211,7 @@ comfy node install comfyui-model-manager-neo
 Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心（平台覆盖
 见[引擎表](#the-engine-a-prebuilt-pure-rust-core)）。
 
-通过顶栏的 **「Model Manager Neo」** 按钮、侧边栏、
+通过顶栏的 **「Model Manager Neo」** 按钮、旧式菜单按钮、
 `Extensions → Model Manager Neo` 菜单或命令面板打开管理器。
 
 ---
@@ -230,9 +229,9 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
   加入节点图即记录一次使用）。
 - 卡片尺寸可调（预设加完全自定义尺寸）。
 - 无需重启即可切换隐藏文件（以 `.` 开头）的显示。
-- 图片**与视频**预览（任意预览可在全屏**灯箱**中放大）、悬停时开合动画的
-  悬停时轻轻浮动的淡绿松石玻璃文件夹图案，以及玻璃质感的无预览占位图。
-- 类型根文件夹卡片带有**该类型的合计大小**（轻量容量看板）；记录的
+- 图片**与视频**预览（任意预览可在全屏**灯箱**中放大）、悬停时轻轻浮动的
+  淡绿松石玻璃文件夹图案，以及玻璃质感的无预览占位图。
+- 类型根文件夹卡片带有**该类型的合计大小**；记录的
   SHA256 与库中其他文件一致的模型，会在详情窗口中显示红色**重复警告**。
 - 存放在类型根目录之下的模型，会在名称上方显示其**子目录**（两种布局
   一致）。
@@ -250,7 +249,7 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
 <summary><b>节点图集成</b></summary>
 
 - 将模型缩略图拖到画布上以**添加加载器节点**。
-- 拖到已有节点上以**填充匹配的输入**（存在歧义时精确匹配）。
+- 拖到已有节点上以**填充匹配的输入**（多个输入匹配时，拖到想要的那个输入上）。
 - 将 **embedding** 拖到文本区以追加 `(embedding:name:1.0)`。
 - 将预览图拖到节点图上以**加载其中内嵌的工作流**。
 - **添加** 按钮：把节点放置到画布。
@@ -332,7 +331,7 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
 - ZipNN 自动化：自动压缩 N 天未使用的模型、下载完成后自动压缩、prompt
   执行期间暂停下载。
 - 内置完整的 **English**、**中文**（简体与繁體）与 **日本語**；地区子标签
-  （`ja-JP` 等）折叠到其基础语言，Hant 文字系统标签选择繁體中文包。
+  （`ja-JP` 等）按其基础语言处理，Hant 文字系统标签选择繁體中文包。
 
 </details>
 
@@ -351,7 +350,7 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
 - 每条结果都显示发布用户/组织的**头像**（hub 未提供头像时显示首字母
   徽章）以及累计下载数。
 - 模型 id 拆成两个深度链接：**所有者名**打开用户/组织页，**仓库名**打开
-  模型页；点击行内其他位置则把该模型直接解析进下载编辑器。
+  模型页；点击行内其他位置则直接把该模型载入下载编辑器。
 - 支持纯 **`username/repo-name`** 输入，且**一次 Enter 总能解析**：先取
   结果中的精确匹配，再把裸仓库 id 当作 Hugging Face 仓库，最后取第一个
   非空列的首行；若还没有结果，Enter 立即执行名称搜索。
@@ -360,7 +359,7 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
 - 各平台的隐藏与**排序方式**可在 **设置 → Model Manager Neo → 搜索** 中
   选择（默认为 Hugging Face 趋势、ModelScope 点赞、Civitai 评分最高）。
 
-Civitai 下载还带有官方 CLI 普及的安全网，并适配到管理器的任务系统：
+Civitai 下载还加入了官方 CLI 普及的安全检查，并适配到管理器的任务系统：
 
 - **下载计划（dry run）** —— 开始前，编辑器显示解析后的目标路径、声明
   大小、公开 SHA256 以及平台 API 密钥是否已配置。
@@ -371,9 +370,9 @@ Civitai 下载还带有官方 CLI 普及的安全网，并适配到管理器的�
 - **基础模型警告** —— 当版本的基础模型与目标文件夹库中已记录的基础
   模型不符时提示。
 - **可执行格式警告** —— pickle 与归档载荷在加载时可能执行代码；编辑器
-  会在下载前明确告知。
+  会在下载前发出警告。
 - **Hub 账户（whoami）** —— 对每个已配置密钥的平台，下载对话框显示已
-  连接的账户；401 失败时会准确说明在哪里创建密钥、如何继续。
+  连接的账户；401 失败时会说明在哪里创建密钥、如何继续。
 
 放大 Civitai 来源模型的预览时，灯箱左侧显示图片、右侧显示解析出的
 **生成元数据**（提示词、负面提示词、采样器、步数、CFG scale、种子、
@@ -394,29 +393,29 @@ clip skip、尺寸、基础模型与资源配方）。
 
 大型 `.safetensors` 检查点很快就会吃满磁盘。Neo 以
 [ZipNN](https://github.com/zipnn/zipnn) 格式**就地、无损**地压缩与解压
-它们 —— 与官方 ZipNN 项目相同的张量感知方案 —— 由 Neo 的**纯 Rust
-核心**执行，并在 CI 中与官方 `zipnn` 0.5.4 包双向交叉验证，因此产物与
+它们 —— 与官方 ZipNN 项目相同的张量感知方案。引擎是 Neo 的**纯 Rust
+核心**，在 CI 中与官方 `zipnn` 0.5.4 包双向交叉验证，因此产物与
 更广泛的 ZipNN 生态保持可互换。
 
 ### 1. 工作原理
 
-模型权重绝大部分是浮点数，而浮点数绝大部分是_冗余_的：表现良好的权重
+模型权重绝大部分是浮点数，而浮点数绝大部分是_冗余_的：普通的权重
 张量中，指数字节会反复出现。ZipNN 正是利用这一点。对每张量：
 
 - 将值**拆分**为字节平面，并重排符号 / 指数 / 尾数比特，使相似字节聚集
   在一起，然后
 - 用 FiniteStateEntropy（FSE）编解码器对每个平面做 **Huffman 编码**。
 
-非浮点张量（整数索引、掩码等）在官方配方中会原样穿过 —— **Neo 的 Rust
-核心则同样压缩它们**（覆盖全部 safetensors dtype，分两个互操作带；见下方
-[dtype 覆盖与互操作矩阵](#dtype-coverage--the-interoperability-matrix)）——
+非浮点张量（整数索引、掩码等）在官方配方中会原样穿过，但 **Neo 的 Rust
+核心则同样压缩它们** —— 覆盖全部 safetensors dtype，分两个互操作带（见下方
+[dtype 覆盖与互操作矩阵](#dtype-coverage--the-interoperability-matrix)）。
 而压缩后实际不会变小的张量则**原样保留**。每张被压缩的张量以 `uint8`
 向量存储，文件在单条 `znn_compressed_vectors` 元数据中记录它们各自的
-原始 `dtype` 与 `shape`。不做任何近似或丢弃 —— 解压**逐比特**复原原始
-文件。
+原始 `dtype` 与 `shape`。数据不做任何近似或丢弃，解压会**逐比特**复原
+原始文件。
 
-压缩后的模型写在原件旁边，命名为 `<name>.znn.safetensors` —— 正是官方
-ZipNN 工具（以及打过 `zipnn_safetensors()` 补丁的加载器）所期望的后缀，
+压缩后的模型写在原件旁边，命名为 `<name>.znn.safetensors` —— 与官方
+ZipNN 工具（以及打过 `zipnn_safetensors()` 补丁的加载器）所期望的后缀相同，
 因此打过补丁的 ComfyUI 加载器可以透明地读取 Neo 压缩的模型。真实的
 检查点通常能压到原大小的 **60–80 %**（随机性强的数据压缩率低得多；
 低熵权重则压缩得更多）。
@@ -435,7 +434,7 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
 | `F32` `F16` `BF16` `F8_E4M3` `F8_E5M2`                                                                                          | 1–30（上游带）    | **原样解码 Neo 的文件**                                         |
 | `F64` `C64` `I8` `U8` `BOOL` `I16` `U16` `I32` `U32` `I64` `U64` `F8_E4M3FNUZ` `F8_E5M2FNUZ` `F8_E8M0` `F4` `F6_E2M3` `F6_E3M2` | 128–146（Neo 带） | **以明确错误拒绝** —— 绝不静默损坏（已在 CI 中针对 pip 版实证） |
 
-值得了解的细节：
+一些细节：
 
 - 官方解码器对所有未实现的 dtype 码都会以
   `ValueError: Unsupported Dtype N` 拒绝 —— Neo 扩展文件在原理上就不可能
@@ -446,7 +445,7 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
   需要兼容的对象；
 - 高位字节全为零的整数张量（`< 65536` 的 `int32` 索引、掩码、缩放表等）
   还会使用**截断模式**：全零字节平面整体从载荷中丢弃 —— 由于压缩器只
-  丢弃它在整张量范围内验证过为零的平面，这在构造上就是无损的；
+  丢弃它在整张量范围内验证过为零的平面，因此天然无损；
 - `complex128` 与 `bcomplex32` 只存在于 codec 层（码 129/131），没有
   safetensors 表示 —— 任何 `.safetensors` 文件都承载不了它们。
 
@@ -472,17 +471,17 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
 
 ### 4. 批量压缩（整个文件夹）
 
-选中文件夹（「Select files」）后按下**底部栏的 ZipNN 图案按钮** —— 或
+选中文件夹（「Select files」）后按下**底部栏的 ZipNN 按钮** —— 或
 使用文件夹卡片右上角的按钮 —— 文件夹树内所有 `.safetensors` 模型都会
 被压缩（预览与笔记跟随各自的模型），并**移入打包文件夹
 `<name>_DeltaZNN`**；原文件夹清空后消失。已经就地压缩的模型（单模型按钮、自动压缩或旧版本产物）
-不会被重新压缩，而是原样移入打包文件夹 —— 不会有已压缩文件残留在其旁。
-`*_DeltaZNN` 打包文件夹是密封的：
+不会被重新压缩，而是原样移入打包文件夹 —— 不会有已压缩文件残留在
+打包文件夹之外。`*_DeltaZNN` 打包文件夹是密封的：
 
 - 其中只能存放 ZipNN 内容（`*.znn.*` 模型、`*.znn` 差分文件）；普通
   模型的上传、下载与移入都会被拒绝；
-- 打包文件夹与普通文件夹不能同时选中 —— 勾选其中一类时，另一类会带
-  警告通知自动取消选中；
+- 打包文件夹与普通文件夹不能同时选中 —— 混合勾选会弹出警告通知，
+  打包文件夹一侧保持未选中；
 - 打包文件夹的 ZipNN 按钮是**反色**的；按下即**批量解压**整个打包文件
   夹，把全部内容移回以其命名的文件夹（清空的打包文件夹被删除）；
 - 差分文件夹（`<base>_DeltaZNN`，见下文）也是打包文件夹：其反色按钮
@@ -502,8 +501,8 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
 对话框让你选择哪一个是**基础**、哪一个是**微调**（两者可以带不同的
 元数据）。结果 —— 通常只有微调模型大小的百分之几 —— 写入
 **`<base>_DeltaZNN/<ft>_delta_<base>.znn`**，冗余的微调文件被删除。
-解压差分（其卡片按钮，反色图案）会把微调模型**逐字节精确**还原到基础
-模型旁边，并撤走清空的差分文件夹。还原需要基础模型仍在，且差分文件
+解压差分（其卡片按钮，反色显示）会把微调模型**逐字节精确**还原到基础
+模型旁边，并删除清空的差分文件夹。还原需要基础模型仍在，且差分文件
 记录了微调模型自身的 SHA‑256，因此还原全程可验证。
 
 差分文件以官方 ZipNN 的 **streaming 容器**格式写出：官方 `zipnn` 包
@@ -515,12 +514,12 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
 
 ### <a id="the-engine-a-prebuilt-pure-rust-core"></a>6. 引擎：预构建的纯 Rust 核心
 
-压缩器并非对官方 Python 包的封装，而是 Neo 自研的纯 Rust 引擎在运行该
+压缩并非封装官方 Python 包，而是由 Neo 自研的**纯 Rust 引擎**执行该
 格式：上游 C 扩展在 PyPI 上没有 Linux wheel（`pip install zipnn` 需要
-从源码编译），Neo 把这份编译完全移出你的机器。格式被移植到 Rust
+从源码编译），而在 Neo 中这一步编译完全不再需要。格式被移植到 Rust
 （[`native/crates/znn-codec`](native/crates/znn-codec)：格式核心无
-`unsafe` 代码、七个持续 fuzz 目标、与原始 C 实现字节一致的差分记录），
-并以**预构建 abi3 / abi3t 二进制**形式随仓库分发 —— 每个平台 × 每种
+`unsafe` 代码、七个持续 fuzz 目标、与原始 C 实现在差分测试中字节一致的
+输出），并以**预构建 abi3 / abi3t 二进制**形式随仓库分发 —— 每个平台 × 每种
 Stable ABI 风味一个，仅靠 `import` 加载：
 
 | 平台                            | 产物                                            | 要求                                                |
@@ -534,22 +533,22 @@ Stable ABI 风味一个，仅靠 `import` 加载：
 | macOS（自由线程）               | `native-bin/macos-universal2t/mm_core.abi3t.so` | 单个 fat 二进制，自由线程 CPython 3.15+             |
 | Windows x86_64（自由线程）      | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC 构建，自由线程 CPython 3.15+                   |
 
-每个平台的一个二进制即可服务 **CPython 3.12 及以上**所有版本（Stable
+每个平台的一个二进制即可覆盖 **CPython 3.12 及以上**所有版本（Stable
 ABI、`abi3-py312` —— 已在 CI 中针对 3.12 与 3.14 实证）；自由线程构建则由
-**abi3t** 孪生产物服务（`abi3t-py315`、PEP 803 —— 已在 CI 中针对 3.15 的
+**abi3t** 版产物承担（`abi3t-py315`、PEP 803 —— 已在 CI 中针对 3.15 的
 GIL/自由线程两种构建实证），加载器会自动选择（自由线程解释器无法加载普通
 abi3 二进制；3.15+ 的 GIL 构建继续使用普通产物）。每个二进制都受 ≤ 5 MB 的
 CI 尺寸预算关卡约束（八个二进制的合计以 40 MB 参考上限管理）。linux-x86_64 与
-Windows 的 GIL 二进制经过 **PGO 优化** —— Profile-Guided Optimization，每次
-CI 构建都从确定性工作负载重新训练；CI A/B 实测相对未优化构建的首次运行
-吞吐最高约快 10 %（[BENCH §13](docs/BENCH.md)）；abi3t 二进制现阶段以非 PGO
+Windows 的 GIL 二进制经过 **PGO 优化**：profile 在每次 CI 构建时都从
+确定性工作负载重新生成，CI 内的 A/B 实测显示首次运行吞吐比未优化构建
+最高快约 10 %（[BENCH §13](docs/BENCH.md)）；abi3t 二进制现阶段以非 PGO
 方式发布。
 
-这次移植也从根源上改善了可靠性：在重写过程中，C 核心的差分路径被实证
+这次移植也从根源上修复了可靠性问题：在重写过程中，C 核心的差分路径被实证
 存在一类内存安全缺陷（特定输入长度下的确定性崩溃、非整数倍块上的越界
 写入）。Rust 引擎从结构上消除了这一缺陷类 —— 所有平面拆分与块运算都带
 边界检查，唯一的 `unsafe` 边界（只读 mmap）也经过安全评审 —— 当年触发
-崩溃的输入已被固定为回归测试。互操作不是承诺而是 CI 关卡：`integration`
+崩溃的输入已被固定为回归测试。互操作由 CI 强制执行：`integration`
 工作流在每次 push 时与**官方 pip `zipnn` 0.5.4** 双向交叉验证。许可证：
 格式移植归属 ZipNN（MIT）与 FiniteStateEntropy（BSD‑2‑Clause）；预览
 WebP 编解码使用 zenwebp（AGPL‑3.0）—— 全文见
@@ -593,8 +592,8 @@ WebP 编解码使用 zenwebp（AGPL‑3.0）—— 全文见
 
 ### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="26" height="26" align="middle" alt=""> 后端与引擎
 
-最深层的改变在界面之下。原版为纯 Python（7 个后端模块、19 条 HTTP
-路由）；Neo 成长为 16 个 Python 模块、42 条路由，并把所有热点路径移入
+最主要的改变在界面之下的层。原版为纯 Python（7 个后端模块、19 条 HTTP
+路由）；Neo 增加到 16 个 Python 模块、42 条路由，并把所有热点路径移入
 预构建 Rust 扩展（`native/`，基于 Stable ABI 的 PyO3 —— 见
 [引擎表](#the-engine-a-prebuilt-pure-rust-core)）。纯 Python 回退只保留在
 「降级回答优于报错」的地方：
@@ -618,10 +617,10 @@ WebP 编解码使用 zenwebp（AGPL‑3.0）—— 全文见
 搜索枢纽与认证）、上传到 Hugging Face、基于 SDK 的 Hugging Face 下载
 （`huggingface_hub` + `hf_xet`；原版仅抓取普通 resolve URL）、多 hub 搜索、
 哈希识别、智能收藏、星标、「最近使用」记录与排序、多选、创建文件夹、
-直链下载、浏览器内「下载到本地」、剩余空间保护、Civitai 下载安全网、
+直链下载、浏览器内「下载到本地」、剩余空间保护、Civitai 下载安全检查、
 图集预览、SHA256 重复警告、子目录标签与类型根目录的合计大小、全屏预览
-灯箱、日语与繁体中文语言包 —— 已在[功能](#features)中描述；全部为
-Neo 侧的工作。
+灯箱、日语与繁体中文语言包 —— 已在[功能](#features)中描述；均为
+Neo 新增的功能。
 
 ### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="26" height="26" align="middle" alt=""> 依赖包
 
@@ -670,7 +669,7 @@ flat config** + **Prettier** + **Stylelint 17**，Python 后端 **Ruff** +
 **mypy**，Rust 工作区 **clippy `-D warnings`** + **rustfmt**，并由
 **dependency‑cruiser**（导入图关卡）与 [Fallow](https://fallow.tools)
 （死代码与重复）补全。质量由五层测试金字塔保障：Rust 单元测试、golden
-契约测试、**cargo‑fuzz** 目标（7 个表面、每周每目标 3 小时预算）、在
+契约测试、**cargo‑fuzz** 目标（7 种、每周每目标 3 小时预算）、在
 三个 OS 上针对构建产物的完整 pytest 套件，以及官方 `zipnn` 交叉验证
 （见[开发](#development)）。
 
@@ -686,16 +685,16 @@ flat config** + **Prettier** + **Stylelint 17**，Python 后端 **Ruff** +
 
 **「批量扫描模型信息」** 功能已被移除，因为它是冗余的：模型详情窗口
 直接从 safetensors 头部读取该模型的 `__metadata__`，连同文件旁的
-Markdown 笔记一起呈现；没有预览的模型在网格中直接带上随附的玻璃无
+Markdown 笔记一起呈现；没有预览的模型会在网格中显示随附的玻璃无
 预览图案。那种遍历全库、哈希每个模型并向 Civitai 按哈希查询的做法，是
 通往同一信息的第二条、慢得多的路径 —— 还附带一个模态对话框、一个
 全局 store、websocket 事件、磁盘上的任务文件与它自己的设置，全都需要
 维护。
 
-比扫描活得更久的两项设置如今驱动着**模型列表**（哪些类型载入网格、
+扫描移除后保留下来的两项设置，如今支撑着**模型列表**（哪些类型载入网格、
 是否显示以 `.` 开头的文件），设置分类为 **Model List**。它们保留历史
 的 `ModelManager.Scan.*` ID 字符串，因为这个 ID 是 ComfyUI 持久化每个
-用户取值所用的键 —— 改名会让所有已安装环境保存的设置变成孤儿。
+用户取值所用的键 —— 改名会让所有已安装环境保存的值无法再被读取。
 
 > [!NOTE]
 > **放弃的内容：** 按文件哈希从 Civitai _批量回填_ 预览与描述的唯一途径。
@@ -708,10 +707,10 @@ Markdown 笔记一起呈现；没有预览的模型在网格中直接带上随�
 
 ### <img src="https://api.iconify.design/lucide/clipboard-x.svg?color=%23ef4444" width="26" height="26" align="middle" alt=""> 复制节点到剪贴板
 
-**"复制节点到剪贴板"**按钮（模型详情操作行与卡片悬停列均已移除）已删除：
-把半配置的加载器节点复制进 ComfyUI 内部剪贴板，容易与图自身的复制/粘贴
-流程冲突；而其真实目的（把加载器节点放到画布上）由拖拽卡片或**添加节点**
-按钮更直接地达成。
+**「复制节点到剪贴板」**按钮（模型详情操作行与卡片悬停列中的两处）已删除：
+把配置了一半的加载器节点复制进 ComfyUI 内部剪贴板，容易与图自身的复制/粘贴
+流程冲突；而用户真正想要的（把加载器节点放到画布上），通过拖拽卡片或
+**添加节点**按钮就能更直接地做到。
 
 ---
 
@@ -733,7 +732,7 @@ Markdown 笔记一起呈现；没有预览的模型在网格中直接带上随�
 
 延伸阅读：
 
-- [`docs/BENCH.md`](docs/BENCH.md) —— 本 README 中所有性能结论背后的
+- [`docs/BENCH.md`](docs/BENCH.md) —— 本 README 中性能相关记述背后的
   测量记录。
 - [`native/README.md`](native/README.md) —— Rust 工作区：布局、测试
   金字塔、fuzz 配置与预构建二进制的生成方式。
@@ -759,7 +758,7 @@ Python 开发/测试环境（pytest、ruff、mypy、hub SDK、torch‑CPU）由
 **[uv]** 管理 —— `uv sync --frozen` 从 `pyproject.toml` 的
 `[dependency-groups]` 与已提交的 `uv.lock` 一次性重建。这只是开发上的
 便利：_运行时_契约不变 —— ComfyUI 仍会在首次启动时自行安装
-`requirements.txt`（两份清单由测试机械地固定为一致）。
+`requirements.txt`（两份清单的一致由测试保证）。
 
 开发 Rust 核心时，stable 工具链就足够了 —— debug 构建也是合法的
 `mm_core`（API 握手与整个 pytest 套件的行为与 release 一致）：
@@ -877,10 +876,10 @@ ComfyUI‑Model‑Manager‑Neo 之所以存在，只因为
 **[`ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)**
 先存在。这个 fork 中的每一个结构性想法 —— 模型文件夹抽象、带 websocket
 进度协议的可恢复下载任务系统、Civitai 与 Hugging Face 页面解析器、把
-卡片拖到节点图上的集成、模型编辑器的表单管线，乃至卡片尺寸预设这样的
-小细节 —— 都是 hayden‑cn 的设计。Neo 改变的是外表、依赖与大量 bug；
-它不必重新发明躯体。阅读原版仍然是理解_这个代码库为何是现在这个形状_
-的最快途径，而对架构的诚实归属是：**他们的**。
+卡片拖到节点图上的集成、模型编辑器的表单处理，乃至卡片尺寸预设这样的
+小细节 —— 都是 hayden‑cn 的设计。Neo 改变的是界面层、依赖与大量 bug，
+但它不必从零发明底层设计。阅读原版仍然是理解_这个代码库为何是现在这样_
+的最快途径；架构的归属很明确 —— **hayden‑cn**。
 
 压缩引擎实现了 **[ZipNN](https://github.com/zipnn/zipnn)** 项目（MIT）的
 格式 —— Hershcovitch 等人，_“ZipNN: Lossless Compression for AI Models”_
@@ -911,10 +910,10 @@ zstd huff0/FSE 规范（RFC 8878）与 FiniteStateEntropy（BSD‑2‑Clause）�
 
 ## <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="34" height="34" align="middle" alt=""> 安全
 
-Neo 接受持续而非偶发的扫描。每次 push 与拉取请求都会运行：针对 OSV
+安全扫描在每次 push 与拉取请求时运行：针对 OSV
 数据库的依赖审计（覆盖全部四个锁文件）、由 CodeQL 对 TypeScript/Vue、
 Python 与 Rust 源码以及 CI 配置本身进行的静态分析、覆盖完整 git 历史的
-密钥扫描，以及针对 GitHub 工作流的专项加固检查；Rust 核心还会每周在七个
+密钥扫描，以及针对 GitHub 工作流的加固检查；Rust 核心还会每周在七个
 目标上进行模糊测试。所有接受的风险都附有书面理由 —— 没有任何问题会被
 悄悄掩盖。如果你发现漏洞，请私密报告：[`SECURITY.md`](SECURITY.md)。
 
