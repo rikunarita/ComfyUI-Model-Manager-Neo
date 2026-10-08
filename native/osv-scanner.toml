@@ -1,4 +1,6 @@
-# OSV-Scanner configuration — native/ (NEO-PLAN-2026-004, Step 2).
+# OSV-Scanner configuration — native/ (added 2026-10-07; the permanent
+#
+# record lives in Agent/MEMO.md §11).
 #
 # Applies to native/Cargo.lock only (per-directory config semantics — see the
 # root osv-scanner.toml header). Both entries are RustSec INFORMATIONAL
@@ -17,7 +19,7 @@
 # format is revisited.
 [[IgnoredVulns]]
 id = "RUSTSEC-2025-0141"
-reason = "Informational unmaintained advisory; no successor version exists (3.0.0 is a name-squat placeholder). Local-only index encoding with blake3 integrity + rebuild-on-corruption. See Agent/Plan-4.md D4."
+reason = "Informational unmaintained advisory; no successor version exists (3.0.0 is a name-squat placeholder). Local-only index encoding with blake3 integrity + rebuild-on-corruption; rationale recorded in Agent/MEMO.md §11."
 
 # RUSTSEC-2024-0436 "paste - no longer maintained".
 # paste is a compile-time proc-macro helper (identifier concatenation) pulled
@@ -26,4 +28,4 @@ reason = "Informational unmaintained advisory; no successor version exists (3.0.
 # replacement becomes the ecosystem norm.
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0436"
-reason = "Informational unmaintained advisory; proc-macro (compile-time only, no runtime surface), transitive dependency. See Agent/Plan-4.md D4."
+reason = "Informational unmaintained advisory; proc-macro (compile-time only, no runtime surface), transitive dependency; rationale recorded in Agent/MEMO.md §11."

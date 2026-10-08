@@ -1,4 +1,4 @@
-# Security gates (NEO-PLAN-2026-004, Step 3) — SCA, Actions-config and secrets.
+# Security gates (added 2026-10-07) — SCA, Actions-config and secrets.
 #
 # Three tools, one workflow, all DB-less and cache-free (the 10 GB/repo Actions
 # cache stays untouched — see Agent/MEMO §4.1 for why that matters here):
@@ -27,7 +27,7 @@
 #
 # Trigger note: CodeQL default setup covers main pushes / PRs-to-main / weekly.
 # This workflow additionally covers DEV pushes, so the working branch gets the
-# same SCA/Actions/secret eyes on every push (Agent/Plan-4.md D1).
+# same SCA/Actions/secret eyes on every push (Agent/MEMO.md §11).
 #
 # Schedule: Monday 03:00 UTC — deliberately clear of the Sunday 03:40 UTC
 # cache sweep and the Sunday 18:00 UTC fuzz-long budget.

@@ -84,7 +84,7 @@ class GitHub:
         }
 
     def request(self, path: str, method: str = "GET") -> tuple[int, Any]:
-        # S310 triage (NEO-PLAN-2026-004): self.base is the api.github.com
+        # S310 triage: self.base is the api.github.com
         # constant and `path` is assembled from this script's own fixed REST
         # routes; file:/custom schemes are unreachable (S310's actual concern).
         req = urllib.request.Request(self.base + path, method=method, headers=self.headers)  # noqa: S310

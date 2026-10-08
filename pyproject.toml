@@ -137,7 +137,7 @@ ignore = [
     # exceptions silently so a failing side-channel can never take the
     # extension (or ComfyUI) down with it. The pickle/subprocess/url-open
     # families stay ENABLED and are triaged per site with reasoned noqa
-    # comments (NEO-PLAN-2026-004 Step 7).
+    # comments.
     "S110",
     "S112",
 ]

@@ -1,13 +1,13 @@
-# Dependabot version updates (NEO-PLAN-2026-004, Step 5).
+# Dependabot version updates (added 2026-10-07; permanent record: Agent/MEMO.md §11).
 #
 # Activation: GitHub reads this file FROM THE DEFAULT BRANCH — it takes effect
 # once merged to main (user-exclusive step). Version-update PRs target `dev`
 # (the working branch, per the project's standing rule); Dependabot SECURITY
 # updates (the settings toggle) always target the default branch `main` —
 # after merging one there, port the same bump to dev (cherry-pick) so the dev
-# security gates stay green (Agent/Plan-4.md progress log, 2026-10-07).
+# security gates stay green (Agent/MEMO.md §11).
 #
-# NOT configured (deliberate — Agent/Plan-4.md D10): the `pip` ecosystem.
+# NOT configured (deliberate — Agent/MEMO.md §11): the `pip` ecosystem.
 # requirements.txt is the runtime contract kept in SYNC with pyproject.toml
 # (equality pinned mechanically by tests/test_phase8_distribution.py); a
 # Dependabot edit to either file alone would break that parity. Python moves
@@ -86,7 +86,7 @@ updates:
   # Dependabot updates SHA pins in place (keeping the `# vX.Y.Z` comments),
   # which is what keeps the Step-4 hash-pinning from going stale. The
   # dtolnay/rust-toolchain BRANCH refs (@stable/@nightly, floating by policy
-  # — Agent/Plan-4.md D2) carry no version semantics and are left alone;
+  # — Agent/MEMO.md §11) carry no version semantics and are left alone;
   # should a PR ever propose touching them, close it.
   - package-ecosystem: github-actions
     directory: "/"

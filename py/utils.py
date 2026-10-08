@@ -1211,7 +1211,7 @@ def is_installed(package_name: str):
 
 
 def pip_install(package_name: str):
-    # S603 triage (NEO-PLAN-2026-004): fixed argv (no shell); the only call
+    # S603 triage: fixed argv (no shell); the only call
     # site (__init__.py) feeds names parsed from this extension's OWN bundled
     # requirements.txt, never user input.
     subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)  # noqa: S603
