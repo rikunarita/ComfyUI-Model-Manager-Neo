@@ -1,6 +1,7 @@
 # zizmor configuration — see https://docs.zizmor.sh/configuration/
 #
-# Policy (NEO-PLAN-2026-004): every ignore below is line-scoped and carries
+# Policy (permanent record: Agent/MEMO.md §11): every ignore below is
+# line-scoped and carries
 # its justification. Line-scoped ignores are deliberately brittle: when
 # native.yml shifts, a suppressed finding RE-APPEARS and forces re-review
 # (fail-safe direction). Re-run `zizmor --offline .github` after any workflow
@@ -16,7 +17,7 @@
 
 rules:
   unpinned-uses:
-    # Project policy (Agent/Plan-4.md D2): dtolnay/rust-toolchain's @stable /
+    # Project policy (Agent/MEMO.md §11): dtolnay/rust-toolchain's @stable /
     # @nightly are BRANCHES by design — this project's toolchain policy is
     # deliberately version-floating (Agent/MEMO §10: "dtolnay/rust-toolchain
     # @stable・バージョンピン無しの方針どおり"; toolchain drift is caught by

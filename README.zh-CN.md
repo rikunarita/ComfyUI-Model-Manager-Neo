@@ -13,10 +13,11 @@
 采用现代玻璃拟态界面重新设计；包括 ZipNN 压缩引擎在内的所有热点路径，
 均由**预构建的纯 Rust 核心**执行。
 
-![Version](https://img.shields.io/badge/version-0.3.2-6366f1.svg)
+![Version](https://img.shields.io/badge/version-0.4.0-6366f1.svg)
 ![License](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![CI](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/ci.yml/badge.svg?branch=main)
+![Security](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/security.yml/badge.svg?branch=main)
 ![Native core](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/native.yml/badge.svg?branch=main)
 ![ZipNN](https://img.shields.io/badge/ZipNN-Rust_reimplementation-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
@@ -30,13 +31,22 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8.svg?logo=tailwindcss&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8_%C2%B7_Rolldown-646CFF.svg?logo=vite&logoColor=white)
+![Node](https://img.shields.io/badge/Node-26-339933.svg?logo=nodedotjs&logoColor=white)
+![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
+![uv](https://img.shields.io/badge/uv-dev_%26_CI-DE5FE9.svg?logo=uv&logoColor=white)
+
 ![ESLint](https://img.shields.io/badge/ESLint-10-4B32C3.svg?logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
 ![Ruff](https://img.shields.io/badge/Ruff-0.16.9-D7FF64.svg?logo=ruff&logoColor=black)
-![Node](https://img.shields.io/badge/Node-26-339933.svg?logo=nodedotjs&logoColor=white)
-![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
-![uv](https://img.shields.io/badge/uv-dev_%26_CI-DE5FE9.svg?logo=uv&logoColor=white)
+![mypy](https://img.shields.io/badge/mypy-static_types-2A6DB2.svg)
+![Fallow](https://img.shields.io/badge/Fallow-dead_code_%C2%B7_dupes-2E7D32.svg)
+
+![CodeQL](https://img.shields.io/badge/CodeQL-SAST_%C2%B7_extended_suite-24292E.svg?logo=github&logoColor=white)
+![OSV-Scanner](https://img.shields.io/badge/OSV--Scanner-SCA_%C2%B7_4_lockfiles-4285F4.svg)
+![Gitleaks](https://img.shields.io/badge/Gitleaks-secret_scanning-C0392B.svg)
+![zizmor](https://img.shields.io/badge/%F0%9F%8C%88_zizmor-Actions_hardening-8E44AD.svg)
+![cargo-fuzz](https://img.shields.io/badge/cargo--fuzz-7_targets_%C2%B7_weekly-DEA584.svg?logo=rust&logoColor=black)
 
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
@@ -55,7 +65,7 @@
 
 - [Why Neo?](#why-neo) · [截图](#screenshots) · [安装](#installation) · [功能](#features)
 - [模型搜索与多平台发现](#search) · [ZipNN 无损压缩](#zipnn) · [与原版相比改变了什么](#what-changed) · [被移除的功能](#removed-features)
-- [文档](#documentation) · [开发](#development) · [致谢与归属](#credits) · [许可证](#license)
+- [文档](#documentation) · [开发](#development) · [致谢与归属](#credits) · [安全](#security) · [许可证](#license)
 
 ---
 
@@ -442,26 +452,23 @@ Rust 核心以两个互操作带压缩 **safetensors 0.8 定义的全部 22 种 
 
 ### 3. 使用方法
 
-打开任意 `.safetensors` 模型。在预览与信息表之间的空隙里，就是
-**ZipNN 图案本身构成的按钮** —— 随附 SVG 自带玻璃底板（含深色模式
-变体），悬停时上浮变亮，并通过工具提示与屏幕阅读器自我说明。按下后：
+打开任意 `.safetensors` 模型，按下预览与信息表之间的 **ZipNN 按钮**。
+确认后：
 
-1. 弹出刻意_不_使用「Danger」样式的确认框（压缩可逆，且在压缩文件完全
-   写入并校验通过之前绝不删除原件）；
-2. 按钮替换为**实时进度条**，Rust 核心流式处理文件（内存映射、释放
-   GIL —— ComfyUI 其余部分保持响应），任务可随时取消；
-3. 成功后原件替换为 `<name>.znn.safetensors` —— 预览与 Markdown 笔记
+1. 压缩期间按钮变为**进度条**；ComfyUI 保持响应，任务可随时取消；
+2. 完成后原文件替换为 `<name>.znn.safetensors`，预览与 Markdown 笔记
    跟随改名，网格自动刷新。
 
-打开**已压缩**模型时，同一图案以**反色**显示，动作翻转为_解压_，同样
-经过确认框，还原出普通 `.safetensors`。信息表也会变化：单行_文件大小_
-替换为**原始文件大小**、**压缩后文件大小**与**占原始大小百分比** ——
-压缩前的大小在压缩时已记录在文件元数据中，因此明细在改名后依然保留
-（官方 ZipNN CLI 压缩的文件不写该键，故仍显示普通的_文件大小_行）。
+压缩是可逆的：在压缩文件完全写入并校验通过之前，原文件绝不会被删除；
+解压时会与压缩时记录的 SHA‑256 进行校验。
 
-同一图案还出现在**每张模型与文件夹卡片的右上角**（星标开关旁）：一键
-即可压缩（或反色解压），无需打开模型，确认框完全相同。任何任务运行
-期间 —— 单个、批量或差分 —— 按钮显示**环形进度圈**（批量时带百分比）。
+打开**已压缩**的模型时，同一按钮翻转为_解压_（以反色显示），还原出普通
+`.safetensors`。信息表会以**原始文件大小**、**压缩后文件大小**与
+**占原始大小百分比**三行取代单行的_文件大小_（由官方 ZipNN CLI 压缩的
+文件不记录原始大小，仍显示单行）。
+
+同一按钮也位于**每张模型与文件夹卡片的右上角**（星标旁），无需打开详情
+窗口即可压缩或解压。执行中的任务以环形进度圈显示（批量时带百分比）。
 
 ### 4. 批量压缩（整个文件夹）
 
@@ -897,6 +904,19 @@ zstd huff0/FSE 规范（RFC 8878）与 FiniteStateEntropy（BSD‑2‑Clause）�
 构建过程中使用了这些优秀项目：[reka-ui]、[Tailwind CSS]、[Lucide]、
 [VueUse]、[es-toolkit]、[vue-sonner]、[huggingface_hub]、[hf_xet]、
 [modelscope_hub]、[ZipNN]、[zenwebp]。
+
+---
+
+<a id="security"></a>
+
+## <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="34" height="34" align="middle" alt=""> 安全
+
+Neo 接受持续而非偶发的扫描。每次 push 与拉取请求都会运行：针对 OSV
+数据库的依赖审计（覆盖全部四个锁文件）、由 CodeQL 对 TypeScript/Vue、
+Python 与 Rust 源码以及 CI 配置本身进行的静态分析、覆盖完整 git 历史的
+密钥扫描，以及针对 GitHub 工作流的专项加固检查；Rust 核心还会每周在七个
+目标上进行模糊测试。所有接受的风险都附有书面理由 —— 没有任何问题会被
+悄悄掩盖。如果你发现漏洞，请私密报告：[`SECURITY.md`](SECURITY.md)。
 
 ---
 

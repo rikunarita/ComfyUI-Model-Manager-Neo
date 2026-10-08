@@ -7,9 +7,9 @@
  *   3. eslint-plugin-vue      — flat/recommended (via vue-eslint-parser)
  *   4. eslint-plugin-tailwindcss — Tailwind v4 class hygiene
  *   5. eslint-plugin-import-x — import hygiene & ordering (alias-aware)
- *   6. eslint-plugin-security — Node/security anti-patterns (flat/recommended,
- *                               NEO-PLAN-2026-004 Step 8; per-rule tuning in
- *                               the project overrides layer below)
+ *   6. eslint-plugin-security — Node/security anti-patterns (flat/recommended;
+ *                               per-rule tuning in the project overrides
+ *                               layer below)
  *   7. project overrides      — parsers, globals, rule tuning
  *   8. eslint-config-prettier — MUST stay last: disables stylistic rules
  *                               that would conflict with Prettier
@@ -189,7 +189,7 @@ export default tseslint.config(
         },
       ],
 
-      // Security (eslint-plugin-security — NEO-PLAN-2026-004 Step 8) --------
+      // Security (eslint-plugin-security — triaged 2026-10-07) ----------
       // detect-object-injection flags EVERY computed bracket access
       // (obj[dynamicKey]) — 151 hits in this codebase, all idiomatic store /
       // locale / models-by-type lookups, zero taint paths (the shipped

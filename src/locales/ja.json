@@ -160,7 +160,7 @@
     "hideSearchCivitai": "モデル検索で Civitai の結果を非表示",
     "watchModelFolders": "モデルフォルダの外部変更を監視する",
     "watchModelFoldersTooltip": "他のプログラム（models/ へのコピーや別のダウンローダ）が追加・削除したモデルを検出し、30 秒ごとの再取得を待たずに約 1.5 秒で該当一覧を更新します。既定は OFF：Linux ではフォルダごとに inotify watch を 1 つ保持するためで、ネットワークマウントのフォルダは自動的に除外されます（従来どおり定期再取得が使われます）。",
-    "perfMarks": "UI のパフォーマンスマークを記録する（K15）",
+    "perfMarks": "UI のパフォーマンスマークを記録する",
     "perfMarksTooltip": "グリッドの再計算・描画とテンソルツリーの構築を performance.mark で計測し、リングバッファに保持します。ブラウザのコンソールで __mmNeoPerf.summary() を実行すると P50/P95/P99（ミリ秒）を確認できます。既定は OFF で、無効時のコストは各計測点の boolean 判定 1 回だけです。"
   },
   "modelTypeLabel": {

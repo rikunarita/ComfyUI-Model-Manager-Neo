@@ -15,10 +15,11 @@ A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
 **Vue 3 + Tailwind CSS v4 + reka‑ui**, with its entire hot path — the ZipNN
 compression engine included — running in a **prebuilt pure‑Rust core**.
 
-![Version](https://img.shields.io/badge/version-0.3.2-6366f1.svg)
+![Version](https://img.shields.io/badge/version-0.4.0-6366f1.svg)
 ![License](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![CI](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/ci.yml/badge.svg?branch=main)
+![Security](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/security.yml/badge.svg?branch=main)
 ![Native core](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/native.yml/badge.svg?branch=main)
 ![ZipNN](https://img.shields.io/badge/ZipNN-Rust_reimplementation-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
@@ -32,13 +33,22 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8.svg?logo=tailwindcss&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8_%C2%B7_Rolldown-646CFF.svg?logo=vite&logoColor=white)
+![Node](https://img.shields.io/badge/Node-26-339933.svg?logo=nodedotjs&logoColor=white)
+![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
+![uv](https://img.shields.io/badge/uv-dev_%26_CI-DE5FE9.svg?logo=uv&logoColor=white)
+
 ![ESLint](https://img.shields.io/badge/ESLint-10-4B32C3.svg?logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
 ![Ruff](https://img.shields.io/badge/Ruff-0.16.9-D7FF64.svg?logo=ruff&logoColor=black)
-![Node](https://img.shields.io/badge/Node-26-339933.svg?logo=nodedotjs&logoColor=white)
-![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
-![uv](https://img.shields.io/badge/uv-dev_%26_CI-DE5FE9.svg?logo=uv&logoColor=white)
+![mypy](https://img.shields.io/badge/mypy-static_types-2A6DB2.svg)
+![Fallow](https://img.shields.io/badge/Fallow-dead_code_%C2%B7_dupes-2E7D32.svg)
+
+![CodeQL](https://img.shields.io/badge/CodeQL-SAST_%C2%B7_extended_suite-24292E.svg?logo=github&logoColor=white)
+![OSV-Scanner](https://img.shields.io/badge/OSV--Scanner-SCA_%C2%B7_4_lockfiles-4285F4.svg)
+![Gitleaks](https://img.shields.io/badge/Gitleaks-secret_scanning-C0392B.svg)
+![zizmor](https://img.shields.io/badge/%F0%9F%8C%88_zizmor-Actions_hardening-8E44AD.svg)
+![cargo-fuzz](https://img.shields.io/badge/cargo--fuzz-7_targets_%C2%B7_weekly-DEA584.svg?logo=rust&logoColor=black)
 
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
@@ -61,7 +71,8 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
   [What changed from the original](#what-changed) ·
   [Removed features](#removed-features)
 - [Documentation](#documentation) · [Development](#development) ·
-  [Credits & Attribution](#credits) · [License](#license)
+  [Credits & Attribution](#credits) · [Security](#security) ·
+  [License](#license)
 
 ---
 
@@ -503,34 +514,28 @@ Details worth knowing:
 
 ### 3. Using it
 
-Open any `.safetensors` model. In the gap between the preview and the info table
-sits the **ZipNN artwork itself as the button** — the shipped SVG draws its own
-glass plate (with a dark‑mode variant), lifts and brightens on hover, and
-explains itself in a tooltip and to screen readers. Pressing it:
+Open any `.safetensors` model and press the **ZipNN button** between the
+preview and the info table. After you confirm:
 
-1. asks for a confirmation that is deliberately _not_ styled as “Danger”
-   (compression is reversible and never deletes the original until the
-   compressed file has been fully written and verified);
-2. replaces the button with a **live progress bar** while the Rust core streams
-   through the file (memory‑mapped, GIL released — the rest of ComfyUI stays
-   responsive), and the task can be cancelled at any time;
-3. on success, swaps the original for `<name>.znn.safetensors` — previews and
-   Markdown notes follow the rename, and the grid refreshes itself.
+1. the button turns into a **live progress bar** while the model compresses —
+   ComfyUI stays responsive, and the task can be cancelled at any time;
+2. on success, the original is replaced by `<name>.znn.safetensors` — previews
+   and Markdown notes follow the rename, and the grid refreshes.
 
-Opening a **compressed** model shows the same artwork with its colours
-**inverted** and the action flipped to _decompress_, behind the same
-confirmation, restoring the plain `.safetensors`. Its info table changes too:
-the single _File Size_ row is replaced by **Original File Size**, **Compressed
-File Size** and **% of Original Size** — the pre‑compression size is recorded in
-the file's metadata at compression time, so the breakdown survives the rename
-(files compressed by the official ZipNN CLI, which does not write that key,
-simply keep the plain _File Size_ row).
+Compression is reversible and plays it safe: the original is never deleted
+until the compressed file has been fully written and verified, and every
+restore is checked against the SHA‑256 recorded at compression time.
 
-The same artwork also sits on the **top‑right corner of every model and folder
-card** (next to the star toggle): one click compresses (or decompresses,
-inverted) without opening the model at all, behind the identical confirmation.
-While any task runs — single, batch or delta — the button shows a **circular
-progress ring** (with the percentage for batches).
+Opening a **compressed** model flips the same button to _decompress_ (shown
+inverted), restoring the plain `.safetensors`. Its info table then lists
+**Original File Size**, **Compressed File Size** and **% of Original Size**
+instead of the single _File Size_ row — files compressed by the official ZipNN
+CLI, which does not record the original size, keep the plain row.
+
+The button also sits on the **top‑right corner of every model and folder card**
+(next to the star), so you can compress or decompress without opening the
+detail window. Running tasks show a circular progress ring (with a percentage
+for batches).
 
 ### 4. Batch compression (whole folders)
 
@@ -1025,6 +1030,21 @@ passes, and much of the debugging.
 Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 [VueUse], [es-toolkit], [vue-sonner], [huggingface_hub], [hf_xet],
 [modelscope_hub], [ZipNN], and [zenwebp].
+
+---
+
+<a id="security"></a>
+
+## <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="34" height="34" align="middle" alt=""> Security
+
+Neo is scanned continuously, not occasionally. Every push and pull request
+runs dependency audits against the OSV database (all four lockfiles), CodeQL
+static analysis of the TypeScript/Vue, Python and Rust sources and of the CI
+configuration itself, secret scanning over the full git history, and dedicated
+hardening checks for the GitHub workflows; the Rust core is additionally fuzzed
+on seven targets every week. Accepted risks are recorded with written reasons —
+nothing is silenced quietly. Found something? Please report it privately:
+[`SECURITY.md`](SECURITY.md).
 
 ---
 

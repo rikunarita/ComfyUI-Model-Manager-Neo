@@ -8,11 +8,12 @@
 > [`../docs/BENCH.md`](../docs/BENCH.md)、開発環境の実測一次ソースは
 > [`environment-report.md`](environment-report.md) です。
 >
-> **計画文書の保存場所。** 3 つの計画書は全実装要件の完了に伴いツリーから
+> **計画文書の保存場所。** 4 つの計画書は全実装要件の完了に伴いツリーから
 > 削除されました。原文は git 履歴に完全な形で保存されており、
 > `git show eb3a317:Agent/Plan.md`（同様に `Agent/Plan-2.md`・
-> `Agent/Plan-3.md`）で復元できます。本メモ内の「Plan §x.y」「Plan‑2 /
-> Plan‑3」「NEO‑PLAN‑2026‑00N」形式の参照は、これらの履歴文書の節を
+> `Agent/Plan-3.md`。Plan‑4.md は最終形が `git show dcd5624:Agent/Plan-4.md`）
+> で復元できます。本メモ内の「Plan §x.y」「Plan‑2 / Plan‑3 /
+> Plan‑4」「NEO‑PLAN‑2026‑00N」形式の参照は、これらの履歴文書の節を
 > 指します。
 >
 > **旧記録の参照について。** コード・CI・文書中の「第 N セッション」
@@ -837,7 +838,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 
 ## 6. 現状のキー値（2026‑10‑03 時点）
 
-- **version 0.3.2**（pyproject / package.json / native workspace / web バンドルで
+- **version 0.4.0**（pyproject / package.json / native workspace / web バンドルで
   同期済み。**公開作業はユーザ専任・未実施**）。
 - **api_version 6**（4 者同期 — §1.2）。
 - **成果物 8 本**（abi3 ×4 + abi3t ×4・合計 34.98 MiB — §5.3）。
@@ -855,7 +856,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 
 ## 7. 残件
 
-- **ユーザ専任**: v0.3.2 の公開作業（GitHub Release・タグ・registry）、
+- **ユーザ専任**: v0.4.0 の公開作業（GitHub Release・タグ・registry）、
   `demo-assets/` の本キャプチャ差し替え、CI 実行結果確認の指示。
   なお 2026‑10‑05 のフォルダアイコン刷新以降、`hero.webm` /
   `view-folders.avif` 等は刷新前（アンバー icon・開閉アニメ）の姿を写すため、
@@ -1043,6 +1044,31 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   main へのマージ後の再解析で自動クローズされる見込み（要確認）。
   Security run は dev push 7 回連続 success。ci.yml の pytest（3.12）は
   ruff S 導入後も緑（sandbox 3.11 の 1 件失敗は stash 対照で無関係と証明）。
+- **Plan‑4 の削除と参照整備（2026‑10‑08）**: 全 Step 完了に伴い Plan‑4.md を
+  ツリーから削除（一次記録 = `git show dcd5624:Agent/Plan-4.md`）。コード・
+  CI・設定の plan 参照 25 箇所を Agent/ 外ゼロまで整備（機械走査で確認）。
+  **osv‑scanner.toml の reason 文字列は osv‑scanner が CI ログへ逐語出力する
+  ため文書参照を持たせず自己完結化**した（2026‑10‑04 の実行時文字列除去と
+  同一基準。ログ出力される設定値は「実行時文字列」に含めて扱うこと）。
+- **K15 内部識別子の残存違反を発見・修正**: locales ×4 の perfMarks 設定
+  ラベルが「…（K15）」を保持していた（2026‑10‑04 の走査は .py/.rs/.ts の
+  文字列定数を対象にしており **locales JSON が走査範囲外**だった）。除去 +
+  web/ 再ビルド済み。**教訓: 識別子除去の機械走査は locales/\*.json を
+  必ず含める**。
+- **CodeQL アラートの dismiss API**: `dismissed_comment` は **280 文字上限**
+  （超過は 422「Only 280 characters are allowed」）。dtolnay の
+  unpinned‑tag 7 件を won't fix で dismiss 済み（コメントは zizmor.yml の
+  ref‑pin 方針を参照）→ main の open アラート 0。
+- **Dependabot は設定発効直後に初回チェックを即時実行する**（schedule を
+  待たない）: main マージ当日に 3 PR（pyo3 0.29.3 / torch 2.14.1 /
+  development group = frontend‑types 1.56.0 + fallow 3.31.0）が到着し、
+  審査のうえ dev へ squash マージ済み（3b2a42a / 3c51783 / cb26b5d）。
+  target‑branch dev・groups・typescript ignore・cooldown 7 日の設定準拠を
+  全項目実証。マージ後の出荷バンドルは byte 同一（ローカル再ビルド実証）。
+  審査基準は「CI 3 ワークフロー緑・diff の妥当性（lockfile 範囲・ソース
+  設定維持）・公開日 7 日以上」。uv 系 PR が**実行時依存**（huggingface_hub
+  等 4 種）を触る場合のみ requirements.txt の手動同期（D10 規程）が追加で
+  必要。
 - **残件・監視計画**: ① native run 6fdfdb7 の完走確認（次セッション冒頭）、
   ② main マージ後の Dependabot 初回 PR 形状確認（S5.4/S5.5・A10）、
   ③ zizmor 1.31.0 着弾時の cache‑poisoning ignore 13 件の削除再評価、

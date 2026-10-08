@@ -16,10 +16,11 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 圧縮エンジンを含むすべてのホットパスを、**プリビルドの純 Rust コア**が
 実行します。
 
-![Version](https://img.shields.io/badge/version-0.3.2-6366f1.svg)
+![Version](https://img.shields.io/badge/version-0.4.0-6366f1.svg)
 ![License](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![CI](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/ci.yml/badge.svg?branch=main)
+![Security](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/security.yml/badge.svg?branch=main)
 ![Native core](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/native.yml/badge.svg?branch=main)
 ![ZipNN](https://img.shields.io/badge/ZipNN-Rust_reimplementation-0ea5e9.svg)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
@@ -33,13 +34,22 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38BDF8.svg?logo=tailwindcss&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8_%C2%B7_Rolldown-646CFF.svg?logo=vite&logoColor=white)
+![Node](https://img.shields.io/badge/Node-26-339933.svg?logo=nodedotjs&logoColor=white)
+![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
+![uv](https://img.shields.io/badge/uv-dev_%26_CI-DE5FE9.svg?logo=uv&logoColor=white)
+
 ![ESLint](https://img.shields.io/badge/ESLint-10-4B32C3.svg?logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
 ![Ruff](https://img.shields.io/badge/Ruff-0.16.9-D7FF64.svg?logo=ruff&logoColor=black)
-![Node](https://img.shields.io/badge/Node-26-339933.svg?logo=nodedotjs&logoColor=white)
-![pnpm](https://img.shields.io/badge/pnpm-12-F69220.svg?logo=pnpm&logoColor=white)
-![uv](https://img.shields.io/badge/uv-dev_%26_CI-DE5FE9.svg?logo=uv&logoColor=white)
+![mypy](https://img.shields.io/badge/mypy-static_types-2A6DB2.svg)
+![Fallow](https://img.shields.io/badge/Fallow-dead_code_%C2%B7_dupes-2E7D32.svg)
+
+![CodeQL](https://img.shields.io/badge/CodeQL-SAST_%C2%B7_extended_suite-24292E.svg?logo=github&logoColor=white)
+![OSV-Scanner](https://img.shields.io/badge/OSV--Scanner-SCA_%C2%B7_4_lockfiles-4285F4.svg)
+![Gitleaks](https://img.shields.io/badge/Gitleaks-secret_scanning-C0392B.svg)
+![zizmor](https://img.shields.io/badge/%F0%9F%8C%88_zizmor-Actions_hardening-8E44AD.svg)
+![cargo-fuzz](https://img.shields.io/badge/cargo--fuzz-7_targets_%C2%B7_weekly-DEA584.svg?logo=rust&logoColor=black)
 
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
@@ -61,7 +71,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 - [モデル検索とマルチプラットフォーム探索](#search) · [ZipNN 可逆圧縮](#zipnn) ·
   [元版からの変更点](#what-changed) · [削除された機能](#removed-features)
 - [ドキュメント](#documentation) · [開発](#development) ·
-  [クレジットと帰属](#credits) · [ライセンス](#license)
+  [クレジットと帰属](#credits) · [セキュリティ](#security) · [ライセンス](#license)
 
 ---
 
@@ -430,8 +440,7 @@ CI で相互検証するため、ZipNN エコシステム全体と交換可能�
 ### 1. 仕組み
 
 モデル重みの大半は浮動小数点数で、浮動小数点数の大半は_冗長_です:
-行儀の良い重みテンソルの指数バイトは何度も繰り返されます。ZipNN はまさに
-そこを突きます。テンソルごとに:
+行儀の良い重みテンソルの指数バイトは何度も繰り返されます。ZipNN はそこを突きます。テンソルごとに:
 
 - 値をバイト平面へ**分割**し、符号/指数/仮数のビットを並べ替えて
   類似バイトを集約してから、
@@ -449,7 +458,7 @@ CI で相互検証するため、ZipNN エコシステム全体と交換可能�
 
 圧縮モデルは原本の隣に `<name>.znn.safetensors` として書き出されます —
 公式 ZipNN ツール（および `zipnn_safetensors()` パッチ済みローダー）が
-期待するまさに同じサフィックスなので、パッチ済み ComfyUI ローダーは
+期待するサフィックスと完全に一致するため、パッチ済み ComfyUI ローダーは
 Neo の圧縮モデルを透過的に読み込めます。現実的なチェックポイントは
 通常、元のサイズの **60〜80 %** 程度に収まります（ランダム性の強いデータは
 あまり縮まず、低エントロピーの重みはもっと縮みます）。
@@ -486,32 +495,27 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
 
 ### 3. 使い方
 
-任意の `.safetensors` モデルを開くと、プレビューと情報テーブルの間に
-**ZipNN アートワークそのもののボタン**があります — 同梱 SVG は自前の
-ガラスプレート（ダークモード変種込み）を描画し、ホバーで浮き上がって明るく
-なり、ツールチップとスクリーンリーダーに自分を説明します。押すと:
+任意の `.safetensors` モデルを開き、プレビューと情報テーブルの間にある
+**ZipNN ボタン**を押します。確認ダイアログを経て:
 
-1. わざと「Danger」スタイルにしていない確認ダイアログが出ます
-   （圧縮は可逆で、圧縮ファイルが完全に書き込まれ検証されるまで原本を
-   削除しません）。
-2. Rust コアがファイルをストリーム処理している間、ボタンは**ライブ進捗バー**に
-   置き換わります（メモリマップ・GIL 解放済み — ComfyUI の残りは応答性を
-   保ちます）。タスクはいつでもキャンセルできます。
-3. 成功すると原本は `<name>.znn.safetensors` へ置き換わります —
-   プレビューと Markdown ノートはリネームに追従し、グリッドは自動更新されます。
+1. 圧縮の実行中、ボタンは**進捗バー**に変わります。ComfyUI の応答性は
+   保たれ、タスクはいつでもキャンセルできます。
+2. 完了すると、元のファイルは `<name>.znn.safetensors` に置き換わります。
+   プレビューと Markdown ノートはリネームに追従し、グリッドも自動で
+   更新されます。
 
-**圧縮済み**モデルを開くと、同じアートワークが**反転色**で表示され、アクションは
-同じ確認を挟んで _解凍_ へ反転し、素の `.safetensors` を復元します。
-情報テーブルも変わり、1 行の _ファイルサイズ_ の代わりに
-**元のファイルサイズ**・**圧縮後ファイルサイズ**・**元サイズ比**の 3 行に
-なります — 圧縮前のサイズは圧縮時にファイルのメタデータへ記録されるため、
-この内訳はリネーム後も生き残ります（このキーを書かない公式 ZipNN CLI が
-圧縮したファイルは、素の _ファイルサイズ_ 行のままです）。
+圧縮は可逆で、圧縮ファイルが完全に書き込まれて検証されるまで元のファイルは
+削除されません。解凍時には、圧縮時に記録された SHA‑256 と照合されます。
 
-同じアートワークは**すべてのモデル/フォルダカードの右上**（スタートグルの隣）にも
-あります: 1 クリックで、モデルを開かずに、同一の確認ダイアログ経由で圧縮
-（または反転表示の解凍）を実行できます。実行中は — 単体・バッチ・デルタの
-いずれでも — ボタンは**円形の進捗リング**（バッチはパーセント付き）になります。
+**圧縮済み**のモデルを開くと、同じボタンが _解凍_（反転色の表示）に
+切り替わり、元の `.safetensors` を復元できます。情報テーブルは
+_ファイルサイズ_ 1 行の代わりに、**元のファイルサイズ**・
+**圧縮後ファイルサイズ**・**元サイズ比**の 3 行になります（元のサイズを
+記録しない公式 ZipNN CLI で圧縮されたファイルは、1 行のままです）。
+
+同じボタンは**モデルカードとフォルダカードの右上**（スターの隣）にもあり、
+詳細ウィンドウを開かずに圧縮・解凍できます。実行中のタスクは円形の
+進捗リングで表示されます（バッチではパーセント付き）。
 
 ### 4. バッチ圧縮（フォルダ単位）
 
@@ -638,7 +642,7 @@ codec は zenwebp（AGPL‑3.0）を使用 — 全文は [`native/NOTICE`](nativ
 この節は GPL‑3.0 ライセンスが求める通り、フォークの差分を明示します。
 比較の基準は [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
 **v2.8.5** です。機能は保持・拡張されており、_削除_されたのは 3 つ —
-PrimeVue 依存そのもの、バッチスキャン機能、ノードコピーボタンです
+PrimeVue 依存、バッチスキャン機能、ノードコピーボタンです
 （[削除された機能](#removed-features)参照）。
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%23d946ef" width="26" height="26" align="middle" alt=""> インターフェース
@@ -911,7 +915,7 @@ Linux・Windows・macOS で実行します。
 
 **セキュリティゲート**は上記すべてと並んで `Security` ワークフローが
 担当します: **CodeQL**（default setup・extended クエリスイート —
-TypeScript/Vue・Python・Rust・Actions 設定そのもの）、**OSV-Scanner**
+TypeScript/Vue・Python・Rust、そして GitHub Actions ワークフロー自体）、**OSV-Scanner**
 （4 つの依存面すべて。PR は新規混入の脆弱性でゲート）、**Gitleaks**
 （GitHub 自身の push protection と並走する全履歴シークレット走査）、
 **zizmor**（ワークフロー加固）。accept した検出はすべて理由付きで
@@ -995,6 +999,21 @@ ZipNN 圧縮、Hugging Face / ModelScope のハブ統合、マルチハブ検索
 これらの優れたプロジェクトとともに構築: [reka-ui]・[Tailwind CSS]・[Lucide]・
 [VueUse]・[es-toolkit]・[vue-sonner]・[huggingface_hub]・[hf_xet]・
 [modelscope_hub]・[ZipNN]・[zenwebp]。
+
+---
+
+<a id="security"></a>
+
+## <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="34" height="34" align="middle" alt=""> セキュリティ
+
+Neo は継続的にスキャンされています。push とプルリクエストのたびに、
+4 つのロックファイルすべてへの依存関係監査（OSV データベース）、
+TypeScript/Vue・Python・Rust のソースと CI 設定自体への CodeQL 静的解析、
+git 全履歴のシークレットスキャン、GitHub ワークフロー専用のハードニング
+チェックが実行され、Rust コアは毎週 7 ターゲットでファジングされます。
+受け入れたリスクは理由を明記して記録され、何も黙って除外されません。
+脆弱性を見つけた場合は、非公開で報告してください —
+[`SECURITY.md`](SECURITY.md)。
 
 ---
 

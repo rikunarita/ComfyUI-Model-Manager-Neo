@@ -485,11 +485,8 @@ deselects the bundle folders and shows a warning toast.
 
 ### ZipNN compression
 
-Opening a `.safetensors` model shows the **ZipNN artwork itself as the button**
-in the gap between the preview and the info table: the shipped SVG draws its
-own glass plate (including a dark‑mode variant), lifts and brightens on hover,
-and explains itself in a tooltip and to screen readers. Pressing it asks for a
-confirmation that is deliberately _not_ styled as Danger, then runs the whole
+Opening a `.safetensors` model shows the **ZipNN button** between the preview
+and the info table. Pressing it asks for a confirmation, then runs the whole
 compression as one background job in the Rust core (memory‑mapped streaming —
 peak RAM is roughly the largest tensor, not the model):
 
@@ -660,7 +657,7 @@ ComfyUI **Settings → Model Manager Neo**:
 - **Card Size** / **Card Size Map** — persistence for the size picker (hidden
   entries; edit them through the Custom Size dialog).
 - **Flat Layout** — default layout on open.
-- **Record UI performance marks (K15)** — off by default. Instruments the grid
+- **Record UI performance marks** — off by default. Instruments the grid
   recompute/paint and the tensor‑tree build with `performance.mark` and keeps
   the samples in a ring buffer; read them in the browser console with
   `__mmNeoPerf.summary()` (P50/P95/P99 in ms), `__mmNeoPerf.enable()` /
@@ -695,3 +692,13 @@ bundle; anything else falls back to English.
 The images in this guide live in [`demo-assets/`](../demo-assets/) as AVIF
 stills, and the header tour is the near-lossless recording
 [`hero.webm`](../demo-assets/hero.webm).
+
+---
+
+## Security
+
+This extension is scanned on every change: dependencies are audited against
+the OSV database, sources are analysed by CodeQL (TypeScript/Vue, Python,
+Rust), the full git history is swept for leaked secrets, the CI configuration
+is statically hardened, and the Rust core is fuzzed weekly. To report a
+vulnerability privately, see [`SECURITY.md`](../SECURITY.md).
