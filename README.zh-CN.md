@@ -13,7 +13,7 @@
 采用现代玻璃拟态界面重新设计；包括 ZipNN 压缩引擎在内的所有热点路径，
 均由**预构建的纯 Rust 核心**执行。
 
-![Version](https://img.shields.io/badge/version-0.3.2-6366f1.svg)
+![Version](https://img.shields.io/badge/version-0.4.0-6366f1.svg)
 ![License](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Node-8A8B98.svg)
 ![CI](https://github.com/rikunarita/ComfyUI-Model-Manager-Neo/actions/workflows/ci.yml/badge.svg?branch=main)
