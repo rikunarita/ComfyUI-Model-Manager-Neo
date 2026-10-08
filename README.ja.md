@@ -9,7 +9,7 @@
 
 # <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
 
-### 閲覧・ダウンロード・アップロード・ドラッグ＆ドロップ — モデルを、美しく管理。
+### 閲覧・ダウンロード・アップロード・ドラッグ＆ドロップ — すべてのモデルを、ひとつの場所で。
 
 ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui** で
 再構築し、モダンなグラスモフィズム UI へ再設計したフォークです。ZipNN
@@ -45,11 +45,11 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ![mypy](https://img.shields.io/badge/mypy-static_types-2A6DB2.svg)
 ![Fallow](https://img.shields.io/badge/Fallow-dead_code_%C2%B7_dupes-2E7D32.svg)
 
-![CodeQL](https://img.shields.io/badge/CodeQL-SAST_%C2%B7_extended_suite-24292E.svg?logo=github&logoColor=white)
-![OSV-Scanner](https://img.shields.io/badge/OSV--Scanner-SCA_%C2%B7_4_lockfiles-4285F4.svg)
+![CodeQL](https://img.shields.io/badge/CodeQL-SAST-24292E.svg?logo=github&logoColor=white)
+![OSV-Scanner](https://img.shields.io/badge/OSV--Scanner-SCA-4285F4.svg)
 ![Gitleaks](https://img.shields.io/badge/Gitleaks-secret_scanning-C0392B.svg)
 ![zizmor](https://img.shields.io/badge/%F0%9F%8C%88_zizmor-Actions_hardening-8E44AD.svg)
-![cargo-fuzz](https://img.shields.io/badge/cargo--fuzz-7_targets_%C2%B7_weekly-DEA584.svg?logo=rust&logoColor=black)
+![cargo-fuzz](https://img.shields.io/badge/cargo--fuzz-Fuzzing-DEA584.svg?logo=rust&logoColor=black)
 
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
@@ -79,8 +79,8 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 
 ## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="34" height="34" align="middle" alt=""> Why Neo?
 
-**ComfyUI‑Model‑Manager‑Neo** は、優れた元祖マネージャーを受け継ぎながら、
-体験を根底から作り直したものです:
+**ComfyUI‑Model‑Manager‑Neo** は、元のマネージャーを根底から作り直した
+フォークです:
 
 **1. Neo の新機能**
 
@@ -99,9 +99,9 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 - <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **検証付きでメモリ安全な圧縮** — Rust エンジンは lint で `unsafe` を
   deny しています: フォーマット中核は `unsafe` ゼロ、必要となる唯一の境界
   （読み取り専用のメモリマップ）は SAFETY レビュー済みで文書化されています。
-  7 本の継続的ファジングターゲットで強化され、復元のたびに、圧縮時に
-  記録した SHA‑256 との照合が走ります。公式 `zipnn` 0.5.4 とのフォーマット互換は
-  約束ではなく CI ゲートです — push のたびに双方向でクロス検証されます。
+  7 本の継続的ファジングターゲットで強化され、復元のたびに圧縮時に記録した
+  SHA‑256 と照合されます。公式 `zipnn` 0.5.4 とのフォーマット互換は CI ゲート
+  として担保され、push のたびに双方向でクロス検証されます。
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **ZipNN 可逆圧縮** — safetensors モデルをその場で圧縮/解凍
   （`.znn.safetensors`）、フォルダ単位では密封された `<name>_DeltaZNN` バンドルへ
   バッチ圧縮、ファインチューンはベースモデルとの極小**デルタファイル**へ。
@@ -122,7 +122,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
   チャンク分割・重複排除された Xet プロトコルを使用します。
 - <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **日本語・繁體中文ロケール** — English・簡体中文に加え、完全な日本語
   バンドルと繁體中文（zh-TW）バンドルを追加。UI は ComfyUI 自身の言語
-  設定に追従し、リージョンサブタグ（`ja-JP` 等）は基底部言語へ折りたたまれ、
+  設定に追従し、リージョンサブタグ（`ja-JP` 等）はベース言語として扱われ、
   Hant 書記系タグ（`zh-Hant`・`zh-Hant-TW` 等）は繁體中文バンドルを
   選択します。
 
@@ -166,8 +166,9 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 
 ![Folder explorer view](demo-assets/view-folders.avif)
 
-**フォルダ**レイアウトの 1 階層目。ブレッドクラムと、ポインターを休ませると
-ふわりとフロートするペールターコイズのガラスフォルダカード。
+**フォルダ**レイアウトの 1 階層目。ブレッドクラムとペールターコイズの
+ガラスフォルダカードが表示され、カードをホバーするとフォルダがふわりと
+フロートします。
 
 ### 3. モデル詳細・編集・Hugging Face アップロード
 
@@ -188,7 +189,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 | ![マルチプラットフォーム検索](demo-assets/search-columns.avif)                                                | ![テンソルツリー](demo-assets/tensor-tree.avif)                                                              |
 | _1 つのクエリで 3 ハブ: Hugging Face / ModelScope / Civitai の列にアバター・ダウンロード数・ディープリンク。_ | _Information タブは safetensors ヘッダを折りたたみ可能なフォルダツリーで描画（Hugging Face ビューア様式）。_ |
 
-10 秒間のツアーは [`demo-assets/hero.webm`](demo-assets/hero.webm) です。
+10 秒間のツアーは [`demo-assets/hero.webm`](demo-assets/hero.webm) をご覧ください。
 
 ---
 
@@ -230,8 +231,9 @@ comfy node install comfyui-model-manager-neo
 拡張機能の_実行_に Node.js もコンパイラも不要です — コアのロードは単なる
 `import` です（対応プラットフォームは[エンジンの表](#the-engine)参照）。
 
-マネージャーは、トップバーの **「Model Manager Neo」** ボタン、サイドバー、
-`Extensions → Model Manager Neo` メニュー、またはコマンドパレットから開きます。
+マネージャーは、トップバーの **「Model Manager Neo」** ボタン、旧メニューの
+ボタン、`Extensions → Model Manager Neo` メニュー、またはコマンドパレット
+から開きます。
 
 ---
 
@@ -252,8 +254,8 @@ comfy node install comfyui-model-manager-neo
 - 画像**と動画**のプレビュー（フルスクリーンの**ライトボックス**で拡大表示）、
   ホバーでふわりとフロートするペールターコイズのガラスフォルダアートワーク、
   ガラス製のプレビュー欠落フォールバック。
-- 種別ルートフォルダカードはその**種別の合計サイズ**を表示
-  （軽量な容量ダッシュボード）。記録済み SHA256 がライブラリ内の別ファイルと
+- 種別ルートフォルダカードはその**種別の合計サイズ**を表示します。
+  記録済み SHA256 がライブラリ内の別ファイルと
   一致するモデルは、詳細ウィンドウに赤い**重複警告**を出します。
 - 種別ルートの下へ格納されたモデルカードは、名前の上に**サブディレクトリ**を
   表示します（両レイアウト共通）。
@@ -274,7 +276,7 @@ comfy node install comfyui-model-manager-neo
 <summary><b>ノードグラフ統合</b></summary>
 
 - モデルサムネイルをキャンバスへドラッグして**ローダーノードを追加**。
-- 既存ノードへドラッグして**一致する入力へ投入**（曖昧な場合は正確に）。
+- 既存ノードへドラッグして**一致する入力へ投入**（複数の入力が一致する場合は、狙った入力の上にドロップ）。
 - **embedding** をテキストエリアへドラッグして `(embedding:name:1.0)` を追記。
 - プレビュー画像をグラフへドラッグして**埋め込みワークフローを読込**。
 - **追加** ボタンでノードをキャンバスへ配置。
@@ -293,7 +295,7 @@ comfy node install comfyui-model-manager-neo
 - 直接リンクは明示的な種別指定が必須。任意のカスタムサブフォルダも指定可能。
 - プレビュー画像は任意 — モデルページが提供する**ギャラリー全体**が保存され、
   ダウンロード時に選択していた画像がカードのメインプレビューになります。
-  Markdown 説明も編集可能です。
+  編集可能な Markdown 説明も付きます。
 - **空き容量ガード**: ダイアログは保存先ボリュームの空き容量を表示し、
   宣言サイズが収まらないタスクはバックエンドが拒否します。
 - タスクの一時停止 / 再開 / 削除。進捗・速度・サイズはライブ更新。
@@ -336,7 +338,7 @@ comfy node install comfyui-model-manager-neo
 - モデルのリネーム・フォルダ/種別間の移動・プレビューとノートを含む
   **完全削除**。未保存の変更がある編集のキャンセルは確認を求めます。
 - モデルの隣に保存された Markdown ノートの閲覧・編集・保存。
-  Information テーブル自体も明示的な警告の背後で編集できます
+  Information テーブル自体も、明示的な警告を挟めば編集できます
   （保存時にノートの front‑matter を書き換えます）。
 - プレビュー**ギャラリー**の管理: 並べ替え・削除・ローカル画像の追加・
   メインプレビューの選択（編集モードで青いリングを付けたタイル）。
@@ -353,7 +355,7 @@ comfy node install comfyui-model-manager-neo
 <details>
 <summary><b>設定と i18n</b></summary>
 
-- **Civitai**・**Hugging Face**・**ModelScope** の API キー。拡張機能隣の
+- **Civitai**・**Hugging Face**・**ModelScope** の API キー。拡張機能フォルダ内の
   `private.key` にローカル保存され（`CIVITAI_API_KEY` / `HF_TOKEN` /
   `MODELSCOPE_API_TOKEN` 環境変数がフォールバック）、旧バージョンで ComfyUI
   ユーザー設定に保存されたキーは初回起動時に自動移行されます。
@@ -363,8 +365,8 @@ comfy node install comfyui-model-manager-neo
 - ZipNN 自動化: N 日以上未使用のモデルの自動圧縮、ダウンロード完了後の
   自動圧縮、prompt 実行中のダウンロード一時停止。
 - UI 言語は ComfyUI のロケールに追従 — **English**・**中文**（簡体・繁體）・
-  **日本語**の完全バンドルを同梱。リージョンサブタグ（`ja-JP` 等）は基部
-  言語へ折りたたまれ、Hant 書記系タグは繁體中文バンドルを選択します。
+  **日本語**の完全バンドルを同梱。リージョンサブタグ（`ja-JP` 等）はベース
+  言語として扱われ、Hant 書記系タグは繁體中文バンドルを選択します。
 
 </details>
 
@@ -378,14 +380,14 @@ comfy node install comfyui-model-manager-neo
 `https://` で**始まらない**入力はモデル名クエリとして扱われ、
 **Hugging Face**（左列）・**ModelScope**（中央）・**Civitai**（右）の
 3 プラットフォームを並列検索します。入力中は検索モードと URL モードが
-リアルタイムに切り替わり、結果は短いデバウンスで更新され、各列は
-検索全体を失敗させることなく自分のエラーを自分で報告します。
+リアルタイムに切り替わり、結果は短いデバウンスで更新されます。各列は
+エラーを個別に報告するため、1 列の失敗が検索全体を止めることはありません。
 
 - 結果の各行は公開ユーザー/組織の**アバター**（ハブが公開していない場合は
   イニシャルバッジ）と通算ダウンロード数を表示します。
 - モデル ID は 2 つのディープリンクに分かれます: **オーナー名**は
   ユーザー/組織ページ、**リポジトリ名**はモデルページを開き、行のそれ以外を
-  クリックするとそのモデルがダウンロードエディタへ解決されます。
+  クリックすると、そのモデルがダウンロードエディタに読み込まれます。
 - 素の **`username/repo-name`** 入力にも対応し、**Enter は常に 1 回で解決**
   します: 結果内の完全一致 → Hugging Face リポジトリとしての裸のリポジトリ ID →
   最初の非空列の先頭行の順。結果がまだ無ければ Enter は即座に名前検索を実行。
@@ -395,11 +397,11 @@ comfy node install comfyui-model-manager-neo
   検索** で選べます（既定は Hugging Face トレンド・ModelScope いいね・
   Civitai 高評価順）。
 
-Civitai ダウンロードには、公式 CLI が普及させた安全網をマネージャーの
-タスクシステムへ適合させたものが追加で備わります:
+Civitai ダウンロードには、公式 CLI が普及させた安全チェックをマネージャーの
+タスクシステムに合わせた形で追加しています:
 
 - **ダウンロード計画（ドライラン）** — 開始前に、解決済みの保存先パス・
-  宣言サイズ・公開 SHA256・プラットフォーム API キーの設定有無を提示。
+  宣言サイズ・公開 SHA256・プラットフォーム API キーの設定有無を表示。
 - **SHA256 検証** — 完了した Civitai ダウンロードは公開 SHA256 と照合され、
   不一致はファイルを削除してタスクを失敗させます。
 - **レイアウトルーティング** — 同梱 VAE など、自身の種別が別のモデルフォルダに
@@ -407,10 +409,10 @@ Civitai ダウンロードには、公式 CLI が普及させた安全網をマ�
 - **ベースモデル警告** — バージョンのベースモデルが、保存先フォルダの
   ライブラリに記録されたベースモデルと合わない場合に通知します。
 - **実行形式警告** — pickle/アーカイブ形式のペイロードはロード時にコードを
-  実行し得ます。ダウンロード前にエディタが明示します。
+  実行し得ます。ダウンロード前にエディタが警告します。
 - **ハブアカウント（whoami）** — キーを設定した全プラットフォームについて、
   ダウンロードダイアログが接続中アカウントを表示し、401 失敗時はキーの
-  作成場所と再開方法を正確に案内します。
+  作成場所と再開方法を案内します。
 
 Civitai 由来モデルのプレビューを拡大すると、左に画像・右に解析済みの
 **生成メタデータ**（プロンプト、ネガティブプロンプト、サンプラー、ステップ数、
@@ -418,7 +420,7 @@ CFG スケール、シード、clip skip、サイズ、ベースモデル、リ�
 示すライトボックスが開きます。
 
 モデル詳細ウィンドウの**ハッシュで識別**は、ローカルファイルがどのモデル
-バージョンかを Civitai カタログへ問い合せる逆引きです: Markdown サイドカーに
+バージョンかを Civitai カタログに問い合わせる逆引きです: Markdown サイドカーに
 記録済みのハッシュを先に試し、どれも当たらなければファイルを 1 パスで
 ハッシュ計算します（`SHA256` / `AutoV2` / `AutoV1` / `CRC32`、利用可能なら
 `BLAKE3` も）。ヒット時は解決されたモデル/バージョンがベースモデル・
@@ -431,16 +433,17 @@ CFG スケール、シード、clip skip、サイズ、ベースモデル、リ�
 
 ## <img src="https://api.iconify.design/lucide/package-plus.svg?color=%230ea5e9" width="34" height="34" align="middle" alt=""> ZipNN 可逆圧縮
 
-大きな `.safetensors` チェックポイントはディスクをすぐに食い尽くします。
+大きな `.safetensors` チェックポイントはディスク容量をすぐに圧迫します。
 Neo はこれらを [ZipNN](https://github.com/zipnn/zipnn) 形式で**その場・可逆**に
 圧縮/解凍できます — 公式 ZipNN プロジェクトと同じテンソル認識の方式を、
-Neo の**純 Rust コア**が実行し、push のたびに公式 `zipnn` 0.5.4 パッケージと
+Neo の**純 Rust コア**が実行します。push のたびに公式 `zipnn` 0.5.4 パッケージと
 CI で相互検証するため、ZipNN エコシステム全体と交換可能なままです。
 
 ### 1. 仕組み
 
 モデル重みの大半は浮動小数点数で、浮動小数点数の大半は_冗長_です:
-行儀の良い重みテンソルの指数バイトは何度も繰り返されます。ZipNN はそこを突きます。テンソルごとに:
+通常の重みテンソルの指数バイトは何度も繰り返されます。ZipNN はまさにこの
+冗長性を利用します。テンソルごとに:
 
 - 値をバイト平面へ**分割**し、符号/指数/仮数のビットを並べ替えて
   類似バイトを集約してから、
@@ -453,12 +456,12 @@ CI で相互検証するため、ZipNN エコシステム全体と交換可能�
 圧縮しても実際には小さくならないテンソルは**そのまま保存**されます。
 圧縮された各テンソルは `uint8` ベクトルとして格納され、ファイルは
 `znn_compressed_vectors` という 1 つのメタデータエントリに全テンソルの
-元の `dtype` と `shape` を記録します。何も近似も削除もされません —
-解凍は元ファイルを**ビット単位で**再現します。
+元の `dtype` と `shape` を記録します。データが近似されたり破棄されたりする
+ことはなく、解凍は元ファイルを**ビット単位で**再現します。
 
 圧縮モデルは原本の隣に `<name>.znn.safetensors` として書き出されます —
 公式 ZipNN ツール（および `zipnn_safetensors()` パッチ済みローダー）が
-期待するサフィックスと完全に一致するため、パッチ済み ComfyUI ローダーは
+期待するサフィックスと同じため、パッチ済み ComfyUI ローダーは
 Neo の圧縮モデルを透過的に読み込めます。現実的なチェックポイントは
 通常、元のサイズの **60〜80 %** 程度に収まります（ランダム性の強いデータは
 あまり縮まず、低エントロピーの重みはもっと縮みます）。
@@ -476,7 +479,7 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
 | `F32` `F16` `BF16` `F8_E4M3` `F8_E5M2`                                                                                          | 1–30（上流互換帯） | **Neo のファイルをそのまま解凍可能**                                              |
 | `F64` `C64` `I8` `U8` `BOOL` `I16` `U16` `I32` `U32` `I64` `U64` `F8_E4M3FNUZ` `F8_E5M2FNUZ` `F8_E8M0` `F4` `F6_E2M3` `F6_E3M2` | 128–146（Neo 帯）  | **明示的なエラーで拒否** — 静かな破損は起きません（CI で pip 版に対して実証済み） |
 
-知っておく価値のある詳細:
+補足:
 
 - 公式デコーダは未実装の dtype コードをすべて `ValueError: Unsupported Dtype N`
   で拒否します — Neo 拡張ファイルを上流ツールが誤って解凍することは
@@ -489,7 +492,7 @@ Rust コアは **safetensors 0.8 が定義する全 22 dtype** を 2 つの相�
   スケールテーブル等）はさらに**トランケーションモード**を使います:
   すべてゼロのバイト平面はペイロードから丸ごと落とされます — テンソル全体で
   ゼロであることを検証した平面のみを落とすため、構造上可逆です。
-- `complex128` と `bcomplex32` は codec 級（コード 129/131）に存在しますが、
+- `complex128` と `bcomplex32` は codec レベル（コード 129/131）に存在しますが、
   safetensors 表現を持たないため、`.safetensors` ファイルがこれらを運ぶことは
   ありません。
 
@@ -519,7 +522,7 @@ _ファイルサイズ_ 1 行の代わりに、**元のファイルサイズ**�
 
 ### 4. バッチ圧縮（フォルダ単位）
 
-フォルダを選択（「ファイルを選択」）して**ボトムバーの ZipNN アートワークボタン**
+フォルダを選択（「ファイルを選択」）して**ボトムバーの ZipNN ボタン**
 を押すか、フォルダカードのコーナーボタンを使うと、フォルダツリー内のすべての
 `.safetensors` モデルが圧縮され（プレビューとノートも追従）、
 **バンドルフォルダ `<name>_DeltaZNN` へ移動**します。空になった元のフォルダは
@@ -537,8 +540,8 @@ _ファイルサイズ_ 1 行の代わりに、**元のファイルサイズ**�
 - デルタフォルダ（`<base>_DeltaZNN`、下記参照）もバンドルです:
   反転ボタンは内部の全ファインチューンを一度に復元します。
 - モデル種別の**ルートフォルダ**（`checkpoints` 等）はバンドルを
-  **自分の内側**（`<root>_DeltaZNN`）に作ります — 種別ルートの兄弟は
-  ComfyUI のフォルダマッピングの外へ落ち、ローダーからもマネージャーからも
+  **自分の内側**（`<root>_DeltaZNN`）に作ります — 種別ルートの兄弟フォルダは
+  ComfyUI のフォルダマッピングの外側になり、ローダーからもマネージャーからも
   見えなくなってしまうためです。方向は自動検出されます: 素のモデルがあれば
   圧縮、バンドルしか無ければ解凍。
 - 旧バージョンが作ったバンドル（`<name>_ZNN`）も認識され、元の名前へ
@@ -558,7 +561,7 @@ _ファイルサイズ_ 1 行の代わりに、**元のファイルサイズ**�
 **`<base>_DeltaZNN/<ft>_delta_<base>.znn`** へ書き出され、冗長になった
 ファインチューンファイルは削除されます。デルタの解凍（反転したカードボタン）は
 ファインチューンモデルをベースの隣に**バイト単位まで正確に**復元し、
-空になったデルタフォルダを撤去します。復元にはベースモデルが必要で、
+空になったデルタフォルダを削除します。復元にはベースモデルが必要で、
 デルタにはファインチューン自身の SHA‑256 が記録されるため、
 復元はエンドツーエンドで検証されます。
 
@@ -572,13 +575,13 @@ streaming 形式の双方）を復元できます — 双方向とも CI のク�
 
 ### <a id="the-engine"></a>6. エンジン: プリビルドの純 Rust コア
 
-圧縮器は公式 Python パッケージのラッパーではなく、Neo 自前の**純 Rust
-エンジン**が形式を実行します: 上流の C 拡張は PyPI に Linux wheel が無く
-（`pip install zipnn` はソースからのコンパイルになります）、Neo はその
-コンパイルをあなたのマシンから完全に無くしました。フォーマットは Rust へ
+圧縮は公式 Python パッケージのラッパーではなく、Neo 自前の**純 Rust
+エンジン**が実行します: 上流の C 拡張は PyPI に Linux wheel が無く
+（`pip install zipnn` はソースからのコンパイルになります）が、Neo では
+このコンパイル自体が不要です。フォーマットは Rust へ
 移植され（[`native/crates/znn-codec`](native/crates/znn-codec):
 フォーマット中核に `unsafe` なし、7 本の継続的ファジングターゲット、
-オリジナル C 実装とのバイト同一差分検証の経歴）、リポジトリ同梱の
+オリジナル C 実装との差分テストで実証されたバイト同一の出力）、リポジトリ同梱の
 **プリビルド abi3 / abi3t バイナリ**として出荷されます — プラットフォーム ×
 Stable ABI フレーバごとに 1 本、ロードは `import` だけ:
 
@@ -595,24 +598,24 @@ Stable ABI フレーバごとに 1 本、ロードは `import` だけ:
 
 各プラットフォームの 1 バイナリが **CPython 3.12 以降**すべてに対応します
 （Stable ABI、`abi3-py312` — CI で 3.12 と 3.14 に対して実証）。
-フリースレッド build は **abi3t** の双子（`abi3t-py315`・PEP 803 — CI で
+フリースレッド build には **abi3t** 版（`abi3t-py315`・PEP 803 — CI で
 3.15 の GIL/フリースレッド両 build に対して実証）が対応し、ローダーが自動で
 選びます（フリースレッド解釈系は通常の abi3 バイナリをロードできず、3.15+ の
 GIL build は従来どおり通常バイナリを使います）。サイズは CI の予算ゲートが
 1 本 ≤ 5 MB に抑えます（8 本の合計は 40 MB の目安で管理）。linux-x86_64 と
-Windows の GIL バイナリは **PGO 最適化済み**です — CI ビルド毎に決定論的
-ワークロードから再トレーニングされるプロファイル誘導最適化で、非最適化
-ビルドとの CI A/B 計測により初回実行スループット最大 ~10 % 向上
+Windows の GIL バイナリは **PGO 最適化済み**です: プロファイルは CI ビルド毎に
+決定論的ワークロードから生成し直し、CI 内の A/B 計測で非最適化ビルド比の
+初回実行スループットが最大 ~10 % 向上しています
 （[BENCH §13](docs/BENCH.md)）。abi3t バイナリは現時点では非 PGO で出荷します。
 
-この移植は信頼性も根本から改善しました: 書き換え作業の過程で、C コアの
+この移植では信頼性の問題も根本から修正しました: 書き換え作業の過程で、C コアの
 デルタ経路にメモリ安全欠陥の一クラスが実証されていました（特定の入力長での
 決定的クラッシュ、端数チャンクでの境界外書き込み）。Rust エンジンはこの
 欠陥クラスを構造的に排除します — すべての平面分割とチャンク演算は
 境界チェック付きで、唯一の `unsafe` 境界（読み取り専用 mmap）も SAFETY
 レビュー済みです — そして当時クラッシュした入力は回帰テストとして
-固定されています。相互運用は約束ではなく
-CI ゲートです: `integration` ワークフローが push のたびに**公式 pip `zipnn` 0.5.4**
+固定されています。相互運用性は CI で強制されます: `integration` ワークフローが
+push のたびに**公式 pip `zipnn` 0.5.4**
 と双方向でクロス検証します。ライセンス: フォーマット移植は
 ZipNN（MIT）と FiniteStateEntropy（BSD‑2‑Clause）に帰属し、プレビュー WebP
 codec は zenwebp（AGPL‑3.0）を使用 — 全文は [`native/NOTICE`](native/NOTICE) に
@@ -659,8 +662,8 @@ PrimeVue 依存、バッチスキャン機能、ノードコピーボタンで�
 
 ### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="26" height="26" align="middle" alt=""> バックエンドとエンジン
 
-最深部の変更は UI の下にあります。元版は純 Python（バックエンド 7 モジュール・
-HTTP ルート 19 本）ですが、Neo は 16 モジュール・42 ルートへ成長し、
+最も大きな変更は UI の下の層にあります。元版は純 Python（バックエンド 7 モジュール・
+HTTP ルート 19 本）ですが、Neo は 16 モジュール・42 ルートへ増え、
 すべてのホットパスをプリビルド Rust 拡張（`native/`、Stable ABI 上の PyO3 —
 [エンジンの表](#the-engine)参照）へ移しました。純 Python フォールバックは
 「エラーを返すより、限定的な結果でも答える方がよい」箇所だけに残しています:
@@ -687,10 +690,10 @@ SDK ベースの Hugging Face ダウンロード（`huggingface_hub` + `hf_xet`�
 元版は素の resolve URL の取得）、マルチハブ検索、ハッシュ識別、
 スマートコレクション、スター、「最近使用」の記録と並び替え、複数選択、
 フォルダ作成、直接リンクダウンロード、ブラウザへの「ローカルへダウンロード」、
-空き容量ガード、Civitai ダウンロードの安全網、ギャラリープレビュー、
+空き容量ガード、Civitai ダウンロードの安全チェック、ギャラリープレビュー、
 SHA256 重複警告、サブディレクトリ表示と種別ルートの合計サイズ、
-フルスクリーンのプレビュー ライトボックス、日本語・繁體中文ロケール —
-は[機能](#features)で説明しており、すべて Neo 側の実装です。
+フルスクリーンのプレビューライトボックス、日本語・繁體中文ロケール —
+は[機能](#features)で説明しており、いずれも Neo で追加した機能です。
 
 ### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="26" height="26" align="middle" alt=""> パッケージ
 
@@ -743,10 +746,10 @@ _数ある色からペールターコイズを選んだのは、これが **Neo*
 lint/format パイプラインは、フロントエンドに**ESLint 10 flat config** +
 **Prettier** + **Stylelint 17**、Python バックエンドに **Ruff** + **mypy**、
 Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備えた
-慣例的でフル設定の構成で、**dependency‑cruiser**（import グラフゲート）と
+標準的な構成で、**dependency‑cruiser**（import グラフゲート）と
 [Fallow](https://fallow.tools)（未使用コード・重複解析）が補完します。
 品質は 5 層のテストピラミッドで担保されます: Rust 単体テスト、ゴールデン
-契約テスト、**cargo‑fuzz** ターゲット（7 表面・週次 3 h/ターゲット予算）、
+契約テスト、**cargo‑fuzz** ターゲット（7 種類・週次 3 時間/ターゲットの予算）、
 3 OS でビルド成果物に対して走る pytest スイート全体、そして公式 `zipnn`
 クロス検証（[開発](#development)参照）。
 
@@ -762,14 +765,14 @@ Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備え�
 
 **「モデル情報のバッチスキャン」**機能は削除されました。冗長だったためです:
 モデル詳細ウィンドウは、そのモデルの `__metadata__` を safetensors ヘッダから
-直接、隣に保存された Markdown ノートとともに読み込み、プレビューのないモデルは
+直接、隣に保存された Markdown ノートとともに読み込み、プレビューのないモデルには
 グリッド上で同梱のガラス製 NO‑PREVIEW アートワークが表示されます。
 ライブラリ全体を walk して全モデルをハッシュし Civitai へ問い合わせる方式は、
 同じ情報へ至るはるかに遅い第二の経路でした — さらにモーダルダイアログ・
 グローバルストア・websocket イベント・ディスク上のタスクファイル・専用設定まで、
 すべて保守する必要がありました。
 
-スキャンより長生きした 2 つの設定は、今日**モデル一覧**を駆動しています
+スキャンの削除後も残った 2 つの設定は、いま**モデル一覧**を駆動しています
 （どの種別をグリッドへ読み込むか、`.` 始まりファイルを表示するか）。
 設定カテゴリは **Model List** です。歴史的な `ModelManager.Scan.*` ID 文字列を
 維持しているのは、この ID が ComfyUI がユーザーの値を保存するキーだからです —
@@ -782,14 +785,14 @@ Rust ワークスペースに **clippy `-D warnings`** + **rustfmt** を備え�
 > _ダウンロードタスクを作成_で再ダウンロードするまで、プレースホルダー
 > プレビューのままです。モデル情報の読み取りは影響を受けません —
 > 常にオンデマンドでディスクから来ます — 個別のモデルは詳細ウィンドウの
-> ハッシュ逆引きで Civitai カタログに識別を問い合せられます。
+> ハッシュ逆引きで Civitai カタログに対して識別できます。
 
 <a id="removed-feature-copy-node"></a>
 
 ### <img src="https://api.iconify.design/lucide/clipboard-x.svg?color=%23ef4444" width="26" height="26" align="middle" alt=""> ノードをクリップボードへコピー
 
 **「ノードをクリップボードへコピー」**ボタン（モデル詳細のアクション行と
-カードのホバー列の両方）は削除されました。半構成のローダーノードを
+カードのホバー列の両方）は削除されました。設定途中のローダーノードを
 ComfyUI 内部クリップボードへ複製する挙動はグラフ自身のコピー&ペーストと
 衝突しがちで、本来の目的（キャンバスへローダーノードを置くこと）は
 カードのドラッグ、または**ノードを追加**ボタンで直接達成できるためです。
@@ -815,7 +818,7 @@ ComfyUI 内部クリップボードへ複製する挙動はグラフ自身のコ
 
 さらに詳しく:
 
-- [`docs/BENCH.md`](docs/BENCH.md) — この README のすべての性能主張の裏にある
+- [`docs/BENCH.md`](docs/BENCH.md) — この README の性能に関する記述を支える
   計測記録。
 - [`native/README.md`](native/README.md) — Rust ワークスペース: レイアウト・
   テストピラミッド・ファジング構成・プリビルドバイナリの生成方法。
@@ -842,7 +845,7 @@ Python の開発/テスト環境（pytest・ruff・mypy・ハブ SDK・torch‑C
 `[dependency-groups]` とコミットされた `uv.lock` から一発で再構築します。
 これは開発上の便宜にすぎず、_ランタイム_契約は不変です — ComfyUI は従来通り
 初回起動時に自分で `requirements.txt` をインストールします
-（2 つのリストはテストで一致を固定しています）。
+（2 つのリストが一致していることはテストで担保されています）。
 
 Rust コアの作業には stable ツールチェーンで十分です — debug ビルドも正当な
 `mm_core` です（API ハンドシェークと pytest スイート全体が release と
@@ -854,7 +857,7 @@ cp target/debug/libmm_core.so native-bin/linux-x86_64/mm_core.abi3.so   # 自分
 ```
 
 `scripts/build-native.sh --target <tag> --size-gate` が出荷用 release 成果物を
-再現します（glibc ≥ 2.28 の床は cargo‑zigbuild、macOS universal2 は
+再現します（glibc ≥ 2.28 対応は cargo‑zigbuild、macOS universal2 は
 maturin + lipo、Windows は maturin/MSVC）。ワークスペース・テストピラミッド・
 ファジング構成は [`native/README.md`](native/README.md) にまとめてあります。
 
@@ -893,11 +896,11 @@ maturin + lipo、Windows は maturin/MSVC）。ワークスペース・テスト
 **Fallow**（Rust 製・解析器に AI 不使用）はリポジトリを 1 つの依存グラフとして
 読み、未使用ファイル/export/型/依存・循環 import・クローングループ・複雑性の
 ホットスポットを報告します。ツリーは**未使用 export ゼロ・重複ゼロ**に保たれ、
-CI は ERROR 級の指摘で失敗します。
+CI は ERROR レベルの指摘で失敗します。
 
 **ESLint 10** flat config が `typescript-eslint`・`eslint-plugin-vue`・
 `eslint-plugin-import-x`・`eslint-plugin-tailwindcss`・
-`eslint-config-prettier` を配線し、**Prettier** が整形と Tailwind クラスの
+`eslint-config-prettier` を組み合わせ、**Prettier** が整形と Tailwind クラスの
 ソート、**Stylelint 17** が `src/style.css` と全 SFC スタイルブロック、
 **dependency‑cruiser 18** が `src/` の import グラフ（循環なし・孤立なし・
 出荷コードからの devDependency / Node core import なし）をゲートします。
@@ -918,7 +921,7 @@ Linux・Windows・macOS で実行します。
 TypeScript/Vue・Python・Rust、そして GitHub Actions ワークフロー自体）、**OSV-Scanner**
 （4 つの依存面すべて。PR は新規混入の脆弱性でゲート）、**Gitleaks**
 （GitHub 自身の push protection と並走する全履歴シークレット走査）、
-**zizmor**（ワークフロー加固）。accept した検出はすべて理由付きで
+**zizmor**（ワークフローのハードニング検査）。accept した検出はすべて理由付きで
 記録されています — 詳細は [`SECURITY.md`](SECURITY.md)。
 
 ### 2. プロジェクト構成
@@ -965,12 +968,12 @@ ComfyUI‑Model‑Manager‑Neo は、**[hayden‑cn](https://github.com/hayden-
 が先に存在したからこそ存在します。このフォークの構造的なアイデアはすべて —
 モデルフォルダの抽象化、websocket 進捗プロトコルを備えた再開可能な
 ダウンロードタスクシステム、Civitai / Hugging Face のページパーサ、
-カードをグラフへドラッグする統合、モデルエディタのフォーム配管、
-カードサイズ プリセットのような小さな気配りまで — hayden‑cn 氏の設計です。
+カードをグラフへドラッグする統合、モデルエディタのフォーム処理、
+カードサイズプリセットのような小さな気配りまで — hayden‑cn 氏の設計です。
 Neo が変えたのは外観と依存関係、そして数多くのバグであり、アーキテクチャ
-そのものをゼロから発明する必要はありませんでした。このコードベースがなぜ今の形をしているかを理解する最速の道は
-今もオリジナルを読むことであり、アーキテクチャへの正直な帰属は
-**原著作者のもの**です。
+そのものをゼロから発明する必要はありませんでした。このコードベースがなぜ
+今の形をしているかを理解する最速の道は今もオリジナルを読むことです。
+アーキテクチャの帰属先は明確で、**hayden‑cn 氏**です。
 
 圧縮エンジンは **[ZipNN](https://github.com/zipnn/zipnn)** プロジェクト（MIT）の
 フォーマットを実装したものです — Hershcovitch et al.,
@@ -994,9 +997,9 @@ ZipNN 圧縮、Hugging Face / ModelScope のハブ統合、マルチハブ検索
 このフォークの大部分は **[Qwen Studio]** との緊密な協働で作られました:
 グラスモフィズム UI への再構築、Rust ネイティブコア、ZipNN 圧縮エンジン、
 ハブアップロードフロー、信頼性とセキュリティの強化、そしてデバッグの
-多くまでです。
+多くもこの協働によるものです。
 
-これらの優れたプロジェクトとともに構築: [reka-ui]・[Tailwind CSS]・[Lucide]・
+このフォークは次の優れたプロジェクトの上に成り立っています: [reka-ui]・[Tailwind CSS]・[Lucide]・
 [VueUse]・[es-toolkit]・[vue-sonner]・[huggingface_hub]・[hf_xet]・
 [modelscope_hub]・[ZipNN]・[zenwebp]。
 

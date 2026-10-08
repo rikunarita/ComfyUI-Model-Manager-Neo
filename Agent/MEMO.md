@@ -1076,3 +1076,49 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   ⑤ uv audit のブロッキング昇格（preview 卒業後）、⑥ osv‑scanner.toml の
   ignoreUntil 2027‑01‑07 三件（braces/httpx2/httpcore2）の四半期再レビュー、
   ⑦ CodeQL PR チェックのしきい値（High or higher）運用観察。
+
+## 12. セッション 2026‑10‑08（昼）— ユーザ向け文書の徹底校正とバッジ簡潔化
+
+- **ユーザ決定（2026‑10‑08）**: ① 校正対象は**全 4 言語**（README×4・
+  USAGE×4）。② バッジは「必要な『・』連鎖（Rust・PyO3・Vite・Fallow 等）は
+  残し、冗長な詳部のみ除去」。これに従いセキュリティスキャン段を簡潔化
+  （CodeQL「SAST · extended suite」→「SAST」、OSV‑Scanner「SCA · 4 lockfiles」
+  →「SCA」、cargo‑fuzz「7 targets · weekly」→「Fuzzing」。Gitleaks /
+  zizmor は元から単一概念のため不変。4 README 共通）。
+- **AI 調・翻訳調表現の一掃**（8 文書・コミット 9471fdd / a33cff3 / 42521be /
+  26aa2fe / f62b5a7 / fb8a67f / 205da27 / 5fb70ba / 881489f）:
+  対句構文（「a CI gate, not a promise」「約束ではなく CI ゲート」「不是承诺
+  而是 CI 关卡」等）・擬人化（wears the logo / retires the folder / 双子 /
+  孪生 /戴蓝圈）・マーケティング調（beautifully managed / 美しく管理 /
+  优雅地管理 / re‑imagining）・three/four 連打（no waiting 削除）・直訳
+  （form plumbing→フォーム処理 / 表单处理、lossless by construction→天然無損、
+  details worth knowing→補足 / 一些細節、arbitrary writes の誤訳「任意の
+  書き込みも起きません」→「任意の場所へ書き込めない」）を修正。
+  ペールターコイズのパンチライン（ユーザ指示の意図的記載・§9）は全言語で
+  維持。事実・数値・リンク・表は不変（数値トークン集合の機械照合で担保）。
+- **発見した残存バグ 2 件（どちらも「機能撤去時の消し漏れ」型）**:
+  ① USAGE.md / USAGE.zh‑CN / USAGE.zh‑TW のフォルダビュー節に撤去済み
+  copy‑node ボタンがホバー列の列挙に残存（ja は 2026‑10‑05 修正済みだった）。
+  CardHoverActions.vue の実装（add‑node / load‑workflow / open‑model‑page の
+  3 ボタン）と照合して修正。② README.zh‑CN / zh‑TW のプレビュー行が
+  「悬停时开合动画的悬停时轻轻浮动的…」と二重化 — SMIL 退役（§9）時の
+  旧文削除漏れが新文と連結していた。**教訓: 機能撤去・UI 刷新時の文書
+  走査は 4 言語 × README/USAGE の全文を対象にする**（§11 の locales 走査
+  漏れと同型）。
+- **実装との一次照合で修正した記述**: ドラッグ投入「(exact when ambiguous)」
+  → modelGrid.ts `resolveDropWidgetIndex` の実挙動（単一マッチは充填・
+  複数マッチはポインタ直下）/ エントリポイント「sidebar・サイドバー・
+  侧边栏・側邊欄」→「legacy menu button・旧メニュー・旧式菜单・舊式選單」
+  （App.vue = topbar + menuContainer の 2 ボタン）/ バンドル選択排他 →
+  zipnn.ts `toggle()`（混在時は警告トースト＋バンドル側が選ばれない）/
+  Card Size 系設定 → config.ts `type: 'hidden'` / watcher の inotify 枯渇
+  degrade 文の主語ねじれ。
+- **検証手法（今回確立した軽量手順）**: このサンドボックス（1 GiB・
+  node_modules 無し）では husky フックが走らないため docs 専用コミットは
+  `--no-verify`＋手動 prettier。prettier は
+  `--no-config --print-width 100 --tab-width 2 --end-of-line lf` で CI の
+  `format:check` と md に対して同一結果（8 ファイルで無変更を確認済み・
+  tailwind プラグインは md に不関与）。加えて数値トークン集合の前後一致・
+  内部リンク/アンカー全解決・zh‑TW への簡体字混入走査（40 字種）を
+  機械実施。CI 証跡: 42521be / f62b5a7 / 205da27 の CI・Security・native
+  全 success（881489f は push 時点 in_progress）。
