@@ -1,7 +1,7 @@
 > [!CAUTION]
 > **This project is still under active development, and general use is not
 > recommended at this time.** Unexpected bugs may occur, and because features
-> are being added incrementally, some artifacts may still be half-finished.
+> are being added incrementally, some parts may still be half-finished.
 > The interfaces may also continue to evolve. That said, feedback and issue
 > reports are very welcome.
 
@@ -9,11 +9,11 @@
 
 # <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
 
-### Browse · Download · Upload · Drag‑and‑drop — your models, beautifully managed.
+### Browse · Download · Upload · Drag‑and‑drop — all your models in one place.
 
-A modern, glassmorphism re‑imagining of the ComfyUI model manager, rebuilt on
-**Vue 3 + Tailwind CSS v4 + reka‑ui**, with its entire hot path — the ZipNN
-compression engine included — running in a **prebuilt pure‑Rust core**.
+A glassmorphism rebuild of the ComfyUI model manager on **Vue 3 + Tailwind CSS
+v4 + reka‑ui**. Every hot path — the ZipNN compression engine included — runs
+in a **prebuilt pure‑Rust core**.
 
 ![Version](https://img.shields.io/badge/version-0.4.0-6366f1.svg)
 ![License](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)
@@ -80,32 +80,30 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
 
 ## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="34" height="34" align="middle" alt=""> Why Neo?
 
-**ComfyUI‑Model‑Manager‑Neo** takes the excellent original manager and rebuilds
-the experience from the ground up:
+**ComfyUI‑Model‑Manager‑Neo** rebuilds the original manager from the ground up:
 
 **1. New in Neo**
 
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust native core** — library scanning, hashing, safetensors header
   parsing, the tensor tree, the folder watcher, the preview WebP codec and the
-  entire ZipNN engine run in a **prebuilt Rust extension** that ships inside the
-  repository: four platforms × two Stable-ABI flavours — abi3 for GIL builds
-  (CPython 3.12 and newer) and abi3t for free-threaded builds (CPython 3.15+,
-  PEP 803) — one binary each. The core itself loads with a plain `import` — **no compiler,
-  no pip package, no download** (the extension's four Python hub dependencies
-  are installed automatically on first launch). Measured against the
-  pure‑Python original: a 5,000‑model library scan
-  about **7.5× faster** cold (under 100 ms warm), five hash notations computed
-  in **one pass**, a 65,000‑tensor MoE tensor tree built about **100× faster**,
-  and ZipNN compression that stays **under 1 GB of peak RAM** no matter how
-  large the model is (evidence: [`docs/BENCH.md`](docs/BENCH.md)).
-- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **Verified, memory‑safe compression** — the Rust engine denies `unsafe`
-  code by lint: the format core contains none at all, and the one boundary
-  that needs it (a read‑only memory map) is safety‑reviewed and
-  documented. It is hardened with seven continuous fuzzing targets, and
-  every restore is checked against the SHA‑256 recorded at compression
-  time.
-  Format compatibility with the official `zipnn` 0.5.4 package is a CI gate
-  that runs on every push, in both directions.
+  entire ZipNN engine run in a **prebuilt Rust extension** shipped inside the
+  repository: four platforms × two Stable-ABI flavours (abi3 for GIL builds,
+  CPython 3.12 and newer; abi3t for free-threaded builds, CPython 3.15+ per
+  PEP 803), one binary each. The core loads with a plain `import` — **no
+  compiler, no pip package and no download** (the extension's four Python hub
+  dependencies are installed automatically on first launch). Measured against
+  the pure‑Python original: a 5,000‑model library scan about **7.5× faster**
+  cold (under 100 ms warm), five hash notations computed in **one pass**, a
+  65,000‑tensor MoE tensor tree built about **100× faster**, and ZipNN
+  compression that stays **under 1 GB of peak RAM** regardless of model size
+  (evidence: [`docs/BENCH.md`](docs/BENCH.md)).
+- <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **Verified, memory‑safe compression** — the Rust engine forbids `unsafe`
+  code by lint: the format core contains none at all, and the single boundary
+  that needs it (a read‑only memory map) is safety‑reviewed and documented.
+  Seven continuous fuzzing targets harden the codec, and every restore is
+  checked against the SHA‑256 recorded at compression time. Format
+  compatibility with the official `zipnn` 0.5.4 package is a CI gate on every
+  push, in both directions.
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **ZipNN lossless compression** — compress and decompress safetensors models
   in place (`.znn.safetensors`), batch whole folders into sealed
   `<name>_DeltaZNN` bundles, and shrink fine‑tunes to tiny **delta files**
@@ -171,8 +169,7 @@ type and size chips, the search bar, and the type / sort / card‑size selectors
 ![Folder explorer view](demo-assets/view-folders.avif)
 
 The **Folder** layout one level deep, with the breadcrumb trail and the
-pale‑turquoise glass folder cards: resting the pointer on a card makes its
-folder float.
+pale‑turquoise glass folder cards: hovering a card makes its folder float.
 
 ### 3. Model detail, editing, and the Hugging Face upload
 
@@ -181,10 +178,10 @@ folder float.
 | ![Model info](demo-assets/model-info.avif)                                | ![Edit mode](demo-assets/model-edit.avif)                                                        |
 | _Model info: preview, base‑info table, Description and Information tabs._ | _Edit mode: type dropdown, folder picker button, file name that accepts a `folder/name` prefix._ |
 
-|                                                                                 |                                                                                                          |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| ![Hugging Face upload](demo-assets/hf-upload.avif)                              | ![Japanese UI](demo-assets/ja-model-info.avif)                                                           |
-| _Upload to Hugging Face, step 3: repo id, private‑on‑create, destination path._ | _The same window in **日本語** — the UI ships complete English, 中文 (both scripts) and 日本語 bundles._ |
+|                                                                                 |                                                                                                               |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| ![Hugging Face upload](demo-assets/hf-upload.avif)                              | ![Japanese UI](demo-assets/ja-model-info.avif)                                                                |
+| _Upload to Hugging Face, step 3: repo id, private‑on‑create, destination path._ | _The same window in **日本語** — the UI ships with complete English, 中文 (both scripts) and 日本語 bundles._ |
 
 ### 4. Model-name search and the safetensors tensor tree
 
@@ -193,7 +190,7 @@ folder float.
 | ![Multi-platform search](demo-assets/search-columns.avif)                                                          | ![Tensor tree](demo-assets/tensor-tree.avif)                                                                   |
 | _One query, three hubs: Hugging Face / ModelScope / Civitai columns with avatars, download counts and deep links._ | _The Information tab renders the safetensors header as a collapsible folder tree (Hugging Face‑viewer style)._ |
 
-A 10‑second tour is [`demo-assets/hero.webm`](demo-assets/hero.webm).
+For a 10‑second tour, see [`demo-assets/hero.webm`](demo-assets/hero.webm).
 
 ---
 
@@ -235,8 +232,8 @@ in [`native/native-bin/`](native/native-bin), so neither Node.js nor a compiler
 is required to _run_ the extension — a plain `import` loads the core (platform
 coverage: see [the engine table](#the-engine)).
 
-Open the manager from the top‑bar **“Model Manager Neo”** button, the sidebar,
-the `Extensions → Model Manager Neo` menu, or the command palette.
+Open the manager from the top‑bar **“Model Manager Neo”** button, the legacy
+menu button, the `Extensions → Model Manager Neo` menu, or the command palette.
 
 ---
 
@@ -254,19 +251,18 @@ the `Extensions → Model Manager Neo` menu, or the command palette.
   (opening a model or adding it to the graph records the use).
 - Adjustable card size (presets plus fully custom dimensions).
 - Toggle visibility of hidden (`.`‑prefixed) files without restarting.
-- Image **and video** previews — any preview opens in a fullscreen
-  **lightbox** — pale‑turquoise glass folder artwork that floats on hover,
+- Image **and video** previews (any preview opens in a fullscreen
+  **lightbox**), pale‑turquoise glass folder artwork that floats on hover,
   and a glass no‑preview fallback.
-- Type‑root folder cards carry the **aggregate size of their type** (a
-  lightweight capacity dashboard), and models whose recorded SHA256 matches
-  another file in the library raise a red **duplicate warning** in the detail
-  window.
+- Type‑root folder cards show the **total size of their type**, and models
+  whose recorded SHA256 matches another file in the library raise a red
+  **duplicate warning** in the detail window.
 - Models filed below the type root show their **sub‑directory** above the name
   (in both layouts).
-- **Smart collections** — save the flat view's current search and type filter as
-  a named, per‑user collection and re‑apply it with one click, from a single
-  pill button whose floppy segment opens the save dialog and whose rest opens
-  the apply/switch menu.
+- **Smart collections** — save the flat view's current search and type filter
+  as a named, per‑user collection and re‑apply it in one click. The
+  collections pill button is split: the floppy‑disk segment opens the save
+  dialog, and the rest of the button opens the apply/switch menu.
 - **Hygiene scan** — a local‑only sweep (no network, no hashing) for orphaned
   previews and notes, models without previews and empty folders, with bulk
   cleanup behind the usual confirmation.
@@ -280,7 +276,8 @@ the `Extensions → Model Manager Neo` menu, or the command palette.
 <summary><b>Node graph integration</b></summary>
 
 - Drag a model thumbnail onto the canvas to **add a loader node**.
-- Drag onto an existing node to **fill a matching input** (exact when ambiguous).
+- Drag onto an existing node to **fill a matching input** (when several inputs
+  match, drop right on the one you want).
 - Drag an **embedding** into a text area to append `(embedding:name:1.0)`.
 - Drag a preview image onto the graph to **load an embedded workflow**.
 - **Add** button to place a node on the canvas.
@@ -300,9 +297,9 @@ the `Extensions → Model Manager Neo` menu, or the command palette.
   sub‑folder.
 - Optional preview images — the **whole gallery** a model page offers is kept,
   and the image selected at download time becomes the card's primary preview;
-  an editable Markdown description accompanies every download.
+  every download also gets an editable Markdown description.
 - **Free‑space guard**: the dialog shows the target volume's free space and the
-  backend refuses tasks whose announced size cannot fit.
+  backend refuses tasks whose announced size does not fit in it.
 - Pause / resume / delete tasks; progress, speed and size update live.
 - Hugging Face downloads use `huggingface_hub` (+ `hf_xet` when available).
 - Civitai downloads are SHA256‑verified on completion, routed by file type,
@@ -348,8 +345,8 @@ the `Extensions → Model Manager Neo` menu, or the command palette.
   table itself is editable behind an explicit warning (saving rewrites the
   notes' front‑matter).
 - Manage the preview **gallery**: reorder, remove, add local images, and choose
-  the primary (the tile wearing the blue ring in edit mode).
-- **Open model page** wears the logo of the model's source hub (Civitai,
+  the primary (the tile with the blue ring in edit mode).
+- **Open model page** shows the logo of the model's source hub (Civitai,
   Hugging Face or ModelScope); **Download to local** streams the stored file to
   the browser as an attachment.
 - **Identify by hash** resolves a local file against the Civitai catalog
@@ -398,18 +395,19 @@ search.
   organisation page, the **repository name** opens the model page; clicking
   anywhere else on the row resolves that model straight into the download
   editor.
-- Plain **`username/repo-name`** input is supported, and **one Enter always
-  resolves**: an exact match among the results first, then the bare repository
-  id as a Hugging Face repository, then the top row of the first non‑empty
-  column; with no results yet, Enter runs the name search immediately.
+- Plain **`username/repo-name`** input is supported, and pressing **Enter
+  always resolves something**: an exact match among the results first, then the
+  bare repository id as a Hugging Face repository, then the top row of the
+  first non‑empty column; with no results yet, Enter runs the name search
+  immediately.
 - Every column pages: scrolling to the bottom reveals a **“∨ Show more”** button
   whenever a next page exists.
-- Platforms can be hidden per user, and each platform's **sort order** chosen,
-  in **Settings → Model Manager Neo → Search** (the defaults are Hugging Face
+- Platforms can be hidden and each platform's **sort order** set per user in
+  **Settings → Model Manager Neo → Search** (the defaults are Hugging Face
   trending, ModelScope likes and Civitai highest rated).
 
-Civitai downloads additionally carry the safety net the official CLI
-popularised, adapted to the manager's task system:
+Civitai downloads also get the safety checks the official CLI popularised,
+adapted to the manager's task system:
 
 - **Download plan (dry run)** — before starting, the editor shows the resolved
   destination path, the announced size, the published SHA256 and whether the
@@ -419,13 +417,13 @@ popularised, adapted to the manager's task system:
 - **Layout routing** — a version file whose own type maps to another model
   folder (a bundled VAE, …) is filed into that folder instead of the selected
   one.
-- **Base‑model warning** — when the version's base model is foreign to the base
-  models recorded in the destination folder's library.
+- **Base‑model warning** — shown when the version's base model is not among
+  the base models recorded in the destination folder's library.
 - **Executable‑format warning** — pickle and archive payloads can execute code
-  when loaded; the editor says so before you download.
+  when loaded; the editor warns you before the download starts.
 - **Hub accounts (whoami)** — for every platform with a configured key the
-  download dialog shows the connected account, and 401 failures explain exactly
-  where to create a key and how to resume.
+  download dialog shows the connected account, and 401 failures explain where
+  to create a key and how to resume.
 
 Enlarging a preview of a Civitai‑origin model opens the lightbox with the image
 on the left and its parsed **generation metadata** on the right (prompt,
@@ -438,7 +436,7 @@ sidecar are tried first, and only when none of them hits is the file hashed in
 a single pass (`SHA256` / `AutoV2` / `AutoV1` / `CRC32`, plus `BLAKE3`). A hit
 opens the resolved model and version with its base model, trigger words, file
 list and the same `civitai download` command the official CLI prints; a miss
-says no matching model version was found.
+reports that no matching model version was found.
 
 ---
 
@@ -449,32 +447,32 @@ says no matching model version was found.
 Large `.safetensors` checkpoints eat disk space fast. Neo compresses and
 decompresses them **in place, losslessly**, in the
 [ZipNN](https://github.com/zipnn/zipnn) format — the same tensor‑aware scheme
-the official ZipNN project uses — executed by Neo's **pure‑Rust core** and
-cross‑validated against the official `zipnn` 0.5.4 package in CI on every push,
-so results stay interchangeable with the wider ZipNN ecosystem.
+the official ZipNN project uses. The engine is Neo's **pure‑Rust core**,
+cross‑validated against the official `zipnn` 0.5.4 package in CI on every
+push, so results stay interchangeable with the wider ZipNN ecosystem.
 
 ### 1. How it works
 
 Model weights are mostly floating‑point numbers, and floating‑point numbers are
 mostly _redundant_: the exponent bytes of a well‑behaved weight tensor repeat
-over and over. ZipNN exploits exactly that. For every tensor it:
+over and over. ZipNN exploits exactly this redundancy. For every tensor it:
 
 - **splits** the value into its byte planes and re‑orders the sign / exponent /
   mantissa bits so like bytes land together, then
 - **Huffman‑codes** each plane with the FiniteStateEntropy (FSE) codec.
 
 Tensors that are _not_ floating point (integer indices, masks, …) are passed
-through untouched by the official recipe — **Neo's Rust core compresses them
-too** (every safetensors dtype, in two interoperability bands; see the
-[dtype coverage matrix](#dtype-coverage--the-interoperability-matrix) below) —
-and any tensor whose compressed form would not actually be smaller is **left
+through untouched by the official recipe, but **Neo's Rust core compresses
+them too** — every safetensors dtype, in two interoperability bands (see the
+[dtype coverage matrix](#dtype-coverage--the-interoperability-matrix) below).
+Any tensor whose compressed form would not actually be smaller is **left
 as‑is**. Each compressed tensor is stored as a `uint8` vector, and the file
 records the original `dtype` and `shape` of every one of them in a single
-`znn_compressed_vectors` metadata entry. Nothing is approximated or dropped —
+`znn_compressed_vectors` metadata entry. No data is approximated or dropped:
 decompression reproduces the original file **bit for bit**.
 
 The compressed model is written next to the original as
-`<name>.znn.safetensors` — the exact suffix the official ZipNN tooling (and
+`<name>.znn.safetensors` — the same suffix the official ZipNN tooling (and
 loaders patched with `zipnn_safetensors()`) expects, so a patched ComfyUI
 loader reads a Neo‑compressed model transparently. Realistic checkpoints
 typically land around **60–80 %** of their original size (random‑looking data
@@ -486,10 +484,10 @@ compresses far less; low‑entropy weights compress much more).
 
 The Rust core compresses **every dtype safetensors 0.8 defines** — 22 of
 them — in two interoperability bands. The band of a compressed file is recorded
-in its metadata (`znn_neo_extended="1"` for the extension band) and surfaced in
+in its metadata (`znn_neo_extended="1"` for the extension band) and shown in
 the UI: a **Neo Extended** badge on the Information tab, the dtype breakdown
 row (`bfloat16×412, uint8×3, …`), and an explicit note in the compress
-confirmation before you commit.
+confirmation dialog.
 
 | Tensor dtype                                                                                                                    | ZipNN dtype code   | Official ZipNN 0.5.4 tools                                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------- |
@@ -502,9 +500,9 @@ Details worth knowing:
   `ValueError: Unsupported Dtype N` — a Neo‑extended file simply cannot be
   mis‑decoded by upstream tooling; inside Neo it restores byte‑exactly with
   SHA‑256 verification like any other file;
-- `complex64` uses the Neo band (code 130): the official 0.5.4 decoder has no
-  arm for the reserved code 9 and rejects it exactly like the Neo codes
-  (proven by test in CI), so there is nothing to be compatible _with_;
+- `complex64` uses the Neo band (code 130): the official 0.5.4 decoder does
+  not implement the reserved code 9 and rejects it exactly like the Neo codes
+  (proven by a test in CI), so there is nothing to stay compatible _with_;
 - integer tensors with zero high bytes (`int32` indices `< 65536`, masks, scale
   tables, …) additionally use the **truncation modes**: all‑zero byte planes are
   dropped from the payload entirely — lossless by construction, since the
@@ -539,20 +537,21 @@ for batches).
 
 ### 4. Batch compression (whole folders)
 
-Select folders (“Select files”) and press the **ZipNN artwork button in the
-bottom bar** — or use the corner button on a folder card — and every
+Select folders (“Select files”) and press the **ZipNN button in the bottom
+bar** — or use the corner button on a folder card — and every
 `.safetensors` model inside the folder tree is compressed (previews and notes
 follow their models) and **moved into the bundle folder `<name>_DeltaZNN`**;
 the original folder disappears once it empties. Models that are already
 compressed in place (single-model button, auto-compress settings, or older
 versions) join the bundle as they are — moved, not re-compressed — so no
-compressed straggler remains beside it. A `*_DeltaZNN` bundle is
+compressed file is left behind outside the bundle. A `*_DeltaZNN` bundle is
 sealed:
 
-- only ZipNN content (`*.znn.*` models, `*.znn` delta files) may ever be placed
+- only ZipNN content (`*.znn.*` models, `*.znn` delta files) can be placed
   inside one (uploads, downloads and moves of plain models into it are refused);
-- selecting a bundle folder together with a non‑bundle folder is impossible —
-  the bundle side is deselected automatically with a warning toast;
+- a bundle folder and an ordinary folder can never be selected at the same
+  time — mixing the two warns with a toast and leaves the bundle side
+  unselected;
 - the bundle's ZipNN button is **inverted**; pressing it **batch‑decompresses**
   the bundle and moves everything back to the folder it was named after (the
   emptied bundle folder is removed);
@@ -579,7 +578,7 @@ may carry different metadata). The result — typically a few percent of the
 fine‑tune's size — is written to **`<base>_DeltaZNN/<ft>_delta_<base>.znn`**
 and the redundant fine‑tune file is removed. Decompressing a delta (its card
 button, inverted) restores the fine‑tuned model **byte‑exactly** beside the
-base and retires the now‑empty delta folder. Restoration needs the base model,
+base and removes the emptied delta folder. Restoration needs the base model,
 and the delta records the fine‑tune's own SHA‑256 so the restore is verified
 end to end.
 
@@ -601,10 +600,10 @@ own pure‑Rust engine: the upstream C extension ships no Linux wheels on
 PyPI (`pip install zipnn` compiles from source), so Neo moves that compilation
 off your machine entirely. The format is ported to Rust
 ([`native/crates/znn-codec`](native/crates/znn-codec): no `unsafe` code in the
-format core, seven continuous fuzzing targets, a byte‑identical differential
-history against the original C implementation) and ships as **prebuilt abi3 / abi3t
-binaries** inside the repository — one per platform and Stable-ABI flavour,
-loaded by `import` alone:
+format core, seven continuous fuzzing targets, and output byte‑identical to
+the original C implementation in differential tests) and ships as **prebuilt
+abi3 / abi3t binaries** inside the repository — one per platform and Stable-ABI
+flavour, loaded by `import` alone:
 
 | Platform                       | Artifact                                        | Requirements                                     |
 | ------------------------------ | ----------------------------------------------- | ------------------------------------------------ |
@@ -618,26 +617,26 @@ loaded by `import` alone:
 | Windows x86_64 (free-threaded) | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC-built · free-threaded CPython 3.15+         |
 
 One binary serves **CPython 3.12 and newer** on each platform (the Stable ABI,
-`abi3-py312` — proven against 3.12 and 3.14 in CI); free-threaded builds are
-served by the **abi3t** twins (`abi3t-py315`, PEP 803 — proven against both
-3.15 builds in CI), which the loader picks automatically and which a
-free-threaded interpreter requires (it cannot load the plain abi3 binaries —
-the GIL build of 3.15+ keeps using those). Every artifact is gated at ≤ 5 MB
-by the CI size budget, with the eight-binary total held against a 40 MB
-guideline. The linux-x86_64 and Windows GIL binaries are **PGO-optimized** —
-profile-guided, retrained from a deterministic workload in every CI build —
-measuring up to ~10 % faster first-run throughput against the non-optimized
-build in CI A/B runs ([BENCH §13](docs/BENCH.md)); the abi3t binaries ship
+`abi3-py312` — proven against 3.12 and 3.14 in CI); free-threaded builds use
+the **abi3t** counterparts (`abi3t-py315`, PEP 803 — proven against both 3.15
+builds in CI), which the loader picks automatically. A free-threaded
+interpreter cannot load the plain abi3 binaries, and the GIL build of 3.15+
+keeps using those. Every artifact is gated at ≤ 5 MB by the CI size budget,
+with the eight-binary total checked against a 40 MB guideline. The
+linux-x86_64 and Windows GIL binaries are **PGO-optimized**: the profile is
+regenerated from a deterministic workload in every CI build, and A/B
+measurements in CI show up to ~10 % faster first-run throughput against the
+non-optimized build ([BENCH §13](docs/BENCH.md)); the abi3t binaries ship
 non-PGO for now.
 
-The port also addressed reliability at its root: during the rewrite work, a
-class of memory-safety defects was demonstrated in the C core's delta path
+The port also fixed reliability problems at their source: during the rewrite,
+a class of memory-safety defects was demonstrated in the C core's delta path
 (deterministic crashes at specific input lengths, out-of-bounds writes on
 fractional chunks). The Rust engine removes this defect class structurally —
 every plane split and chunk arithmetic is bounds-checked, and the single
 `unsafe` boundary (a read-only mmap) is safety-reviewed — and the inputs that
-once crashed are pinned as regression tests. Interoperability is a CI gate, not
-a promise: the `integration` workflow cross‑validates every push against the
+once crashed are pinned as regression tests. Interoperability is enforced in
+CI: the `integration` workflow cross‑validates every push against the
 **official pip `zipnn` 0.5.4** in both directions. Licences: the
 format port attributes ZipNN (MIT) and FiniteStateEntropy (BSD‑2‑Clause); the
 preview WebP codec uses zenwebp (AGPL‑3.0) — full texts in
@@ -653,11 +652,12 @@ loader's exact reason instead of failing silently.
 > largest single tensor, not the model (a 12 GB checkpoint compresses under
 > 1 GB). It is **lossless and verified**: the core records the source's
 > SHA‑256 at compress time and re‑checks it inline on restore (a mismatch keeps
-> the compressed file and retreats the output to `.corrupt` for inspection);
-> the plain `.safetensors` is only removed after the `.znn.safetensors` file
-> has been written and verified through an atomic rename, and a failed run
-> cleans up its partial output. An opt‑in **paranoid mode** additionally
-> re‑decompresses and compares before the original is ever deleted.
+> the compressed file and moves the output aside as `.corrupt` for
+> inspection); the plain `.safetensors` is only removed after the
+> `.znn.safetensors` file has been written and verified through an atomic
+> rename, and a failed run cleans up its partial output. An opt‑in **paranoid
+> mode** additionally re‑decompresses and compares before the original is
+> deleted.
 
 ---
 
@@ -717,7 +717,7 @@ creation, direct‑link downloads, the in‑browser “Download to local”, the
 free‑space guard, the Civitai download safety net, gallery previews,
 duplicate‑SHA256 warnings, sub‑directory labels and per‑type size totals, the
 fullscreen preview lightbox, and the Japanese and Traditional Chinese locales —
-are described in [Features](#features); every one of them is Neo‑side work.
+are described in [Features](#features); every one of them was added in Neo.
 
 ### <img src="https://api.iconify.design/lucide/package.svg?color=%23f97316" width="26" height="26" align="middle" alt=""> Packages
 
@@ -737,9 +737,9 @@ are described in [Features](#features); every one of them is Neo‑side work.
 - **Rust:** added the `native/` workspace (`znn-codec` format core + `mm-core`
   PyO3 bindings) shipping as prebuilt abi3 / abi3t binaries — the extension installs
   no compiled Python package at all. ZipNN compression is entirely Neo-side
-  work (the original never shipped it); the vendored ZipNN C sources and their
-  per‑CPython‑version `.so` files that an earlier development stage of
-  this fork carried were removed once the Rust core replaced them.
+  work (the original never shipped it); earlier development builds of this
+  fork vendored the ZipNN C sources with per‑CPython‑version `.so` files, and
+  those were removed once the Rust core replaced them.
 
 ### <img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%2306b6d4" width="26" height="26" align="middle" alt=""> Toolbar / button roles
 
@@ -752,14 +752,14 @@ The manager header was redesigned into explicit, icon‑driven actions:
 The interface draws on a hand‑made glassmorphism asset pack in `assets/`:
 
 - **Folder cards** show a static pale‑turquoise glass folder at rest. Hovering
-  a card starts a gentle CSS floating bob; leaving settles it back at once.
-  The SVGs are plain vector files (no SMIL) served over HTTP with an ETag and
-  a day‑long max‑age, so every card shares a single cached copy.
+  a card starts a gentle CSS floating bob; moving the pointer away settles it
+  back at once. The SVGs are plain vector files (no SMIL) served over HTTP with
+  an ETag and a day‑long max‑age, so every card shares a single cached copy.
 - **Breadcrumb trails** prefix every segment with the small folder glyph.
 - **Models without a preview** use the glass `NO-PREVIEW` artwork, served as
   vector (`image/svg+xml`) so it is never rasterised.
-- **Model‑hub logos** (Civitai, Hugging Face, ModelScope) back the **Open model
-  page** button, so a model's origin is recognisable at a glance.
+- **Model‑hub logos** (Civitai, Hugging Face, ModelScope) appear on the **Open
+  model page** button, so a model's origin is recognisable at a glance.
 
 _Why pale turquoise of all colours? Because this is **Neo**._
 
@@ -789,8 +789,8 @@ three OSes, and the official‑`zipnn` cross‑validation (see
 The **“Batch scan model information”** feature has been removed. It was
 redundant: the model detail window reads that model's `__metadata__` straight
 from the safetensors header together with the Markdown notes stored beside the
-file, and a model without a preview carries the bundled glass no‑preview
-artwork right in the grid. A library‑wide walk that hashed every model and
+file, and a model without a preview shows the bundled glass no‑preview artwork
+in the grid. A library‑wide walk that hashed every model and
 queried Civitai by hash was a second, far slower route to the same information
 — plus a modal dialog, a global store, websocket events, a task file on disk
 and its own settings, all of which had to be maintained.
@@ -815,12 +815,12 @@ installation's saved setting.
 
 ### <img src="https://api.iconify.design/lucide/clipboard-x.svg?color=%23ef4444" width="26" height="26" align="middle" alt=""> Copy node to clipboard
 
-The **"Copy node to clipboard"** button — in the model detail action row and
-the card hover column alike — is gone. Copying a half‑configured loader node
+The **"Copy node to clipboard"** button — in both the model detail action row
+and the card hover column — is gone. Copying a half‑configured loader node
 into ComfyUI's internal clipboard kept colliding with the graph's own
-copy/paste flow, and the real goal (a loader node on the canvas) is served
-better by dragging the card — or the **Add node** button — straight onto the
-graph.
+copy/paste flow, and what users actually want — a loader node on the canvas —
+is easier to get by dragging the card, or pressing **Add node**, straight onto
+the graph.
 
 ---
 
@@ -869,8 +869,8 @@ The Python dev/test environment (pytest, ruff, mypy, the hub SDKs, torch‑CPU)
 is managed by **[uv]** — `uv sync --frozen` rebuilds it from `pyproject.toml`'s
 `[dependency-groups]` and the committed `uv.lock` in one shot. That is a
 development convenience only: the _runtime_ contract is unchanged — ComfyUI
-still installs `requirements.txt` itself on first launch (the two lists are
-pinned equal by a test).
+still installs `requirements.txt` itself on first launch (a test keeps the two
+lists equal).
 
 To work on the Rust core, a stable toolchain is enough — a debug build is a
 valid `mm_core` (the API handshake and the whole pytest suite behave identically
@@ -918,10 +918,11 @@ Stylelint + Prettier for the frontend, Ruff for the backend) plus a full
 
 ### 1. Quality gates
 
-**Fallow** (Rust, no AI inside the analyzer) reads the repository as one
-dependency graph and reports unused files/exports/types/dependencies, circular
-imports, clone groups and complexity hotspots; the tree is kept at **zero
-unused exports, zero duplication**, and CI fails on any ERROR‑level finding.
+**Fallow** (written in Rust, with no AI in the analyzer) reads the repository
+as one dependency graph and reports unused files/exports/types/dependencies,
+circular imports, clone groups and complexity hotspots; the tree is kept at
+**zero unused exports, zero duplication**, and CI fails on any ERROR‑level
+finding.
 
 **ESLint 10** flat config wires together `typescript-eslint`,
 `eslint-plugin-vue`, `eslint-plugin-import-x`, `eslint-plugin-tailwindcss` and
@@ -935,13 +936,15 @@ orphans, no devDependency or Node core imports from shipped code).
 types on top.
 
 **CI** runs all of the above on every push, plus the frontend measurement gate
-(`scripts/bench/front/k15.mjs`), and the `native` workflow builds the eight
-platform artifacts (four abi3 + four abi3t), enforces the size budget, smoke‑fuzzes all seven targets,
-imports the abi3 artifact under CPython 3.12 and 3.14 and the abi3t artifact
-under both 3.15 builds (GIL and free-threaded), and runs the full pytest
-suite — including a free-threaded 3.15t cell — plus the official‑`zipnn` cross‑validation on Linux, Windows and macOS.
+(`scripts/bench/front/k15.mjs`). The `native` workflow builds the eight
+platform artifacts (four abi3 + four abi3t) and enforces the size budget; it
+smoke‑fuzzes all seven targets, imports the abi3 artifact under CPython 3.12
+and 3.14 and the abi3t artifact under both 3.15 builds (GIL and
+free‑threaded), runs the full pytest suite — including a free‑threaded 3.15t
+cell — and cross‑validates against the official `zipnn` on Linux, Windows and
+macOS.
 
-**Security gates** run beside all of the above in the `Security` workflow:
+**Security gates** run alongside all of the above in the `Security` workflow:
 **CodeQL** (default setup, extended query suite — TypeScript/Vue, Python,
 Rust and the Actions configuration itself), **OSV-Scanner** (all four
 dependency surfaces; pull requests are gated on newly introduced
@@ -996,10 +999,11 @@ idea in this fork — the model‑folder abstraction, the resumable download tas
 system with its websocket progress protocol, the Civitai and Hugging Face page
 parsers, the drag‑a‑card‑onto‑the‑graph integration, the model editor's form
 plumbing, even the little affordances like the card‑size presets — is
-hayden‑cn's design. Neo changes the skin, the dependencies and a great many
-bugs; it did not have to invent the body. Reading the original remains the
-fastest way to understand _why_ this codebase is shaped the way it is, and the
-honest attribution for the architecture is: **theirs**.
+hayden‑cn's design. Neo changes the UI layer, the dependencies and a great
+many bugs, but it did not have to invent the underlying design. Reading the
+original remains the fastest way to understand _why_ this codebase is shaped
+the way it is; the attribution for the architecture is simple — it is
+**hayden‑cn's**.
 
 The compression engine implements the format of the
 **[ZipNN](https://github.com/zipnn/zipnn)** project (MIT) — Hershcovitch et
@@ -1037,13 +1041,13 @@ Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 
 ## <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="34" height="34" align="middle" alt=""> Security
 
-Neo is scanned continuously, not occasionally. Every push and pull request
-runs dependency audits against the OSV database (all four lockfiles), CodeQL
-static analysis of the TypeScript/Vue, Python and Rust sources and of the CI
-configuration itself, secret scanning over the full git history, and dedicated
-hardening checks for the GitHub workflows; the Rust core is additionally fuzzed
-on seven targets every week. Accepted risks are recorded with written reasons —
-nothing is silenced quietly. Found something? Please report it privately:
+Security scans run on every push and pull request: dependency audits against
+the OSV database (all four lockfiles), CodeQL static analysis of the
+TypeScript/Vue, Python and Rust sources and of the CI configuration itself,
+secret scanning over the full git history, and hardening checks for the GitHub
+workflows. The Rust core is additionally fuzzed on seven targets every week.
+Accepted risks are recorded with written reasons — nothing is dismissed
+quietly. Found something? Please report it privately:
 [`SECURITY.md`](SECURITY.md).
 
 ---
