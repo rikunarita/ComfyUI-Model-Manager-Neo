@@ -55,7 +55,7 @@
 
 - [Why Neo?](#why-neo) · [截圖](#screenshots) · [安裝](#installation) · [功能](#features)
 - [模型搜尋與多平台發現](#search) · [ZipNN 無失真壓縮](#zipnn) · [與原版相比改變了什麼](#what-changed) · [被移除的功能](#removed-features)
-- [文件](#documentation) · [開發](#development) · [致謝與歸屬](#credits) · [授權](#license)
+- [文件](#documentation) · [開發](#development) · [致謝與歸屬](#credits) · [安全](#security) · [授權](#license)
 
 ---
 
@@ -442,26 +442,23 @@ Rust 核心以兩個互操作帶壓縮 **safetensors 0.8 定義的全部 22 種 
 
 ### 3. 使用方法
 
-開啟任意 `.safetensors` 模型。在預覽與資訊表之間的空隙裡，就是
-**ZipNN 圖案本身構成的按鈕** —— 隨附 SVG 自帶玻璃底板（含深色模式
-變體），懸停時上浮變亮，並透過工具提示與螢幕閱讀器自我說明。按下後：
+開啟任意 `.safetensors` 模型，按下預覽與資訊表之間的 **ZipNN 按鈕**。
+確認後：
 
-1. 彈出刻意_不_使用「Danger」樣式的確認框（壓縮可逆，且在壓縮檔案完全
-   寫入並校驗透過之前絕不刪除原件）；
-2. 按鈕替換為**實時進度條**，Rust 核心流式處理檔案（記憶體對映、釋放
-   GIL —— ComfyUI 其餘部分保持響應），任務可隨時取消；
-3. 成功後原件替換為 `<name>.znn.safetensors` —— 預覽與 Markdown 筆記
+1. 壓縮期間按鈕變為**進度條**；ComfyUI 保持響應，任務可隨時取消；
+2. 完成後原檔案替換為 `<name>.znn.safetensors`，預覽與 Markdown 筆記
    跟隨改名，網格自動重新整理。
 
-開啟**已壓縮**模型時，同一圖案以**反色**顯示，動作翻轉為_解壓縮_，同樣
-經過確認框，還原出普通 `.safetensors`。資訊表也會變化：單行_檔案大小_
-替換為**原始檔案大小**、**壓縮後檔案大小**與**佔原始大小百分比** ——
-壓縮前的大小在壓縮時已記錄在檔案中繼資料中，因此明細在改名後依然保留
-（官方 ZipNN CLI 壓縮的檔案不寫該鍵，故仍顯示普通的_檔案大小_行）。
+壓縮是可逆的：在壓縮檔案完全寫入並校驗通過之前，原檔案絕不會被刪除；
+解壓縮時會與壓縮時記錄的 SHA‑256 進行校驗。
 
-同一圖案還出現在**每張模型與資料夾卡片的右上角**（星標開關旁）：一鍵
-即可壓縮（或反色解壓縮），無需開啟模型，確認框完全相同。任何任務執行
-期間 —— 單個、批次或差分 —— 按鈕顯示**環形進度圈**（批次時帶百分比）。
+開啟**已壓縮**的模型時，同一按鈕翻轉為_解壓縮_（以反色顯示），還原出普通
+`.safetensors`。資訊表會以**原始檔案大小**、**壓縮後檔案大小**與
+**佔原始大小百分比**三行取代單行的_檔案大小_（由官方 ZipNN CLI 壓縮的
+檔案不記錄原始大小，仍顯示單行）。
+
+同一按鈕也位於**每張模型與資料夾卡片的右上角**（星標旁），無需開啟詳情
+視窗即可壓縮或解壓縮。執行中的任務以環形進度圈顯示（批次時帶百分比）。
 
 ### 4. 批次壓縮（整個資料夾）
 
@@ -897,6 +894,19 @@ zstd huff0/FSE 規範（RFC 8878）與 FiniteStateEntropy（BSD‑2‑Clause）�
 建置過程中使用了這些優秀專案：[reka-ui]、[Tailwind CSS]、[Lucide]、
 [VueUse]、[es-toolkit]、[vue-sonner]、[huggingface_hub]、[hf_xet]、
 [modelscope_hub]、[ZipNN]、[zenwebp]。
+
+---
+
+<a id="security"></a>
+
+## <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="34" height="34" align="middle" alt=""> 安全
+
+Neo 接受持續而非偶發的掃描。每次 push 與拉取請求都會執行：針對 OSV
+資料庫的相依審計（涵蓋全部四個鎖定檔）、由 CodeQL 對 TypeScript/Vue、
+Python 與 Rust 原始碼以及 CI 設定本身進行的靜態分析、涵蓋完整 git 歷史的
+金鑰掃描，以及針對 GitHub 工作流程的專項加固檢查；Rust 核心還會每週在七個
+目標上進行模糊測試。所有接受的風險都附有書面理由 —— 沒有任何問題會被
+悄悄掩蓋。如果你發現漏洞，請私下回報：[`SECURITY.md`](SECURITY.md)。
 
 ---
 

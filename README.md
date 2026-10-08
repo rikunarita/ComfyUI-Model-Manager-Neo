@@ -61,7 +61,8 @@ compression engine included — running in a **prebuilt pure‑Rust core**.
   [What changed from the original](#what-changed) ·
   [Removed features](#removed-features)
 - [Documentation](#documentation) · [Development](#development) ·
-  [Credits & Attribution](#credits) · [License](#license)
+  [Credits & Attribution](#credits) · [Security](#security) ·
+  [License](#license)
 
 ---
 
@@ -503,34 +504,28 @@ Details worth knowing:
 
 ### 3. Using it
 
-Open any `.safetensors` model. In the gap between the preview and the info table
-sits the **ZipNN artwork itself as the button** — the shipped SVG draws its own
-glass plate (with a dark‑mode variant), lifts and brightens on hover, and
-explains itself in a tooltip and to screen readers. Pressing it:
+Open any `.safetensors` model and press the **ZipNN button** between the
+preview and the info table. After you confirm:
 
-1. asks for a confirmation that is deliberately _not_ styled as “Danger”
-   (compression is reversible and never deletes the original until the
-   compressed file has been fully written and verified);
-2. replaces the button with a **live progress bar** while the Rust core streams
-   through the file (memory‑mapped, GIL released — the rest of ComfyUI stays
-   responsive), and the task can be cancelled at any time;
-3. on success, swaps the original for `<name>.znn.safetensors` — previews and
-   Markdown notes follow the rename, and the grid refreshes itself.
+1. the button turns into a **live progress bar** while the model compresses —
+   ComfyUI stays responsive, and the task can be cancelled at any time;
+2. on success, the original is replaced by `<name>.znn.safetensors` — previews
+   and Markdown notes follow the rename, and the grid refreshes.
 
-Opening a **compressed** model shows the same artwork with its colours
-**inverted** and the action flipped to _decompress_, behind the same
-confirmation, restoring the plain `.safetensors`. Its info table changes too:
-the single _File Size_ row is replaced by **Original File Size**, **Compressed
-File Size** and **% of Original Size** — the pre‑compression size is recorded in
-the file's metadata at compression time, so the breakdown survives the rename
-(files compressed by the official ZipNN CLI, which does not write that key,
-simply keep the plain _File Size_ row).
+Compression is reversible and plays it safe: the original is never deleted
+until the compressed file has been fully written and verified, and every
+restore is checked against the SHA‑256 recorded at compression time.
 
-The same artwork also sits on the **top‑right corner of every model and folder
-card** (next to the star toggle): one click compresses (or decompresses,
-inverted) without opening the model at all, behind the identical confirmation.
-While any task runs — single, batch or delta — the button shows a **circular
-progress ring** (with the percentage for batches).
+Opening a **compressed** model flips the same button to _decompress_ (shown
+inverted), restoring the plain `.safetensors`. Its info table then lists
+**Original File Size**, **Compressed File Size** and **% of Original Size**
+instead of the single _File Size_ row — files compressed by the official ZipNN
+CLI, which does not record the original size, keep the plain row.
+
+The button also sits on the **top‑right corner of every model and folder card**
+(next to the star), so you can compress or decompress without opening the
+detail window. Running tasks show a circular progress ring (with a percentage
+for batches).
 
 ### 4. Batch compression (whole folders)
 
@@ -1025,6 +1020,21 @@ passes, and much of the debugging.
 Built with these excellent projects: [reka-ui], [Tailwind CSS], [Lucide],
 [VueUse], [es-toolkit], [vue-sonner], [huggingface_hub], [hf_xet],
 [modelscope_hub], [ZipNN], and [zenwebp].
+
+---
+
+<a id="security"></a>
+
+## <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="34" height="34" align="middle" alt=""> Security
+
+Neo is scanned continuously, not occasionally. Every push and pull request
+runs dependency audits against the OSV database (all four lockfiles), CodeQL
+static analysis of the TypeScript/Vue, Python and Rust sources and of the CI
+configuration itself, secret scanning over the full git history, and dedicated
+hardening checks for the GitHub workflows; the Rust core is additionally fuzzed
+on seven targets every week. Accepted risks are recorded with written reasons —
+nothing is silenced quietly. Found something? Please report it privately:
+[`SECURITY.md`](SECURITY.md).
 
 ---
 
