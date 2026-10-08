@@ -158,7 +158,7 @@ folders whose name starts with `.`).
   any preview (with a shortcut into their editor) and empty folders; selected
   entries are removed through the usual Danger confirmation.
 - **Hover actions** (flat layout, large cards) — **Add node**,
-  **Load workflow from preview**, **Open model page** (the button wears the
+  **Load workflow from preview**, **Open model page** (the button shows the
   source platform's logo as its background when the platform is known).
 - **Drag to the graph** — drag any card onto the canvas:
   - onto empty canvas: creates the matching loader node with the model selected
@@ -219,7 +219,7 @@ base‑info table, and two tabs.
 - **Tensor section** (safetensors models) — the exact tensor layout parsed from
   the header, rendered like Hugging Face's safetensors viewer as a collapsible
   **folder tree**: dotted tensor names are grouped per segment, each folder row
-  carries a folder icon that collapses / expands that level (everything starts
+  has a folder icon that collapses / expands that level (everything starts
   maximally collapsed) plus its tensor / parameter count, and leaf rows keep
   name tail / dtype / shape. Very large folders page their leaves, with an
   explicit _show all_ action. The tree is pre‑grouped by the Rust core, so even
