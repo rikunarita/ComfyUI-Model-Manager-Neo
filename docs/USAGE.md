@@ -76,7 +76,7 @@ The manager is a **non‑modal window**: it floats above ComfyUI but the canvas
 stays fully interactive, so you can drag models onto the graph while browsing.
 Windows are draggable by their title bar, resizable from any edge or corner,
 and maximisable with the ⤢ button. Several windows can be open at once;
-clicking one brings it to the front. The manager window's title bar carries a
+clicking one brings it to the front. The manager window's title bar shows a
 live read‑out of the library's total model size.
 
 > The loading indicator is **scoped to the panel it belongs to** — while a
@@ -105,13 +105,13 @@ A single grid of every model of every type, with a toolbar:
 
 ### Folder layout
 
-A file‑manager style tree with a breadcrumb trail (each crumb carries a folder
-glyph). The trail reserves no space at the root — it opens up only as the path
-gets deeper. Double‑click a folder to enter it; use the breadcrumb or the ↑
+A file‑manager style tree with a breadcrumb trail (each crumb prefixed with a
+folder glyph). The trail takes no space at the root — it only appears as the
+path gets deeper. Double‑click a folder to enter it; use the breadcrumb or the ↑
 button to go back. Right‑click a model for the context menu (**Open**). As the
-window narrows, intermediate crumbs ellipsise first and the toolbar stacks
+window narrows, intermediate crumbs are ellipsised first and the toolbar stacks
 vertically — the same responsive rule as the flat view — so controls are never
-clipped away.
+clipped.
 
 ![folder layout](../demo-assets/view-folders.avif)
 
@@ -122,7 +122,7 @@ holds the **sort order** and **card size** selects: the folder view is “the
 flat view scoped to one folder, plus the folder‑only extras (parent
 navigation, folder creation, folder compression)”, so model cards look and
 behave identically in both layouts — including the hover column with
-add‑node / copy / workflow / model‑page buttons.
+add‑node / workflow / model‑page buttons.
 
 Both layouts share the **show/hide hidden files** header button (files and
 folders whose name starts with `.`).
@@ -141,18 +141,18 @@ folders whose name starts with `.`).
   (or decompresses, shown inverted) with the same confirmation and progress as
   the detail‑window button; on folder cards it runs the folder batch.
 - **Folder cards** — a hand‑drawn pale‑turquoise glass folder (_because this
-  is **Neo**_). Hovering makes the folder float; leaving settles it back at
-  once. Type‑root cards also carry the
-  **aggregate size of their model type**.
+  is **Neo**_). Hovering makes the folder float; moving the pointer away
+  settles it back at once. Type‑root cards also show the
+  **total size of their model type**.
 - **Duplicate warning** — a model whose recorded SHA256 matches another file in
   the library shows a red alert with the duplicate's path in the detail window.
 - **Smart collections** (flat view) — save the current search + type filter as
   a named collection (persisted per user) and re‑apply it from the collections
   menu; the active collection shows as a chip with clear / delete buttons.
-  Save and apply live in a single pill button `[💾 Collections ▾]`: the floppy
-  segment keeps its own click / keyboard target and opens the save dialog,
-  while the rest of the button opens the menu that applies or switches saved
-  collections.
+  Save and apply share a single pill button `[💾 Collections ▾]`: the
+  floppy‑disk segment is its own click / keyboard target and opens the save
+  dialog, while the rest of the button opens the menu that applies or switches
+  saved collections.
 - **Hygiene scan** (header button, both layouts) — a local‑only sweep (no
   network, no hashing) listing orphaned preview / notes files, models without
   any preview (with a shortcut into their editor) and empty folders; selected
@@ -191,18 +191,19 @@ base‑info table, and two tabs.
 
 - **Download to local** — the download‑icon button in the action row saves the
   model file to your machine as an attachment (file name exactly as in the
-  library). The whole action row (ZipNN, star, hub page, identify, add node,
-  load workflow, upload to hub, local download, edit, delete) shares one button
-  size inside a single inline scroll row.
+  library). All buttons in the action row (ZipNN, star, hub page, identify,
+  add node, load workflow, upload to hub, local download, edit, delete) share
+  one size inside a single inline‑scrolling row.
 - **Upload to hub** — the upload‑icon button in the action row opens the shared
   upload wizard with this model prefilled: pick Hugging Face or ModelScope and
   the wizard skips the type / model steps, landing on the upload form with the
   model path already filled in.
 - **Copy row values** — hovering a row of the base‑info table (type, directory,
   sub‑folder, file name, size, dates) or of the Information table reveals a
-  copy button at the end of that row — a sticky cell, so it stays at the right
-  edge of the visible panel even while the table scrolls sideways (wide rows);
-  one click puts that row's value on the clipboard.
+  copy button at the end of that row. The button is a sticky cell: on rows
+  wider than the panel it stays at the right edge of the visible area while
+  the table scrolls sideways. One click puts that row's value on the
+  clipboard.
 - **Description** tab — rendered Markdown stored in a `*.md` file next to the
   model. Links open in a new tab.
 - **Information** tab — a table of everything recorded about the model
@@ -220,15 +221,16 @@ base‑info table, and two tabs.
   **folder tree**: dotted tensor names are grouped per segment, each folder row
   carries a folder icon that collapses / expands that level (everything starts
   maximally collapsed) plus its tensor / parameter count, and leaf rows keep
-  name tail / dtype / shape. Very large nodes page their leaves with an
+  name tail / dtype / shape. Very large folders page their leaves, with an
   explicit _show all_ action. The tree is pre‑grouped by the Rust core, so even
   MoE headers with tens of thousands of tensors open instantly.
 
   ![tensor tree](../demo-assets/tensor-tree.avif)
 
-- **Open model page** — in the action row, like its twin in the card hover
-  column, wears the logo of the source hub (Civitai, Hugging Face or
-  ModelScope) as its background whenever the notes record the platform.
+- **Open model page** — the button in the action row (and its counterpart in
+  the card hover column) shows the logo of the source hub (Civitai, Hugging
+  Face or ModelScope) as its background whenever the notes record the
+  platform.
 
 ### Identify by hash
 
@@ -260,16 +262,16 @@ Press the **pencil** to enter edit mode (the window turns into a form):
   the backend re‑checks path traversal server‑side.
 - **Preview** — managed as a single gallery. In edit mode an inline‑scrolling
   thumbnail strip beside / below the main preview manages it: pick the primary,
-  move entries left / right, or remove single images; the thumbnail wearing the
-  **blue ring** is the one save promotes to the card's **primary** preview
-  (tile clicks and the ‹ / › arrows move the ring). The dashed tile at the end
+  move entries left / right, or remove single images; the thumbnail with the
+  **blue ring** becomes the card's **primary** preview on save (tile clicks and
+  the ‹ / › arrows move the ring). The dashed tile at the end
   of the strip adds local image files as new previews (images are converted to
   WebP, videos keep their format), and removing every entry leaves the model
-  without a preview. Entering edit always puts the ring on the current primary,
-  whatever page read mode was viewing; paging in read mode never re‑designates
-  the primary.
+  without a preview. Entering edit mode always puts the ring on the current
+  primary, no matter which page read mode was showing; paging in read mode
+  never changes which preview is the primary.
 - **Description** — press the **Edit (pencil) icon** next to the hint text to
-  open the Markdown textarea; it saves when the textarea loses focus:
+  open the Markdown textarea; it saves when the textarea loses focus.
 
 - **Save / Cancel** — cancelling with unsaved changes asks for confirmation
   first. Save issues a single request; anything that changed (name, type,
@@ -298,14 +300,14 @@ Open **Download List** from the header, then:
 
    The editor below the version row places the **preview on the left and the
    gallery strip on the right**, with file pick + download, metadata editor and
-   the description / information tabs beneath, so nothing can be squeezed out
-   of sight no matter how narrow the window is.
+   the description / information tabs beneath, so nothing is squeezed out of
+   sight when the window is narrow.
 
 4. In the editor you can set the destination type/directory, a file name
-   (folder prefixes allowed), the preview images — the **whole gallery** the
-   model page offers is kept, and the image left selected in the carousel
-   becomes the card's primary preview — and a Markdown description (Civitai/HF
-   descriptions are pre‑filled, including trigger words and YAML metadata).
+   (folder prefixes allowed), the preview images and a Markdown description.
+   The **whole gallery** the model page offers is kept, the image left selected
+   in the carousel becomes the card's primary preview, and Civitai/HF
+   descriptions are pre‑filled (including trigger words and YAML metadata).
 5. **Download** starts a background task. The previews are fetched in the
    browser when possible and server‑side otherwise; if both fail the model
    still downloads, just without a preview. The dialog shows the **free space**
@@ -320,7 +322,8 @@ model‑name search box: results arrive in parallel from **Hugging Face** (left)
 avatar (or an initials badge), the download count and two deep links — owner
 name → owner page, repository name → model page (hover underlines, tap opens);
 clicking anywhere else on the row resolves that model into the editor. A plain
-`username/repo-name` is accepted too. **One Enter always resolves**: an exact
+`username/repo-name` is accepted too. Pressing **Enter always resolves
+something**: an exact
 match among the results first, then the bare repository id as a Hugging Face
 repository, then the top row of the first non‑empty column; with no results
 yet — or with input newer than the results on screen — Enter (re‑)runs the name
@@ -328,7 +331,7 @@ search instead of resolving a stale row. While a search is in flight a spinner
 with “Searching…” sits centred in the results area. Each column also pages:
 scrolling it to the bottom reveals a **“∨ Show more”** button whenever a next
 page exists, and one click appends that column's next page. Platforms can be
-hidden, and each platform's **sort order** chosen, in **Settings → Model
+hidden and each platform's **sort order** set in **Settings → Model
 Manager Neo → Search** (the defaults are Hugging Face trending, ModelScope
 likes and Civitai highest rated).
 
@@ -341,11 +344,11 @@ path, the announced size, the published SHA256 and whether the platform API key
 is configured. Civitai downloads are verified against the published SHA256 on
 completion (a mismatch deletes the file and fails the task); bundled files of
 another type (a VAE, …) are routed into the matching model folder; and warnings
-appear when the version's base model is foreign to the destination folder's
-recorded library, or when the payload is a pickle/archive format that can
-execute code when loaded. For every platform with a configured key (Hugging
-Face, ModelScope, Civitai) the connected account is shown at the top of the
-window.
+appear when the version's base model is not among the base models recorded in
+the destination folder's library, or when the payload is a pickle/archive
+format that can execute code when loaded. For every platform with a configured
+key (Hugging Face, ModelScope, Civitai) the connected account is shown at the
+top of the window.
 
 ### Generation metadata in the lightbox
 
@@ -358,7 +361,7 @@ steps, CFG scale, seed, clip skip, size, base model and the resource recipe.
 Two sections — **External Downloads** and **Local Uploads** — each row showing
 a preview thumbnail, progress bar, transferred/total size and speed, with
 **pause / resume / delete** controls. Deleting removes the partial file and the
-task bookkeeping. Paused downloads resume with an HTTP `Range` request.
+task record. Paused downloads resume with an HTTP `Range` request.
 
 > Progress, pause and completion survive closing the window: tasks live in the
 > backend and are pushed over the websocket.
@@ -426,16 +429,17 @@ the current phase:
 2. pick a folder (or sub‑folder) in the tree,
 3. choose the file.
 
-The upload is registered as a **local task** in the Download List with accurate
-progress and completes into the chosen folder. The destination is validated
-server‑side (no arbitrary writes, no path traversal).
+The upload is registered as a **local task** in the Download List, with
+accurate progress, and the file lands in the chosen folder when it completes.
+The destination is validated server‑side (no arbitrary writes, no path
+traversal).
 
 ## 9. Feedback, galleries and the lightbox
 
 - **Toasts.** Every action reports its outcome: success (green), warning
-  (amber), error (red), info (accent). Each toast carries a severity icon, a
-  tinted left bar, and a **close button** in its top‑right corner; they stack
-  at the top‑right above every dialog and auto‑dismiss after their lifetime.
+  (amber), error (red), info (accent). Each toast has a severity icon, a
+  tinted left bar, and a **close button** in its top‑right corner; toasts stack
+  at the top‑right above every dialog and auto‑dismiss after their timeout.
 
 - **All previews are kept.** Downloads and saves store every preview image of a
   model (`<name>.webp`, `<name>.preview.webp`, `<name>.preview2.webp`, …).
@@ -450,7 +454,7 @@ server‑side (no arbitrary writes, no path traversal).
   adopted into `private.key` automatically (only the ones actually present).
 - **Oversized uploads.** A file above your ComfyUI server's upload limit
   (`--max-upload-size`, default 100 MB) is reported with a toast explaining
-  exactly how to raise the limit, instead of a bare “HTTP 413”.
+  how to raise the limit, instead of a bare “HTTP 413”.
 
 ## 10. Multi-select and ZipNN compression
 
@@ -480,13 +484,13 @@ a bulk bar appears at the bottom of the window:
 - **Clear selection** — unticks everything. Leaving the mode also clears it.
 
 ZipNN bundle folders (`*_DeltaZNN`, legacy `*_ZNN`) and ordinary folders can
-never be selected at the same time: adding one kind while the other is ticked
-deselects the bundle folders and shows a warning toast.
+never be selected at the same time: mixing the two shows a warning toast and
+leaves the bundle folders unselected.
 
 ### ZipNN compression
 
 Opening a `.safetensors` model shows the **ZipNN button** between the preview
-and the info table. Pressing it asks for a confirmation, then runs the whole
+and the info table. Pressing it asks for confirmation, then runs the whole
 compression as one background job in the Rust core (memory‑mapped streaming —
 peak RAM is roughly the largest tensor, not the model):
 
@@ -507,15 +511,15 @@ pre‑compression size is recorded in the file's metadata at compression time).
 Compressed files follow the official ZipNN layout (`znn_compressed_vectors`
 metadata, Huffman‑compressed tensors — the Rust core covers **every**
 safetensors dtype; see _dtype coverage & interoperability_ below), so loaders
-patched with `zipnn_safetensors()` read the compatibility‑band ones
-transparently. Compression is **lossless and verified**: the core records the
-source's SHA‑256 at compress time and re‑checks it inline on restore (a
-mismatch keeps the compressed file and retreats the output to `.corrupt` for
-inspection); the plain `.safetensors` is only removed after the
+patched with `zipnn_safetensors()` transparently read files in the
+compatibility band. Compression is **lossless and verified**: the core records
+the source's SHA‑256 at compress time and re‑checks it inline on restore (a
+mismatch keeps the compressed file and moves the output aside as `.corrupt`
+for inspection); the plain `.safetensors` is only removed after the
 `.znn.safetensors` file has been written and verified through an atomic rename,
 and a failed run cleans up its partial output. An opt‑in **paranoid mode**
 (default off; `MM_ZNN_PARANOID=1` in the environment) additionally
-re‑decompresses and compares before the original is ever deleted.
+re‑decompresses and compares before the original is deleted.
 
 #### dtype coverage & interoperability
 
@@ -541,7 +545,7 @@ across the whole tensor).
 
 **No installation step.** The engine is Neo's own **pure‑Rust core**, shipped
 as prebuilt binaries inside the repository (`native/native-bin/`) and loaded by
-a plain `import` — **no `pip install`, no C compiler, no network, no waiting**,
+a plain `import` — **no `pip install`, no C compiler and no network access**,
 on every covered platform:
 
 | Platform                       | Artifact                                        | Requirements                                           |
@@ -559,16 +563,16 @@ One binary per platform serves **CPython 3.12 and newer** (the Python Stable
 ABI); free-threaded builds are served by the `<tag>t` **abi3t** binaries
 (CPython 3.15+, PEP 803), which the loader picks automatically — a
 free-threaded interpreter cannot load the plain abi3 ones.
-Interoperability with the official format is a CI gate, not a promise:
-every push cross‑validates against the official pip `zipnn` 0.5.4 (both
-directions). On a platform outside the table the extension still installs —
-browsing, downloading and hashing degrade to their pure‑Python paths — while
-ZipNN operations and preview re‑encoding report the loader's exact reason in
-the error toast instead of failing silently.
+Interoperability with the official format is enforced in CI: every push
+cross‑validates against the official pip `zipnn` 0.5.4 (both directions). On a
+platform outside the table the extension still installs — browsing, downloading
+and hashing degrade to their pure‑Python paths — while ZipNN operations and
+preview re‑encoding report the loader's exact reason in the error toast instead
+of failing silently.
 
 ### ZipNN batch compression (folders)
 
-Select one or more folders and press the **ZipNN artwork button** in the bulk
+Select one or more folders and press the **ZipNN button** in the bulk
 bar (or use the corner button on a folder card). After a confirmation, every
 `.safetensors` model inside the folder tree is compressed — previews and notes
 follow their models — and every compressed file is **moved into the bundle
@@ -576,8 +580,8 @@ folder `<name>_DeltaZNN`** (the original folder disappears once it empties). Mod
 compressed in place (single-model button, auto-compress settings, or older
 versions) join the bundle as they are — moved, not re-compressed. Such a
 bundle folder is sealed: only ZipNN content (`*.znn.*` models, `*.znn`
-delta files) can live inside it (uploads, downloads and moves of plain models
-into it are refused). The bundle's ZipNN button is **inverted**; pressing it
+delta files) can be placed inside it (uploads, downloads and moves of plain
+models into it are refused). The bundle's ZipNN button is **inverted**; pressing it
 **batch‑decompresses** the bundle, moves everything back to the folder it was
 named after and removes the emptied bundle folder. Delta folders
 (`<base>_DeltaZNN`) are bundles as well — their inverted button restores every
@@ -597,7 +601,7 @@ Select exactly two plain `.safetensors` models (base + fine‑tune) and press
 the other is the fine‑tune. Confirming stores only the **difference** in
 `<base>_DeltaZNN/<ft>_delta_<base>.znn` (usually a few percent of the
 fine‑tune's size) and removes the redundant fine‑tune file. The delta's card
-button (inverted artwork) restores the fine‑tuned model **byte‑exactly** next
+button (inverted) restores the fine‑tuned model **byte‑exactly** next
 to the base and deletes the delta folder once it empties. Restoring requires
 the base model to still be present, and the delta records the fine‑tune's own
 SHA‑256 so the restore is verified end to end.
@@ -622,22 +626,22 @@ ComfyUI **Settings → Model Manager Neo**:
   grids and pickers.
 - **Include hidden files (start with .)** — same as the toolbar eye button.
 - **Watch model folders for external changes** — off by default. When on, the
-  native core watches every model folder (with a 500 ms debounce) and a model
+  native core watches every model folder (with a 500 ms debounce), so a model
   added or removed by _another_ program (a `cp` into `models/loras`, a second
   downloader, a mounted volume filling up) refreshes the affected list within
   ~1.5 s instead of waiting for the 30 s periodic revalidation.
   Network‑mounted folders are skipped automatically (inotify‑style watchers do
-  not receive events from NFS/SMB shares) and an exhausted Linux watch budget
-  (`fs.inotify.max_user_watches`) degrades to the periodic refresh with a
-  warning in the log; `MM_WATCH_ROOTS=1/0` overrides the setting. The status of
-  the watcher — armed roots, degrade state, event counters — is served
-  read‑only at `GET /model-manager/watch-status`.
+  not receive events from NFS/SMB shares), and if the Linux watch budget
+  (`fs.inotify.max_user_watches`) is exhausted the watcher degrades to the
+  periodic refresh with a warning in the log; `MM_WATCH_ROOTS=1/0` overrides
+  the setting. The watcher's status — armed roots, degrade state, event
+  counters — is available read‑only at `GET /model-manager/watch-status`.
 
 ### Search
 
 - **Hide Hugging Face / ModelScope / Civitai results** — one toggle per
   platform column of the model‑name search (a hidden column is never queried).
-- **Sort order per platform** — every value the respective API accepts; the
+- **Sort order per platform** — any value the respective API accepts; the
   defaults are Hugging Face _trending_, ModelScope _likes_ and Civitai _highest
   rated_.
 
@@ -654,8 +658,9 @@ ComfyUI **Settings → Model Manager Neo**:
 
 ### UI
 
-- **Card Size** / **Card Size Map** — persistence for the size picker (hidden
-  entries; edit them through the Custom Size dialog).
+- **Card Size** / **Card Size Map** — where the size picker persists its
+  choice. These entries are hidden from the settings list; change them through
+  the Custom Size dialog.
 - **Flat Layout** — default layout on open.
 - **Record UI performance marks** — off by default. Instruments the grid
   recompute/paint and the tensor‑tree build with `performance.mark` and keeps
@@ -690,8 +695,8 @@ bundle; anything else falls back to English.
 ## Screenshots
 
 The images in this guide live in [`demo-assets/`](../demo-assets/) as AVIF
-stills, and the header tour is the near-lossless recording
-[`hero.webm`](../demo-assets/hero.webm).
+stills; the tour at the top of the README is
+[`hero.webm`](../demo-assets/hero.webm), a near-lossless recording.
 
 ---
 
@@ -699,6 +704,6 @@ stills, and the header tour is the near-lossless recording
 
 This extension is scanned on every change: dependencies are audited against
 the OSV database, sources are analysed by CodeQL (TypeScript/Vue, Python,
-Rust), the full git history is swept for leaked secrets, the CI configuration
-is statically hardened, and the Rust core is fuzzed weekly. To report a
-vulnerability privately, see [`SECURITY.md`](../SECURITY.md).
+Rust), the full git history is swept for leaked secrets, the GitHub workflows
+are checked for hardening issues, and the Rust core is fuzzed weekly. To report
+a vulnerability privately, see [`SECURITY.md`](../SECURITY.md).
