@@ -214,8 +214,8 @@ importers:
         version: 2.9.1
     devDependencies:
       '@comfyorg/comfyui-frontend-types':
-        specifier: 1.56.0
-        version: 1.56.0(vue@3.5.43(typescript@6.0.3))(zod@3.25.76)
+        specifier: 1.56.1
+        version: 1.56.1(vue@3.5.43(typescript@6.0.3))(zod@3.25.76)
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -229,8 +229,8 @@ importers:
         specifier: ^6.0.9
         version: 6.0.9(vite@8.3.1(@types/node@26.6.3)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(yaml@2.9.1))(vue@3.5.43(typescript@6.0.3))
       dependency-cruiser:
-        specifier: 18.4.0
-        version: 18.4.0
+        specifier: 18.5.0
+        version: 18.5.0
       eslint:
         specifier: ^10.11.0
         version: 10.11.0(jiti@2.7.0)(supports-color@10.2.2)
@@ -253,8 +253,8 @@ importers:
         specifier: 3.31.0
         version: 3.31.0
       globals:
-        specifier: ^17.12.0
-        version: 17.12.0
+        specifier: ^17.13.0
+        version: 17.13.0
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -334,8 +334,8 @@ packages:
   '@comfyorg/comfyui-desktop-bridge-types@0.2.0':
     resolution: {integrity: sha512-V5Wj5KXDzTDm5GJAa0xBISjmndNIY5P79pRHQbLkkqJxgp/GPb/QGvcI+xG4ogol0ODJ4j/UBnUmkzpSafw8Aw==}
 
-  '@comfyorg/comfyui-frontend-types@1.56.0':
-    resolution: {integrity: sha512-KQnXGpdO/PQ6S6wLyXMMyie0ayDp+3GzB32bfZHD3rEtynIoBdaIx9uKRu4wDiJ5h8ag31Mx239s0s3lbHw3Kg==}
+  '@comfyorg/comfyui-frontend-types@1.56.1':
+    resolution: {integrity: sha512-x72/jvpRDcXdusG0v/bJ3Cpi50abX/gagCdB67qgrhAlhr5a/RgWeXHbkSKaFistekPtbOznxPX5vDSFWqGTnQ==}
     peerDependencies:
       vue: ^3.5.42
       zod: ^3.23.8
@@ -1248,8 +1248,8 @@ packages:
   defu@6.1.7:
     resolution: {integrity: sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ==}
 
-  dependency-cruiser@18.4.0:
-    resolution: {integrity: sha512-LLBYQ2XYmOCMG+liUWI2ReRYnnFXIbnzvCGHTohXAViSkawXr3T35fF/FV2cxpmB661pfkJ3ZXn95jhcEQ9GqA==}
+  dependency-cruiser@18.5.0:
+    resolution: {integrity: sha512-LFvJOvufjQ7XTucSI40NHqse0gcQBevDGkZabLAKcGwO+VWOywTqZ5EyFRYWSokNxvLOO7v6EXyNi+9I72oWUA==}
     engines: {node: ^22||^24||>=26}
     hasBin: true
 
@@ -1275,6 +1275,10 @@ packages:
 
   enhanced-resolve@5.25.1:
     resolution: {integrity: sha512-nGXts5znJzmWPu+mIE9izCOzdg63oJca2mDzGWWTth7sr4aCToKcoyFVBQwN75Ij5Pf6p510EwkTqViTRzDV+w==}
+    engines: {node: '>=10.13.0'}
+
+  enhanced-resolve@5.26.0:
+    resolution: {integrity: sha512-9vhedylFonb2YGogzUKX6+Ja72gOJbN1QHAqdrvqLwhdl/QWbKopzoUC9EbQNVsAns/bx/4uyqalrQAoy1IByw==}
     engines: {node: '>=10.13.0'}
 
   entities@4.5.0:
@@ -1510,8 +1514,8 @@ packages:
     resolution: {integrity: sha512-awConJSVCHVGND6x3tmMaKcQvwXLhjdkmomy2W+Goaui8YPgYgXJZewhg3fWC+DlfqqQuWg8AwqjGTD2nAPVWg==}
     engines: {node: '>=6'}
 
-  globals@17.12.0:
-    resolution: {integrity: sha512-cezEd/DTyyht9cvSSURyygXPfy04GtWO/5e6ZPvH7fCtjKz9PYOmuawphw1Ctd1f6C+5JypXfGD7ahNMXvevBA==}
+  globals@17.13.0:
+    resolution: {integrity: sha512-RwMTC61u7hrG3ZJMkZQOK4JLJrKS8QtoTii63EmWvFXHqycY9FObBJQCbsLxSO8kjKhWE5kV1GC+Vb1g3RI0Zg==}
     engines: {node: '>=18'}
 
   globby@16.2.4:
@@ -1574,8 +1578,8 @@ packages:
     resolution: {integrity: sha512-HpbUakT7xp5miBUywCHf36ZEuAJNklBJDDsGpUIjMzOSmM8ELSfA9Sa/QDPeNeqeoN31u+UTCkL4klCOVvRm4Q==}
     engines: {node: '>= 4'}
 
-  ignore@7.0.9:
-    resolution: {integrity: sha512-brTTsvFRt5C1gGHtPst/281UjPD5t9fBqbgoMPlVWy11ZLTPfu7HxK4ZYqO9H7o/yC9rSTCI85EaQ4OoY12qYw==}
+  ignore@7.0.11:
+    resolution: {integrity: sha512-YChdK5txDjwGUvgR7oCJcLGkwi3LDh8Zx8tS7ndYciLEg/oOCL26VUBSUEtgS7EjiybcBqFxh5j0rAdDX7/bbg==}
     engines: {node: '>= 4'}
 
   import-fresh@3.3.1:
@@ -1619,8 +1623,8 @@ packages:
     resolution: {integrity: sha512-xelSayHH36ZgE7ZWhli7pW34hNbNl8Ojv5KVmkJD4hBdD3th8Tfk9vYasLM+mXWOZhFkgZfxhLSnrwRr4elSSg==}
     engines: {node: '>=0.10.0'}
 
-  is-installed-globally@1.0.0:
-    resolution: {integrity: sha512-K55T22lfpQ63N4KEN57jZUAaAYqYHEe8veb/TycJRk9DdSCLLcovXz/mL6mOnhQaZsQGwPhuFopdQIlqGSEjiQ==}
+  is-installed-globally@1.0.1:
+    resolution: {integrity: sha512-li88H4QGRoNMX27jEmY8nR515oJVspAgC/WFMlhHfFV8RJ4QyGpHhXnwAe9gH5RIgKmdYRUmrOhQobcgEjIdSw==}
     engines: {node: '>=18'}
 
   is-number@7.0.0:
@@ -2549,7 +2553,7 @@ snapshots:
 
   '@comfyorg/comfyui-desktop-bridge-types@0.2.0': {}
 
-  '@comfyorg/comfyui-frontend-types@1.56.0(vue@3.5.43(typescript@6.0.3))(zod@3.25.76)':
+  '@comfyorg/comfyui-frontend-types@1.56.1(vue@3.5.43(typescript@6.0.3))(zod@3.25.76)':
     dependencies:
       '@comfyorg/comfyui-desktop-bridge-types': 0.2.0
       vue: 3.5.43(typescript@6.0.3)
@@ -3353,7 +3357,7 @@ snapshots:
 
   defu@6.1.7: {}
 
-  dependency-cruiser@18.4.0:
+  dependency-cruiser@18.5.0:
     dependencies:
       acorn: 8.18.0
       acorn-jsx: 5.3.2(acorn@8.18.0)
@@ -3361,10 +3365,10 @@ snapshots:
       acorn-loose: 8.5.2
       acorn-walk: 8.3.5
       commander: 15.0.0
-      enhanced-resolve: 5.25.1
-      ignore: 7.0.9
+      enhanced-resolve: 5.26.0
+      ignore: 7.0.11
       interpret: 3.1.1
-      is-installed-globally: 1.0.0
+      is-installed-globally: 1.0.1
       json5: 2.2.3
       picomatch: 4.0.7
       prompts: 2.4.2
@@ -3397,6 +3401,11 @@ snapshots:
   emoji-regex@8.0.0: {}
 
   enhanced-resolve@5.25.1:
+    dependencies:
+      graceful-fs: 4.2.11
+      tapable: 2.3.3
+
+  enhanced-resolve@5.26.0:
     dependencies:
       graceful-fs: 4.2.11
       tapable: 2.3.3
@@ -3652,7 +3661,7 @@ snapshots:
       kind-of: 6.0.3
       which: 1.3.1
 
-  globals@17.12.0: {}
+  globals@17.13.0: {}
 
   globby@16.2.4:
     dependencies:
@@ -3709,7 +3718,7 @@ snapshots:
 
   ignore@7.0.10: {}
 
-  ignore@7.0.9: {}
+  ignore@7.0.11: {}
 
   import-fresh@3.3.1:
     dependencies:
@@ -3740,7 +3749,7 @@ snapshots:
     dependencies:
       is-extglob: 2.1.1
 
-  is-installed-globally@1.0.0:
+  is-installed-globally@1.0.1:
     dependencies:
       global-directory: 4.0.1
       is-path-inside: 4.0.0
