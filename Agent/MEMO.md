@@ -1185,7 +1185,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
     不要**。判定基準 = 「pyproject の指定子が変わったか」。
   - **#65 mypy 2.4.0**（uv.lock のみ）→ CI の mypy は非ピンの最新のため
     実質検証済み（直近 run 緑）。
-- **fresh clone 直後は husky フックが未 актив**: `core.hooksPath` は
+- **fresh clone 直後は husky フックが未活性**: `core.hooksPath` は
   pnpm install（prepare = husky）で初めて設定されるため、環境構築前の
   コミットは lint‑staged/typecheck を通らない。当該コミット（13c3ae2）は
   prettier --check を手動実行してクリーンであることを確認済み。
