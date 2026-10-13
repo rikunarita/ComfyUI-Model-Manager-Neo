@@ -148,7 +148,8 @@ native/
   `stable-abi` とは**排他**でビルドする（同時有効化は成果物フレーバをホスト依存に
   するため — native‑test の toggle ゲートが cargo metadata から機械禁止）。
   ビルド host は Python ≥ 3.15 が必要（PyO3 host ≥ target 制約。CI は
-  3.15.0‑rc.2 ピン、final 着弾後は表記のみ別コミット振替）。
+  `3.15` = final へ振替済み — 2026‑10‑13 に manifest へ 3.15.0 stable が
+  着弾、D4 完了）。
   成果物は 3.15+ の **t / GIL 両 build** がロード可能（逆にフリースレッド build は
   通常の abi3 成果物をロードできない — ローダーが `<tag>t` だけを渡す理由）。
 - **feature 構成**（mm‑core）: `default = ["extension-module", "stable-abi"]` /
@@ -313,24 +314,26 @@ readelf・lipo 等の無い環境でも
 
 ### 検証状況（Phase 0 完了、2026‑09‑23、native.yml @ 81854f5 全ジョブ緑）
 
-| ターゲット            | ビルド経路                                                                          | 検証結果                                                                                                   |
-| --------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| linux-x86_64          | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル + CI 緑。import 疎通: CPython **3.10 / 3.11 / 3.13**（410,416 B）                                 |
-| linux-aarch64         | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル（readelf で AArch64 + GLIBC≤2.28 確認）+ CI 緑（383,824 B）                                       |
-| windows-x86_64 (MSVC) | maturin（windows-latest）                                                           | CI 緑。import 疎通: CPython 3.11（163,840 B、`mm_core.pyd`）                                               |
-| macos-universal2      | maturin universal2 = 両 arch + lipo                                                 | CI 緑。lipo: x86_64+arm64、import 疎通: CPython 3.11 arm64（666,032 B）                                    |
-| linux-x86_64t         | cargo zigbuild `--no-default-features --features extension-module,ft`（非 PGO・D2） | CI 実走待ち（2026‑10‑03 実装。import 疎通 = 3.15.0‑rc.2 GIL + 3.15.0‑rc.2t の両フレーバ）                  |
-| linux-aarch64t        | 同上（クロス・非 PGO）                                                              | CI 実走待ち                                                                                                |
-| macos-universal2t     | maturin `--no-default-features --features ft` universal2（非 PGO）                  | CI 実走待ち（lipo + 両フレーバ import 疎通）                                                               |
-| windows-x86_64t       | maturin `--no-default-features --features ft`（非 PGO）                             | CI 実走待ち（`mm_core.pyd` — PEP 803 も Windows の拡張子は変えない。GIL 版と `<tag>t` ディレクトリで分離） |
+| ターゲット            | ビルド経路                                                                          | 検証結果                                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| linux-x86_64          | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル + CI 緑。import 疎通: CPython **3.10 / 3.11 / 3.13**（410,416 B）                           |
+| linux-aarch64         | cargo zigbuild（glibc 2.28 下限）                                                   | ローカル（readelf で AArch64 + GLIBC≤2.28 確認）+ CI 緑（383,824 B）                                 |
+| windows-x86_64 (MSVC) | maturin（windows-latest）                                                           | CI 緑。import 疎通: CPython 3.11（163,840 B、`mm_core.pyd`）                                         |
+| macos-universal2      | maturin universal2 = 両 arch + lipo                                                 | CI 緑。lipo: x86_64+arm64、import 疎通: CPython 3.11 arm64（666,032 B）                              |
+| linux-x86_64t         | cargo zigbuild `--no-default-features --features extension-module,ft`（非 PGO・D2） | CI 緑（import 疎通 = 3.15 final GIL + フリースレッドの両フレーバ）                                   |
+| linux-aarch64t        | 同上（クロス・非 PGO）                                                              | CI 緑                                                                                                |
+| macos-universal2t     | maturin `--no-default-features --features ft` universal2（非 PGO）                  | CI 緑（lipo + 両フレーバ import 疎通）                                                               |
+| windows-x86_64t       | maturin `--no-default-features --features ft`（非 PGO）                             | CI 緑（`mm_core.pyd` — PEP 803 も Windows の拡張子は変えない。GIL 版と `<tag>t` ディレクトリで分離） |
 
 **2026‑10‑03 以降の検証マトリクス**: floor 3.12 化により
 abi3 の CI 検証解釈系は **3.12 / 3.14**（上表 GIL 行の 3.10 / 3.11 / 3.13 は旧 floor
-時代の実証史）。t 4 本の検証解釈系は **3.15.0‑rc.2（GIL）+ 3.15.0‑rc.2t
-（フリースレッド）**— 各 build job の両フレーバ import スモーク + abi3‑import の
+時代の実証史）。t 4 本の検証解釈系は **3.15 final（GIL）+ フリースレッド build
+（`freethreaded: true`）**— 各 build job の両フレーバ import スモーク + abi3‑import の
 4 セル + integration の ubuntu t セル（フル pytest = フリースレッド soak、D3）。
-D4: 3.15 final が runner manifest へ着弾したら `3.15` / `3.15t` 表記へ別コミットで
-振替（ABI は rc1 で凍結済みのため成果物の再ビルドは不要）。
+D4: **完了（2026‑10‑13）**— runner manifest へ 3.15.0（stable=True・ft 13 ファイル）が
+着弾したため、native.yml の 9 ピンを `3.15` へ振替済み（ABI は rc1 で凍結済みのため
+成果物の再ビルドは不要。`3.15t` という文字列は当初計画どおり書かない —
+ft セルは `freethreaded: true` で切り替わる）。
 
 fmt / clippy `-D warnings` / test は 3 OS すべてで緑（native-test ジョブ。
 mm-core のユニットテストは libpython をリンクできる Linux / Windows で実行、

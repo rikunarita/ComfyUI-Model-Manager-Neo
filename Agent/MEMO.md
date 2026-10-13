@@ -850,7 +850,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   双方向クロス検証）が恒久の互換性ゲート**。
 - **ツールチェーン**: CI は Node 26.10.0 / pnpm 12.8.1 / ruff 0.16.10 /
   mypy（pyproject 統合）/ uv。Python floor 3.12・CI の解釈系セルは
-  3.12 / 3.14 / 3.15.0‑rc.2（+ free‑threaded）。
+  3.12 / 3.14 / 3.15（final・2026‑10‑13 着弾、+ free‑threaded）。
 - `third_party/` は撤去済み = **mm_core 単一エンジン**。読み取り系経路には
   Python フォールバックが維持されています（§5.1 Phase 8）。
 
@@ -868,10 +868,16 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 - **実 UI の手動 QA**: USAGE 改訂時に手順を統合済み
   （`__mmNeoPerf` の paint 脚計測が K15 の実測手段）。
 - **D4**: native.yml の `3.15.0-rc.2` ピン（`python-version` 9 箇所 +
-  コメント 5 箇所）は、actions/python‑versions の manifest に final 版が
-  掲載されてから別コミットで振替（PEP 790: rc3 は 2026‑10‑02 実績・final は
-  2026‑10‑09 予定）。ft セルは `freethreaded: true` 側で切り替わるため、
-  `3.15t` という文字列は書きません。
+  コメント 5 箇所）の final 振替 — **完了（2026‑10‑13）**:
+  actions/python‑versions の versions‑manifest.json に `3.15.0`
+  （stable=True・ft 13 ファイル）が着弾したことを API 実測で確認し、
+  9 箇所を `"3.15"` へ・コメント 6 箇所と関連文書（mm‑core Cargo.toml・
+  build-native.sh・native/README の検証マトリクス）を別コミットで同期。
+  ft セルは `freethreaded: true` 側で切り替わるため `3.15t` という文字列は
+  書かない（当初計画どおり）。ABI は rc1 凍結のため成果物バイナリ無変更
+  （次回 main マージの publish‑native‑bin 再ビルドでホスト表記のみ更新）。
+  証跡: 振替後 dev push の native run 全緑（3.15.0 final の実走 =
+  abi3‑import 4 セル + integration t セル + 3 OS の t ビルド/スモーク）。
 - **Plan‑2 R5**: fuzz-long.yml の apt（clang + mold）ステップ削除 —
   **完了・検証済み（2026‑10‑07）**: native.yml fuzz-smoke と fuzz-long.yml の
   双方から削除した（mold は -fuse-ld 参照ゼロの不参照・clang は rustc 同梱
