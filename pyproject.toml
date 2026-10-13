@@ -60,7 +60,7 @@ dev = [
     "numpy",
     "safetensors",
     "maturin",
-    "ruff==0.16.9",
+    "ruff==0.16.10",
     "mypy",
     "markdownify>=0.14.0",
     "huggingface_hub>=1.32.0",
