@@ -29,8 +29,8 @@
 # EXCLUSIVE feature set `--no-default-features --features [extension-module,]ft`
 # (never together with stable-abi — combining them makes the produced flavour
 # host-dependent). Requires a Python >= 3.15 HOST interpreter (PyO3 host >=
-# target; CI pins 3.15.0-rc.2 until the 3.15 final lands in the runner
-# manifest). Outputs: mm_core.abi3t.so (POSIX) / mm_core.pyd
+# target; CI uses the 3.15 final from the runner manifest — D4 settled
+# 2026-10-13). Outputs: mm_core.abi3t.so (POSIX) / mm_core.pyd
 # (Windows — PEP 803 keeps the plain suffix); loadable by BOTH the
 # free-threaded and the GIL build of CPython 3.15+.
 #

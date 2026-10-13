@@ -45,7 +45,8 @@ stable-abi = ["pyo3/abi3-py312"]
 # with `stable-abi`: enabling both makes the produced flavour host-dependent
 # (abi3 below a 3.15 host, abi3t at/above it — PyO3 building-and-distribution
 # guide). The BUILD HOST must be Python >= 3.15 (PyO3 host >=
-# target; CI pins 3.15.0-rc.2 until the final lands in the runner manifest).
+# target; CI uses the 3.15 final from the runner manifest — D4 settled
+# 2026-10-13).
 # Artifacts land in native-bin/<tag>t/ (mm_core.abi3t.so, or
 # mm_core.pyd on Windows) and load on BOTH the free-threaded AND the GIL
 # build of CPython 3.15+; the GIL floor stays on the `stable-abi` artifacts

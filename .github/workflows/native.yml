@@ -6,7 +6,7 @@
 #   native-build-* the stable-ABI artifacts for every platform tag in BOTH
 #                  flavours: abi3 (GIL builds, floor
 #                  abi3-py312) and abi3t (<tag>t, PEP 803 — free-threaded
-#                  CPython 3.15+, non-PGO per D2, host 3.15.0-rc.2 per D4),
+#                  CPython 3.15+, non-PGO per D2, host 3.15 final per D4),
 #                  over the same 5 rust targets: linux x86_64 + aarch64 via
 #                  cargo-zigbuild glibc 2.28, windows x86_64 MSVC, macOS
 #                  universal2 = both darwin archs; per-binary size-budget
@@ -398,13 +398,13 @@ jobs:
       # hosts; the GIL-side PGO above is untouched) and built with the
       # EXCLUSIVE feature set (--no-default-features
       # --features extension-module,ft — never abi3+abi3t together). Host =
-      # 3.15.0-rc.2 GIL (PyO3 requires host >= target; the pin stays until
-      # the 3.15 final lands in the runner manifest — the
-      # ABI froze at rc1, so the final is a label-only swap).
+      # the 3.15 final GIL (PyO3 requires host >= target; D4 settled
+      # 2026-10-13 — 3.15.0 stable landed in the runner manifest, and the
+      # ABI froze at rc1, so the swap was label-only).
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315
         with:
-          python-version: "3.15.0-rc.2"
+          python-version: "3.15"
 
       - name: Build linux-x86_64t (glibc 2.28 floor, abi3t, non-PGO)
         run: ./scripts/build-native.sh --target linux-x86_64t --size-gate
@@ -428,7 +428,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315t
         with:
-          python-version: "3.15.0-rc.2"
+          python-version: "3.15"
           freethreaded: true
 
       # PEP 803: an abi3t artifact loads on BOTH 3.15+ builds — smoke both
@@ -528,13 +528,13 @@ jobs:
           PYTHONPATH=native/native-bin/macos-universal2 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
       # abi3t universal2 (non-PGO like the macOS GIL side). Host
-      # 3.15.0-rc.2. The wheel naming check is done by build-native.sh's
+      # 3.15 final. The wheel naming check is done by build-native.sh's
       # cp315*abi3t* glob + the
       # .abi3t.so extraction (both fail loudly on a mismatch).
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315
         with:
-          python-version: "3.15.0-rc.2"
+          python-version: "3.15"
 
       - name: Build macos-universal2t (maturin, abi3t, both archs + lipo)
         run: ./scripts/build-native.sh --target macos-universal2t --size-gate
@@ -545,7 +545,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315t
         with:
-          python-version: "3.15.0-rc.2"
+          python-version: "3.15"
           freethreaded: true
 
       - name: Import smoke (macos-universal2t artifact, CPython 3.15 GIL + free-threaded arm64)
@@ -627,14 +627,14 @@ jobs:
           PYTHONPATH=native/native-bin/windows-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
 
       # abi3t (non-PGO; the GIL side keeps maturin --pgo above). Host
-      # 3.15.0-rc.2. PEP 803 keeps the plain .pyd name on Windows, so the
+      # 3.15 final. PEP 803 keeps the plain .pyd name on Windows, so the
       # t artifact is separated ONLY by its windows-x86_64t directory (the
       # upload below carries the
       # directory structure and the publish staging is directory-tag-first).
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315
         with:
-          python-version: "3.15.0-rc.2"
+          python-version: "3.15"
 
       - name: Build windows-x86_64t (MSVC, abi3t, non-PGO)
         run: ./scripts/build-native.sh --target windows-x86_64t --size-gate
@@ -642,7 +642,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         id: py315t
         with:
-          python-version: "3.15.0-rc.2"
+          python-version: "3.15"
           freethreaded: true
 
       - name: Import smoke (windows-x86_64t artifact, CPython 3.15 GIL + free-threaded)
@@ -673,9 +673,9 @@ jobs:
     #   abi3t (linux-x86_64t, floor 3.15, PEP 803): BOTH 3.15 builds — the GIL
     #         and the free-threaded one — because the howto's load table has
     #         exactly these two columns (a free-threaded build cannot load
-    #         plain abi3; both builds load abi3t). D4: pinned to 3.15.0-rc.2
-    #         until the final lands in the runner manifest (the ABI froze at
-    #         rc1, so the swap is label-only).
+    #         plain abi3; both builds load abi3t). D4 settled 2026-10-13:
+    #         3.15.0 stable is in the runner manifest (the ABI froze at rc1,
+    #         so the swap was label-only).
     runs-on: ubuntu-latest
     needs: native-build-linux
     strategy:
@@ -688,10 +688,10 @@ jobs:
           - python-version: "3.14"
             freethreaded: false
             tag: linux-x86_64
-          - python-version: "3.15.0-rc.2"
+          - python-version: "3.15"
             freethreaded: false
             tag: linux-x86_64t
-          - python-version: "3.15.0-rc.2"
+          - python-version: "3.15"
             freethreaded: true
             tag: linux-x86_64t
     steps:
@@ -818,12 +818,12 @@ jobs:
           # concurrency posture. ubuntu-only in v1: the torch/L5/
           # tsc legs have no 3.15t wheels (guarded off below), and the mac/win
           # t LOADING surface is covered by the build jobs' dual-flavour import
-          # smokes + the abi3t cells of abi3-import. D4: rc.2 pin until the
-          # 3.15 final lands in the runner manifest.
+          # smokes + the abi3t cells of abi3-import. D4 settled 2026-10-13:
+          # the 3.15 final is in the runner manifest.
           - os: ubuntu-latest
             artifact: native-bin-linux
             tag: linux-x86_64t
-            python-version: "3.15.0-rc.2"
+            python-version: "3.15"
             freethreaded: true
     runs-on: ${{ matrix.os }}
     steps:
