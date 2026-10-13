@@ -1151,3 +1151,46 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   一時的に pnpm-workspace.yaml へ置いて `--frozen-lockfile`、導入後に復元
   — §11.3 の手順どおり・3.8 s）。以降のコミットは husky フック
   （lint-staged + typecheck）を通常どおり通過。
+
+## 12. セッション 2026‑10‑13 — CPython 3.15 正式版の反映（D4）と Dependabot 初回定期サイクル
+
+- **D4 完了（ci コミット d556f31）**: actions/python‑versions manifest へ
+  `3.15.0`（stable=True・ft 13 ファイル）が着弾したことを API 実測確認のうえ、
+  native.yml の `3.15.0-rc.2` ピン 9 箇所を `"3.15"` へ・コメント 6 箇所と
+  関連文書（mm‑core Cargo.toml / build‑native.sh / native/README 検証
+  マトリクス）を同期。ABI は rc1 凍結のため成果物バイナリ無変更。
+  **証跡**: dev push の native run 16 success + 2 skipped 全緑・ジョブ名が
+  `abi3-import (3.15, false/true, linux-x86_64t)` と
+  `integration (…, 3.15, true)` = **3.15.0 final の実走**。
+  tests の rc.2t 言及 1 箇所は run #134 の歴史的記録のため意図的に不変更。
+- **Dependabot 初回定期 PR（月曜 2026‑10‑12 04:00 UTC 便）5 件を審査・
+  全マージ**（前セッションの「方式 A」実演。審査基準 = CI 全緑・diff 実査・
+  cooldown 7 日準拠・エコシステム別特記事項）:
+  - **#63 production group**（@lucide/vue 1.52.0・reka‑ui 2.11.0・
+    vue‑i18n 11.4.13）→ **production 依存はバンドルに入るため web/ 再ビルド
+    が必須**（manager.js 更新 + SettingCardSize チャンク hash rename —
+    881329e。K15 PASS・fallow 緑・証跡 JSON は --json‑out /tmp で非汚染）。
+  - **#64 development group → #68 として再作成**: #63 のマージで
+    pnpm‑lock.yaml が衝突（dirty）→ `@dependabot rebase` コメント →
+    Dependabot は**同一 PR を rebase せず close → 新 PR 再作成**した
+    （新ベースで再解決のため 7 → 8 件に増加: typescript‑eslint 8.71.1・
+    vite 8.3.3 ほか）。**教訓: ベースが動いた Dependabot PR は再作成される。
+    番号で追わず head SHA で追うこと**。
+  - **#66 ruff 0.16.10**（pyproject + uv.lock）→ **手動同期 3 点が必要**
+    （ci.yml の `ruff==` ピン・README×4 バッジ・MEMO §6 — 13c3ae2）。
+    同期前に 0.16.10 をローカル導入し CI 同一スコープでドリフト無しを実測
+    （check/format 緑）。
+  - **#67 huggingface‑hub 2.1.1**（uv.lock のみ・4 行）→ pyproject の
+    floor（>=1.32.0）が動いていないため **requirements.txt 同期（D10）は
+    不要**。判定基準 = 「pyproject の指定子が変わったか」。
+  - **#65 mypy 2.4.0**（uv.lock のみ）→ CI の mypy は非ピンの最新のため
+    実質検証済み（直近 run 緑）。
+- **fresh clone 直後は husky フックが未 актив**: `core.hooksPath` は
+  pnpm install（prepare = husky）で初めて設定されるため、環境構築前の
+  コミットは lint‑staged/typecheck を通らない。当該コミット（13c3ae2）は
+  prettier --check を手動実行してクリーンであることを確認済み。
+  **教訓: セッション冒頭の環境再構築（§2.2）は最初のコミット前に完了させる**。
+- リリース状況: **v0.4.0 はユーザが公開済み**（tag 00aba50・
+  publish‑native‑bin が成果物再ビルド済み）。現在の dev は v0.4.0 +
+  本セッションの依存更新・D4・web/ 再ビルドを含む（次回リリース時に
+  main 側も反映される）。
