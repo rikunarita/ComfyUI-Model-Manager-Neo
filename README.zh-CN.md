@@ -38,7 +38,7 @@
 ![ESLint](https://img.shields.io/badge/ESLint-10-4B32C3.svg?logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
-![Ruff](https://img.shields.io/badge/Ruff-0.16.9-D7FF64.svg?logo=ruff&logoColor=black)
+![Ruff](https://img.shields.io/badge/Ruff-0.16.10-D7FF64.svg?logo=ruff&logoColor=black)
 ![mypy](https://img.shields.io/badge/mypy-static_types-2A6DB2.svg)
 ![Fallow](https://img.shields.io/badge/Fallow-dead_code_%C2%B7_dupes-2E7D32.svg)
 
