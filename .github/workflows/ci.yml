@@ -64,7 +64,7 @@ jobs:
           # rule (Agent/MEMO.md §11): ANY failure or stall attributable to
           # this env removes it in the same session.
           UV_MALWARE_CHECK: "1"
-        run: uv pip install --system -r requirements.txt mypy ruff==0.16.10 pytest pytest-asyncio aiohttp pyyaml requests pillow
+        run: uv pip install --system -r requirements.txt mypy ruff==0.17.0 pytest pytest-asyncio aiohttp pyyaml requests pillow
 
       # Observation slot (Agent/MEMO.md §11): uv audit — the uv-native
       # dependency audit (OSV backend, reads uv.lock directly; Astral
