@@ -1194,3 +1194,51 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   publish‑native‑bin が成果物再ビルド済み）。現在の dev は v0.4.0 +
   本セッションの依存更新・D4・web/ 再ビルドを含む（次回リリース時に
   main 側も反映される）。
+
+## 13. セッション 2026‑10‑20 — Dependabot 第 2 定期サイクル（14 PR）と aiohttp セキュリティ対応
+
+- **Dependabot アラート 3 件（aiohttp ≤3.14.3・HIGH×2/LOW×1・manifest =
+  uv.lock・fix 3.14.4）が発生**。同便の PR で全解消:
+  - **#83（base=main・security update）**: aiohttp 3.14.4 → main の uv.lock
+    へ直接適用 = **アラートは main（既定ブランチ）を追跡するため、
+    security update PR のマージでクローズされる**（dev 側の bump では
+    クローズされない — D10 で記録した「security updates は常に main 対象」
+    の帰結を初実測）。
+  - **#80（base=dev）**: aiohttp 3.14.5 — dev の OSV ゲート維持に必須
+    （advisory 公開は 10‑13 以降のため、dev の直近 push 時スキャンでは
+    未検出だった = スキャンは point‑in‑time。月曜定期フルが拾う前に修正）。
+  - 注意: aiohttp は**実行時には ComfyUI 本体が提供する**依存（pyproject
+    コメントのとおり dev/test 用のみ）。拡張機能自体は影響を受けないが、
+    dev/CI 環境の健全性として修正した。
+- **14 PR 全マージ**（月曜 04:00 UTC 便・全 PR で 26 checks 緑を API 確認・
+  cooldown 7 日準拠を全バージョンの公開日実測で確認 = 10‑06〜10‑12）:
+  - uv.lock 系 5 本（aiohttp/numpy/hub 2.2.0/hf‑xet 1.7.0/ruff 0.17.0）は
+    順次マージで**衝突ゼロ**（uv.lock はパッケージ別ブロックが独立で
+    参照が版数を持たないため text マージが成立。マージ後 `uv lock --check`
+    で整合性を実測確認）。
+  - **hub 2.2.0 / hf‑xet 1.7.0 は実行時依存だが pyproject の指定子
+    （floor）が不変 = requirements.txt 同期（D10）不要**（判定基準の
+    再実証: 「指定子が動いたか」）。
+  - npm 系 #75（production: lucide 1.55.0・vue‑i18n 11.4.14）→ #82
+    （development 7 件）も衝突せず（先週と異なり rebase 不要 —
+    Dependabot が新ベースで生成していたため）。**production 依存のため
+    web/ 再ビルドを実施**（manager.js 更新・K15 PASS・fallow 3.33.1 緑）。
+  - native 系 2 本（serde_json 1.0.154・proptest 1.12.0 = dev‑dep・
+    Cargo.lock のみ）— PR 上の native フルマトリクス緑で検証済み。
+  - workflow 系 4 本（setup‑uv 10.3.0・setup‑node 7.1.0・osv‑scanner‑action
+    v2.7.0 ×2 = reusable workflow の SHA ピン更新）。**Dependabot は
+    SHA ピンをコメント表記（# vX.Y.Z）ごと正しく更新する**ことを実測
+    （github‑actions エコシステム設定の目的どおり）。security.yml 同一
+    ファイルの 2 PR も別行のため衝突なし。zizmor online
+    （ref‑version‑mismatch）で SHA↔tag 整合を再検証。
+- **ruff 0.17.0（minor）同期**: CI ピンは PR 検証に使われない
+  （ci.yml が旧ピンで走るため）→ ローカルに 0.17.0 を導入し CI 同一
+  スコープでドリフト無しを実測してから同期（e05afdf: ci.yml・バッジ×4・
+  MEMO §6）。
+- **zizmor 1.31.1 へ意図的ピン更新 + 規定の再評価を実施**（0b608e7）:
+  cache‑poisoning ignore 11 件を剥がして 1.31.1 で実測 → 検出が復帰 =
+  1.31 の新認識は GitHub ネイティブ `cache-mode`（静的・イベント別に
+  変えられない）のみで、step 級 if 条件式・enable-cache 条件式は依然
+  非認識 → **ignore 維持**。実験結果と次回再評価条件を zizmor.yml へ記録。
+- 本セッションのコミット: e05afdf（ruff 同期）・0b608e7（zizmor 1.31.1）・
+  web/ 再ビルド・本メモ。dev tip の CI 3 ワークフロー緑を確認して完了。
