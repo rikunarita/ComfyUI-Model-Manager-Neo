@@ -121,6 +121,25 @@
   cache‑poisoning 行単位 ignore は**意図的に壊れやすい**（行ずれで検出が
   復活 = 再レビュー強制のフェイルセーフ）。新規ゲートは導入時に必ず
   発火テスト（混ぜて失敗・復元して成功）で捕捉力を証明する。
+- **dev→main マージの uv.lock 競合解決規程（2026‑10‑20 前例 = PR #84）**:
+  Dependabot の security update PR は main へ直接マージされる（仕様）ため、
+  次の dev→main マージで uv.lock が競合し得る（双方が base から同一
+  パッケージブロックを変更）。解決は**必ず main 側で dev を採用する
+  マージを手動構築して push する**:
+  `git checkout -b <tmp> origin/main && git merge origin/dev` →
+  `git checkout --theirs uv.lock && git add uv.lock` → 検証 4 点
+  （① マージ後 uv.lock が dev と byte 同一、② `uv lock --check` 整合、
+  ③ `git diff origin/main -- native/native-bin` = 0 行〔バイナリは main 側
+  の publish 再ビルド版が自動で勝つ — dev は base 以来未変更のため〕、
+  ④ version triple 同期）→ `Merge pull request #N from rikunarita/dev`
+  形式のメッセージでコミット（GitHub が PR を merged 扱いにする）→
+  `git push origin HEAD:main`。**main→dev の逆方向マージは絶対に禁止**
+  （publish bot のバイナリが dev へ混入し、以降の全 dev→main でバイナリ
+  衝突と旧版逆流を招く）。競合が uv.lock 以外に広がっていないことは
+  マージ前の dry‑run（`git merge --no-commit --no-ff`）で確認する。
+  前提検証: main 側 merge‑base 以降の uv.lock 変更が当該パッケージのみ
+  であることを diff で確認し、dev 側版数が修正を包含する（≥ fix）ことを
+  確かめてから dev 側を採用する。
 - **gitleaks 設定は `[extend] useDefault = true` が必須**: カスタム
   .gitleaks.toml は既定ルールセットを**置換**する（allowlist だけ書くと
   検出ルール ゼロ の偽緑 — 2026‑10‑07 に発火テストで実証・公式 README
@@ -1252,3 +1271,22 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 - 本セッションのコミット: e05afdf（ruff 同期）・0b608e7（zizmor 1.31.1）・
   web/ 再ビルド・zizmor-action v0.7.1 修正・本メモ。dev tip の CI
   3 ワークフロー緑を確認して完了。
+
+### 2026‑10‑20（続）— PR #84（dev→main）の uv.lock 競合解決
+
+- ユーザの PR #84 マージ試行が uv.lock 競合でブロックされた。根因は
+  予測どおり: security update #83（aiohttp 3.14.4）が main 側 uv.lock を
+  直接変更し、dev 側は #80（3.14.5）で同一ブロックを変更していたため。
+- **§1.2 の新规程の手順で解決**（この事例が前例）: dry‑run で競合が
+  uv.lock のみであることを確認 → main 側で dev を採用するマージを構築
+  （3.14.5 ⊇ 3.14.4 fix・main 側の merge‑base 以降の lock 変更が aiohttp
+  のみであることを diff で確認済み）→ 検証 4 点すべて実測（dev と byte
+  同一 / uv lock --check 61 pkg / native‑bin は main 側 73484bf 版を保持 /
+  version triple 0.4.0）→ `db3e403` を main へ push。
+- 結果: **PR #84 は GitHub 上で merged 扱い**（merge_commit_sha = db3e4035・
+  merged_at 2026‑10‑20T11:26:28Z）・dev tip は 3bf7cec のまま = **dev への
+  バイナリ混入ゼロ**。main 側 CI は Security success・CI/native/publish
+  は push 後に走行（結果は次回確認）。
+- 副次効果: main の aiohttp が 3.14.5 になったため、open だった
+  Dependabot アラート 3 件（fix 3.14.4 以上で解消）の自動クローズ条件が
+  確定で満たされた（SBOM 再計算待ち）。
