@@ -49,7 +49,7 @@ jobs:
   # PR gate: only NEW vulnerabilities introduced by the PR fail the run.
   osv-pr:
     if: github.event_name == 'pull_request'
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
     permissions:
       actions: read
       security-events: write # SARIF upload to the Security tab
@@ -61,7 +61,7 @@ jobs:
   # current and the run fails on any un-triaged finding.
   osv-full:
     if: github.event_name != 'pull_request'
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
     with:
       # One argv per line (the action splits scan-args by newline), so the
       # --lockfile=<path> form is REQUIRED. Exactly the four surfaces that
@@ -92,11 +92,16 @@ jobs:
       # stateful, triageable alerts instead of failing the run — PR blocking
       # is the code-scanning results check's job. `version` pins the zizmor
       # binary to the release the findings baseline was measured against
-      # (1.30.1, 2026-10-07); bump it deliberately, not implicitly.
+      # (1.31.1, re-measured 2026-10-20: identical findings — 13 ignored,
+      # none new); bump it deliberately, not implicitly.
+      # COUPLING: the action validates `version` against its own known-version
+      # list — action v0.6.4 rejected 1.31.1 with "Unknown version" (failed
+      # run 39410895221, 2026-10-20). Bump the ACTION and the zizmor pin
+      # TOGETHER (v0.7.1 tracks the zizmor 1.31.x line).
       # online-audits adds the API-backed audits (ref confusion & co).
-      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+      - uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
         with:
-          version: "1.30.1"
+          version: "1.31.1"
           online-audits: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
