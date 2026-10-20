@@ -94,8 +94,12 @@ jobs:
       # binary to the release the findings baseline was measured against
       # (1.31.1, re-measured 2026-10-20: identical findings — 13 ignored,
       # none new); bump it deliberately, not implicitly.
+      # COUPLING: the action validates `version` against its own known-version
+      # list — action v0.6.4 rejected 1.31.1 with "Unknown version" (failed
+      # run 39410895221, 2026-10-20). Bump the ACTION and the zizmor pin
+      # TOGETHER (v0.7.1 tracks the zizmor 1.31.x line).
       # online-audits adds the API-backed audits (ref confusion & co).
-      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+      - uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
         with:
           version: "1.31.1"
           online-audits: true

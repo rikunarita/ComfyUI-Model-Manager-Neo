@@ -1240,5 +1240,15 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   1.31 の新認識は GitHub ネイティブ `cache-mode`（静的・イベント別に
   変えられない）のみで、step 級 if 条件式・enable-cache 条件式は依然
   非認識 → **ignore 維持**。実験結果と次回再評価条件を zizmor.yml へ記録。
+- **zizmor-action の version 入力には known-versions 検証がある**:
+  action v0.6.4 は `version: "1.31.1"` を「Unknown version: 1.31.1」で
+  拒否しジョブが失敗した（run 39410895221 — ローカルの裸バイナリ実測が
+  緑だったため見落とされた経路。**教訓: action 経由のツールは
+  「ツール本体」と「action ラッパー」の組で検証する**。zizmor のピンを
+  上げるときは action のリリース（zizmor 既定版に追従）も同時に上げる —
+  v0.7.1 へ SHA ピン更新して解消。なお Dependabot の github-actions
+  エコシステムはいずれ v0.6.4 → v0.7.1 を提案してくるため、本来は
+  その PR 経由が順序として安全だった）。
 - 本セッションのコミット: e05afdf（ruff 同期）・0b608e7（zizmor 1.31.1）・
-  web/ 再ビルド・本メモ。dev tip の CI 3 ワークフロー緑を確認して完了。
+  web/ 再ビルド・zizmor-action v0.7.1 修正・本メモ。dev tip の CI
+  3 ワークフロー緑を確認して完了。
