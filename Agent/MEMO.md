@@ -1290,3 +1290,59 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 - 副次効果: main の aiohttp が 3.14.5 になったため、open だった
   Dependabot アラート 3 件（fix 3.14.4 以上で解消）の自動クローズ条件が
   確定で満たされた（SBOM 再計算待ち）。
+
+## 14. セッション 2026‑10‑24 — advisory 一斉波及（pillow バッチ）の全修正と fuzz‑long の cancellation flake
+
+- **アラート 26 件の根因（正確な特定）**: 2026‑10‑23 21:00 UTC 頃に
+  **pillow 12.3.0 向け GHSA 41 件（CRITICAL 3・すべて 13.0.0 で fix）＋
+  他 7 パッケージ 15 件**（certifi PYSEC‑2026‑4320/GHSA‑6q48‑6c7w‑9gw2
+  CVSS 9.1 fix 2026.10.19・markdown‑it HIGH 7.5 fix 15.0.3・zod HIGH 8.2
+  fix 4.6.6〔3.x 系パッチ無し〕・filelock 7.1 fix 4.2.1・fallow 3.34.0・
+  fast‑uri 3.1.9・setuptools 84.1.0）が一斉掲載された。ユーザがマージした
+  **#85（pillow 12.3.0→13.0.0・base=main）はアラートの原因ではなく
+  main 側の一部「修正」**（pillow 13.0.0 自体は OSV 実測 0 advisory）。
+  内訳 = Dependabot アラート 9 件（すべて pillow・main の旧 12.3.0 lock に
+  対し 10‑23 21:00–23:25 に生成 → #85 で修正済み・SBOM 13.0.0 を実測 →
+  非同期の自動クローズ待ち）+ code‑scanning 17 件（main の Security run
+  osv‑full が pillow 以外の 15 件を検出し failure・SARIF がアラート化）。
+  月曜（10‑19）の Dependabot 定期便は advisory 掲載前で何も出せず、
+  定期 version updates は cooldown 7 日のため 10‑26 まで届かない —
+  **手動 bump で先行修正するのが正解**（セキュリティ修正は cooldown
+  対象外という判断。frontend‑types 1.57.3 は公開翌日だが zod 4 到達の
+  唯一経路のため採用、CI 全ゲートで検証）。
+- **dev 修正（b738442）**: uv lock --upgrade-package ×4（pillow 13.0.0 /
+  certifi 2026.10.23 / filelock 4.2.4 / setuptools 84.2.1 = すべて fixed 版
+  以上）+ package.json（fallow 3.34.0・frontend‑types 1.57.3）+ pnpm update
+  （markdown‑it 15.0.3〔production = **web/ 再ビルド実施**・manager.js 更新〕・
+  fast‑uri 3.1.9〔推移的・pnpm update で到達〕）。**zod は accept 不要に
+  なった**: frontend‑types 1.57.1+ が zod ^4.6.5 へ移行済み → 4.6.7 解決
+  （zod が src 未使用・全バンドル不在の grep 実証も記録）。certifi の
+  requirements.txt 下限アーティファクトのみ D3 同型の version スコープ
+  PackageOverride（2026.7.22・effectiveUntil 2027‑01‑24）で記録。
+  実測: osv‑scanner「No issues found」/ typecheck・lint・K15・fallow 3.34.0
+  すべて緑。
+- **main への反映**: Dependabot の main 向け security PR は pillow 分（#85）
+  しか出ておらず（他 7 パッケージのアラート/PR は非生成）、main の Security
+  run 赤と 17 アラートは dev→main の反映を待つ形になるため、**§13(10‑20続)
+  の規程に準じ b738442 を main 側 PR へ cherry‑pick**（uv.lock のみ競合 =
+  dev 側採用、他ファイルはクリーン。4 点検証: osv 再走 0 / uv lock --check /
+  web 整合 / 差分は lockfile+config+web のみ）。マージ後の Security run 緑で
+  17 アラートの自動クローズ、pillow 9 件は SBOM 再計算でクローズされる。
+- **fuzz‑long 失敗（run 40013877349・10‑23 dispatch）の根因**: 7 ターゲット中
+  **delta_decompress のみ 39 分 40 秒で「The operation was canceled.」**
+  （兄弟 6 ジョブは 3:04–3:06 で完走・crash アーティファクト 0・同一コミット
+  586f3354 の前日 10‑22 dispatch は 7/7 緑・concurrency の相手なし・
+  timeout 360 分に対し 39 分 = 時間超過でもない）。**runner インフラ由来の
+  cancellation（一過性）と分類**（前例: run #80 apt ハング・native の
+  ジョブ未物化・macOS integration flake と同じクラス）。コード起因の
+  証拠はゼロ（crash なら artifacts/ が出る設計）。**対処 = 失敗ジョブの
+  再実行**（rerun‑failed‑jobs を API で実施・201。結果は次ターンで確認 —
+  再実行緑なら一過性の証明、再び同型で落ちるなら delta_decompress 固有の
+  深掘り〔ASan RSS 推移・コーパス・nightly ドリフト〕へ進む）。
+- **教訓（セキュリティ運用）**: ① advisory の「波」は複数エコシステムに
+  同時に来る — アラート数の急増はマージ作業ではなく**掲載イベント**が
+  原因のことが多い（タイムスタンプで切り分ける）。② Dependabot の
+  security update PR は既定ブランチのみが対象のため、**dev 側の同一
+  脆弱性は version updates 便（cooldown 付き）を待たず手動 bump する**。
+  ③ コミット直後のアラート増加は「修正のマージ」と「掲載のタイミング」が
+  同時だと誤認されやすい — SBOM とアラートの created_at で因果を確定する。
