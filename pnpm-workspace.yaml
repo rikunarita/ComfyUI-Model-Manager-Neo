@@ -3,6 +3,9 @@ allowBuilds:
   vue-demi: true
   unrs-resolver: true
 
+minimumReleaseAgeExclude:
+  - "@comfyorg/comfyui-frontend-types@1.57.3"
+
 overrides:
   # @comfyorg/comfyui-desktop-bridge-types override removed 2026-09-30:
   # comfyui-frontend-types 1.54.9 now depends on desktop-bridge-types 0.2.0

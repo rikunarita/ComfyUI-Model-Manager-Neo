@@ -42,7 +42,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@comfyorg/comfyui-frontend-types": "1.57.0",
+    "@comfyorg/comfyui-frontend-types": "1.57.3",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^26.6.5",
@@ -54,7 +54,7 @@
     "eslint-plugin-security": "^4.2.0",
     "eslint-plugin-tailwindcss": "^4.4.0",
     "eslint-plugin-vue": "^10.11.1",
-    "fallow": "3.33.1",
+    "fallow": "3.34.0",
     "globals": "^17.13.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
@@ -78,7 +78,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "es-toolkit": "^1.52.0",
-    "markdown-it": "^15.0.2",
+    "markdown-it": "^15.0.3",
     "markdown-it-metadata-block": "^1.0.6",
     "reka-ui": "^2.11.0",
     "tailwind-merge": "^3.7.0",
