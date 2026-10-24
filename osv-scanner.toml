@@ -53,3 +53,20 @@ ecosystem = "PyPI"
 vulnerability.ignore = true
 effectiveUntil = 2027-01-07
 reason = "requirements.txt floor-resolution artifact (PYSEC-2026-3844 + alias); uv.lock pins 2.13.1 which is unaffected. Re-review when the huggingface_hub floor moves."
+
+# certifi floor-resolution artifact (same class as the httpx2/httpcore2
+# entries above — D3): requirements.txt declares only the four hub packages
+# with loose floors, and OSV-Scanner's best-effort manifest resolution
+# reports the FLOOR (certifi 2026.7.22, PYSEC-2026-4320 / GHSA-6q48-6c7w-9gw2,
+# CVSS 9.1, fixed 2026.10.19) instead of what any real environment installs.
+# The authoritative lock (uv.lock) resolves certifi 2026.10.23 — unaffected
+# (verified 2026-10-24) — and a user's `pip install -r requirements.txt`
+# resolves to the latest release as well. Scoped to the exact 2026.7.22
+# floor: any other certifi version gaining an advisory remains reported.
+[[PackageOverrides]]
+name = "certifi"
+version = "2026.7.22"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-24
+reason = "requirements.txt floor-resolution artifact; uv.lock pins certifi 2026.10.23 which is unaffected. Re-review when the hub-package floors move."
