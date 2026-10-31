@@ -214,8 +214,8 @@ importers:
         version: 2.9.1
     devDependencies:
       '@comfyorg/comfyui-frontend-types':
-        specifier: 1.57.3
-        version: 1.57.3(vue@3.5.44(typescript@6.0.3))(zod@4.6.7)
+        specifier: 1.57.6
+        version: 1.57.6(vue@3.5.44(typescript@6.0.3))(zod@4.6.7)
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -334,8 +334,8 @@ packages:
   '@comfyorg/comfyui-desktop-bridge-types@0.5.0':
     resolution: {integrity: sha512-IlLhbbNaDwTw1JjE+7Z2OlejrE4zcfzORJdaF3mtkzSjCFdK+j8Nuf9XYX78S3vz+uqmxXtn35gDR4amHv7shw==}
 
-  '@comfyorg/comfyui-frontend-types@1.57.3':
-    resolution: {integrity: sha512-QjsuFqO/9RHKPGDfW2eCobIOgU38IkIOtam+nZiStvmcdfIn5MS0NTB+pzAopev3nC+Eha7pWtRb3vRf3kuVkg==}
+  '@comfyorg/comfyui-frontend-types@1.57.6':
+    resolution: {integrity: sha512-ZFewlW189eT+ChwInrpWjqFYgBowJ3t2P1y+zNiZQ1DeupB5y5h+HT73hs3YPxBOndaXOlNr+RlHNmwOQeRqQw==}
     peerDependencies:
       vue: ^3.5.42
       zod: ^4.6.5
@@ -2604,7 +2604,7 @@ snapshots:
 
   '@comfyorg/comfyui-desktop-bridge-types@0.5.0': {}
 
-  '@comfyorg/comfyui-frontend-types@1.57.3(vue@3.5.44(typescript@6.0.3))(zod@4.6.7)':
+  '@comfyorg/comfyui-frontend-types@1.57.6(vue@3.5.44(typescript@6.0.3))(zod@4.6.7)':
     dependencies:
       '@comfyorg/comfyui-desktop-bridge-types': 0.5.0
       vue: 3.5.44(typescript@6.0.3)
