@@ -1418,9 +1418,9 @@ dependencies = [
 
 [[package]]
 name = "zenwebp"
-version = "0.4.4"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b5df07c85e11b59f5b9d49b60c11d7ae27c48d557d498c80c78d2d914428237"
+checksum = "e5ba37760c022fbe597af5422c795437770e162512f132875aaff74b5ab92f31"
 dependencies = [
  "archmage",
  "bytemuck",
