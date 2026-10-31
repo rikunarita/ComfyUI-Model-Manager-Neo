@@ -867,7 +867,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   ci.yml 相当（成果物なし）では成果物依存テストが設計どおり skip。
 - **fuzz 7 ターゲット**（週次日曜 18:00 UTC）。**L5（公式 zipnn 0.5.4 との
   双方向クロス検証）が恒久の互換性ゲート**。
-- **ツールチェーン**: CI は Node 26.10.0 / pnpm 12.8.1 / ruff 0.17.1 /
+- **ツールチェーン**: CI は Node 26.10.0 / pnpm 12.8.1 / ruff 0.17.2 /
   mypy（pyproject 統合）/ uv。Python floor 3.12・CI の解釈系セルは
   3.12 / 3.14 / 3.15（final・2026‑10‑13 着弾、+ free‑threaded）。
 - `third_party/` は撤去済み = **mm_core 単一エンジン**。読み取り系経路には
@@ -1390,3 +1390,124 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 - **minimatch ignore 期限 2026-12-15** — 期限前に親チェーンの minimatch 11 採用有無を再確認。
 - 次回 dev→main マージ時: dependabot ignore(b9db5c6)の有効化 + sha2 0.11.1 を含む native-bin の publish 再ビルド。
 - 既存: UV_MALWARE_CHECK の native.yml 展開 / uv audit 昇格 / osv ignore 期限(2027-01-07 httpx2 系・2027-01-24 certifi)/ zizmor cache-poisoning ignore の再評価(次回リリース時)。
+
+## §16 セッション 2026-10-31（後半）— 定期便 11 PR 全マージ、frontend-types「空パッケージ」実測による移行タスクの再スコープ、UV_MALWARE_CHECK の native.yml 展開
+
+### 前提（このセッション開始時の状態）
+
+- ユーザが dev→main を PR #94 でマージ済み（3743195）+ publish bot の native-bin 再ビルド（0e44bd7）。
+  これで **dependabot の frontend-types ignore（b9db5c6）が既定ブランチ基準で有効化**された。
+- code-scanning アラート 0 / Dependabot アラート 0（API 実測）。
+
+### 定期便 11 PR（#95–#105）— 審査・全マージ（リベース不要・全 3-way クリーン）
+
+マージ順: #96(pnpm)→#103(zizmor-action)→uv 系 #95→#98→#97→cargo 系 #100→#101→#104→actions 系 #99→#102→#105。
+lockfile 系は「異なるパッケージのエントリは異なる行」のため競合せず、11 本全て squash マージ一発
+（8088b5c/1e01246/094590d/1c2fc90/dedea35/73daeb8/3cec127/541c3d9/fc8cef4/f559bb9/577a5e7）。
+
+- **CI**: 全 PR 23 success + 3 skipped。
+- **cooldown 全数検証**（公開日実測、全て ≥7 日）: hf-hub 2.3.0=10-23 / ruff 0.17.2=10-22 /
+  modelscope-hub 0.5.0=10-24 / lucide 1.61.0=10-21 / es-toolkit 1.53.0=10-24 / zenwebp 0.4.6=10-24 /
+  memmap2 0.9.12=10-21 / crc32fast 1.5.3=10-20 / setup-python v7.1.0=10-22 / rust-cache v2.9.3=10-20 /
+  zizmor-action v0.8.0=10-23 / setup-uv v10.3.2=10-22。
+- **actions 4 本の SHA↔tag 一致を API dereference で実測**: 6d4fd22=v7.1.0 / d1527c8=v2.9.3 /
+  53290ba=v0.8.0 / 07a047e=v10.3.2（ref-version-mismatch の手動Equivalent検証）。
+- **zizmor-action v0.8.0 の結合検証**（§11 の教訓の再実測）: v0.8.0 ツリーに
+  `support/locks/zizmor-1.31.1.txt` が存在 = ピン 1.31.1 は known-versions 検証を通過する。
+  変更点は prerelease 対応の追加のみ（既定挙動不変）。
+- **#95 huggingface-hub 2.3.0**（uv.lock のみ → D10 対象外）: リリースノート実読 =
+  HfFileSystem live_follow/並列 listing/upload_attachment の追加系。本拡張の使用面
+  （hf_hub_download / HfApi）は無変更。
+- **#98 modelscope-hub 0.5.0**（0.x minor・uv.lock のみ）: v0.4.6↔v0.5.0 の
+  `download_file`/`list_repos`/`ProgressCallback` シグネチャを GitHub raw で直接比較 —
+  download_file は private 引数 `_cancel_event` が「追加」されただけ = 後方互換。修正群
+  （SHA-256 事前検証・Range 破損防護・416 recovery）は本拡張の expected_sha256 使用を強化する方向。
+- **#100 zenwebp 0.4.6**: 0.4.5 yank 上のバグ修正リリース — demuxer の panic/hang 修正
+  （36,051 fuzz クラッシュ入力の replay clean）・lossless エンコーダ破損修正・decode limits 執行。
+  znn-codec がラップし fuzz-long が webp_decode を撃つ本プロジェクトでは価値の高い更新。
+- **#96 production group**（@lucide/vue 1.61.0 + es-toolkit 1.53.0）: 両方 additive minor
+  （es-toolkit リリースノート実読 = 追加 API + 型修正のみ）。**web/ 再ビルド 788a663**
+  （manager.js 921.42 kB / gzip 276.84 kB、bundle 更新を diff で確認）。
+- **#97 ruff 0.17.2**: マージ dedea35 + 恒例同期 **5503480**（ci.yml ピン/README×4 バッジ/§6）。
+  0.17.2 をローカル導入し CI 同一スコープで check「All checks passed」/ format「45 files
+  already formatted」= パッチドリフト無しを実測。`uv lock --check` 緑（61 packages・CPython 3.15.2）。
+
+### frontend-types — §15 残作業「1.58+ 型移行」の前提が実測で覆った（再スコープ）
+
+§15 の規程どおり「型差分を読んでから」着手し、以下を全て一次実測（tarball 直接 DL・GitHub raw・API）:
+
+1. **≤1.58.0 の全 tarball は空パッケージ**: LICENSE + package.json のみ（~12.5 kB）。package.json の
+   `types: ./index.d.ts` が指すファイルが存在しない。実測対象: 1.50.0 / 1.54.9 / 1.55.18 /
+   1.57.0 / 1.57.1 / 1.57.3 / 1.57.6 / 1.58.0 — 全て NONE。実型の index.d.ts（~518–548 kB）は
+   **1.58.1 / 1.59.1 / 1.60.0 のみ**。→ 本プロジェクトは公式型を一度も消費しておらず、
+   global.d.ts の frontend-types import は常に未解決だった（`tsc --traceResolution` 実測:
+   「was not resolved」）。TS2307 にならなかったのは global.d.ts 自体が .d.ts で
+   `skipLibCheck: true` が宣言ファイル内のエラーを握り潰すため（vue-tsc は exit 0）。
+2. **1.59+/1.60 の `Settings` は閉じた type alias**（~160 リテラルキー・index signature 無し・
+   declaration merging 不能）→ カスタム "ModelManager.*" キーは `keyof Settings` を原理的に満たせない
+   （PR #93=1.59.1 の 10+ エラーの根因）。しかも addSetting の deprecation ドキュメント自身の例
+   （`id: 'My.Setting'`）が自前型を通らない = **上流の型設計が拡張ユースケースと矛盾**。
+3. **公式エスケープハッチは 1.57 ランタイムに既に存在**: `app.extensionManager.setting.get/set` は
+   string ベース（v1.57.6 の src/types/extensionTypes.ts に「Custom extensions declare settings
+   outside the generated schema」コメント付きで実在）。1.60 d.ts の ExtensionManager 成員は
+   v1.57.6 ソースに全て存在（renderMarkdownToHtml 含む・差分実測）。
+4. **≥1.58 の d.ts は未宣言依存へ import**（@comfyorg/object-info-parser / ingest-types /
+   account-core / billing-contract / vue-component-type-helpers）→ 追加 devDep 無しでは
+   ComfyNodeDef 等が any に劣化（skipLibCheck で不可視）。
+5. **チャネル現実**: npm `latest` = 1.57.6、ComfyUI stable v0.43.0 の requirements は
+   `comfyui-frontend-package==1.57.4`、master は `==1.57.6` = **ユーザのランタイムは 1.57.x**。
+   上流は publish パイプラインを修正中（issue #12236 open・PR #20164 merged・PR #22490 open）。
+
+**決定**: 移行は実施せず、**整合チャネル 1.57.x に留まり 1.57.6 へ更新**。≥1.58 ignore は維持し、
+根拠コメントを上記実測で全面改訂（推測で移行すると「型チェックが通るのにランタイムで壊れる」
+方向のリスクを負う — 1.58+ 型は stable ランタイムに無い API を記述するため）。
+**移行トリガー**（いずれか発火時に再評価）: (T1) ComfyUI stable が frontend ≥1.58 を同梱 /
+(T2) npm latest が ≥1.58 に転換 / (T3) 上流が 1.57 線に型を復活 or Settings に拡張ポイントを
+追加（interface 化・index signature・augmentation 機構）/ (T4) frontend-types のセキュリティ必要。
+**移行ドラフト**（着手時の起点）: get/set 呼び出しを `app.extensionManager.setting.get<T>/set` へ
+（1.57.x ランタイム互換は実測済み）; addSetting の移行先（registerExtension の settings フィールド）は
+**1.57.x ランタイムでの消費有無が未検証 = 着手時に最初に検証**; ComfyNodeDef の実型には
+object-info-parser devDep の追加が必要。
+
+**バンプ実装**: `pnpm add -D @comfyorg/comfyui-frontend-types@1.57.6` — peer 解決（vue 3.5.44 /
+zod 4.6.7）不変、lockfile diff は version+integrity のみ。1.57.3↔1.57.6 の型定義は
+「両方空」で差分ゼロ → vue-tsc 緑・**バンドル byte-identical（cmp 実測）** = web/ 変更不要。
+`minimumReleaseAgeExclude` の stale エントリ（1.57.3）を削除し機構をコメント化: pnpm 12 の既定
+`minimumReleaseAge` は **1440 分（1 日）**（公式ドキュメント確認）で、1.57.6 は公開 4 日経過 =
+既定ポリシーを素通り（「Lockfile passes supply-chain policies (491 entries)」の**再検証**で実測）。
+exclude は「公開 24 h 以内の版をセキュリティ都合で即日入れる」場合のみ必要（前例 b738442:
+1.57.3 は公開 ~10 h 後インストール）。
+
+### UV_MALWARE_CHECK の native.yml 展開（監視項目 — 期限到来）
+
+ci.yml への 2026-10-07 導入（630e6bd）から **24 日 clean**（≥2 週の展開条件を満たす）→
+native.yml の 8 つの `uv pip install` ステップへ `UV_MALWARE_CHECK: "1"` を展開
+（cross toolchain ×2 / loader regression / maturin ×2 / python test deps / torch cross-check /
+zipnn L5）。先頭ブロックに完全な rollback 規程コメント、他 7 箇所は参照 1 行。
+**zizmor ignore 行番号を規程どおり更新**（env 挿入で native.yml が +25 行シフト;
+cache-poisoning 11 件のうち 483→496 / 496→509 / 597→612 / 610→625 / 844→861 / 992→1015 /
+1086→1109 / 1098→1121、136/285/299 は不変）。更新前の `zizmor --offline` 再実行で 7 件が
+新行番号に再出現 = **文書化された fail-safe 挙動の実演**（正当性 unchanged を確認して更新）。
+展開後: zizmor offline 緑「No findings（13 ignored）」、actionlint v1.7.12 緑。
+native.yml 初回 run の緑をこのプッシュで確認すること（失敗/stall なら同一セッションで除去）。
+
+### ゲート実測サマリ（このセッション）
+
+uv lock --check 緑 / ruff 0.17.2 check+format 緑 / vue-tsc 緑 / vite build 5.31 s /
+K15 PASS（keystroke p95 **3.14 ms** ≤ 16 ms・rowsAreIdentical・tensorTreeParity true・
+証跡は `--json-out /tmp/phase6_front_20261031.json` で非汚染）/ zizmor 1.31.1 offline 緑 /
+osv-scanner **2.7.0**（security.yml の action pin と一致）4 lockfile「No issues found」
+（3 filter 適用: RUSTSEC-2025-0141 / RUSTSEC-2024-0436 / GHSA-g3hv-75wg-m249）/
+actionlint 全 5 ワークフロー緑。
+
+### 監視リスト更新（§15 を override）
+
+- **frontend-types**: 「1.57.3 固定」→「**1.57.6・トリガー待ち**」に状態変更（上記 T1–T4）。
+  dev のピンは npm latest と ComfyUI master pin の両方に整合。
+- **UV_MALWARE_CHECK**: 展開完了。ci.yml+native.yml の両方で観察継続（rollback 規程は同一）。
+- 変更なし: minimatch ignore 期限 2026-12-15 / osv ignore 期限（httpx2 系 2027-01-07・
+  certifi 2027-01-24）/ uv audit 昇格（preview 継続中のため観察のまま）/ zizmor
+  cache-poisoning ignore の再評価（次回 zizmor リリース時）。
+- 次回 dev→main マージ時（ユーザ）: dependabot ignore コメント改訂 + UV_MALWARE_CHECK 展開 +
+  frontend-types 1.57.6 + 定期便 11 本が main へ入る（native-bin publish 再ビルド対象は
+  Cargo.lock 3 件: zenwebp 0.4.6 / memmap2 0.9.12 / crc32fast 1.5.3）。

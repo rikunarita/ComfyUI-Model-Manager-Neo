@@ -45,12 +45,31 @@ updates:
       # project-wide). Dependabot cannot move the pin and the override
       # together, so TypeScript updates stay a manual, coordinated edit.
       - dependency-name: typescript
-      # frontend-types 1.58 REDESIGNED the Settings types: the extension's
-      # custom "ModelManager.*" setting keys no longer satisfy `keyof Settings`
-      # and typecheck fails (evidence: PR #93, 2026-10-31 — 10+ type errors
-      # across src/hooks/*, App.vue, DialogCreateTask.vue). Adopting >= 1.58
-      # requires a dedicated type migration in src/ (tracked in Agent/MEMO.md
-      # §15); remove this ignore once that migration lands. 1.57.3 stays.
+      # frontend-types >= 1.58 is blocked on UPSTREAM, re-verified 2026-10-31
+      # with measured evidence (full analysis + migration triggers:
+      # Agent/MEMO.md §16):
+      #   1. Every release <= 1.58.0 is an EMPTY STUB — tarballs contain only
+      #      LICENSE + package.json; the declared index.d.ts is absent
+      #      (measured: 1.50.0, 1.54.9, 1.55.18, 1.57.0–1.57.6, 1.58.0).
+      #      Real declarations first shipped in 1.58.1 / 1.59.1 / 1.60.0.
+      #   2. In >= 1.58, `Settings` is a CLOSED type alias (~160 literal
+      #      ComfyUI keys; no index signature, no declaration merging), so
+      #      the extension's custom "ModelManager.*" keys cannot satisfy
+      #      `keyof Settings` (PR #93 on 1.59.1: 10+ typecheck errors across
+      #      src/hooks/*, App.vue, DialogCreateTask.vue). Upstream's own
+      #      deprecation example (`id: 'My.Setting'`) fails their own type.
+      #   3. The >= 1.58 index.d.ts imports undeclared deps
+      #      (@comfyorg/object-info-parser, ingest-types, account-core,
+      #      billing-contract, vue-component-type-helpers) — ComfyNodeDef &
+      #      friends silently degrade to `any` without extra devDeps.
+      #   4. Runtime alignment: ComfyUI stable (v0.43.0) ships
+      #      comfyui-frontend-package 1.57.4, master pins 1.57.6, and npm's
+      #      `latest` dist-tag IS 1.57.6 — users run the 1.57.x frontend,
+      #      whose API the >= 1.58 types do not describe.
+      # The pin stays on the aligned 1.57.x channel (now 1.57.6). Remove this
+      # ignore when a MEMO §16 trigger fires (stable ComfyUI ships >= 1.58,
+      # npm latest flips, upstream restores 1.57-line types, or adds a
+      # Settings extension point).
       - dependency-name: "@comfyorg/comfyui-frontend-types"
         versions: [">= 1.58"]
 

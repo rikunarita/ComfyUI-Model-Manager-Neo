@@ -3,8 +3,17 @@ allowBuilds:
   vue-demi: true
   unrs-resolver: true
 
-minimumReleaseAgeExclude:
-  - "@comfyorg/comfyui-frontend-types@1.57.3"
+# minimumReleaseAgeExclude: (entry removed 2026-10-31)
+#   pnpm 12 defaults minimumReleaseAge to 1440 min (1 day): versions published
+#   less than a day ago cannot be installed. The previous entry
+#   ("@comfyorg/comfyui-frontend-types@1.57.3") existed only to allow the
+#   SAME-DAY security bump during the 2026-10-23 advisory wave (1.57.3 was
+#   published ~10 h before install, commit b738442). The pin has since moved
+#   to 1.57.6 (>1 day old — the default policy passes with no exclude), so
+#   the entry was stale. If a future security fix ever needs a same-day
+#   install again, re-add "<pkg>@<exact version>" here for the duration of
+#   the bump (fail-safe: without the entry, pnpm simply refuses the young
+#   version — the gate tells us when an exclude is actually required).
 
 overrides:
   # @comfyorg/comfyui-desktop-bridge-types override removed 2026-09-30:

@@ -99,7 +99,7 @@ jobs:
       # run 39410895221, 2026-10-20). Bump the ACTION and the zizmor pin
       # TOGETHER (v0.7.1 tracks the zizmor 1.31.x line).
       # online-audits adds the API-backed audits (ref confusion & co).
-      - uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
+      - uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
         with:
           version: "1.31.1"
           online-audits: true

@@ -39,7 +39,7 @@ jobs:
           node-version: 26.10.0
           cache: pnpm
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
@@ -50,7 +50,7 @@ jobs:
       # __init__.py -> utils.pip_install still run inside the USER's ComfyUI
       # Python, where uv cannot be assumed. `enable-cache` persists uv's
       # download cache (keyed on requirements.txt / pyproject.toml / uv.lock).
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
 
@@ -64,7 +64,7 @@ jobs:
           # rule (Agent/MEMO.md §11): ANY failure or stall attributable to
           # this env removes it in the same session.
           UV_MALWARE_CHECK: "1"
-        run: uv pip install --system -r requirements.txt mypy ruff==0.17.1 pytest pytest-asyncio aiohttp pyyaml requests pillow
+        run: uv pip install --system -r requirements.txt mypy ruff==0.17.2 pytest pytest-asyncio aiohttp pyyaml requests pillow
 
       # Observation slot (Agent/MEMO.md §11): uv audit — the uv-native
       # dependency audit (OSV backend, reads uv.lock directly; Astral

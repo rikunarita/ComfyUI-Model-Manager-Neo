@@ -133,7 +133,7 @@ jobs:
       # verification runs of this workflow — they must NOT read previously
       # cached CI state (cold build is the point); push/PR/dispatch keep the
       # cache with the unchanged save-if write policy below.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native
@@ -142,7 +142,7 @@ jobs:
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
       # pyo3's build script wants a Python interpreter present.
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
@@ -282,7 +282,7 @@ jobs:
       # verification runs of this workflow — they must NOT read previously
       # cached CI state (cold build is the point); push/PR/dispatch keep the
       # cache with the unchanged save-if write policy below.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native
@@ -290,19 +290,30 @@ jobs:
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
       # Phase 7 T4: uv replaces pip in the CI layer (drop-in
       # `uv pip install --system` against the setup-python interpreter).
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
           # (release verification builds cold); unchanged elsewhere.
           enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install cross toolchain (pinned)
+        env:
+          # UV_MALWARE_CHECK trial EXPANDED from ci.yml (2026-10-31): the
+          # ci.yml observation slot ran 24 days clean since 2026-10-07,
+          # satisfying the two-week expansion condition (Agent/MEMO.md
+          # §11). Asks OSV for known MAL (malicious-package) advisories
+          # during uv operations, blocking quarantined PyPI distributions
+          # before they execute. Same rollback rule as ci.yml: ANY failure
+          # or stall attributable to this env removes it in the same
+          # session. The one-line copies in the other uv steps reference
+          # this block.
+          UV_MALWARE_CHECK: "1"
         run: |
           set -euo pipefail
           uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0 maturin==1.15.0
@@ -387,6 +398,8 @@ jobs:
       # zigbuild binary — the loader's auto path (platform tag -> native-bin
       # -> import -> api_version handshake) is covered end to end.
       - name: Loader regression tests against the built artifact
+        env:
+          UV_MALWARE_CHECK: "1" # MAL-block expansion — rollback rule: see the native-build-linux toolchain step
         run: |
           # markdownify + pillow are module-level imports of py/information.py, which
           # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
@@ -401,7 +414,7 @@ jobs:
       # the 3.15 final GIL (PyO3 requires host >= target; D4 settled
       # 2026-10-13 — 3.15.0 stable landed in the runner manifest, and the
       # ABI froze at rc1, so the swap was label-only).
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py315
         with:
           python-version: "3.15"
@@ -425,7 +438,7 @@ jobs:
             fi
           done
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py315t
         with:
           python-version: "3.15"
@@ -480,7 +493,7 @@ jobs:
       # verification runs of this workflow — they must NOT read previously
       # cached CI state (cold build is the point); push/PR/dispatch keep the
       # cache with the unchanged save-if write policy below.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native
@@ -488,18 +501,20 @@ jobs:
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
       # Phase 7 T4: uv replaces pip in the CI layer.
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
           # (release verification builds cold); unchanged elsewhere.
           enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install maturin (pinned)
+        env:
+          UV_MALWARE_CHECK: "1" # MAL-block expansion — rollback rule: see the native-build-linux toolchain step
         run: uv pip install --system maturin==1.15.0
 
       # macOS ships NON-PGO — decision (c), executed on the
@@ -531,7 +546,7 @@ jobs:
       # 3.15 final. The wheel naming check is done by build-native.sh's
       # cp315*abi3t* glob + the
       # .abi3t.so extraction (both fail loudly on a mismatch).
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py315
         with:
           python-version: "3.15"
@@ -542,7 +557,7 @@ jobs:
       - name: Verify universal2t fat binary
         run: lipo -info native/native-bin/macos-universal2t/mm_core.abi3t.so
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py315t
         with:
           python-version: "3.15"
@@ -594,7 +609,7 @@ jobs:
       # verification runs of this workflow — they must NOT read previously
       # cached CI state (cold build is the point); push/PR/dispatch keep the
       # cache with the unchanged save-if write policy below.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native
@@ -602,18 +617,20 @@ jobs:
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
       # Phase 7 T4: uv replaces pip in the CI layer.
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
           # (release verification builds cold); unchanged elsewhere.
           enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install maturin (pinned)
+        env:
+          UV_MALWARE_CHECK: "1" # MAL-block expansion — rollback rule: see the native-build-linux toolchain step
         run: uv pip install --system maturin==1.15.0
 
       # maturin --pgo (three-phase flow; the
@@ -631,7 +648,7 @@ jobs:
       # t artifact is separated ONLY by its windows-x86_64t directory (the
       # upload below carries the
       # directory structure and the publish staging is directory-tag-first).
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py315
         with:
           python-version: "3.15"
@@ -639,7 +656,7 @@ jobs:
       - name: Build windows-x86_64t (MSVC, abi3t, non-PGO)
         run: ./scripts/build-native.sh --target windows-x86_64t --size-gate
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py315t
         with:
           python-version: "3.15"
@@ -695,7 +712,7 @@ jobs:
             freethreaded: true
             tag: linux-x86_64t
     steps:
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
           freethreaded: ${{ matrix.freethreaded }}
@@ -833,7 +850,7 @@ jobs:
           # credentials; keep none persisted on the runner.
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
           freethreaded: ${{ matrix.freethreaded || false }}
@@ -841,7 +858,7 @@ jobs:
       # Phase 7 T4: uv replaces pip in the CI layer. The torch CPU wheel
       # (~200 MB) install below is where uv's resolve+install speedup and the
       # download cache pay off the most.
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
           # (release verification builds cold); unchanged elsewhere.
@@ -900,6 +917,8 @@ jobs:
             python -c "import mm_core; print('integration import OK:', mm_core.api_version(), mm_core.core_version())"
 
       - name: Python test dependencies
+        env:
+          UV_MALWARE_CHECK: "1" # MAL-block expansion — rollback rule: see the native-build-linux toolchain step
         run: # markdownify + pillow are module-level imports of py/information.py, which
           # py/search.py (and therefore the Phase-6 A3 mock tests) pulls in.
           # On the 3.15t cell, pillow DOES ship cp315t wheels while aiohttp and
@@ -922,6 +941,8 @@ jobs:
       # The CPU wheel index keeps the install small (no CUDA payload).
       - name: Torch cross-check dependencies (ubuntu GIL cell only)
         if: matrix.tag == 'linux-x86_64'
+        env:
+          UV_MALWARE_CHECK: "1" # MAL-block expansion — rollback rule: see the native-build-linux toolchain step
         run: |
           uv pip install --system numpy safetensors blake3
           uv pip install --system torch --default-index https://download.pytorch.org/whl/cpu
@@ -955,6 +976,8 @@ jobs:
       # pip-installed UPSTREAM zipnn 0.5.4 (source build on the runner).
       - name: L5 official-zipnn cross-validation (ubuntu GIL cell only)
         if: matrix.tag == 'linux-x86_64'
+        env:
+          UV_MALWARE_CHECK: "1" # MAL-block expansion — rollback rule: see the native-build-linux toolchain step
         run: |
           uv pip install --system zipnn==0.5.4
           python3 scripts/l5/official_cross.py
@@ -989,7 +1012,7 @@ jobs:
       # the default branch, so it keeps writing there.)
       # cache-poisoning hardening (zizmor): no cache read on tag runs — see
       # the native-test rust-cache comment.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native/crates/znn-codec/fuzz
@@ -1083,7 +1106,7 @@ jobs:
       # verification runs of this workflow — they must NOT read previously
       # cached CI state (cold build is the point); push/PR/dispatch keep the
       # cache with the unchanged save-if write policy below.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
           workspaces: native
@@ -1091,17 +1114,19 @@ jobs:
             ${{ github.event_name != 'pull_request' &&
             (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           # cache-poisoning hardening (zizmor): uv cache disabled on tag runs
           # (release verification builds cold); unchanged elsewhere.
           enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install cross toolchain (pinned, same as native-build-linux)
+        env:
+          UV_MALWARE_CHECK: "1" # MAL-block expansion — rollback rule: see the native-build-linux toolchain step
         run: uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0
 
       # 1/6 — instrumented build. Host-native (not zigbuild): the training run
