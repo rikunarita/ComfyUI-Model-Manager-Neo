@@ -867,7 +867,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   ci.yml 相当（成果物なし）では成果物依存テストが設計どおり skip。
 - **fuzz 7 ターゲット**（週次日曜 18:00 UTC）。**L5（公式 zipnn 0.5.4 との
   双方向クロス検証）が恒久の互換性ゲート**。
-- **ツールチェーン**: CI は Node 26.10.0 / pnpm 12.8.1 / ruff 0.17.0 /
+- **ツールチェーン**: CI は Node 26.10.0 / pnpm 12.8.1 / ruff 0.17.1 /
   mypy（pyproject 統合）/ uv。Python floor 3.12・CI の解釈系セルは
   3.12 / 3.14 / 3.15（final・2026‑10‑13 着弾、+ free‑threaded）。
 - `third_party/` は撤去済み = **mm_core 単一エンジン**。読み取り系経路には
@@ -1346,3 +1346,47 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   脆弱性は version updates 便（cooldown 付き）を待たず手動 bump する**。
   ③ コミット直後のアラート増加は「修正のマージ」と「掲載のタイミング」が
   同時だと誤認されやすい — SBOM とアラートの created_at で因果を確定する。
+
+---
+
+## §15 セッション 2026-10-31 — 10-26 定期便 5 PR の審査・マージと frontend-types 型非互換の分離、minimatch accept
+
+### 前ターン(§14)残件の確認結果(全て解消)
+
+- fuzz-long: 週次 run(10-25, dev tip 2dcf9e4)が**全ターゲット success** = 10-24 の delta_decompress 失敗は一過性(runner cancellation 分類が正しかった)ことを証明。
+- dev→main: ユーザが PR #87 でマージ済み(publish bot が native-bin 再ビルド 2dcf9e4)。main の Scheduled/Security 緑。
+- code-scanning アラート 0 / Dependabot アラート 0(§14 の pillow 9 件は SBOM 再計算後に予測通り自動クローズ)。
+
+### 10-26(月)定期便 5 PR — 審査・マージ
+
+- **#89** sha2 0.11.0→0.11.1(/native・Cargo.lock のみ): パッチ。native フルマトリクス緑(build+size+import+integration+fuzz-smoke)。マージ ed46a94。
+- **#91** modelscope-hub 0.4.5→0.4.6(uv.lock のみ): 実行時依存だが **floor(>=0.4.3)不変 → D10 の requirements.txt 同期は対象外**(files 実測で pyproject 無変更を確認)。マージ 6b61471。
+- **#90** ruff 0.17.0→0.17.1(pyproject+uv.lock): マージ 65769c9 + 恒例の同期フォロー db6188d(ci.yml ピン/README×4 バッジ/§6)。0.17.1 をローカル導入し CI 同一スコープで check「All checks passed」/format「45 files already formatted」= パッチ版ドリフト無しを実測。
+- **#88** production group: vue 3.5.43→3.5.44(フレームワーク本体パッチ)/@lucide/vue 1.55.0→1.59.0/vue-i18n 11.4.14→11.4.16。マージ f1f51ff。web/ 再ビルドは #93 系と合算で 1 回(下記)。
+- **#92→#93** development group: 初回(#92, 5 更新)は #88 と lockfile 競合 → `@dependabot rebase` → close→**#93 として再生成(7 更新)**。
+
+### #93 の verify 失敗と frontend-types 型非互換の分離(重要)
+
+#93 の verify/**Typecheck** が失敗。根因は @comfyorg/comfyui-frontend-types **1.58 の Settings 型再設計**: 本拡張のカスタム設定キー("ModelManager.UI.CardSize" 等)が `keyof Settings` に代入不能(src/hooks/config.ts・collections.ts・autoCompress.ts・App.vue・DialogCreateTask.vue で 10+ 件)。**>=1.58 の採用には src/ 側の型移行が別途必要**。グループ PR は全か無かのため:
+
+1. **#93 をクローズ**(理由コメント付き)。
+2. **dependabot.yml に ignore 追加**(b9db5c6): `@comfyorg/comfyui-frontend-types versions: [">= 1.58"]` — 毎週のグループ PR が同理由で失敗し続けるのを防ぐ。**main マージ後に有効化**(dependabot.yml は既定ブランチ基準)。
+3. **互換 6 点を手動バンプ**(63bb218): dependency-cruiser 18.7.0 / eslint 10.13.0 / fallow 3.35.0 / postcss 8.5.31 / typescript-eslint 8.72.0 / vite 8.3.5(公開日 7 日+ を全数確認 = cooldown 自己適用)。#88 と合算で web/ を 1 回だけ再ビルド: バンドル **961.37→921.37 kB(gzip 289.97→276.82)** — lucide 1.59 系のツリーシェイク改善+vite 8.3.5 最適化と推定。ローカル全ゲート緑(lint/typecheck/stylelint/fallow dead+dupes/format/build/K15 passed・keystrokeP95 2.86ms・rowsIdentical・証跡 JSON 非破壊/depcruise 18.7.0 は Node 22 で 139 modules・418 deps・違反 0)。
+4. **残作業(次セッション or ユーザ)**: frontend-types 1.59.x への型移行(src/types/global.d.ts の augmentation を新 Settings 型へ合わせ、hooks/App.vue の呼び出しを移行)→ 完了後に ignore 削除 → Dependabot に再提案させる。移行は機能変更を伴わない型レベルの作業と推定されるが、frontend-types 1.58 の型差分を読んでから着手すること(推測での移行は禁止)。
+
+### minimatch CVE-2026-118764 — accept 判断(cba3a93)
+
+マージ後 dev の osv-full が赤化。新規 advisory: minimatch 10.2.6(**既存の推移的 dev 依存** — 今回の PR 群が持ち込んだものではない)に GHSA-g3hv-75wg-m249(MEDIUM・CVSS4 は **VA:L のみ**): optimizationLevel>=2 で攻撃者制御の glob パターンが firstPhasePreProcess() で globParts 増幅 DoS。修正は **11.0.1(MAJOR)のみ**で、ツリー内 5 箇所 の親(@eslint/config-array 0.23.5 は ^10.2.4 要求 = 最新でも未対応)が全て ^10 宣言 = **in-range 修正が存在しない**。
+**accept 決定**(braces 前例と同型・根拠を osv-scanner.toml に明記): dev 専用チェーン(eslint/dependency-cruiser/fallow)・出荷バンドル非含有(grep 実測)・本プロジェクトの glob パターンは全てリポジトリ所有設定で攻撃者入力にならない・major 強制 override は lint/依存グラフゲートの沈黙的意味変化リスクの方が大きい。`ignoreUntil = 2026-12-15`(短め)+再レビュートリガー(親の minimatch>=11.0.1 採用/期限/パターン入力の攻撃者制御化)。
+**併せて braces ignore(GHSA-vfj7-8cjw-p6xm)を削除**: lock 進化で unused 化(osv-scanner が「unused ignores」警告)。再発時はゲートが捕まえる fail-safe 方向の掃除。→ 修正後スキャン「No issues found」。
+
+### 環境メモ(追記)
+
+- dependency-cruiser の bin 実体は `node_modules/dependency-cruiser/bin/dependency-cruiser.mjs`(**dependency-cruise.mjs ではない** — 1 文字違いで MODULE_NOT_FOUND)。`node_modules/.bin/depcruise` はシェルシムなので node に直接食わせない。Node 22 は公式 tarball を /tmp 展開で運用(§2.2 の既定手順)。
+
+### 監視リスト更新
+
+- **frontend-types 型移行**(上記残作業)— 完了まで dev の frontend-types は 1.57.3 固定。
+- **minimatch ignore 期限 2026-12-15** — 期限前に親チェーンの minimatch 11 採用有無を再確認。
+- 次回 dev→main マージ時: dependabot ignore(b9db5c6)の有効化 + sha2 0.11.1 を含む native-bin の publish 再ビルド。
+- 既存: UV_MALWARE_CHECK の native.yml 展開 / uv audit 昇格 / osv ignore 期限(2027-01-07 httpx2 系・2027-01-24 certifi)/ zizmor cache-poisoning ignore の再評価(次回リリース時)。

@@ -12,18 +12,26 @@
 # as narrow as the mechanism allows (advisory-ID or package@version scoped),
 # so any NEW advisory on the same package still fails the scan.
 
-# --- npm: braces (build toolchain only) -----------------------------------
-# CVE-2026-93687 / GHSA-vfj7-8cjw-p6xm (HIGH, CVSS 8.7): stack-exhaustion DoS
-# through deeply nested brace-expansion patterns. OSV reports NO fixed version
-# (last_affected 3.0.3 — queried 2026-10-07). braces enters the tree only
-# through dev/build tooling (micromatch chains of the eslint/tailwind/vite
-# stack); it is never shipped in web/ and never expands untrusted input — the
-# patterns are literals from this repository's own config/source.
-# On expiry: re-query OSV; extend only while no fixed version exists.
+# --- npm: minimatch (dev toolchain only — eslint/dependency-cruiser chain) --
+# CVE-2026-118764 / GHSA-g3hv-75wg-m249 (MEDIUM, CVSS4 VA:L only): DoS via
+# globParts amplification in firstPhasePreProcess() when optimizationLevel >= 2
+# — i.e. through ATTACKER-CONTROLLED GLOB PATTERNS. Fixed only in minimatch
+# 11.0.1 (MAJOR); every parent in the tree (@eslint/config-array via eslint,
+# dependency-cruiser, fallow — all devDependencies) declares ^10, and the
+# latest @eslint/config-array (0.23.5) still requires ^10.2.4, so no in-range
+# fix exists upstream yet. Forcing the major across five tool packages would
+# risk silent semantic changes in the lint/import-graph gates for an
+# availability-only, dev-only issue whose attack surface (pattern strings) is
+# exclusively repository-owned configuration in this project — never
+# attacker-supplied. minimatch is NOT in the shipped web/ bundle (grep-
+# verified 2026-10-31). Same accept shape as the former braces entry.
+# Re-review triggers: (a) any parent adopts minimatch >= 11.0.1 (Dependabot
+# will surface it), (b) expiry below, (c) any pattern input becoming
+# attacker-controlled. On expiry, re-query OSV before extending.
 [[IgnoredVulns]]
-id = "GHSA-vfj7-8cjw-p6xm"
-ignoreUntil = 2027-01-07
-reason = "No upstream fix (last_affected 3.0.3); build-time-only dependency, expansion patterns are repository literals, not untrusted input."
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2026-12-15
+reason = "Dev-only DoS (CVSS4 VA:L) needing attacker-controlled glob patterns; this repo's patterns are repository-owned config. No in-range fix (parents declare ^10; upstream config-array 0.23.5 requires ^10.2.4). Not in the shipped bundle. Forced major override deemed riskier than the finding for the lint/deps gates."
 
 # --- PyPI: httpx2/httpcore2 floor-resolution artifacts --------------------
 # requirements.txt is the loose-floor RUNTIME CONTRACT (kept in sync with
