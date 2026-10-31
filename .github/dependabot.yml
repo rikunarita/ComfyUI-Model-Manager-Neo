@@ -45,6 +45,14 @@ updates:
       # project-wide). Dependabot cannot move the pin and the override
       # together, so TypeScript updates stay a manual, coordinated edit.
       - dependency-name: typescript
+      # frontend-types 1.58 REDESIGNED the Settings types: the extension's
+      # custom "ModelManager.*" setting keys no longer satisfy `keyof Settings`
+      # and typecheck fails (evidence: PR #93, 2026-10-31 — 10+ type errors
+      # across src/hooks/*, App.vue, DialogCreateTask.vue). Adopting >= 1.58
+      # requires a dedicated type migration in src/ (tracked in Agent/MEMO.md
+      # §15); remove this ignore once that migration lands. 1.57.3 stays.
+      - dependency-name: "@comfyorg/comfyui-frontend-types"
+        versions: [">= 1.58"]
 
   # ---- Rust native core (native/Cargo.lock) --------------------------------
   - package-ecosystem: cargo
