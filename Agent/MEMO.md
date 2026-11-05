@@ -1511,3 +1511,77 @@ actionlint 全 5 ワークフロー緑。
 - 次回 dev→main マージ時（ユーザ）: dependabot ignore コメント改訂 + UV_MALWARE_CHECK 展開 +
   frontend-types 1.57.6 + 定期便 11 本が main へ入る（native-bin publish 再ビルド対象は
   Cargo.lock 3 件: zenwebp 0.4.6 / memmap2 0.9.12 / crc32fast 1.5.3）。
+
+## §17 セッション 2026-11-05 — 全文書の精読、dev tip 全緑の再確認、計画文書の不在、Axum/utoipa の実測プローブ
+
+### 精読した文書（全文）
+
+`README.md`（1,094 行）・`Agent/MEMO.md`（§1–§16）・`Agent/environment-report.md`（§1–§11）・
+`docs/BENCH.md`（1,320 行）。以下に記す数値・規程はすべて上記の記載を一次情報として引用し、
+新たな推測は行っていない。
+
+### dev tip の状態（2026-11-05、GitHub API 実測）
+
+dev tip = **`d0945e0`**（push 2026-10-31 16:51Z / PR #106 17:09Z）。`d0945e0` 以降 dev への
+push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ。
+
+| ワークフロー  | 直近 run（dev）                    | 結果                                                                                                                              |
+| ------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| CI            | #451（push）/ #452（pull_request） | success / success                                                                                                                 |
+| native        | #367（push）/ #368（pull_request） | **18 ジョブ = 16 success + 2 skipped**（`pgo-measure` は dispatch 限定、`publish-native-bin` は main 限定 = 設計どおり）/ success |
+| Security      | #135 / #136                        | success / success                                                                                                                 |
+| cache-cleanup | #80                                | success                                                                                                                           |
+| fuzz-long     | #15（main・schedule 2026-11-01）   | success（週次 7 ターゲット）                                                                                                      |
+
+- native #367 の 16 success の内訳: build ×3・native-test ×3・abi3-import ×4・
+  integration ×4（`linux-x86_64` / `linux-x86_64t` × 3.15t / windows / macOS）・size-budget・fuzz-smoke。
+- アラート: **code-scanning 0 件 / Dependabot 0 件**（API 実測）。
+- 未マージの Dependabot 定期便 3 件（#107 notify 8.2.1 / #108 pytest-asyncio 1.4.1 /
+  #109 fallow 3.36.0）はいずれも check-runs 26 = **23 success + 3 skipped** で緑。
+- 「run 2 / 全 5 ターゲット」に一致する run は**このリポジトリに存在しない**（dev の最終 push は
+  2026-10-31）。「5 ターゲット」に一致する既存記録は BENCH §5 / KPI K16 の **Phase 0 ネイティブ
+  成果物（4 プラットフォーム 5 ターゲット）**のみ。
+
+### 計画文書（Plan.md）の所在 — ツリーに存在しない
+
+- `git log --all --diff-filter=AD -- '*Plan*'` の最終は **`148f3ba`（Plan-4.md 削除・全 Step 完了）**。
+  以降 Plan*.md を追加したコミットは 0 件で、`dev`・`main`・Dependabot 8 ブランチのいずれにも無い。
+- 過去計画の Phase 3（デルタ圧縮 + バッチプリミティブ）は **2026-09-25 に完了済み**で、証跡は
+  BENCH §8 にある（§5.1 のとおり Plan.md は既に削除済み）。よって「Phase 2 / Phase 3」は
+  **新規の計画文書**を指すと判断されるが、その本文が無い状態では実装内容を確定できない。
+  **推測による計画の再構成はしない**（§1.2 の一次ソース主義に反するため）→ Phase 3 は保留。
+
+### Axum / utoipa の導入可否 — 実測プローブ（2026-11-05、本サンドボックス）
+
+方法: `native/Cargo.toml` の release プロファイルと同一（`panic="unwind"`・`lto="fat"`・
+`codegen-units=1`・`opt-level=3`・`strip=true`）、`crate-type=["cdylib"]`、pyo3 0.29.2
+（`extension-module` + `abi3-py312`）。サイズは strip 後の `.so` 実測、クレート数は
+`cargo tree -e normal` の一意クレート数。各プローブは 1 ルート以上を実際に構築し、
+サーバ系は **ephemeral port で listen させて** DCE による過小評価を避けた。
+
+| プローブ         | 内容                                                                                                      | サイズ                       | クレート |
+| ---------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------- | -------- |
+| p-pyo3           | pyo3 abi3 のみ（基準）                                                                                    | 321,640 B（0.31 MiB）        | 12       |
+| p-mmc-utoipa     | pyo3 + utoipa（`components.schemas` のみの文書を出力）                                                    | 514,656 B（**+0.18 MiB**）   | 24       |
+| p-mmc-axum-live  | pyo3 + axum 0.8 + tokio + utoipa + tower-http（fs/trace/gzip/cors/limit）・5 ルート + 静的配信、実 listen | 1,656,016 B（**+1.27 MiB**） | 87       |
+| p-axum-utoipa-ui | utoipa-swagger-ui 10（Swagger UI 資産の埋め込み）                                                         | 5,304,616 B（5.06 MiB）      | 62       |
+| p-reqwest        | reqwest 0.13.5（既定 features = rustls 系）                                                               | 4,434,184 B（4.23 MiB）      | 96       |
+
+- reqwest の実測は §4.3 の記録（最小プローブ cdylib 4.9 MB・167 crates）と同オーダーで、
+  当時の測定手順が再現することを確認した（バージョン差・feature 差の範囲）。
+- **サーバ側スタックそのものは安い**（+1.27 MiB）。ただし現行 linux-x86_64 の PGO 成果物は
+  4,122,976 B（BENCH §13.3）なので、単純加算で **≈5.46 MB > 本別ゲート 5,242,880 B**、
+  8 本合計も 34.98 MiB → **≈45 MiB で 40 MB 目安を超過**する。Python 側ハンドラを置き換えても
+  Python コードはバイナリに入らないため、この増分は相殺されない。Swagger UI の同梱（5.06 MiB）は
+  単体で予算を超える。
+- **アーキテクチャ面（ComfyUI master `server.py` を一次確認）**: 独自ノードのルートは
+  `PromptServer.instance.routes`（aiohttp `RouteTableDef`）に登録され、
+  `self.app.add_routes(self.routes)` で**単一の aiohttp app** に合流する。同 app は
+  origin/Host 検査（`create_origin_only_middleware` = cross-site 403）・CORS・offline CSP・
+  `compress_body`・`client_max_size`（アップロード上限）・TLS（`--tls-keyfile/--tls-certfile` の
+  `ssl_ctx.load_cert_chain`）・`web.TCPSite` の listen アドレスを担う。別ポートの Axum は
+  これらを全て迂回するか二重実装になり、フロントは ComfyUI と同一 origin から配信される。
+- 以上の実測に基づく判断の要旨（詳細はチャットで回答済み）: transport（aiohttp）は維持し、
+  **utoipa をスキーマの正**として `components.schemas` 文書を mm_core から供給、paths は Python 側で
+  合成して `/model-manager/openapi.json` として配信、ルート表との一致は CI の parity ゲートで
+  機械固定する形が、サイズ・セキュリティ・配布哲学のいずれとも衝突しない。
