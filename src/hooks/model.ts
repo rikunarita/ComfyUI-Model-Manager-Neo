@@ -30,7 +30,7 @@ import { compareText } from 'utils/modelFilter'
 import { dragAddModel } from 'utils/modelGrid'
 import { configSetting } from './config'
 
-export interface TreeNode {
+interface TreeNode {
   key?: string
   label?: string
   data?: any

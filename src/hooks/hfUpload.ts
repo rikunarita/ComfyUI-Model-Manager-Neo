@@ -12,7 +12,7 @@ import { api } from 'scripts/comfyAPI'
  * from looking frozen: the hashing pass alone can take minutes, and before
  * this the UI had nothing to show for it.
  */
-type HfUploadPhase = 'prepare' | 'hash' | 'upload'
+export type HfUploadPhase = 'prepare' | 'hash' | 'upload'
 
 interface HfProgressDetail {
   taskId?: string
