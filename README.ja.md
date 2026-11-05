@@ -820,6 +820,11 @@ ComfyUI 内部クリップボードへ複製する挙動はグラフ自身のコ
 
 - [`docs/BENCH.md`](docs/BENCH.md) — この README の性能に関する記述を支える
   計測記録。
+- [`Agent/Plan.md`](Agent/Plan.md) — 現行の作業規程: cargo の使い方
+  (`check` を常用・`test` は必要なときだけ・`clippy`/`rustfmt` で品質向上・
+  `build` は最終確認)、テスト配置、文書体系。
+- [`Agent/MEMO.md`](Agent/MEMO.md) — 開発記録: 何を作ったか・恒久規程・
+  技術知見・残件。
 - [`native/README.md`](native/README.md) — Rust ワークスペース: レイアウト・
   テストピラミッド・ファジング構成・プリビルドバイナリの生成方法。
 - [`SECURITY.md`](SECURITY.md) — 脆弱性の非公開報告手順・対象範囲の定義・

@@ -846,6 +846,11 @@ Further reading:
 
 - [`docs/BENCH.md`](docs/BENCH.md) — the measurement record behind every
   performance claim in this README.
+- [`Agent/Plan.md`](Agent/Plan.md) — the current working rules: cargo workflow
+  (`check` first, `test` only when needed, `clippy`/`rustfmt` for quality,
+  `build` for the final check), the test layout and the documentation map.
+- [`Agent/MEMO.md`](Agent/MEMO.md) — the project record: what was built, the
+  permanent regulations, the technical lessons and the remaining items.
 - [`native/README.md`](native/README.md) — the Rust workspace: layout, test
   pyramid, fuzzing setup and how the prebuilt binaries are produced.
 - [`SECURITY.md`](SECURITY.md) — how to report a vulnerability privately,

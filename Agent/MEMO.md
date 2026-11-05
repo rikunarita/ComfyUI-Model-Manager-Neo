@@ -8,13 +8,19 @@
 > [`../docs/BENCH.md`](../docs/BENCH.md)、開発環境の実測一次ソースは
 > [`environment-report.md`](environment-report.md) です。
 >
-> **計画文書の保存場所。** 4 つの計画書は全実装要件の完了に伴いツリーから
-> 削除されました。原文は git 履歴に完全な形で保存されており、
+> **計画文書の保存場所。** 実装計画 4 つ（NEO‑PLAN‑2026‑001〜004）は全実装要件の
+> 完了に伴いツリーから削除されました。原文は git 履歴に完全な形で保存されており、
 > `git show eb3a317:Agent/Plan.md`（同様に `Agent/Plan-2.md`・
 > `Agent/Plan-3.md`。Plan‑4.md は最終形が `git show dcd5624:Agent/Plan-4.md`）
 > で復元できます。本メモ内の「Plan §x.y」「Plan‑2 / Plan‑3 /
 > Plan‑4」「NEO‑PLAN‑2026‑00N」形式の参照は、これらの履歴文書の節を
 > 指します。
+>
+> **現行の作業規程文書（2026‑11‑05 作成）。** 完了済み計画とは別に、これからの
+> 実装を進めやすくするための living document として
+> [`Plan.md`](Plan.md)（NEO‑PLAN‑2026‑005 — cargo 使用最適化・`tests/` 管理・
+> 文書体系）を新設しました。恒久規程の正は本メモ §1.2 で、両者は同一コミットで
+> 同期します。
 >
 > **旧記録の参照について。** コード・CI・文書中の「第 N セッション」
 > 「MEMO 2026‑XX‑XX」という参照は、git 履歴に保存されている旧開発メモ
@@ -62,8 +68,10 @@
 
 ### 1.2 開発ワークフロー規程
 
-- **cargo 使用方針**: `check` を常用し、`test` は必要なときだけ、
-  clippy / rustfmt を品質向上に活用し、`build` は最終確認のみにします。
+- **cargo 使用方針**: `check` を常用し、`test` は必要なときだけ（`-p` /
+  テスト名フィルタで絞る）、clippy / rustfmt を品質向上に活用し、`build` は
+  最終確認のみにします。具体コマンド・push 前チェックリスト・環境固有の注意は
+  [`Plan.md`](Plan.md) §1 を正とします（2026‑11‑05 に文書化）。
 - **Rust テスト配置**: 単体 = インライン `#[cfg(test)]`（private 到達可）、
   統合 = `native/crates/znn-codec/tests/`（公開 API のみ）、敵対的 = `fuzz/`。
   差分テスト（旧 `scripts/l2`）は Phase 8 で退役し、L5 公式クロス検証が
@@ -183,6 +191,12 @@
 ディスク ~9.9 GB / Debian 12（ホストカーネル 4.19・Kata VM）/ Python 3.11.2
 （`/opt/arena-python`）/ Node v20.20.2 / git 2.39.5。詳細と一次実測は
 [`environment-report.md`](environment-report.md) を参照してください。
+
+> **スペックはセッションで変動します**（2026‑11‑05 実測の追記）: 同年第 2 セッションの
+> サンドボックスは **16 vCPU / RAM 64 GiB / Debian 13.6 / Python 3.12.13 /
+> Node 22.22.2 / ディスク 429 GB 空き**でした。重い並列ビルド・全テストは
+> 大きい側で、`CARGO_BUILD_JOBS=1`・`setsid` 等の小スペック対策（§2.3 /
+> [`Plan.md`](Plan.md) §1.4）は 2 vCPU / 1 GiB 側で必要です。
 
 12 GB モデル級の KPI 実測はこの環境では不可能なため、~256 MB 級で実測し、
 検証済みの外挿を BENCH に明記する規程です（推測ではなく「実測 + 外挿」）。
@@ -1171,7 +1185,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   — §11.3 の手順どおり・3.8 s）。以降のコミットは husky フック
   （lint-staged + typecheck）を通常どおり通過。
 
-## 12. セッション 2026‑10‑13 — CPython 3.15 正式版の反映（D4）と Dependabot 初回定期サイクル
+## 14. セッション 2026‑10‑13 — CPython 3.15 正式版の反映（D4）と Dependabot 初回定期サイクル
 
 - **D4 完了（ci コミット d556f31）**: actions/python‑versions manifest へ
   `3.15.0`（stable=True・ft 13 ファイル）が着弾したことを API 実測確認のうえ、
@@ -1214,7 +1228,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   本セッションの依存更新・D4・web/ 再ビルドを含む（次回リリース時に
   main 側も反映される）。
 
-## 13. セッション 2026‑10‑20 — Dependabot 第 2 定期サイクル（14 PR）と aiohttp セキュリティ対応
+## 15. セッション 2026‑10‑20 — Dependabot 第 2 定期サイクル（14 PR）と aiohttp セキュリティ対応
 
 - **Dependabot アラート 3 件（aiohttp ≤3.14.3・HIGH×2/LOW×1・manifest =
   uv.lock・fix 3.14.4）が発生**。同便の PR で全解消:
@@ -1291,7 +1305,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   Dependabot アラート 3 件（fix 3.14.4 以上で解消）の自動クローズ条件が
   確定で満たされた（SBOM 再計算待ち）。
 
-## 14. セッション 2026‑10‑24 — advisory 一斉波及（pillow バッチ）の全修正と fuzz‑long の cancellation flake
+## 16. セッション 2026‑10‑24 — advisory 一斉波及（pillow バッチ）の全修正と fuzz‑long の cancellation flake
 
 - **アラート 26 件の根因（正確な特定）**: 2026‑10‑23 21:00 UTC 頃に
   **pillow 12.3.0 向け GHSA 41 件（CRITICAL 3・すべて 13.0.0 で fix）＋
@@ -1349,7 +1363,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 
 ---
 
-## §15 セッション 2026-10-31 — 10-26 定期便 5 PR の審査・マージと frontend-types 型非互換の分離、minimatch accept
+## 17. セッション 2026-10-31 — 10-26 定期便 5 PR の審査・マージと frontend-types 型非互換の分離、minimatch accept
 
 ### 前ターン(§14)残件の確認結果(全て解消)
 
@@ -1391,7 +1405,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 - 次回 dev→main マージ時: dependabot ignore(b9db5c6)の有効化 + sha2 0.11.1 を含む native-bin の publish 再ビルド。
 - 既存: UV_MALWARE_CHECK の native.yml 展開 / uv audit 昇格 / osv ignore 期限(2027-01-07 httpx2 系・2027-01-24 certifi)/ zizmor cache-poisoning ignore の再評価(次回リリース時)。
 
-## §16 セッション 2026-10-31（後半）— 定期便 11 PR 全マージ、frontend-types「空パッケージ」実測による移行タスクの再スコープ、UV_MALWARE_CHECK の native.yml 展開
+## 18. セッション 2026-10-31（後半）— 定期便 11 PR 全マージ、frontend-types「空パッケージ」実測による移行タスクの再スコープ、UV_MALWARE_CHECK の native.yml 展開
 
 ### 前提（このセッション開始時の状態）
 
@@ -1432,9 +1446,9 @@ lockfile 系は「異なるパッケージのエントリは異なる行」の�
   0.17.2 をローカル導入し CI 同一スコープで check「All checks passed」/ format「45 files
   already formatted」= パッチドリフト無しを実測。`uv lock --check` 緑（61 packages・CPython 3.15.2）。
 
-### frontend-types — §15 残作業「1.58+ 型移行」の前提が実測で覆った（再スコープ）
+### frontend-types — §17 残作業「1.58+ 型移行」の前提が実測で覆った（再スコープ）
 
-§15 の規程どおり「型差分を読んでから」着手し、以下を全て一次実測（tarball 直接 DL・GitHub raw・API）:
+§17 の規程どおり「型差分を読んでから」着手し、以下を全て一次実測（tarball 直接 DL・GitHub raw・API）:
 
 1. **≤1.58.0 の全 tarball は空パッケージ**: LICENSE + package.json のみ（~12.5 kB）。package.json の
    `types: ./index.d.ts` が指すファイルが存在しない。実測対象: 1.50.0 / 1.54.9 / 1.55.18 /
@@ -1500,7 +1514,7 @@ osv-scanner **2.7.0**（security.yml の action pin と一致）4 lockfile「No 
 （3 filter 適用: RUSTSEC-2025-0141 / RUSTSEC-2024-0436 / GHSA-g3hv-75wg-m249）/
 actionlint 全 5 ワークフロー緑。
 
-### 監視リスト更新（§15 を override）
+### 監視リスト更新（§17 を override）
 
 - **frontend-types**: 「1.57.3 固定」→「**1.57.6・トリガー待ち**」に状態変更（上記 T1–T4）。
   dev のピンは npm latest と ComfyUI master pin の両方に整合。
@@ -1512,11 +1526,11 @@ actionlint 全 5 ワークフロー緑。
   frontend-types 1.57.6 + 定期便 11 本が main へ入る（native-bin publish 再ビルド対象は
   Cargo.lock 3 件: zenwebp 0.4.6 / memmap2 0.9.12 / crc32fast 1.5.3）。
 
-## §17 セッション 2026-11-05 — 全文書の精読、dev tip 全緑の再確認、計画文書の不在、Axum/utoipa の実測プローブ
+## 19. セッション 2026-11-05 — 全文書の精読、dev tip 全緑の再確認、計画文書の不在、Axum/utoipa の実測プローブ
 
 ### 精読した文書（全文）
 
-`README.md`（1,094 行）・`Agent/MEMO.md`（§1–§16）・`Agent/environment-report.md`（§1–§11）・
+`README.md`（1,094 行）・`Agent/MEMO.md`（§1–§18）・`Agent/environment-report.md`（§1–§11）・
 `docs/BENCH.md`（1,320 行）。以下に記す数値・規程はすべて上記の記載を一次情報として引用し、
 新たな推測は行っていない。
 
@@ -1543,6 +1557,11 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
   成果物（4 プラットフォーム 5 ターゲット）**のみ。
 
 ### 計画文書（Plan.md）の所在 — ツリーに存在しない
+
+> **2026‑11‑05（同日 第 2 セッション）追記**: 本節の記録は当時の実測です。
+> 同日、ユーザ指示により**作業規程文書として** [`Plan.md`](Plan.md)
+> （NEO‑PLAN‑2026‑005）を新設しました。完了済みの実装計画 4 つは引き続き
+> git 履歴のみに保存されています。
 
 - `git log --all --diff-filter=AD -- '*Plan*'` の最終は **`148f3ba`（Plan-4.md 削除・全 Step 完了）**。
   以降 Plan*.md を追加したコミットは 0 件で、`dev`・`main`・Dependabot 8 ブランチのいずれにも無い。
@@ -1585,3 +1604,100 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
   **utoipa をスキーマの正**として `components.schemas` 文書を mm_core から供給、paths は Python 側で
   合成して `/model-manager/openapi.json` として配信、ルート表との一致は CI の parity ゲートで
   機械固定する形が、サイズ・セキュリティ・配布哲学のいずれとも衝突しない。
+
+## 20. セッション 2026‑11‑05（第 2）— GitHub Actions 確認・ファイル整理・cargo 作業規程の文書化・文書整合
+
+### セッション冒頭の状態ずれと復旧（重要）
+
+- 本サンドボックスのワークスペースは **Phase 4 完了時点（`971f072`）のスナップショット**
+  で、`.git` も存在しませんでした。一方リモート `dev` は **`c8eb8ce`**
+  （v0.4.0・Phase 8 完了・§19 まで記録済み）まで進行していました。
+- `971f072` が現 `dev` の**祖先**であることを `git merge-base --is-ancestor` で
+  確認（作業の損失なし）→ リモートから**再 clone して dev に同期**し、旧スナップショットと
+  旧作業メモ（ワークスペース外）を削除しました。以後の作業は最新 dev に対して実施しています。
+- このサンドボックスの実測スペックは **16 vCPU / RAM 64 GiB / Debian 13.6 /
+  Python 3.12.13 / Node 22.22.2**（§2.1 の記録と異なるため注記を追記）。
+
+### GitHub Actions 確認（ユーザ要求・API + ジョブ単位で実測）
+
+**dev tip `c8eb8ce` に対する run は全て成功**:
+
+| ワークフロー | run          | 結果（jobs API）                                                                                                  |
+| ------------ | ------------ | ----------------------------------------------------------------------------------------------------------------- |
+| CI           | #457（push） | **success**（verify）                                                                                             |
+| native       | #373（push） | **total 18 = 16 success + 2 skipped**（skip = `pgo-measure`［dispatch 限定］・`publish-native-bin`［main 限定］） |
+| Security     | #142（push） | **total 4 = 3 success + 1 skipped**（skip = `osv-pr`［PR 時のみ］）                                               |
+
+- native #373 の success 16 の内訳: native‑test ×3 OS・native‑build ×3・abi3‑import ×4
+  （3.12 / 3.14 / 3.15 + 3.15t）・integration ×4（linux / linux‑t / windows / macOS）・
+  size‑budget・fuzz‑smoke。
+- **main tip `46c3019`** 側の定期 run も緑: **fuzz‑long #15**（週次・7 ターゲット ×
+  約 3 h 全 success — `zn_header` / `webp_decode` / `st_parse` / `codec_decompress` /
+  `huf_decompress` / `blob_decompress` / `delta_decompress`）・Security #141（schedule）・
+  cache‑cleanup #81・Push on main #45。
+
+### ファイル・フォルダ整理（誤削除防止のため実測で確認）
+
+- **ツリーは既に整備済み**であることを複数の独立手段で確認:
+  `git status` クリーン（untracked / ignored 0）・`*.bak|orig|tmp|log|pyc|DS_Store|core`
+  等 0 件・空ディレクトリ 0・**ローカルリンク切れ 0**・i18n 4 言語パリティ
+  （en/ja/zh-CN/zh-TW 各 372 キー・used‑but‑undefined 0）・`assets/` 全 8 点が
+  参照あり（`/model-manager/assets/{name}.svg` の whitelist 経由）・
+  `fallow dupes` 0・scripts / docs の参照ゼロファイルなし。
+- 唯一の実指摘 = **`pnpm fallow:dead` の警告 5 件**（private type leak 4 +
+  unused type 1）→ 修正:
+  `ModelFolder` / `HfUploadPhase` / `ConfirmOptions` / `SelectionKind` を export、
+  内部専用の `TreeNode` は private 化 → **`fallow:dead` = 「No issues found」**。
+- ワークスペース外の残骸（旧スナップショット・旧メモ）を削除。
+
+### cargo 使用最適化の文書化（Plan.md 新設）
+
+- **`Agent/Plan.md`（NEO‑PLAN‑2026‑005）** を新設（living document）:
+  ① cargo 使用の最適化（`check` 常用 / `test` は必要なときだけ / clippy・rustfmt は
+  品質向上に活用 / `build` は最終確認のみ）と**コマンド早見表**、
+  ② **`tests/` によるテスト管理**（単体 = インライン `#[cfg(test)]`、統合 =
+  `native/crates/znn-codec/tests/`、敵対的 = `fuzz/`、Python = `tests/`）、
+  ③ 環境ごとの注意（セッションでスペックが変わる）、
+  ④ push 前チェックリスト（軽い→重い）、⑤ 文書体系、⑥ 現状の基準値。
+- 記載コマンドは**本セッションで実走して検証**: `cargo check --workspace --all-targets`
+  **15.23 s** / `cargo fmt --all -- --check` OK / `cargo clippy --workspace --all-targets
+--all-features -- -D warnings` **1.81 s** / `cargo test -p znn-codec` **206 + 統合 4** /
+  `cargo test -p mm-core --no-default-features` **5**。
+- MEMO 側の同期: §1.2 の cargo 方針を Plan.md §1 参照へ拡張・冒頭に現行規程文書の
+  所在を追記・§19 の「Plan.md 不在」記録に再作成の注記。
+
+### 文書整合（記入漏れの解消）
+
+- **MEMO の節番号重複を解消**: `## 12` と `## 13` が 2 回ずつ出現していたため、
+  10‑08（昼/夕）を 12/13 に据え置き、以降を **14（10‑13）/ 15（10‑20）/ 16（10‑24）/
+  17（10‑31）/ 18（10‑31 後半）/ 19（11‑05）** へ繰り上げ、`## §N` 記法も統一。
+  内部参照（§15 → §17 ×3・`§1–§16` → `§1–§18`）と
+  **`.github/dependabot.yml` の `§16` → `§18`（2 箇所）を同一コミットで同期**。
+- **`docs/BENCH.md` の節番号重複を解消**: `## 6` が 2 回（Phase 0 の観察 / Phase 1）→
+  Phase 0 側を **`### 5.1 観察と結論`** に降格し、§5 の題名を「Phase 0 の成果物と総括」へ。
+  Phase 1 以降の番号（§6–§13）は不変（`§6.3` / `§6.4` 等の既存参照に影響なし —
+  参照ゼロを grep で確認）。
+- **README 4 言語**の "Further reading" に `Agent/Plan.md`（作業規程）と
+  `Agent/MEMO.md`（開発記録）を追加。
+- MEMO §2.1 に**セッションごとのスペック変動**の実測注記を追加。
+
+### 検証（本セッション実測・全緑）
+
+- Rust: `cargo check --workspace --all-targets` ✓ / fmt ✓ / clippy `-D warnings` ✓ /
+  `cargo test -p znn-codec` **206 + 4** ✓ / mm‑core **5** ✓
+- Python: **pytest 225 passed**（native 成果物 + torch あり）/
+  **90 passed + 135 skipped**（成果物なし = 設計どおりの skip）/ ruff 45 files ✓ /
+  mypy 16 files ✓
+- フロントエンド: typecheck ✓ / eslint ✓ / stylelint ✓ / dependency‑cruiser ✓ /
+  `fallow:dead` **No issues found** ✓ / `fallow:dupes` 0 ✓ / prettier format:check ✓ /
+  `pnpm build` ✓（バンドル内容は型のみの変更のため不変 — `web/version.yaml` の
+  ビルド時刻差分は破棄）
+- 文書: リンク切れ 0・prettier 準拠・節番号の重複 0（MEMO / BENCH）
+
+### 運営メモ（次セッション向け）
+
+- 本セッションの push 構成: fix(ui)（fallow 警告 5 件の解消）→ docs（Plan.md 新設 +
+  MEMO/BENCH/README 整合）。**コードの挙動は不変**（TS の型注釈のみ）ため、
+  fuzz 表面・Rust 成果物は無変更 = fuzz‑long の再ディスパッチ不要（週次と既存 run が担保）。
+- プロジェクト全体の残件は §7 のまま（ユーザ専任の公開作業・参照機計測・手動 QA・
+  cache‑targets 再考）。

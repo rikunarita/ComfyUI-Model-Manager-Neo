@@ -734,6 +734,11 @@ Markdown 笔记一起呈现；没有预览的模型会在网格中显示随附�
 
 - [`docs/BENCH.md`](docs/BENCH.md) —— 本 README 中性能相关记述背后的
   测量记录。
+- [`Agent/Plan.md`](Agent/Plan.md) —— 当前工作规程：cargo 使用方式
+  （常用 `check`、仅在需要时 `test`、用 `clippy`/`rustfmt` 提升质量、
+  `build` 仅作最终确认）、测试布局与文档体系。
+- [`Agent/MEMO.md`](Agent/MEMO.md) —— 项目记录：已构建的内容、永久规程、
+  技术经验与剩余事项。
 - [`native/README.md`](native/README.md) —— Rust 工作区：布局、测试
   金字塔、fuzz 配置与预构建二进制的生成方式。
 - [`SECURITY.md`](SECURITY.md) —— 如何私密报告漏洞、范围界定，以及
