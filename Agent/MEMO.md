@@ -1360,6 +1360,23 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   脆弱性は version updates 便（cooldown 付き）を待たず手動 bump する**。
   ③ コミット直後のアラート増加は「修正のマージ」と「掲載のタイミング」が
   同時だと誤認されやすい — SBOM とアラートの created_at で因果を確定する。
+- **事後確認（2026‑11‑05・API 実測でクローズ）**: ① **fuzz‑long run
+  40013877349 は attempt 2（rerun‑failed‑jobs）が delta_decompress を含め
+  全 7 ターゲット success**（10‑24 05:50→08:57 で完走）= runner
+  cancellation 分類の正しさを実証。以後の週次（10‑25 run 40229802110 /
+  11‑01 run 41352590212）も 7/7 緑・**fuzz‑long の全 10 run が success**。
+  ② Dependabot アラート = **open 0**（fixed 12 = pillow 9 + aiohttp 3）/
+  code scanning = **open 0**（fixed 49 + dismissed 7〔dtolnay won't‑fix〕）
+  — §16 の予測「Security run 緑で 17 件・SBOM 再計算で pillow 9 件が
+  自動クローズ」が**予測どおり完了**。③ lock 実測: uv.lock = pillow 13.0.0 /
+  certifi 2026.10.23 / filelock 4.2.4 / setuptools 84.2.1、pnpm-lock =
+  markdown‑it 15.0.3 / fast‑uri 3.1.9、package.json = fallow 3.35.0 —
+  10‑23 の advisory 波の全項目が修正版以上に到達。④ 直近 100 run の非緑は
+  14 件すべて 10‑31 16:07–16:08 の **concurrency cancellation**（11 PR の
+  連続マージと PR クローズ掃除による supersede。最終 tip は緑）= 実失敗
+  ゼロ。**したがって §16 の 2 件（アラート 26・fuzz‑long 失敗）は追加修正
+  不要でクローズ**（ユーザの UI 上の「26」は closed/履歴表示の可能性が高い
+  — Security タブの filter を `is:open` にすると 0 件）。
 
 ---
 
