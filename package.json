@@ -72,18 +72,18 @@
     "vue-tsc": "^3.3.13"
   },
   "dependencies": {
-    "@lucide/vue": "^1.61.0",
+    "@lucide/vue": "^1.66.0",
     "@vueuse/core": "^15.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
-    "es-toolkit": "^1.53.0",
+    "es-toolkit": "^1.53.1",
     "markdown-it": "^15.0.3",
     "markdown-it-metadata-block": "^1.0.6",
     "reka-ui": "^2.11.0",
     "tailwind-merge": "^3.7.0",
     "vue": "^3.5.44",
-    "vue-i18n": "^11.4.16",
+    "vue-i18n": "^11.4.17",
     "vue-sonner": "^2.0.9",
     "yaml": "^2.9.1"
   },
