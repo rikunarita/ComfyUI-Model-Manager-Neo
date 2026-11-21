@@ -321,8 +321,10 @@ mod tests {
     /// Kraft equality: Σ 2^-nbBits over non-zero symbols == 1.
     fn assert_kraft(tree: &HuffCTable, max_sv: usize) {
         let mut sum_num = 0u64; // in units of 2^-12
-        for s in 0..=max_sv {
-            let nb = tree.nb_bits[s];
+        // Iterate the table directly: the loop index was only ever used to
+        // load `nb_bits[s]`, which clippy 1.100's `needless_range_loop` flags
+        // (CI lints with `-D warnings`).
+        for &nb in tree.nb_bits.iter().take(max_sv + 1) {
             if nb > 0 {
                 sum_num += 1u64 << (12 - nb);
             }
