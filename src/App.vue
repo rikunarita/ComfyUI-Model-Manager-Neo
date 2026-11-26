@@ -31,6 +31,7 @@ import { useToast } from 'hooks/toast'
 import { takeZipnnSettle } from 'hooks/zipnn'
 import { $el, app, ComfyButton } from 'scripts/comfyAPI'
 import { bytesToSize } from 'utils/common'
+import { widePanelWidth } from 'utils/panel'
 
 const { t } = useI18n()
 
@@ -147,7 +148,7 @@ onMounted(() => {
       key: 'hygiene',
       title: t('hygiene'),
       content: DialogHygiene,
-      defaultSize: { width: 680, height: 520 },
+      defaultSize: { width: widePanelWidth(), height: 520 },
     })
   }
 
@@ -239,10 +240,9 @@ onMounted(() => {
       ],
       minWidth: cardWidth * 2 + gutter + 42,
       minHeight: (cardWidth / aspect) * 0.5 + 162,
-      // Wider than the generic 60 vw fallback: the manager is a grid of cards
-      // and earns the extra columns. Capped so ultrawide screens keep a
-      // sensible card density instead of one endless row.
-      defaultSize: { width: Math.min(Math.floor(window.innerWidth * 0.8), 1600) },
+      // The shared wide panel rule (see utils/panel.ts): content panels all
+      // land on the same width so they line up.
+      defaultSize: { width: widePanelWidth() },
     })
   }
 
