@@ -14,11 +14,14 @@ import yaml
 from aiohttp import web
 from PIL import Image
 
-from . import auth, config, http_client, utils
+from . import auth, config, http_client, readme, utils
 
 # A3: the hub base URLs are module constants so the mock tests
 # can point them at a local server (no live API dependency).
 HF_API_BASE = "https://huggingface.co/api"
+# Web root for resolve/raw URLs (README, download links, previews) - a module
+# constant so the mock tests can point the searcher at a local hub.
+HF_WEB_BASE = "https://huggingface.co"
 
 # ---------------------------------------------------------------------------
 # Browser-cacheable SVG artwork.
@@ -297,6 +300,15 @@ class HuggingfaceModelSearcher(ModelSearcher):
             timeout=http_client.HUB_TIMEOUT,
         )
 
+        # The repo README is the model card: fetch it up front so every file
+        # entry of this repository carries it in the notes (the Description tab).
+        readme_base = f"{HF_WEB_BASE}/{model_id}/resolve/{revision}/"
+        readme_text = await readme.fetch_hub_readme(f"{readme_base}README.md", headers=headers)
+        readme_body: str | None = None
+        readme_card: dict = {}
+        if readme_text:
+            readme_card, readme_body = readme.process_readme(readme_text, readme_base)
+
         # Fetch file tree to get actual file sizes
         file_sizes = {}
         try:
@@ -323,7 +335,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             utils.filter_with(sibling_files, self._match_image_files()),
             self._match_tree_files(rest_pathname),
         )
-        image_files = [f"https://huggingface.co/{model_id}/resolve/{revision}/{filename}" for filename in image_files]
+        image_files = [f"{HF_WEB_BASE}/{model_id}/resolve/{revision}/{filename}" for filename in image_files]
 
         models: list[dict] = []
 
@@ -335,10 +347,12 @@ class HuggingfaceModelSearcher(ModelSearcher):
 
             metadata_info = {
                 "website": "Hugging Face",
-                "modelPage": f"https://huggingface.co/{model_id}",
+                "modelPage": f"{HF_WEB_BASE}/{model_id}",
                 "author": res_data.get("author"),
                 "preview": image_files,
             }
+            if readme_card:
+                metadata_info = readme.merge_card_metadata(metadata_info, readme_card)
 
             description_parts: list[str] = []
             description_parts.append("---")
@@ -355,7 +369,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             description_parts.append("")
             description_parts.append(f"# {res_data.get('name')}")
             description_parts.append("")
-            description_parts.append("No description about this model")
+            description_parts.append(readme_body or "No description about this model")
             description_parts.append("")
 
             model = {
@@ -371,7 +385,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
                 "description": "\n".join(description_parts),
                 "metadata": {},
                 "downloadPlatform": "huggingface",
-                "downloadUrl": f"https://huggingface.co/{model_id}/resolve/{revision}/{filename}?download=true",
+                "downloadUrl": f"{HF_WEB_BASE}/{model_id}/resolve/{revision}/{filename}?download=true",
                 "revision": revision,
             }
             models.append(model)
@@ -475,6 +489,20 @@ class ModelScopeModelSearcher(ModelSearcher):
         loop = asyncio.get_running_loop()
         files = await loop.run_in_executor(utils.io_executor(), self._list_repo_files, repo_id)
 
+        # The repo README is the model card: fetch it so every file entry of
+        # this repository carries it in the notes (the Description tab). The
+        # default branch is `master` on ModelScope; `main` is tried as a
+        # fallback for repositories created from git with a `main` HEAD.
+        ms_headers = auth.get_modelscope_headers()
+        readme_body: str | None = None
+        readme_card: dict = {}
+        for rev in ("master", "main"):
+            readme_base = f"{MODELSCOPE_INTL_ENDPOINT}/models/{repo_id}/resolve/{rev}/"
+            readme_text = await readme.fetch_hub_readme(f"{readme_base}README.md", headers=ms_headers)
+            if readme_text:
+                readme_card, readme_body = readme.process_readme(readme_text, readme_base)
+                break
+
         model_page = f"{MODELSCOPE_INTL_ENDPOINT}/models/{repo_id}"
         models: list[dict] = []
         for fi in files:
@@ -494,6 +522,8 @@ class ModelScopeModelSearcher(ModelSearcher):
             }
             if hashes:
                 metadata_info["hashes"] = hashes
+            if readme_card:
+                metadata_info = readme.merge_card_metadata(metadata_info, readme_card)
             description_parts = [
                 "---",
                 yaml.dump(metadata_info).strip(),
@@ -504,6 +534,9 @@ class ModelScopeModelSearcher(ModelSearcher):
                 f"Model repository: {model_page}",
                 "",
             ]
+            if readme_body:
+                description_parts.append(readme_body)
+                description_parts.append("")
 
             models.append(
                 {
