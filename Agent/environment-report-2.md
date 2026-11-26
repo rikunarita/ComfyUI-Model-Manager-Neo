@@ -8,20 +8,20 @@
 
 ## 1. 要約（ひと目でわかる版）
 
-| 項目           | 値                                                                              |
-| -------------- | ------------------------------------------------------------------------------- |
-| 仮想化         | **KVM**（`systemd-detect-virt` = `kvm`。カーネル cmdline は Firecracker 風の `virtio_mmio` デバイス構成） |
-| OS             | Debian GNU/Linux 13 "trixie"（13.8）                                             |
-| ホストカーネル | Linux 6.1.189+（PREEMPT_DYNAMIC, 2026-11-02 ビルド、`root@ip-172-31-73-130`）      |
-| アーキテクチャ | x86_64                                                                          |
-| CPU            | Intel Xeon @ 2.60GHz（family 6 / model 106 / stepping 6 = **Ice Lake-SP 系**）、**2 vCPU** |
-| メモリ         | 約 **1.94 GiB**（`/proc/meminfo` MemTotal = 2,030,416 kB）、user cgroup 実効上限 **1,944,928,256 bytes**（≈1.81 GiB） |
-| ディスク       | virtio ディスク `/dev/vda`（ext4）**25 GB**（使用 4.4 GB / 空き 20 GB）            |
-| 実行ユーザ     | `user`（uid=1000, gid=1000、**sudo グループ所属・パスワード無し sudo 可**）          |
-| ネットワーク   | アウトバウンド **あり**（egress IP `136.86.202.79`、DNS 8.8.8.8）                  |
-| 主要ランタイム | Python 3.13.18（/usr/local）、Node.js v20.20.2、npm 10.8.2、corepack 0.34.6、git 2.47.3 |
-| プラットフォーム | e2b.dev 系サンドボックス（hostname `e2b.local`、`events.e2b.local` = `192.0.2.1`） |
-| GPU            | なし                                                                              |
+| 項目             | 値                                                                                                                    |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 仮想化           | **KVM**（`systemd-detect-virt` = `kvm`。カーネル cmdline は Firecracker 風の `virtio_mmio` デバイス構成）             |
+| OS               | Debian GNU/Linux 13 "trixie"（13.8）                                                                                  |
+| ホストカーネル   | Linux 6.1.189+（PREEMPT_DYNAMIC, 2026-11-02 ビルド、`root@ip-172-31-73-130`）                                         |
+| アーキテクチャ   | x86_64                                                                                                                |
+| CPU              | Intel Xeon @ 2.60GHz（family 6 / model 106 / stepping 6 = **Ice Lake-SP 系**）、**2 vCPU**                            |
+| メモリ           | 約 **1.94 GiB**（`/proc/meminfo` MemTotal = 2,030,416 kB）、user cgroup 実効上限 **1,944,928,256 bytes**（≈1.81 GiB） |
+| ディスク         | virtio ディスク `/dev/vda`（ext4）**25 GB**（使用 4.4 GB / 空き 20 GB）                                               |
+| 実行ユーザ       | `user`（uid=1000, gid=1000、**sudo グループ所属・パスワード無し sudo 可**）                                           |
+| ネットワーク     | アウトバウンド **あり**（egress IP `136.86.202.79`、DNS 8.8.8.8）                                                     |
+| 主要ランタイム   | Python 3.13.18（/usr/local）、Node.js v20.20.2、npm 10.8.2、corepack 0.34.6、git 2.47.3                               |
+| プラットフォーム | e2b.dev 系サンドボックス（hostname `e2b.local`、`events.e2b.local` = `192.0.2.1`）                                    |
+| GPU              | なし                                                                                                                  |
 
 environment-report.md（環境1 = Kata Containers 上の Debian 12 / Alibaba Cloud / 1 GiB RAM / root）
 とは完全に別物です。主な差分: RAM 約 2 倍・sudo 可能な非 root ユーザ・cgroup **v2**・Debian 13・e2b 系サンドボックス。
@@ -125,19 +125,19 @@ vda  254:0    0 26.2G  0 disk /
 
 ## 4. ランタイム / ツールチェーン
 
-| ツール     | 状態                                                                 |
-| ---------- | ---------------------------------------------------------------------- |
-| Python     | **3.13.18**（`/usr/local/bin/python3`、pip 26.2.2）                     |
-| Node.js    | **v20.20.2**（CI は 26.10.0 を使用 — ローカルは 20 系な点に注意）          |
-| npm        | 10.8.2                                                                  |
-| pnpm       | **未インストール**。`corepack` 0.34.6 経由で `corepack pnpm` が使える（初回に 12.8.1 を自動ダウンロード — package.json の `packageManager: pnpm@12.8.1+sha512...` に従う）。恒久化するなら `corepack enable` が必要 |
-| yarn       | 無し                                                                   |
-| git        | 2.47.3（credential helper 未設定 — HTTPS push には PAT を都度指定、または `git -c credential.helper=...`） |
-| gh CLI     | **無し** — GitHub 操作は `curl` + PAT（`GH_TOKEN`）で REST API を叩く       |
-| Rust       | **cargo / rustc とも無し** — Rust のビルド・clippy・fmt はこの環境では実行不可（CI の native.yml に委ねる） |
-| ffmpeg     | 無し                                                                   |
-| uv         | **無し**（`pip install uv` で導入は可能）                                  |
-| ruff/mypy  | 事前インストール無し（pip 導入可）                                        |
+| ツール    | 状態                                                                                                                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Python    | **3.13.18**（`/usr/local/bin/python3`、pip 26.2.2）                                                                                                                                                                 |
+| Node.js   | **v20.20.2**（CI は 26.10.0 を使用 — ローカルは 20 系な点に注意）                                                                                                                                                   |
+| npm       | 10.8.2                                                                                                                                                                                                              |
+| pnpm      | **未インストール**。`corepack` 0.34.6 経由で `corepack pnpm` が使える（初回に 12.8.1 を自動ダウンロード — package.json の `packageManager: pnpm@12.8.1+sha512...` に従う）。恒久化するなら `corepack enable` が必要 |
+| yarn      | 無し                                                                                                                                                                                                                |
+| git       | 2.47.3（credential helper 未設定 — HTTPS push には PAT を都度指定、または `git -c credential.helper=...`）                                                                                                          |
+| gh CLI    | **無し** — GitHub 操作は `curl` + PAT（`GH_TOKEN`）で REST API を叩く                                                                                                                                               |
+| Rust      | **cargo / rustc とも無し** — Rust のビルド・clippy・fmt はこの環境では実行不可（CI の native.yml に委ねる）                                                                                                         |
+| ffmpeg    | 無し                                                                                                                                                                                                                |
+| uv        | **無し**（`pip install uv` で導入は可能）                                                                                                                                                                           |
+| ruff/mypy | 事前インストール無し（pip 導入可）                                                                                                                                                                                  |
 
 Python 3.13.18 に導入済みの主なパッケージ（182 個中、タスクに関係するもの）:
 `numpy 2.3.5`, `aiohttp 3.14.5`, `pytest 9.0.3`, `PyYAML 6.0.4`, `requests 2.33.0`
@@ -178,23 +178,23 @@ IPv4 addr: 169.254.0.21/30（eth0）
 
 ## 7. 環境1（environment-report.md）との比較
 
-| 項目 | 環境1（別エージェント環境） | 環境2（本環境） |
-| ---- | -------------------------- | --------------- |
-| 基盤 | Kata Containers（KVM マイクロ VM）+ Docker 互換レイヤ | e2b.dev 系 Firecracker 風マイクロ VM（virtio-mmio、PCI 無し） |
-| ホスト | Alibaba Cloud Linux 7 系カーネル 4.19.91 | Linux 6.1.189+（Ubuntu 24.04 ビルド） |
-| OS（guest） | Debian 12 bookworm | **Debian 13 trixie** |
-| CPU | Xeon (Skylake-SP) @2.50GHz model 85 / 2 vCPU | Xeon (**Ice Lake-SP 系**) @2.60GHz model 106 / 2 vCPU |
-| メモリ上限 | 1 GiB（cgroup v1） | **≈1.81 GiB**（cgroup **v2**、`user` スライス） |
-| /dev/shm | 64 MB | **992 MB** |
-| ディスク | overlay 9.9 GB（617 MB/s 級） | ext4 25 GB（**774 MB/s** read direct） |
-| ユーザ | root（uid=0） | **uid=1000 `user` + パスワード無し sudo** |
-| cgroup | v1 | **v2** |
-| `/home/user` | セッション管理領域と同一 inode のバインドマウント | 通常の ext4 上のディレクトリ |
-| ランタイム | Python 3.11.2（venv）/ Node 20.20.2 / yarn あり | Python **3.13.18** / Node 20.20.2 / **corepack pnpm（未 enable）** |
-| git | 2.39.5 | 2.47.3 |
-| ネットワーク | egress あり（Alibaba Cloud, 47.236.158.65） | egress あり（**136.86.202.79**） |
-| GPU | なし | なし |
-| タイムゾーン | Asia/Shanghai | **UTC** |
+| 項目         | 環境1（別エージェント環境）                           | 環境2（本環境）                                                    |
+| ------------ | ----------------------------------------------------- | ------------------------------------------------------------------ |
+| 基盤         | Kata Containers（KVM マイクロ VM）+ Docker 互換レイヤ | e2b.dev 系 Firecracker 風マイクロ VM（virtio-mmio、PCI 無し）      |
+| ホスト       | Alibaba Cloud Linux 7 系カーネル 4.19.91              | Linux 6.1.189+（Ubuntu 24.04 ビルド）                              |
+| OS（guest）  | Debian 12 bookworm                                    | **Debian 13 trixie**                                               |
+| CPU          | Xeon (Skylake-SP) @2.50GHz model 85 / 2 vCPU          | Xeon (**Ice Lake-SP 系**) @2.60GHz model 106 / 2 vCPU              |
+| メモリ上限   | 1 GiB（cgroup v1）                                    | **≈1.81 GiB**（cgroup **v2**、`user` スライス）                    |
+| /dev/shm     | 64 MB                                                 | **992 MB**                                                         |
+| ディスク     | overlay 9.9 GB（617 MB/s 級）                         | ext4 25 GB（**774 MB/s** read direct）                             |
+| ユーザ       | root（uid=0）                                         | **uid=1000 `user` + パスワード無し sudo**                          |
+| cgroup       | v1                                                    | **v2**                                                             |
+| `/home/user` | セッション管理領域と同一 inode のバインドマウント     | 通常の ext4 上のディレクトリ                                       |
+| ランタイム   | Python 3.11.2（venv）/ Node 20.20.2 / yarn あり       | Python **3.13.18** / Node 20.20.2 / **corepack pnpm（未 enable）** |
+| git          | 2.39.5                                                | 2.47.3                                                             |
+| ネットワーク | egress あり（Alibaba Cloud, 47.236.158.65）           | egress あり（**136.86.202.79**）                                   |
+| GPU          | なし                                                  | なし                                                               |
+| タイムゾーン | Asia/Shanghai                                         | **UTC**                                                            |
 
 ---
 

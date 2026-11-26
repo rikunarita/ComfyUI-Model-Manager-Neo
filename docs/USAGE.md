@@ -662,11 +662,6 @@ ComfyUI **Settings → Model Manager Neo**:
   choice. These entries are hidden from the settings list; change them through
   the Custom Size dialog.
 - **Flat Layout** — default layout on open.
-- **Record UI performance marks** — off by default. Instruments the grid
-  recompute/paint and the tensor‑tree build with `performance.mark` and keeps
-  the samples in a ring buffer; read them in the browser console with
-  `__mmNeoPerf.summary()` (P50/P95/P99 in ms), `__mmNeoPerf.enable()` /
-  `.disable()` / `.reset()`.
 
 ## 12. Languages
 

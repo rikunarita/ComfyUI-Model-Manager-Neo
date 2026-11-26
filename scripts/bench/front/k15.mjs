@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
- * K15 / Phase 6 frontend bench ("performance mark 計測基盤" — the K15
- * acceptance gate).
+ * Frontend bench (the K15 acceptance gate): measures the grid pipeline
  *
  * Measures the REAL browser code path headlessly: the pure modules under
  * `src/utils` are compiled with the repository's own TypeScript and then driven
@@ -17,9 +16,8 @@
  *    `Intl.Collator`;
  *  - **K15 keystroke** the whole `buildModelRows` pipeline (filter → sort →
  *    chunk) per keystroke over 200 queries — this is the JS work that has to
- *    fit a 16 ms frame; the browser-side paint leg is instrumented separately
- *    by `src/utils/perf.ts` (`__mmNeoPerf.summary()` → `mm.grid.queryToPaint`),
- *    which a headless run cannot reproduce;
+ *    fit a 16 ms frame (the browser-side paint leg is outside what a headless
+ *    run can reproduce);
  *  - **K15 initial grid** the first (query-less) row build over all 5,000;
  *  - **tensor tree** the pre-Phase-6 in-browser fold (verbatim), the same fold
  *    with shared collators, and the Phase-6 path: decode the Rust payload into
@@ -77,7 +75,7 @@ if (!fs.existsSync(TSC)) {
   process.exit(2)
 }
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'mmneo-k15-'))
-const SOURCES = ['src/utils/modelFilter.ts', 'src/utils/tensorTree.ts', 'src/utils/perf.ts']
+const SOURCES = ['src/utils/modelFilter.ts', 'src/utils/tensorTree.ts']
 // `paths` are resolved relative to the tsconfig's own directory (TypeScript 6
 // deprecated `baseUrl`), so the aliases are spelled relative to OUT.
 const REL = path.relative(OUT, REPO_ROOT).split(path.sep).join('/')
@@ -852,7 +850,7 @@ const report = {
     'here as the before-side of every gate. The gates are same-run ratios, so they hold on any ' +
     'machine; the absolute numbers belong to the env block below (K15 is judged on the reference ' +
     '8C/16T reference machine). The browser paint leg of K15 is instrumented in the app itself ' +
-    '(src/utils/perf.ts: mm.grid.queryToPaint via __mmNeoPerf.summary()).',
+    '(the browser-side paint leg is outside a headless run).',
   env: {
     date: new Date().toISOString().replace(/\.\d+Z$/, '+0000'),
     node: process.version,

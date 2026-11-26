@@ -865,7 +865,7 @@ Actions 配置本身）、**OSV-Scanner**（全部四个依赖面；PR 以新引
 │  ├─ utils/ · types/ · locales/
 │  ├─ style.css           #   Tailwind v4 入口 + 设计令牌
 │  └─ main.ts             #   注册为 ComfyUI 扩展
-├─ scripts/               # native 构建 + 官方 zipnn 交叉验证 + 前端性能关卡
+├─ scripts/               # native 构建 + 官方 zipnn 交叉验证 + 前端基准
 ├─ tests/                 # pytest 套件：golden 契约、parity、接合部
 └─ web/                   # 提供给 ComfyUI 的预构建打包产物（已提交）
 ```

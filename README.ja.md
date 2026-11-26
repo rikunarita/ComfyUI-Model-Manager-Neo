@@ -957,7 +957,7 @@ TypeScript/Vue・Python・Rust、そして GitHub Actions ワークフロー自�
 │  ├─ utils/ · types/ · locales/
 │  ├─ style.css           #   Tailwind v4 エントリ + デザイントークン
 │  └─ main.ts             #   ComfyUI 拡張として登録
-├─ scripts/               # native ビルド + 公式 zipnn クロス検証 + フロントエンド計測ゲート
+├─ scripts/               # native ビルド + 公式 zipnn クロス検証 + フロントエンド計測
 ├─ tests/                 # pytest スイート: ゴールデン契約・parity・接合部
 └─ web/                   # ComfyUI へ配信されるプリビルドバンドル（コミット対象）
 ```

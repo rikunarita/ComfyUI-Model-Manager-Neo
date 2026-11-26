@@ -86,7 +86,7 @@ mmap バイトを非破壊・借用解析」）を満たすのは jiter のみ�
 | K12 | モデル詳細ルートのイベントループ阻塞 | 修正前は K11 と同時間（**約 0.9 s**）サーバー全体が停止。Quick Win A1（本 Phase で実装・コミット済み）で executor 化 → 阻塞ゼロ                                                                           | 解析時間分ブロック     | ゼロ                        | A1 = 前半（完了）、Rust 化 = 後半（Phase 5）                                                                 |
 | K13 | 起動時 ZipNN 可用性                  | `ensure_zipnn()` 初回 **1.69 s**（内訳: `import zipnn`→torch 1.43 s、`zipnn_core` 単体 0.3 ms。ピーク RSS 223–241 MiB）。**Rust `mm_core` は 6 ms / 44 MiB**（Phase 0 hello world、abi3 import）          | プリビルド or C ビルド | import のみ < 50 ms         | mm_core は既に目標を 8 倍のマージンで達成                                                                    |
 | K14 | 対応 dtype 数                        | **5 種**（f32/f16/bf16/fp8‑e4m3/fp8‑e5m2。`zipnn.py` compress() が他を ValueError で拒否することをコードで確認）                                                                                          | 5 種                   | 22 種以上                   | Phase 4                                                                                                      |
-| K15 | 検索 keystroke → 描画                | **本環境では計測不能**（ブラウザ/GUI なし）。計測基盤（C5 performance mark + 5,000 モデル合成データ）は Phase 6 で常設し、そこでベースラインを記録する                                                    | 計測して記録           | ≤ 16 ms（P95）              | フロントエンド計測は計測基盤構築後                                                                           |
+| K15 | 検索 keystroke → 描画                | **本環境では計測不能**（ブラウザ/GUI なし）。計測基盤（ヘッドレス計測器 + 5,000 モデル合成データ）は Phase 6 で常設し、そこでベースラインを記録する                                                       | 計測して記録           | ≤ 16 ms（P95）              | フロントエンド計測は計測基盤構築後                                                                           |
 | K16 | プリビルドバイナリ                   | 現行: **linux‑x86_64 のみ・CPython 版別 ×6 本**（各 101,144 B、計 619,104 B。glibc ≥ 2.34）。Phase 0 成果物: **4 プラットフォーム 5 ターゲットすべて CI ビルド成功・import 疎通**（計 1.55 MiB、内訳 §5） | Linux のみ ×6          | 4 プラットフォーム・abi3 ×1 | サイズ予算 ≤4 MB/本を全成果物がクリア                                                                        |
 
 ---
@@ -749,7 +749,7 @@ KPI の参照機「8C/16T デスクトップ NVMe」基準なので、ここで�
 ## 11. Phase 6 — フロントエンド表示最適化 + テンソルツリー Rust 化（2026‑09‑27、同一実行内 before/after）
 
 計測器は **`scripts/bench/front/k15.mjs`**（C5「計測基盤を常設」）。
-`src/utils` の**実物**（`modelFilter.ts` / `tensorTree.ts` / `perf.ts`）を
+`src/utils` の**実物**（`modelFilter.ts` / `tensorTree.ts`）を
 リポジトリ同梱の tsc でコンパイルして Node 上で駆動するため、計測対象は
 ブラウザが実行するコードそのもの。before 側は **Phase 6 以前のコンポーネント
 実装を逐語コピー**して計測器内にインライン化したもの（`naiveBuildRows` =
@@ -780,9 +780,9 @@ KPI の参照機「8C/16T デスクトップ NVMe」基準なので、ここで�
 グリッド行パイプライン（filter → sort → chunk）の **JS 作業時間**。
 K15 の「keystroke → 描画 ≤ 16 ms」は 1 フレーム予算なので、比較対象は
 この JS 作業 + DOM 反映であり、意図的な 150 ms デバウンス（既存の
-Optimization B‑3）は含まない。ブラウザ側の paint 脚は
-`src/utils/perf.ts` の `mm.grid.queryToPaint`（`__mmNeoPerf.summary()`）として
-実 UI で計測できる（ヘッドレスでは再現不能なため分離して記録する）。
+Optimization B‑3）は含まない。ブラウザ側の paint 脚はヘッドレスでは再現できないため、計測対象外として
+記録する。なお、当時使っていたブラウザ側計測器（`src/utils/perf.ts`）は
+後に撤去された（§11 末尾の注記を参照）。
 
 | 経路                                                            | p50            | p95                | min            | naive 比（p95） |
 | --------------------------------------------------------------- | -------------- | ------------------ | -------------- | --------------- |
@@ -892,8 +892,8 @@ snapshot + Proxy が fold の削減分以上に残る）。3 点を直した後�
 | テンソル由来のメインスレッド作業 | ≈218 + ≈80 + **1,329** ms | ≈218 + 130 + ≈80 + 60 + **13** ms | ≈**13** ms                           |
 | 比                               | ×1.0                      | ×3.1                              | **×120**                             |
 
-（`src/utils/perf.ts` の `mm.info.tensorTree.decode` / `.fallbackFold` /
-`mm.info.tensorRows` が実機側の内訳を、`__mmNeoPerf.summary()` で報告する。）
+（当時は `src/utils/perf.ts` の `mm.info.tensorTree.decode` / `.fallbackFold` /
+`mm.info.tensorRows` で実機側の内訳を報告した。この計測器は後に撤去された。）
 
 ### 11.4 A3（requests → aiohttp）と watch_roots の検証
 
@@ -1026,13 +1026,10 @@ MMNEO_TSC=/tmp/mmneo-tsc/node_modules/typescript/bin/tsc \
   --json-out /tmp/phase6_front_crosscheck.json
 ```
 
-ブラウザ実機での paint 脚（K15 の残り半分）は DevTools コンソールで:
-
-```js
-__mmNeoPerf.enable() // 設定 → Model Manager Neo → UI → パフォーマンスマーク でも可
-// …マネージャを開いて検索を数回…
-__mmNeoPerf.summary() // mm.grid.queryToPaint / mm.grid.initialRender の P50/P95/P99
-```
+ブラウザ実機での paint 脚（K15 の残り半分）を計測していたブラウザ側
+instrumentation（`src/utils/perf.ts` と「設定 → Model Manager Neo → UI →
+パフォーマンスマーク」）は撤去されました。ヘッドレス計測
+（`scripts/bench/front/k15.mjs`）のみが現役です。
 
 ## 13. PGO 効果の実測（パイロット計測 Step 3、2026‑10‑01、run #107 初実走）
 

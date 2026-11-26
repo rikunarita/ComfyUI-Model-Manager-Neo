@@ -987,7 +987,7 @@ accepted finding recorded with its reason — see
 │  ├─ utils/ · types/ · locales/
 │  ├─ style.css           #   Tailwind v4 entry + design tokens
 │  └─ main.ts             #   registers the ComfyUI extension
-├─ scripts/               # native build + official-zipnn cross-validation + frontend perf gate
+├─ scripts/               # native build + official-zipnn cross-validation + frontend bench
 ├─ tests/                 # pytest suite: golden contracts, parity, junctions
 └─ web/                   # prebuilt bundle served to ComfyUI (committed)
 ```
