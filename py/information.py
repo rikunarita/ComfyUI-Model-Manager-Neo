@@ -14,11 +14,14 @@ import yaml
 from aiohttp import web
 from PIL import Image
 
-from . import auth, config, http_client, utils
+from . import auth, config, hf_endpoint, http_client, readme, utils
 
 # A3: the hub base URLs are module constants so the mock tests
 # can point them at a local server (no live API dependency).
 HF_API_BASE = "https://huggingface.co/api"
+# Web root for resolve/raw URLs (README, download links, previews) - a module
+# constant so the mock tests can point the searcher at a local hub.
+HF_WEB_BASE = "https://huggingface.co"
 
 # ---------------------------------------------------------------------------
 # Browser-cacheable SVG artwork.
@@ -129,7 +132,9 @@ class ModelSearcher(ABC):
 
 class UnknownWebsiteSearcher(ModelSearcher):
     async def search_by_url(self, url: str):
-        raise RuntimeError("Unknown Website, please input a URL from huggingface.co, civitai.com or modelscope.ai.")
+        raise RuntimeError(
+            "Unknown Website, please input a URL from huggingface.co (or hf-mirror.com), civitai.com or modelscope.ai."
+        )
 
 
 class CivitaiModelSearcher(ModelSearcher):
@@ -288,14 +293,28 @@ class HuggingfaceModelSearcher(ModelSearcher):
             revision = path_parts[3]
             rest_pathname = "/".join(path_parts[4:])
 
+        # Endpoint selection: official hub or the configured mirror (the
+        # mirror serves the same API/resolve shapes under its own origin).
+        api_base = hf_endpoint.hf_api_base(HF_API_BASE)
+        web_base = hf_endpoint.hf_web_base(HF_WEB_BASE)
+
         headers = auth.get_hf_headers()
 
         # Fetch model info from HF API (A3: shared aiohttp session, no executor)
         res_data: dict = await http_client.fetch_json(
-            f"{HF_API_BASE}/models/{model_id}",
+            f"{api_base}/models/{model_id}",
             headers=headers,
             timeout=http_client.HUB_TIMEOUT,
         )
+
+        # The repo README is the model card: fetch it up front so every file
+        # entry of this repository carries it in the notes (the Description tab).
+        readme_base = f"{web_base}/{model_id}/resolve/{revision}/"
+        readme_text = await readme.fetch_hub_readme(f"{readme_base}README.md", headers=headers)
+        readme_body: str | None = None
+        readme_card: dict = {}
+        if readme_text:
+            readme_card, readme_body = readme.process_readme(readme_text, readme_base)
 
         # Fetch file tree to get actual file sizes
         file_sizes = {}
@@ -303,7 +322,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             # BUG FIX: without `recursive=true` the tree API only returns the
             # repository root, so files inside sub-directories never got a
             # size (shown as 0 B until the download corrected it).
-            tree_url = f"{HF_API_BASE}/models/{model_id}/tree/{revision}?recursive=true"
+            tree_url = f"{api_base}/models/{model_id}/tree/{revision}?recursive=true"
             status, tree_data = await http_client.fetch_status_json(
                 tree_url, headers=headers, timeout=http_client.HUB_TIMEOUT
             )
@@ -323,7 +342,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             utils.filter_with(sibling_files, self._match_image_files()),
             self._match_tree_files(rest_pathname),
         )
-        image_files = [f"https://huggingface.co/{model_id}/resolve/{revision}/{filename}" for filename in image_files]
+        image_files = [f"{web_base}/{model_id}/resolve/{revision}/{filename}" for filename in image_files]
 
         models: list[dict] = []
 
@@ -335,10 +354,12 @@ class HuggingfaceModelSearcher(ModelSearcher):
 
             metadata_info = {
                 "website": "Hugging Face",
-                "modelPage": f"https://huggingface.co/{model_id}",
+                "modelPage": f"{web_base}/{model_id}",
                 "author": res_data.get("author"),
                 "preview": image_files,
             }
+            if readme_card:
+                metadata_info = readme.merge_card_metadata(metadata_info, readme_card)
 
             description_parts: list[str] = []
             description_parts.append("---")
@@ -355,7 +376,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             description_parts.append("")
             description_parts.append(f"# {res_data.get('name')}")
             description_parts.append("")
-            description_parts.append("No description about this model")
+            description_parts.append(readme_body or "No description about this model")
             description_parts.append("")
 
             model = {
@@ -371,7 +392,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
                 "description": "\n".join(description_parts),
                 "metadata": {},
                 "downloadPlatform": "huggingface",
-                "downloadUrl": f"https://huggingface.co/{model_id}/resolve/{revision}/{filename}?download=true",
+                "downloadUrl": f"{web_base}/{model_id}/resolve/{revision}/{filename}?download=true",
                 "revision": revision,
             }
             models.append(model)
@@ -475,6 +496,20 @@ class ModelScopeModelSearcher(ModelSearcher):
         loop = asyncio.get_running_loop()
         files = await loop.run_in_executor(utils.io_executor(), self._list_repo_files, repo_id)
 
+        # The repo README is the model card: fetch it so every file entry of
+        # this repository carries it in the notes (the Description tab). The
+        # default branch is `master` on ModelScope; `main` is tried as a
+        # fallback for repositories created from git with a `main` HEAD.
+        ms_headers = auth.get_modelscope_headers()
+        readme_body: str | None = None
+        readme_card: dict = {}
+        for rev in ("master", "main"):
+            readme_base = f"{MODELSCOPE_INTL_ENDPOINT}/models/{repo_id}/resolve/{rev}/"
+            readme_text = await readme.fetch_hub_readme(f"{readme_base}README.md", headers=ms_headers)
+            if readme_text:
+                readme_card, readme_body = readme.process_readme(readme_text, readme_base)
+                break
+
         model_page = f"{MODELSCOPE_INTL_ENDPOINT}/models/{repo_id}"
         models: list[dict] = []
         for fi in files:
@@ -494,6 +529,8 @@ class ModelScopeModelSearcher(ModelSearcher):
             }
             if hashes:
                 metadata_info["hashes"] = hashes
+            if readme_card:
+                metadata_info = readme.merge_card_metadata(metadata_info, readme_card)
             description_parts = [
                 "---",
                 yaml.dump(metadata_info).strip(),
@@ -504,6 +541,9 @@ class ModelScopeModelSearcher(ModelSearcher):
                 f"Model repository: {model_page}",
                 "",
             ]
+            if readme_body:
+                description_parts.append(readme_body)
+                description_parts.append("")
 
             models.append(
                 {
@@ -748,7 +788,7 @@ class Information:
         host_name = parsed_url.hostname
         if host_name in CIVITAI_HOSTS:
             return CivitaiModelSearcher()
-        if host_name == "huggingface.co":
+        if host_name in ("huggingface.co", "hf-mirror.com"):
             return HuggingfaceModelSearcher()
         if host_name in ("modelscope.ai", "modelscope.cn") or (host_name or "").endswith(".modelscope.ai"):
             return ModelScopeModelSearcher()

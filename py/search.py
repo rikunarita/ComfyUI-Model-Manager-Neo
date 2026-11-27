@@ -37,7 +37,7 @@ from urllib.parse import quote, urlparse
 
 from aiohttp import web
 
-from . import auth, http_client, utils
+from . import auth, hf_endpoint, http_client, utils
 from .information import MODELSCOPE_INTL_ENDPOINT
 
 # A3 (Phase 6): every hub round trip of this module goes
@@ -76,7 +76,7 @@ def _cache_avatar(key: str, value: str | None) -> str | None:
 # therefore re-serves hub avatars from its own route with a sniffed, correct
 # content type, cached in memory with an ETag like the SVG artwork.
 # ---------------------------------------------------------------------------
-_AVATAR_PROXY_HOSTS = ("modelscope.ai", "modelscope.cn", "huggingface.co", "civitai.com")
+_AVATAR_PROXY_HOSTS = ("modelscope.ai", "modelscope.cn", "huggingface.co", "hf-mirror.com", "civitai.com")
 _AVATAR_PROXY_CACHE: dict[str, tuple[str, str, bytes]] = {}
 _AVATAR_PROXY_LIMIT = 96
 # Avatars are tiny; refuse anything larger so a hostile (or misbehaving) CDN
@@ -149,12 +149,14 @@ async def _hf_avatar(owner: str) -> str | None:
     Both shapes were verified against the live API. Accounts without any
     avatar fall back to the initials badge in the UI.
     """
-    if owner in _AVATAR_CACHE:
-        return _AVATAR_CACHE[owner]
+    api_base = hf_endpoint.hf_api_base(HF_API_BASE)
+    cache_key = f"{api_base}|{owner}"
+    if cache_key in _AVATAR_CACHE:
+        return _AVATAR_CACHE[cache_key]
     for kind in ("users", "organizations"):
         try:
             status, payload = await http_client.fetch_status_json(
-                f"{HF_API_BASE}/{kind}/{owner}/avatar",
+                f"{api_base}/{kind}/{owner}/avatar",
                 headers=_UA,
                 timeout=8.0,
             )
@@ -162,10 +164,10 @@ async def _hf_avatar(owner: str) -> str | None:
                 continue
             url = (payload or {}).get("avatarUrl")
             if isinstance(url, str) and url:
-                return _cache_avatar(owner, url)
+                return _cache_avatar(cache_key, url)
         except Exception:
             continue
-    return _cache_avatar(owner, None)
+    return _cache_avatar(cache_key, None)
 
 
 def _hf_list_models(query: str, limit: int, offset: int, sort: str) -> list[Any]:
@@ -177,10 +179,13 @@ def _hf_list_models(query: str, limit: int, offset: int, sort: str) -> list[Any]
     """
     from huggingface_hub import HfApi
 
+    # Endpoint selection: official hub or the configured mirror. The mirror
+    # serves the same list API shape, just under a different origin.
+    endpoint = hf_endpoint.huggingface_endpoint()
     # `expand=["author"]` is required: without it list_models leaves
     # `author` empty on search results (verified against huggingface_hub).
     # One extra item is fetched to learn whether a further page exists.
-    models = HfApi().list_models(
+    models = HfApi(endpoint=endpoint).list_models(
         search=query,
         # The settings surface exposes every sort key the HF endpoint accepts
         # (per the user's choice); huggingface_hub 2.x narrows the `sort`
@@ -199,6 +204,7 @@ def _hf_list_models(query: str, limit: int, offset: int, sort: str) -> list[Any]
 async def _search_huggingface(query: str, limit: int, cursor: str | None, sort: str) -> tuple[list[dict], str | None]:
     offset = max(0, int(cursor or 0))
     loop = asyncio.get_running_loop()
+    page_base = hf_endpoint.page_base()
     models = await loop.run_in_executor(utils.io_executor(), _hf_list_models, query, limit, offset, sort)
 
     # Window selection is unchanged (skip `offset`, keep `limit + 1` to learn
@@ -229,8 +235,8 @@ async def _search_huggingface(query: str, limit: int, cursor: str | None, sort: 
                     # filled in below (the avatar probes are concurrent now);
                     # the key stays in its historical position in the dict
                     "avatar": None,
-                    "pageUrl": f"https://huggingface.co/{mid}",
-                    "ownerUrl": f"https://huggingface.co/{owner}",
+                    "pageUrl": f"{page_base}/{mid}",
+                    "ownerUrl": f"{page_base}/{owner}",
                 },
                 owner,
             )

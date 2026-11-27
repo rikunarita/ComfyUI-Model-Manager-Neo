@@ -235,6 +235,18 @@ def get_modelscope_token():
     return get_api_key().get_value("modelscope")
 
 
+def get_modelscope_headers():
+    """
+    Return HTTP headers for ModelScope requests.
+    Includes Authorization Bearer token if available.
+    """
+    headers = {"User-Agent": config.user_agent}
+    token = get_modelscope_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def get_civitai_headers():
     """
     Return HTTP headers for Civitai API requests.

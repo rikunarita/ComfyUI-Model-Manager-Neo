@@ -272,8 +272,10 @@ const exitEditMode = () => {
     border: 1px solid var(--mm-border);
   }
 
-  pre code,
-  pre tt {
+  /* `pre tt` was dropped: `<tt>` is an obsolete element and stylelint 18's
+   * `selector-no-deprecated` flags it. markdown-it never emits `<tt>`, so only
+   * the `<code>` selector the renderer does produce is kept. */
+  pre code {
     display: inline;
     padding: 0;
     margin: 0;

@@ -73,7 +73,7 @@
 <script setup lang="ts" name="manager-dialog">
 import { Box } from '@lucide/vue'
 import { useElementSize, refDebounced } from '@vueuse/core'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardHoverActions from 'components/CardHoverActions.vue'
 import ModelCard from 'components/ModelCard.vue'
@@ -92,7 +92,6 @@ import { useSelection } from 'hooks/zipnn'
 import { type Model } from 'types/typings'
 import { genModelKey } from 'utils/model'
 import { buildModelRows, buildSearchTokens, compareText } from 'utils/modelFilter'
-import { PERF_PREFIX, perfEnabled, perfRecord, perfTime } from 'utils/perf'
 
 const { isMobile, gutter, cardSize } = useConfig()
 
@@ -187,72 +186,24 @@ const sortStrategy = computed<(a: Model, b: Model) => number>(() => {
   }
 })
 
-/* ---- C5: keystroke -> painted-grid instrumentation (K15) -----------------
- * Recorded only while the instrumentation is switched on (`__mmNeoPerf.enable()`
- * or the `ModelManager.UI.PerfMarks` setting - utils/perf.ts). Disabled, the
- * whole path costs ONE boolean test per call site: no `performance.now()`, no
- * `nextTick`, no `requestAnimationFrame`.
- *
- * `queryToPaint` is the K15 number (the debounced query change -> the frame that
- * shows it); `keystrokeToPaint` additionally includes the 150 ms input debounce
- * of Optimization B-3, and `initialRender` covers manager open -> first non-empty
- * grid paint. The state is declared BEFORE the `list` computed on purpose: the
- * computed writes `recomputeAt`, and a `let` used before its declaration would
- * be a TDZ ReferenceError the moment anything evaluated it during setup.
- */
-const openedAt = performance.now()
-let keystrokeAt = 0
-let recomputeAt = 0
-let paintScheduled = false
-let initialPaintRecorded = false
-
-const list = computed(() =>
-  perfTime(`${PERF_PREFIX}grid.list`, () => {
-    if (perfEnabled()) recomputeAt = performance.now()
-    const mergedList = Object.values(data.value).flat()
-    const byStrategy = sortStrategy.value
-    // One pure pipeline (filter -> sort -> chunk) shared with the headless K15
-    // harness, so the measurement and the browser run the same code. The
-    // non-positive `cols` guard (before the container is measured) lives in
-    // `chunkRows`: es-toolkit's chunk() used to THROW there.
-    return buildModelRows(mergedList, {
-      tokens: searchTokens.value,
-      matches: matchesTypeAndCollection,
-      compare: (a, b) => {
-        // Starred models always lead the grid; the chosen sort order decides
-        // within equal star state.
-        const byStar =
-          Number(isModelStarred(genModelKey(b))) - Number(isModelStarred(genModelKey(a)))
-        return byStar || byStrategy(a, b)
-      },
-      columns: cols.value,
-      keyOf: genModelKey,
-    })
-  }),
-)
-
-watch(searchContent, () => {
-  if (perfEnabled()) keystrokeAt = performance.now()
-})
-
-watch(list, () => {
-  if (!perfEnabled() || paintScheduled) return
-  paintScheduled = true
-  void nextTick(() => {
-    if (typeof requestAnimationFrame !== 'function') {
-      paintScheduled = false
-      return
-    }
-    requestAnimationFrame(() => {
-      paintScheduled = false
-      const painted = performance.now()
-      if (recomputeAt > 0) perfRecord(`${PERF_PREFIX}grid.queryToPaint`, painted - recomputeAt)
-      if (keystrokeAt > 0) perfRecord(`${PERF_PREFIX}grid.keystrokeToPaint`, painted - keystrokeAt)
-      if (!initialPaintRecorded && list.value.length > 0) {
-        initialPaintRecorded = true
-        perfRecord(`${PERF_PREFIX}grid.initialRender`, painted - openedAt)
-      }
-    })
+const list = computed(() => {
+  const mergedList = Object.values(data.value).flat()
+  const byStrategy = sortStrategy.value
+  // One pure pipeline (filter -> sort -> chunk) shared with the headless bench,
+  // so the measurement and the browser run the same code. The non-positive
+  // `cols` guard (before the container is measured) lives in `chunkRows`:
+  // es-toolkit's chunk() used to THROW there.
+  return buildModelRows(mergedList, {
+    tokens: searchTokens.value,
+    matches: matchesTypeAndCollection,
+    compare: (a, b) => {
+      // Starred models always lead the grid; the chosen sort order decides
+      // within equal star state.
+      const byStar = Number(isModelStarred(genModelKey(b))) - Number(isModelStarred(genModelKey(a)))
+      return byStar || byStrategy(a, b)
+    },
+    columns: cols.value,
+    keyOf: genModelKey,
   })
 })
 

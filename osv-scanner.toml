@@ -30,7 +30,7 @@
 # attacker-controlled. On expiry, re-query OSV before extending.
 [[IgnoredVulns]]
 id = "GHSA-g3hv-75wg-m249"
-ignoreUntil = 2026-12-15
+effectiveUntil = 2026-12-15
 reason = "Dev-only DoS (CVSS4 VA:L) needing attacker-controlled glob patterns; this repo's patterns are repository-owned config. No in-range fix (parents declare ^10; upstream config-array 0.23.5 requires ^10.2.4). Not in the shipped bundle. Forced major override deemed riskier than the finding for the lint/deps gates."
 
 # --- PyPI: httpx2/httpcore2 floor-resolution artifacts --------------------

@@ -11,7 +11,7 @@ interface FolderPathItem {
   children: SelectOptions[]
 }
 
-type ModelFolder = BaseModel & {
+export type ModelFolder = BaseModel & {
   children: ModelTreeNode[]
 }
 

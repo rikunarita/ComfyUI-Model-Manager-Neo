@@ -3,7 +3,6 @@
   "modelManager": "模型管理器",
   "openModelManager": "開啟模型管理器",
   "searchModels": "搜尋模型",
-
   "unSupportedModelType": "不支援的模型類型：{0}",
   "download": "下載",
   "downloadList": "下載列表",
@@ -160,8 +159,9 @@
     "hideSearchCivitai": "在模型搜尋中隱藏 Civitai 結果",
     "watchModelFolders": "監視模型資料夾的外部更改",
     "watchModelFoldersTooltip": "檢測其他程式（複製到 models/、其他下載器）新增或刪除的模型，並在約 1.5 秒內重新整理受影響的列表，而不必等待 30 秒的重新校驗。預設關閉：在 Linux 上每個資料夾會佔用一個 inotify watch，網路掛載的資料夾會被自動跳過（它們繼續使用定期重新整理）。",
-    "perfMarks": "記錄 UI 效能標記",
-    "perfMarksTooltip": "使用 performance.mark 測量網格重算/繪製與張量樹建置，並將樣本儲存在環形緩衝區中。在瀏覽器控制檯執行 __mmNeoPerf.summary() 即可檢視 P50/P95/P99（毫秒）。預設關閉；關閉時每個測量點只有一次布林判斷的開銷。"
+    "network": "網路",
+    "hfEndpoint": "Hugging Face 端點",
+    "hfEndpointTooltip": "Hugging Face 請求的傳送目標。預設為 huggingface.co。如果你的網路無法連線到 Hugging Face，請選擇 hf-mirror.com：此時所有 Hugging Face 請求（模型搜尋、模型資訊、下載）都會經過該鏡像，並且由於鏡像不代理 Xet 儲存，Xet 傳輸會自動停用（大型檔案改走傳統的 HTTP/LFS 通道下載）。注意：如果已設定 Hugging Face API Key，該金鑰也會傳送到所選端點。上傳一律傳送到 huggingface.co。變更會在幾秒內生效，不需重新啟動。"
   },
   "modelTypeLabel": {
     "checkpoints": "Checkpoint",
@@ -235,7 +235,6 @@
   "selectFolder": "選擇資料夾",
   "openModelPage": "開啟模型頁面",
   "addNode": "向畫布新增節點",
-
   "loadWorkflow": "從預覽載入工作流",
   "noPreviewWorkflow": "該模型沒有可用於載入工作流的預覽圖",
   "editModel": "編輯模型",
@@ -394,5 +393,7 @@
   },
   "collectionsEmpty": "暫無已儲存的集合 - 可使用本選單左側的儲存圖示建立。",
   "discardChanges": "放棄修改",
-  "discardChangesConfirm": "未儲存的修改將被全部放棄，確定嗎？"
+  "discardChangesConfirm": "未儲存的修改將被全部放棄，確定嗎？",
+  "hfEndpointOfficial": "huggingface.co（官方）",
+  "hfEndpointMirror": "hf-mirror.com（鏡像）"
 }

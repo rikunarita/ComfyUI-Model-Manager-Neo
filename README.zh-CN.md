@@ -106,6 +106,7 @@
 - <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **直链下载** —— 粘贴原始 `.safetensors` / `.ckpt` / `.gguf` URL，选择目标
   文件夹，还可选自定义子文件夹。
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf_xet` 加速** —— Hugging Face 传输在可用时使用分块、去重的 Xet 协议。
+- <img src="https://api.iconify.design/lucide/globe.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf-mirror.com` 端点** —— 在无法访问 huggingface.co 的网络中，可在 设置 → Model Manager Neo → 网络 中让所有 Hugging Face 请求（搜索、信息、下载）改走 hf-mirror.com 镜像；Xet 传输会自动禁用。
 - <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **日语与繁體中文语言包** —— 在 English 与简体中文之外，新增完整的日语
   与繁體中文（zh-TW）语言包。界面语言跟随 ComfyUI 自身的设置；地区子标签
   （`ja-JP` 等）按其基础语言处理，Hant 文字系统标签（`zh-Hant`、
@@ -271,6 +272,8 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
   会被后端拒绝。
 - 暂停 / 继续 / 删除任务；进度、速度与大小实时更新。
 - Hugging Face 下载使用 `huggingface_hub`（可用时加 `hf_xet`）。
+  如果无法访问 huggingface.co，请在 设置 → Model Manager Neo → 网络 中选择
+  **hf-mirror.com** —— 搜索、信息与下载将改走镜像（Xet 会自动禁用）。
 - Civitai 下载在完成后做 SHA256 校验、按文件类型自动归位，并对基础模型
   不匹配与可执行载荷格式发出警告。
 
@@ -734,6 +737,11 @@ Markdown 笔记一起呈现；没有预览的模型会在网格中显示随附�
 
 - [`docs/BENCH.md`](docs/BENCH.md) —— 本 README 中性能相关记述背后的
   测量记录。
+- [`Agent/Plan.md`](Agent/Plan.md) —— 当前工作规程：cargo 使用方式
+  （常用 `check`、仅在需要时 `test`、用 `clippy`/`rustfmt` 提升质量、
+  `build` 仅作最终确认）、测试布局与文档体系。
+- [`Agent/MEMO.md`](Agent/MEMO.md) —— 项目记录：已构建的内容、永久规程、
+  技术经验与剩余事项。
 - [`native/README.md`](native/README.md) —— Rust 工作区：布局、测试
   金字塔、fuzz 配置与预构建二进制的生成方式。
 - [`SECURITY.md`](SECURITY.md) —— 如何私密报告漏洞、范围界定，以及
@@ -860,7 +868,7 @@ Actions 配置本身）、**OSV-Scanner**（全部四个依赖面；PR 以新引
 │  ├─ utils/ · types/ · locales/
 │  ├─ style.css           #   Tailwind v4 入口 + 设计令牌
 │  └─ main.ts             #   注册为 ComfyUI 扩展
-├─ scripts/               # native 构建 + 官方 zipnn 交叉验证 + 前端性能关卡
+├─ scripts/               # native 构建 + 官方 zipnn 交叉验证 + 前端基准
 ├─ tests/                 # pytest 套件：golden 契约、parity、接合部
 └─ web/                   # 提供给 ComfyUI 的预构建打包产物（已提交）
 ```

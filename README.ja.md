@@ -120,6 +120,10 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
   貼り付け、保存先フォルダと任意のサブフォルダを選択できます。
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf_xet` アクセラレーション** — Hugging Face 転送は、利用可能な場合
   チャンク分割・重複排除された Xet プロトコルを使用します。
+- <img src="https://api.iconify.design/lucide/globe.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf-mirror.com` エンドポイント** — huggingface.co に到達できない
+  ネットワークでは、設定 → Model Manager Neo → ネットワーク で Hugging Face
+  のすべての通信（検索・情報・ダウンロード）を hf-mirror.com ミラー経由に
+  切り替えられます。Xet 転送は自動的に無効化されます。
 - <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **日本語・繁體中文ロケール** — English・簡体中文に加え、完全な日本語
   バンドルと繁體中文（zh-TW）バンドルを追加。UI は ComfyUI 自身の言語
   設定に追従し、リージョンサブタグ（`ja-JP` 等）はベース言語として扱われ、
@@ -300,6 +304,9 @@ comfy node install comfyui-model-manager-neo
   宣言サイズが収まらないタスクはバックエンドが拒否します。
 - タスクの一時停止 / 再開 / 削除。進捗・速度・サイズはライブ更新。
 - Hugging Face ダウンロードは `huggingface_hub`（+ 利用可能なら `hf_xet`）。
+  huggingface.co に到達できない場合は、設定 → Model Manager Neo → ネットワーク
+  で **hf-mirror.com** を選択してください — 検索・情報・ダウンロードが
+  ミラー経由になります（Xet は自動的に無効化されます）。
 - Civitai ダウンロードは完了時に SHA256 検証、ファイル種別に応じた自動振り分け、
   ベースモデル不一致と実行形式ペイロードの警告を備えます。
 
@@ -820,6 +827,11 @@ ComfyUI 内部クリップボードへ複製する挙動はグラフ自身のコ
 
 - [`docs/BENCH.md`](docs/BENCH.md) — この README の性能に関する記述を支える
   計測記録。
+- [`Agent/Plan.md`](Agent/Plan.md) — 現行の作業規程: cargo の使い方
+  (`check` を常用・`test` は必要なときだけ・`clippy`/`rustfmt` で品質向上・
+  `build` は最終確認)、テスト配置、文書体系。
+- [`Agent/MEMO.md`](Agent/MEMO.md) — 開発記録: 何を作ったか・恒久規程・
+  技術知見・残件。
 - [`native/README.md`](native/README.md) — Rust ワークスペース: レイアウト・
   テストピラミッド・ファジング構成・プリビルドバイナリの生成方法。
 - [`SECURITY.md`](SECURITY.md) — 脆弱性の非公開報告手順・対象範囲の定義・
@@ -952,7 +964,7 @@ TypeScript/Vue・Python・Rust、そして GitHub Actions ワークフロー自�
 │  ├─ utils/ · types/ · locales/
 │  ├─ style.css           #   Tailwind v4 エントリ + デザイントークン
 │  └─ main.ts             #   ComfyUI 拡張として登録
-├─ scripts/               # native ビルド + 公式 zipnn クロス検証 + フロントエンド計測ゲート
+├─ scripts/               # native ビルド + 公式 zipnn クロス検証 + フロントエンド計測
 ├─ tests/                 # pytest スイート: ゴールデン契約・parity・接合部
 └─ web/                   # ComfyUI へ配信されるプリビルドバンドル（コミット対象）
 ```

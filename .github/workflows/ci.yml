@@ -31,7 +31,7 @@ jobs:
           # credentials; keep none persisted on the runner.
           persist-credentials: false
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         # no `version:` on purpose - see the header note
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -50,7 +50,7 @@ jobs:
       # __init__.py -> utils.pip_install still run inside the USER's ComfyUI
       # Python, where uv cannot be assumed. `enable-cache` persists uv's
       # download cache (keyed on requirements.txt / pyproject.toml / uv.lock).
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: true
 
@@ -122,15 +122,14 @@ jobs:
       - name: Build
         run: pnpm exec vite build
 
-      # Phase 6 / C5: the K15 measurement base runs on every push.
-      # It compiles the REAL src/utils modules with the repository's tsc and
-      # measures them against verbatim copies of the pre-Phase-6 code, so the
-      # gates are same-run ratios (C1 hoisting, C2 comparator choice, the Rust
-      # tensor-tree decode) and hold on a shared runner. The absolute K15
-      # numbers are recorded with the env block and judged on the reference
-      # machine; the browser paint leg is instrumented in the app
-      # itself (src/utils/perf.ts). The Rust<->JS tree cross-check needs a
-      # built native binary and runs in native.yml's integration job instead.
+      # The K15 measurement base runs on every push. It compiles the REAL
+      # src/utils modules with the repository's tsc and measures them against
+      # verbatim copies of the pre-optimization code, so the gates are
+      # same-run ratios (hoisting, comparator choice, the Rust tensor-tree
+      # decode) and hold on a shared runner. The absolute K15 numbers are
+      # recorded with the env block and judged on the reference machine.
+      # The Rust<->JS tree cross-check needs a built native binary and runs
+      # in native.yml's integration job instead.
       - name: Frontend K15 bench (C5)
         run: node scripts/bench/front/k15.mjs --json-out /tmp/phase6_front.json
 

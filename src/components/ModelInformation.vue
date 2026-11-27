@@ -290,7 +290,6 @@ import {
   parseFrontmatter,
   writeFrontmatter,
 } from 'utils/modelInformation'
-import { PERF_PREFIX, perfTime } from 'utils/perf'
 import {
   buildTensorTreePayload,
   createTensorTreeIndex,
@@ -442,21 +441,14 @@ interface TensorRow {
 const tensorIndex = computed(() => {
   const list = tensors.value
   const payload = rawModel().tensorTree
-  // C5: the two sources get their own sample names, so `__mmNeoPerf.summary()`
-  // shows whether the Rust payload path or the JS fallback ran (and what each
-  // cost) instead of one blended number.
   if (payload) {
-    const fromBackend = perfTime(`${PERF_PREFIX}info.tensorTree.decode`, () =>
-      createTensorTreeIndex(payload, list),
-    )
+    const fromBackend = createTensorTreeIndex(payload, list)
     if (fromBackend) return fromBackend
     // A payload this decoder does not trust (wrong version, inconsistent
     // counts, a leaf index outside the tensor list): fall through to the JS
     // fold rather than render a wrong table.
   }
-  return perfTime(`${PERF_PREFIX}info.tensorTree.fallbackFold`, () =>
-    createTensorTreeIndex(buildTensorTreePayload(list), list),
-  )
+  return createTensorTreeIndex(buildTensorTreePayload(list), list)
 })
 
 /** Expanded folder paths; empty by default = maximally collapsed. */
@@ -481,56 +473,54 @@ const toggleTensorLeaves = (path: string) => {
 /** Depth-first row list honouring the collapsed/expanded + paging state.
  *  Only the EXPANDED part of the tree is touched: a collapsed MoE renders its
  *  root child, not its 87k nodes. */
-const tensorRows = computed<TensorRow[]>(() =>
-  perfTime(`${PERF_PREFIX}info.tensorRows`, () => {
-    const index = tensorIndex.value
-    const rows: TensorRow[] = []
-    if (!index) return rows
-    const walk = (nodeIndex: number, path: string, depth: number) => {
-      for (const childIndex of index.childrenOf(nodeIndex)) {
-        const childPath = index.pathOf(childIndex, path)
-        const view = index.viewOf(childIndex, path)
-        rows.push({
-          key: `f:${childPath}`,
-          kind: 'folder',
-          depth,
-          path: childPath,
-          segment: view.segment,
-          totalCount: view.totalCount,
-          totalParams: view.totalParams,
-        })
-        if (expandedNodes.value.has(childPath)) walk(childIndex, childPath, depth + 1)
-      }
-      const all = allLeavesNodes.value.has(path)
-      const leaves = index.tensorsOf(nodeIndex, path)
-      const shown = all ? leaves : leaves.slice(0, TENSOR_PAGE)
-      for (const tensor of shown) {
-        const tail = tensorTail(path, tensor)
-        rows.push({
-          key: `t:${tensor.name}`,
-          kind: 'leaf',
-          depth,
-          path: tensor.name,
-          segment: tail || tensor.name,
-          tensor,
-        })
-      }
-      if (leaves.length > TENSOR_PAGE) {
-        rows.push({
-          key: `m:${path}`,
-          kind: 'more',
-          depth,
-          path,
-          segment: '',
-          totalCount: leaves.length,
-          allLeaves: all,
-        })
-      }
+const tensorRows = computed<TensorRow[]>(() => {
+  const index = tensorIndex.value
+  const rows: TensorRow[] = []
+  if (!index) return rows
+  const walk = (nodeIndex: number, path: string, depth: number) => {
+    for (const childIndex of index.childrenOf(nodeIndex)) {
+      const childPath = index.pathOf(childIndex, path)
+      const view = index.viewOf(childIndex, path)
+      rows.push({
+        key: `f:${childPath}`,
+        kind: 'folder',
+        depth,
+        path: childPath,
+        segment: view.segment,
+        totalCount: view.totalCount,
+        totalParams: view.totalParams,
+      })
+      if (expandedNodes.value.has(childPath)) walk(childIndex, childPath, depth + 1)
     }
-    walk(0, '', 0)
-    return rows
-  }),
-)
+    const all = allLeavesNodes.value.has(path)
+    const leaves = index.tensorsOf(nodeIndex, path)
+    const shown = all ? leaves : leaves.slice(0, TENSOR_PAGE)
+    for (const tensor of shown) {
+      const tail = tensorTail(path, tensor)
+      rows.push({
+        key: `t:${tensor.name}`,
+        kind: 'leaf',
+        depth,
+        path: tensor.name,
+        segment: tail || tensor.name,
+        tensor,
+      })
+    }
+    if (leaves.length > TENSOR_PAGE) {
+      rows.push({
+        key: `m:${path}`,
+        kind: 'more',
+        depth,
+        path,
+        segment: '',
+        totalCount: leaves.length,
+        allLeaves: all,
+      })
+    }
+  }
+  walk(0, '', 0)
+  return rows
+})
 
 /** Structural shape rendering, e.g. `[1280, 4, 2]`; scalars read `[]`. */
 const formatShape = (shape: number[]) => `[${(shape ?? []).join(', ')}]`

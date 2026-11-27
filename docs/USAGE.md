@@ -645,6 +645,19 @@ ComfyUI **Settings → Model Manager Neo**:
   defaults are Hugging Face _trending_, ModelScope _likes_ and Civitai _highest
   rated_.
 
+### Network
+
+- **Hugging Face endpoint** — where Hugging Face requests are sent:
+  `huggingface.co` (official, default) or `hf-mirror.com` (community mirror
+  for networks where huggingface.co is unreachable). The mirror covers model
+  search, model information, pasted‑URL resolution and downloads. Because the
+  mirror does **not** proxy the Xet content‑addressed store, selecting it
+  also disables the Xet transfer transport for the rest of the process
+  (large files download over the classic HTTP/LFS path instead, which the
+  mirror does serve). Your Hugging Face API key, if set, is sent to the
+  selected endpoint as well; uploads always go to huggingface.co. The change
+  takes effect within a few seconds — no restart required.
+
 ### ZipNN
 
 - **Auto‑compress unused days** — compress models untouched for N days
@@ -662,11 +675,6 @@ ComfyUI **Settings → Model Manager Neo**:
   choice. These entries are hidden from the settings list; change them through
   the Custom Size dialog.
 - **Flat Layout** — default layout on open.
-- **Record UI performance marks** — off by default. Instruments the grid
-  recompute/paint and the tensor‑tree build with `performance.mark` and keeps
-  the samples in a ring buffer; read them in the browser console with
-  `__mmNeoPerf.summary()` (P50/P95/P99 in ms), `__mmNeoPerf.enable()` /
-  `.disable()` / `.reset()`.
 
 ## 12. Languages
 
@@ -680,17 +688,18 @@ bundle; anything else falls back to English.
 
 ## 13. Troubleshooting
 
-| Symptom                                                | Cause / fix                                                                                                                                                                                                               |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The manager button is missing                          | the frontend did not register the extension — check the ComfyUI log for an import error, and that the folder is named `ComfyUI-Model-Manager-Neo`                                                                         |
-| `Hugging Face token not set`                           | set the token in Settings (or `HF_TOKEN`) and reopen the dialog                                                                                                                                                           |
-| A download never starts                                | the URL may need authentication (Civitai gated models) — set the Civitai key; the task row shows the server's error text                                                                                                  |
-| “Failed to update model: PathIndex …”                  | the selected type has no folder on this machine — pick a type from the dropdown                                                                                                                                           |
-| The UI looks unstyled / grey boxes                     | you are looking at a stale `web/` bundle; rebuild with `pnpm build` (only needed when developing)                                                                                                                         |
-| Preview shows NO PREVIEW                               | the model has no preview file; set one in edit mode                                                                                                                                                                       |
-| ZipNN reports “the native core is unavailable: …”      | the message carries the loader's exact reason: a platform outside the [engine table](#the-engine), or a missing/corrupt `native/native-bin/<tag>` binary (re‑clone the repository). Browsing and downloading keep working |
-| ZipNN is unavailable on free-threaded Python 3.13/3.14 | abi3t (the free-threaded Stable ABI, PEP 803) exists only from CPython 3.15 — the toast carries exactly this reason. Run a GIL build (3.12+) or free-threaded 3.15+; browsing and downloading keep working                |
-| An animated preview lost its animation                 | previews saved by versions before the Rust core were frozen to their first frame; re‑saving the preview (edit mode) re‑encodes it as an animated WebP                                                                     |
+| Symptom                                                | Cause / fix                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The manager button is missing                          | the frontend did not register the extension — check the ComfyUI log for an import error, and that the folder is named `ComfyUI-Model-Manager-Neo`                                                                                                                         |
+| `Hugging Face token not set`                           | set the token in Settings (or `HF_TOKEN`) and reopen the dialog                                                                                                                                                                                                           |
+| Downloads through hf-mirror.com fail with HTTP 401     | `hf_xet` bypasses the mirror (it always talks to the Xet CAS) — select Settings → Model Manager Neo → **Network → Hugging Face endpoint → hf-mirror.com** and Neo disables the Xet transport automatically (or run `pip uninstall hf_xet`, or set `HF_HUB_DISABLE_XET=1`) |
+| A download never starts                                | the URL may need authentication (Civitai gated models) — set the Civitai key; the task row shows the server's error text                                                                                                                                                  |
+| “Failed to update model: PathIndex …”                  | the selected type has no folder on this machine — pick a type from the dropdown                                                                                                                                                                                           |
+| The UI looks unstyled / grey boxes                     | you are looking at a stale `web/` bundle; rebuild with `pnpm build` (only needed when developing)                                                                                                                                                                         |
+| Preview shows NO PREVIEW                               | the model has no preview file; set one in edit mode                                                                                                                                                                                                                       |
+| ZipNN reports “the native core is unavailable: …”      | the message carries the loader's exact reason: a platform outside the [engine table](#the-engine), or a missing/corrupt `native/native-bin/<tag>` binary (re‑clone the repository). Browsing and downloading keep working                                                 |
+| ZipNN is unavailable on free-threaded Python 3.13/3.14 | abi3t (the free-threaded Stable ABI, PEP 803) exists only from CPython 3.15 — the toast carries exactly this reason. Run a GIL build (3.12+) or free-threaded 3.15+; browsing and downloading keep working                                                                |
+| An animated preview lost its animation                 | previews saved by versions before the Rust core were frozen to their first frame; re‑saving the preview (edit mode) re‑encodes it as an animated WebP                                                                                                                     |
 
 ## Screenshots
 

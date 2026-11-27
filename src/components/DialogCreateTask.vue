@@ -101,8 +101,7 @@
                   class="cursor-pointer hover:underline"
                   :title="item.ownerDescription || item.ownerUrl"
                   @click.stop.prevent="openExternal(item.ownerUrl)"
-                  >{{ item.ownerDisplay || item.owner }}</a
-                >/<a
+                  >{{ item.ownerDisplay || item.owner }}</a>/<a
                   class="cursor-pointer hover:underline"
                   :title="item.pageUrl"
                   @click.stop.prevent="openExternal(item.pageUrl)"

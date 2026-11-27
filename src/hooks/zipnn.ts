@@ -476,7 +476,7 @@ export const startZipnnDeltaDecompress = async (
  * folder can never be selected at the same time (adding one drops the
  * bundle side with a warning).
  */
-type SelectionKind = 'model' | 'folder' | 'znn-folder'
+export type SelectionKind = 'model' | 'folder' | 'znn-folder'
 
 const selectionState = reactive<{
   enabled: boolean

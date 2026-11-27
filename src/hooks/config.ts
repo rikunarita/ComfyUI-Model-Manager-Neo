@@ -15,12 +15,10 @@ import { defineStore } from 'hooks/store'
 import { useToast } from 'hooks/toast'
 import { $el, app } from 'scripts/comfyAPI'
 import { resolveIcon } from 'utils/iconMap'
-import { setPerfEnabled } from 'utils/perf'
 
 /** ComfyUI setting IDs registered by this store (persisted keys - do not
  *  rename: an existing installation's saved value is keyed by the string). */
 const WATCH_MODEL_FOLDERS_ID = 'ModelManager.Scan.WatchModelFolders'
-const PERF_MARKS_ID = 'ModelManager.UI.PerfMarks'
 
 /**
  * Sort values each model-search platform accepts (verified against the live
@@ -471,6 +469,23 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       },
     })
 
+    // Hugging Face endpoint: official hub or the hf-mirror.com community
+    // mirror for networks where huggingface.co is unreachable. Read on the
+    // PYTHON side (py/hf_endpoint.py) from the persisted setting - no store
+    // wiring here on purpose. The change applies within a few seconds.
+    app.ui?.settings.addSetting({
+      id: 'ModelManager.Network.HuggingFaceEndpoint',
+      category: [t('modelManager'), t('setting.network'), 'HuggingFaceEndpoint'],
+      name: t('setting.hfEndpoint'),
+      tooltip: t('setting.hfEndpointTooltip'),
+      type: 'combo',
+      defaultValue: 'https://huggingface.co',
+      options: [
+        { text: t('hfEndpointOfficial'), value: 'https://huggingface.co' },
+        { text: t('hfEndpointMirror'), value: 'https://hf-mirror.com' },
+      ],
+    })
+
     app.ui?.settings.addSetting({
       id: 'ModelManager.Zipnn.AutoCompressUnusedDays',
       category: [t('modelManager'), t('setting.zipnn'), 'AutoCompressUnusedDays'],
@@ -559,22 +574,5 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       defaultValue: false,
       type: 'boolean',
     })
-
-    // Phase 6 (C5): the K15 instrumentation switch. Off by default;
-    // the samples are read from the console handle `__mmNeoPerf.summary()`.
-    app.ui?.settings.addSetting({
-      id: PERF_MARKS_ID,
-      category: [t('modelManager'), t('setting.ui'), 'PerfMarks'],
-      name: t('setting.perfMarks'),
-      tooltip: t('setting.perfMarksTooltip'),
-      defaultValue: false,
-      type: 'boolean',
-      onChange: (value: boolean) => {
-        // ComfyUI persists the value, so perf.ts must not write its own
-        // localStorage flag on top of it.
-        setPerfEnabled(Boolean(value), false)
-      },
-    })
-    setPerfEnabled(Boolean(app.ui?.settings.getSettingValue<boolean>(PERF_MARKS_ID)), false)
   })
 }

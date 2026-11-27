@@ -17,7 +17,7 @@ import aiohttp
 import folder_paths
 from aiohttp import web
 
-from . import auth, config, native, thread, utils
+from . import auth, config, hf_endpoint, native, thread, utils
 
 # Quick Win A2: the download write loop used to pull 8 KiB
 # chunks (1.3 M Python-loop iterations for a 10 GB file). 1 MiB cuts that to
@@ -936,6 +936,20 @@ class ModelDownload:
         if token:
             fallback_headers["Authorization"] = f"Bearer {token}"
 
+        # Endpoint selection (official hub vs hf-mirror.com). A mirror does
+        # not proxy the Xet CAS, so the Xet transport is disabled process-
+        # wide for the remainder of this process when one is selected; the
+        # classic HTTP/LFS path the mirror does serve is then used. The
+        # caller's opt-in via Settings is what makes sending the bearer
+        # token to the mirror acceptable - the tooltip says so explicitly.
+        endpoint = hf_endpoint.huggingface_endpoint()
+        hf_endpoint.disable_xet_if_mirror()
+        if endpoint != hf_endpoint.OFFICIAL_ENDPOINT:
+            utils.print_warning(
+                f"Hugging Face endpoint set to {endpoint} (Settings > Model Manager Neo > Network); "
+                "Xet transfer disabled for this process, using the classic HTTP/LFS path"
+            )
+
         if len(path_parts) < 3:
             utils.print_warning(f"HF URL format unexpected, falling back to HTTP: {model_url}")
             await self.download_model_file_http(task_id, fallback_headers, progress_callback, interval)
@@ -1053,6 +1067,12 @@ class ModelDownload:
                     force_download=False,
                     tqdm_class=ModelManagerTqdm if base_tqdm else None,
                     user_agent=config.user_agent,
+                    # huggingface_hub resolves HF_ENDPOINT itself, but passing
+                    # the configured endpoint explicitly keeps a stray
+                    # process-wide HF_ENDPOINT from silently overriding the
+                    # in-app setting (and vice versa is documented: the
+                    # setting wins for the in-app hub calls).
+                    endpoint=endpoint,
                 )
                 return result_path, lambda: shutil.rmtree(task_hf_dir, ignore_errors=True)
             finally:

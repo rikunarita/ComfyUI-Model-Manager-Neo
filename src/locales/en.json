@@ -159,8 +159,9 @@
     "hideSearchCivitai": "Hide Civitai results in model search",
     "watchModelFolders": "Watch model folders for external changes",
     "watchModelFoldersTooltip": "Detects models added or removed by other programs (a copy into models/, another downloader) and refreshes the affected list within ~1.5 s instead of waiting for the 30 s revalidation. Off by default: it holds one inotify watch per folder on Linux, and network-mounted folders are skipped automatically (they keep using the periodic refresh).",
-    "perfMarks": "Record UI performance marks",
-    "perfMarksTooltip": "Measures the grid recompute / paint and the tensor-tree build with performance.mark and keeps the samples in a ring buffer. Read them in the browser console with __mmNeoPerf.summary() (P50/P95/P99 in ms). Off by default; the shipping path costs one boolean test per call site."
+    "network": "Network",
+    "hfEndpoint": "Hugging Face endpoint",
+    "hfEndpointTooltip": "Where Hugging Face requests are sent. The default is huggingface.co. If Hugging Face is unreachable on your network, select hf-mirror.com: every Hugging Face call (model search, model information, downloads) then goes through the mirror, and the Xet transfer transport is disabled automatically because the mirror does not proxy the Xet store (large files download over the classic HTTP/LFS path instead). Note: your Hugging Face API key, if set, is sent to the selected endpoint as well. Uploads always go to huggingface.co. The change applies within a few seconds, no restart required."
   },
   "modelTypeLabel": {
     "checkpoints": "Checkpoints",
@@ -392,5 +393,7 @@
   },
   "collectionsEmpty": "No saved collections yet - use the save icon on the left of this menu.",
   "discardChanges": "Discard changes",
-  "discardChangesConfirm": "Unsaved changes will be discarded. Continue?"
+  "discardChangesConfirm": "Unsaved changes will be discarded. Continue?",
+  "hfEndpointOfficial": "huggingface.co (official)",
+  "hfEndpointMirror": "hf-mirror.com (mirror)"
 }

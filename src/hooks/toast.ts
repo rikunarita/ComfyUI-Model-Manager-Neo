@@ -5,7 +5,7 @@ import { toast as sonnerToast } from 'vue-sonner'
 import { useI18nGlobal } from 'hooks/i18n'
 
 // Confirm dialog state (reactive store)
-interface ConfirmOptions {
+export interface ConfirmOptions {
   message: string
   header?: string
   icon?: string

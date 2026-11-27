@@ -225,6 +225,7 @@ import {
 import { type BaseModel, type Model, type WithResolved } from 'types/typings'
 import { assetUrl, platformBackgroundStyle, platformLogo } from 'utils/media'
 import { genModelKey } from 'utils/model'
+import { widePanelWidth } from 'utils/panel'
 
 interface Props {
   model: Model
@@ -373,7 +374,7 @@ const identifyByHash = async () => {
         title: t('identifyByHash'),
         content: DialogIdentifyHash,
         contentProps: { result },
-        defaultSize: { width: 560, height: 640 },
+        defaultSize: { width: widePanelWidth(), height: 640 },
       })
     } else {
       toast.add({

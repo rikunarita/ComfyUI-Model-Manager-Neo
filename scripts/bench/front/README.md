@@ -9,7 +9,7 @@
 ## 設計原則（`scripts/bench/` 本体と同じ）
 
 - **実コードを計測する**: リポジトリ同梱の `typescript`（`node_modules/.bin/tsc`）で
-  `src/utils/modelFilter.ts` / `src/utils/tensorTree.ts` / `src/utils/perf.ts` を
+  `src/utils/modelFilter.ts` / `src/utils/tensorTree.ts` を
   コンパイルし、**ブラウザが実行するのと同じモジュール**を import して駆動する。
   計測用に書き換えた複製は計測しない。
 - **before 側は逐語コピー**: Phase 6 以前の `DialogManager.vue` の `list` computed
@@ -71,7 +71,5 @@ MMNEO_TSC=/path/to/node_modules/typescript/bin/tsc \
 | `gates`                                      | 上記から導出した合否（`passed` が CI の判定）                             |
 
 ブラウザ実機での paint 脚（K15 の残り半分 = DOM 反映とフレーム）は
-`src/utils/perf.ts` が担当します。設定 **UI → パフォーマンスマーク**（既定 OFF）
-またはコンソールで `__mmNeoPerf.enable()` を実行し、`__mmNeoPerf.summary()` で
-`mm.grid.queryToPaint` / `mm.grid.keystrokeToPaint` / `mm.grid.initialRender` /
-`mm.info.tensorTree` / `mm.info.tensorRows` の P50/P95/P99 を読みます。
+ヘッドレスでは再現できません。ブラウザ側の計測用 instrumentation
+（`src/utils/perf.ts` と「UI → パフォーマンスマーク」設定）は撤去されました。

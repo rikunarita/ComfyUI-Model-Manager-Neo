@@ -54,6 +54,8 @@ const PLATFORM_ALIASES: Record<string, string> = {
   hf: 'huggingface',
   huggingface: 'huggingface',
   huggingfaceco: 'huggingface',
+  hfmirrorcom: 'huggingface',
+  hfmirror: 'huggingface',
   modelscope: 'modelscope',
   modelscopeai: 'modelscope',
   modelscopecn: 'modelscope',

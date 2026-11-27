@@ -70,6 +70,7 @@ import { type DialogItem, useDialog } from 'hooks/dialog'
 import { useGlobalLoading } from 'hooks/loading'
 import { useToast } from 'hooks/toast'
 import { cn } from 'utils/cn'
+import { widePanelWidth } from 'utils/panel'
 
 /**
  * Per-dialog window geometry.
@@ -176,8 +177,10 @@ const createGeometry = (item: DialogItem): DialogGeometry => {
   }
 
   const c = constraintsFor(item)
+  // Wide by default: the fallback matches the manager window (see
+  // utils/panel.ts) instead of the old 60 vw, so panels line up.
   const width = clamp(
-    item.defaultSize?.width ?? window.innerWidth * 0.6,
+    item.defaultSize?.width ?? widePanelWidth(),
     c.minWidth,
     Math.max(c.minWidth, c.maxWidth),
   )
