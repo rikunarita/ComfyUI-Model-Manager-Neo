@@ -422,6 +422,12 @@ pub fn inotify_budget() -> Option<u64> {
 mod tests {
     use super::*;
 
+    /// The watcher registry is process-global (the production API shares one
+    /// registry), so any two tests that start a session would see each other's
+    /// entries in `watch_diagnostics` and race each other's assertions.
+    /// Serialize the tests that call `watch_start`.
+    static WATCH_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// Wait (bounded) until a session has seen at least `count` changed paths.
     fn wait_for_paths(id: u64, count: usize) -> bool {
         for _ in 0..200 {
@@ -528,6 +534,9 @@ mod tests {
 
     #[test]
     fn start_poll_stop_roundtrip_sees_a_new_file() {
+        let _guard = WATCH_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let dir = tempfile::tempdir().unwrap();
         let id = watch_start(
             &[dir.path().to_path_buf()],
@@ -548,6 +557,9 @@ mod tests {
 
     #[test]
     fn a_missing_root_is_skipped_not_fatal() {
+        let _guard = WATCH_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let dir = tempfile::tempdir().unwrap();
         let missing = dir.path().join("nope");
         let id = watch_start(
@@ -571,6 +583,9 @@ mod tests {
 
     #[test]
     fn poll_drains_and_dedupes() {
+        let _guard = WATCH_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let dir = tempfile::tempdir().unwrap();
         let id = watch_start(
             &[dir.path().to_path_buf()],
@@ -589,6 +604,9 @@ mod tests {
 
     #[test]
     fn stop_is_idempotent_and_diagnostics_never_raise() {
+        let _guard = WATCH_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let dir = tempfile::tempdir().unwrap();
         let id = watch_start(&[dir.path().to_path_buf()], None).expect("watch_start");
         let diag = watch_diagnostics();
