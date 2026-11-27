@@ -16,16 +16,14 @@ These tests pin the fix without touching the live hubs:
 
 from __future__ import annotations
 
-import types
-
 import pytest
 import pytest_asyncio
 from aiohttp.test_utils import TestServer
-from harness import REPO_ROOT, import_ext
+from harness import import_ext
 
 pytest.importorskip("markdownify", reason="py/information.py needs markdownify (pip install -r requirements.txt)")
 
-from aiohttp import web  # noqa: E402
+from aiohttp import web
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +36,7 @@ class MockHub:
         self.server: TestServer | None = None
         self.base = ""
 
-    async def start(self) -> "MockHub":
+    async def start(self) -> MockHub:
         app = web.Application()
 
         async def dispatch(request: web.Request) -> web.Response:
@@ -200,7 +198,8 @@ def test_sanitizer_unwraps_unknown_tags_and_keeps_text():
 
 def test_sanitizer_iframes_and_svg_are_dropped_with_contents():
     readme = import_ext("readme")
-    out = readme.sanitize_readme_html('<div>before<iframe src="https://evil">inner</iframe><svg><script>s()</script></svg>after</div>', None)
+    dirty = '<div>before<iframe src="https://evil">inner</iframe><svg><script>s()</script></svg>after</div>'
+    out = readme.sanitize_readme_html(dirty, None)
     assert "before" in out
     assert "after" in out
     assert "iframe" not in out
@@ -285,7 +284,7 @@ async def test_hf_search_embeds_the_readme_in_the_notes(hub_factory, monkeypatch
 
     assert len(models) == 1
     description = models[0]["description"]
-    front_matter, _, body = description.partition("---\n")
+    _front_matter, _, body = description.partition("---\n")
     # the card's license made it into the notes' front-matter rows
     assert "license: apache-2.0" in description
     assert "website: Hugging Face" in description
@@ -359,7 +358,11 @@ async def test_modelscope_readme_falls_back_to_main(hub_factory, monkeypatch):
         {
             # master 404s, main serves the README
             "GET /models/owner/repo/resolve/master/README.md": (404, b"not found"),
-            "GET /models/owner/repo/resolve/main/README.md": (200, b"# Main Branch Card\n", {"Content-Type": "text/markdown"}),
+            "GET /models/owner/repo/resolve/main/README.md": (
+                200,
+                b"# Main Branch Card\n",
+                {"Content-Type": "text/markdown"},
+            ),
         }
     )
     monkeypatch.setattr(information, "MODELSCOPE_INTL_ENDPOINT", hub.base)

@@ -40,7 +40,7 @@ from __future__ import annotations
 import re
 from html.parser import HTMLParser
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import yaml
 
@@ -103,7 +103,7 @@ def _clean_card_value(value: Any) -> Any | None:
     if isinstance(value, (list, tuple)):
         items: list[Any] = []
         for item in value[:_MAX_LIST_ITEMS]:
-            if isinstance(item, bool) or isinstance(item, (int, float)):
+            if isinstance(item, (bool, int, float)):
                 items.append(item)
             elif isinstance(item, str):
                 cleaned = item.strip()[:_MAX_LIST_ITEM_CHARS]
@@ -293,7 +293,8 @@ class _Sanitizer(HTMLParser):
                 continue
             if name_lower == "src":
                 url = _clean_url(value, self._base, allow_fragment=False, allow_mailto=False)
-                if url is not None and _SCHEME_RE.match(url) and _SCHEME_RE.match(url).group(1).lower() in ("http", "https"):
+                scheme = _SCHEME_RE.match(url) if url is not None else None
+                if url is not None and scheme is not None and scheme.group(1).lower() in ("http", "https"):
                     cleaned.append((name_lower, url))
                 continue
             if name_lower == "open":
@@ -412,7 +413,9 @@ def process_readme(text: str, base_url: str) -> tuple[dict[str, Any], str]:
 
 async def fetch_hub_readme(url: str, *, headers: dict[str, str] | None) -> str | None:
     """GET a README (size-capped while streaming); ``None`` on any failure."""
-    raw = await http_client.fetch_bytes_capped(url, headers=headers, timeout=http_client.HUB_TIMEOUT, max_bytes=MAX_README_BYTES)
+    raw = await http_client.fetch_bytes_capped(
+        url, headers=headers, timeout=http_client.HUB_TIMEOUT, max_bytes=MAX_README_BYTES
+    )
     if not raw:
         return None
     try:
