@@ -12,26 +12,16 @@
 # as narrow as the mechanism allows (advisory-ID or package@version scoped),
 # so any NEW advisory on the same package still fails the scan.
 
-# --- npm: minimatch (dev toolchain only — eslint/dependency-cruiser chain) --
-# CVE-2026-118764 / GHSA-g3hv-75wg-m249 (MEDIUM, CVSS4 VA:L only): DoS via
-# globParts amplification in firstPhasePreProcess() when optimizationLevel >= 2
-# — i.e. through ATTACKER-CONTROLLED GLOB PATTERNS. Fixed only in minimatch
-# 11.0.1 (MAJOR); every parent in the tree (@eslint/config-array via eslint,
-# dependency-cruiser, fallow — all devDependencies) declares ^10, and the
-# latest @eslint/config-array (0.23.5) still requires ^10.2.4, so no in-range
-# fix exists upstream yet. Forcing the major across five tool packages would
-# risk silent semantic changes in the lint/import-graph gates for an
-# availability-only, dev-only issue whose attack surface (pattern strings) is
-# exclusively repository-owned configuration in this project — never
-# attacker-supplied. minimatch is NOT in the shipped web/ bundle (grep-
-# verified 2026-10-31). Same accept shape as the former braces entry.
-# Re-review triggers: (a) any parent adopts minimatch >= 11.0.1 (Dependabot
-# will surface it), (b) expiry below, (c) any pattern input becoming
-# attacker-controlled. On expiry, re-query OSV before extending.
-[[IgnoredVulns]]
-id = "GHSA-g3hv-75wg-m249"
-effectiveUntil = 2026-12-15
-reason = "Dev-only DoS (CVSS4 VA:L) needing attacker-controlled glob patterns; this repo's patterns are repository-owned config. No in-range fix (parents declare ^10; upstream config-array 0.23.5 requires ^10.2.4). Not in the shipped bundle. Forced major override deemed riskier than the finding for the lint/deps gates."
+# --- npm: minimatch — RESOLVED 2026-11-27 ----------------------------------
+# GHSA-g3hv-75wg-m249 (MEDIUM, CVSS4 VA:L): DoS via globParts amplification
+# in firstPhasePreProcess() (attacker-controlled glob patterns only). Fixed
+# in minimatch 11.0.1. Resolution: typescript-eslint bumped ^8.72.2 ->
+# ^8.74.0 (whose typescript-estree depends on minimatch ^11.0.1) plus a
+# parent-scoped pnpm override (eslint-plugin-import-x>@typescript-eslint/utils
+# = 8.74.0) that frees the stale optional 8.71.0 peer instance. minimatch
+# 10.2.6 no longer appears anywhere in pnpm-lock.yaml. The previous accept
+# entry (effectiveUntil 2026-12-15) is obsolete and was removed; the shipped
+# web/ bundle was never affected (grep-verified 2026-10-31).
 
 # --- PyPI: httpx2/httpcore2 floor-resolution artifacts --------------------
 # requirements.txt is the loose-floor RUNTIME CONTRACT (kept in sync with

@@ -32,3 +32,13 @@ overrides:
   # 2026-10-07: zero source-map traces in the shipped web/ bundle. An
   # override is the only pnpm-native way to force the fixed floor tree-wide.
   source-map-js: "1.2.2"
+  # GHSA-g3hv-75wg-m249 (minimatch globparts amplification DoS; vulnerable
+  # < 11.0.1). typescript-eslint was bumped to ^8.74.0 (its typescript-estree
+  # depends on minimatch ^11.0.1), but eslint-plugin-import-x's OPTIONAL peer
+  # instance of @typescript-eslint/utils stayed locked to the stale 8.71.0
+  # subtree, which still reaches minimatch 10.2.6. Parent-scoped override:
+  # only the import-x peer instance is forced to the 8.74 line (already the
+  # resolution everywhere else); minimatch 10.2.6 leaves the lockfile
+  # entirely. The optional peer stays optional - imports still work without
+  # it. Verified 2026-11-27: lint/typecheck/build/tests all green.
+  eslint-plugin-import-x>@typescript-eslint/utils: "8.74.0"
