@@ -14,7 +14,7 @@ import yaml
 from aiohttp import web
 from PIL import Image
 
-from . import auth, config, http_client, readme, utils
+from . import auth, config, hf_endpoint, http_client, readme, utils
 
 # A3: the hub base URLs are module constants so the mock tests
 # can point them at a local server (no live API dependency).
@@ -132,7 +132,9 @@ class ModelSearcher(ABC):
 
 class UnknownWebsiteSearcher(ModelSearcher):
     async def search_by_url(self, url: str):
-        raise RuntimeError("Unknown Website, please input a URL from huggingface.co, civitai.com or modelscope.ai.")
+        raise RuntimeError(
+            "Unknown Website, please input a URL from huggingface.co (or hf-mirror.com), civitai.com or modelscope.ai."
+        )
 
 
 class CivitaiModelSearcher(ModelSearcher):
@@ -291,18 +293,23 @@ class HuggingfaceModelSearcher(ModelSearcher):
             revision = path_parts[3]
             rest_pathname = "/".join(path_parts[4:])
 
+        # Endpoint selection: official hub or the configured mirror (the
+        # mirror serves the same API/resolve shapes under its own origin).
+        api_base = hf_endpoint.hf_api_base(HF_API_BASE)
+        web_base = hf_endpoint.hf_web_base(HF_WEB_BASE)
+
         headers = auth.get_hf_headers()
 
         # Fetch model info from HF API (A3: shared aiohttp session, no executor)
         res_data: dict = await http_client.fetch_json(
-            f"{HF_API_BASE}/models/{model_id}",
+            f"{api_base}/models/{model_id}",
             headers=headers,
             timeout=http_client.HUB_TIMEOUT,
         )
 
         # The repo README is the model card: fetch it up front so every file
         # entry of this repository carries it in the notes (the Description tab).
-        readme_base = f"{HF_WEB_BASE}/{model_id}/resolve/{revision}/"
+        readme_base = f"{web_base}/{model_id}/resolve/{revision}/"
         readme_text = await readme.fetch_hub_readme(f"{readme_base}README.md", headers=headers)
         readme_body: str | None = None
         readme_card: dict = {}
@@ -315,7 +322,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             # BUG FIX: without `recursive=true` the tree API only returns the
             # repository root, so files inside sub-directories never got a
             # size (shown as 0 B until the download corrected it).
-            tree_url = f"{HF_API_BASE}/models/{model_id}/tree/{revision}?recursive=true"
+            tree_url = f"{api_base}/models/{model_id}/tree/{revision}?recursive=true"
             status, tree_data = await http_client.fetch_status_json(
                 tree_url, headers=headers, timeout=http_client.HUB_TIMEOUT
             )
@@ -335,7 +342,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
             utils.filter_with(sibling_files, self._match_image_files()),
             self._match_tree_files(rest_pathname),
         )
-        image_files = [f"{HF_WEB_BASE}/{model_id}/resolve/{revision}/{filename}" for filename in image_files]
+        image_files = [f"{web_base}/{model_id}/resolve/{revision}/{filename}" for filename in image_files]
 
         models: list[dict] = []
 
@@ -347,7 +354,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
 
             metadata_info = {
                 "website": "Hugging Face",
-                "modelPage": f"{HF_WEB_BASE}/{model_id}",
+                "modelPage": f"{web_base}/{model_id}",
                 "author": res_data.get("author"),
                 "preview": image_files,
             }
@@ -385,7 +392,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
                 "description": "\n".join(description_parts),
                 "metadata": {},
                 "downloadPlatform": "huggingface",
-                "downloadUrl": f"{HF_WEB_BASE}/{model_id}/resolve/{revision}/{filename}?download=true",
+                "downloadUrl": f"{web_base}/{model_id}/resolve/{revision}/{filename}?download=true",
                 "revision": revision,
             }
             models.append(model)
@@ -781,7 +788,7 @@ class Information:
         host_name = parsed_url.hostname
         if host_name in CIVITAI_HOSTS:
             return CivitaiModelSearcher()
-        if host_name == "huggingface.co":
+        if host_name in ("huggingface.co", "hf-mirror.com"):
             return HuggingfaceModelSearcher()
         if host_name in ("modelscope.ai", "modelscope.cn") or (host_name or "").endswith(".modelscope.ai"):
             return ModelScopeModelSearcher()

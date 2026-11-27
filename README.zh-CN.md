@@ -106,6 +106,7 @@
 - <img src="https://api.iconify.design/lucide/link.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **直链下载** —— 粘贴原始 `.safetensors` / `.ckpt` / `.gguf` URL，选择目标
   文件夹，还可选自定义子文件夹。
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf_xet` 加速** —— Hugging Face 传输在可用时使用分块、去重的 Xet 协议。
+- <img src="https://api.iconify.design/lucide/globe.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf-mirror.com` 端点** —— 在无法访问 huggingface.co 的网络中，可在 设置 → Model Manager Neo → 网络 中让所有 Hugging Face 请求（搜索、信息、下载）改走 hf-mirror.com 镜像；Xet 传输会自动禁用。
 - <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **日语与繁體中文语言包** —— 在 English 与简体中文之外，新增完整的日语
   与繁體中文（zh-TW）语言包。界面语言跟随 ComfyUI 自身的设置；地区子标签
   （`ja-JP` 等）按其基础语言处理，Hant 文字系统标签（`zh-Hant`、
@@ -271,6 +272,8 @@ Node.js 也不需要编译器 —— 一次普通的 `import` 即可加载核心
   会被后端拒绝。
 - 暂停 / 继续 / 删除任务；进度、速度与大小实时更新。
 - Hugging Face 下载使用 `huggingface_hub`（可用时加 `hf_xet`）。
+  如果无法访问 huggingface.co，请在 设置 → Model Manager Neo → 网络 中选择
+  **hf-mirror.com** —— 搜索、信息与下载将改走镜像（Xet 会自动禁用）。
 - Civitai 下载在完成后做 SHA256 校验、按文件类型自动归位，并对基础模型
   不匹配与可执行载荷格式发出警告。
 

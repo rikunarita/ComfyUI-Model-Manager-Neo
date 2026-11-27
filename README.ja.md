@@ -120,6 +120,10 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
   貼り付け、保存先フォルダと任意のサブフォルダを選択できます。
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf_xet` アクセラレーション** — Hugging Face 転送は、利用可能な場合
   チャンク分割・重複排除された Xet プロトコルを使用します。
+- <img src="https://api.iconify.design/lucide/globe.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf-mirror.com` エンドポイント** — huggingface.co に到達できない
+  ネットワークでは、設定 → Model Manager Neo → ネットワーク で Hugging Face
+  のすべての通信（検索・情報・ダウンロード）を hf-mirror.com ミラー経由に
+  切り替えられます。Xet 転送は自動的に無効化されます。
 - <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **日本語・繁體中文ロケール** — English・簡体中文に加え、完全な日本語
   バンドルと繁體中文（zh-TW）バンドルを追加。UI は ComfyUI 自身の言語
   設定に追従し、リージョンサブタグ（`ja-JP` 等）はベース言語として扱われ、
@@ -300,6 +304,9 @@ comfy node install comfyui-model-manager-neo
   宣言サイズが収まらないタスクはバックエンドが拒否します。
 - タスクの一時停止 / 再開 / 削除。進捗・速度・サイズはライブ更新。
 - Hugging Face ダウンロードは `huggingface_hub`（+ 利用可能なら `hf_xet`）。
+  huggingface.co に到達できない場合は、設定 → Model Manager Neo → ネットワーク
+  で **hf-mirror.com** を選択してください — 検索・情報・ダウンロードが
+  ミラー経由になります（Xet は自動的に無効化されます）。
 - Civitai ダウンロードは完了時に SHA256 検証、ファイル種別に応じた自動振り分け、
   ベースモデル不一致と実行形式ペイロードの警告を備えます。
 

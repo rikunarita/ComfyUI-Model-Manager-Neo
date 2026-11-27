@@ -31,6 +31,12 @@ setting_key = {
     # a compressed file before the original is removed (default OFF). The env
     # override MM_ZNN_PARANOID wins over this setting.
     "zipnn": {"paranoid": "ModelManager.ZipNN.Paranoid"},
+    # Hugging Face endpoint: official huggingface.co (default) or the
+    # hf-mirror.com community mirror for networks where huggingface.co is
+    # unreachable. Read by py/hf_endpoint.py; affects search, model
+    # information, pasted-URL resolution and downloads. Uploads always go to
+    # huggingface.co.
+    "network": {"huggingface_endpoint": "ModelManager.Network.HuggingFaceEndpoint"},
 }
 
 user_agent = "Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"

@@ -158,7 +158,10 @@
     "hideSearchMs": "在模型搜尋中隱藏 ModelScope 結果",
     "hideSearchCivitai": "在模型搜尋中隱藏 Civitai 結果",
     "watchModelFolders": "監視模型資料夾的外部更改",
-    "watchModelFoldersTooltip": "檢測其他程式（複製到 models/、其他下載器）新增或刪除的模型，並在約 1.5 秒內重新整理受影響的列表，而不必等待 30 秒的重新校驗。預設關閉：在 Linux 上每個資料夾會佔用一個 inotify watch，網路掛載的資料夾會被自動跳過（它們繼續使用定期重新整理）。"
+    "watchModelFoldersTooltip": "檢測其他程式（複製到 models/、其他下載器）新增或刪除的模型，並在約 1.5 秒內重新整理受影響的列表，而不必等待 30 秒的重新校驗。預設關閉：在 Linux 上每個資料夾會佔用一個 inotify watch，網路掛載的資料夾會被自動跳過（它們繼續使用定期重新整理）。",
+    "network": "網路",
+    "hfEndpoint": "Hugging Face 端點",
+    "hfEndpointTooltip": "Hugging Face 請求的傳送目標。預設為 huggingface.co。如果你的網路無法連線到 Hugging Face，請選擇 hf-mirror.com：此時所有 Hugging Face 請求（模型搜尋、模型資訊、下載）都會經過該鏡像，並且由於鏡像不代理 Xet 儲存，Xet 傳輸會自動停用（大型檔案改走傳統的 HTTP/LFS 通道下載）。注意：如果已設定 Hugging Face API Key，該金鑰也會傳送到所選端點。上傳一律傳送到 huggingface.co。變更會在幾秒內生效，不需重新啟動。"
   },
   "modelTypeLabel": {
     "checkpoints": "Checkpoint",
@@ -390,5 +393,7 @@
   },
   "collectionsEmpty": "暫無已儲存的集合 - 可使用本選單左側的儲存圖示建立。",
   "discardChanges": "放棄修改",
-  "discardChangesConfirm": "未儲存的修改將被全部放棄，確定嗎？"
+  "discardChangesConfirm": "未儲存的修改將被全部放棄，確定嗎？",
+  "hfEndpointOfficial": "huggingface.co（官方）",
+  "hfEndpointMirror": "hf-mirror.com（鏡像）"
 }

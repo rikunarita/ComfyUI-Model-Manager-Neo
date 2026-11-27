@@ -158,7 +158,10 @@
     "hideSearchMs": "在模型搜索中隐藏 ModelScope 结果",
     "hideSearchCivitai": "在模型搜索中隐藏 Civitai 结果",
     "watchModelFolders": "监视模型文件夹的外部更改",
-    "watchModelFoldersTooltip": "检测其他程序（复制到 models/、其他下载器）新增或删除的模型，并在约 1.5 秒内刷新受影响的列表，而不必等待 30 秒的重新校验。默认关闭：在 Linux 上每个文件夹会占用一个 inotify watch，网络挂载的文件夹会被自动跳过（它们继续使用定期刷新）。"
+    "watchModelFoldersTooltip": "检测其他程序（复制到 models/、其他下载器）新增或删除的模型，并在约 1.5 秒内刷新受影响的列表，而不必等待 30 秒的重新校验。默认关闭：在 Linux 上每个文件夹会占用一个 inotify watch，网络挂载的文件夹会被自动跳过（它们继续使用定期刷新）。",
+    "network": "网络",
+    "hfEndpoint": "Hugging Face 端点",
+    "hfEndpointTooltip": "Hugging Face 请求的发送目标。默认为 huggingface.co。如果你的网络无法访问 Hugging Face，请选择 hf-mirror.com：此时所有 Hugging Face 请求（模型搜索、模型信息、下载）都会经过该镜像，并且由于镜像不代理 Xet 存储，Xet 传输会自动禁用（大文件改走传统的 HTTP/LFS 通道下载）。注意：如果设置了 Hugging Face API Key，该密钥也会发送到所选端点。上传始终发送到 huggingface.co。更改会在几秒内生效，无需重启。"
   },
   "modelTypeLabel": {
     "checkpoints": "Checkpoint",
@@ -390,5 +393,7 @@
   },
   "collectionsEmpty": "暂无已保存的集合 - 可使用本菜单左侧的保存图标创建。",
   "discardChanges": "放弃修改",
-  "discardChangesConfirm": "未保存的修改将被全部放弃，确定吗？"
+  "discardChangesConfirm": "未保存的修改将被全部放弃，确定吗？",
+  "hfEndpointOfficial": "huggingface.co（官方）",
+  "hfEndpointMirror": "hf-mirror.com（镜像）"
 }

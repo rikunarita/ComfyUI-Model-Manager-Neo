@@ -158,7 +158,10 @@
     "hideSearchMs": "モデル検索で ModelScope の結果を非表示",
     "hideSearchCivitai": "モデル検索で Civitai の結果を非表示",
     "watchModelFolders": "モデルフォルダの外部変更を監視する",
-    "watchModelFoldersTooltip": "他のプログラム（models/ へのコピーや別のダウンローダ）が追加・削除したモデルを検出し、30 秒ごとの再取得を待たずに約 1.5 秒で該当一覧を更新します。既定は OFF：Linux ではフォルダごとに inotify watch を 1 つ保持するためで、ネットワークマウントのフォルダは自動的に除外されます（従来どおり定期再取得が使われます）。"
+    "watchModelFoldersTooltip": "他のプログラム（models/ へのコピーや別のダウンローダ）が追加・削除したモデルを検出し、30 秒ごとの再取得を待たずに約 1.5 秒で該当一覧を更新します。既定は OFF：Linux ではフォルダごとに inotify watch を 1 つ保持するためで、ネットワークマウントのフォルダは自動的に除外されます（従来どおり定期再取得が使われます）。",
+    "network": "ネットワーク",
+    "hfEndpoint": "Hugging Face エンドポイント",
+    "hfEndpointTooltip": "Hugging Face へのリクエストの送信先です。既定は huggingface.co です。ネットワークから Hugging Face に到達できない場合は hf-mirror.com を選択してください。モデル検索・モデル情報・ダウンロードのすべての Hugging Face 通信がミラー経由になり、ミラーが Xet ストアをプロキシしないため Xet 転送は自動的に無効化されます（大きなファイルは従来の HTTP/LFS 経路でダウンロードされます）。注意: Hugging Face API キーを設定している場合、そのキーも選択したエンドポイントに送信されます。アップロードは常に huggingface.co へ送信されます。変更は数秒で反映され、再起動は不要です。"
   },
   "modelTypeLabel": {
     "checkpoints": "チェックポイント",
@@ -390,5 +393,7 @@
   },
   "collectionsEmpty": "保存済みコレクションはありません - メニュー左の保存アイコンから作成できます。",
   "discardChanges": "変更を破棄",
-  "discardChangesConfirm": "未保存の変更はすべて破棄されますが、よろしいですか？"
+  "discardChangesConfirm": "未保存の変更はすべて破棄されますが、よろしいですか？",
+  "hfEndpointOfficial": "huggingface.co（公式）",
+  "hfEndpointMirror": "hf-mirror.com（ミラー）"
 }

@@ -123,6 +123,10 @@ in a **prebuilt pure‑Rust core**.
   pick the target folder, optionally choose a custom sub‑folder.
 - <img src="https://api.iconify.design/lucide/zap.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf_xet` acceleration** — Hugging Face transfers use the chunked,
   deduplicated Xet protocol when available.
+- <img src="https://api.iconify.design/lucide/globe.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **`hf-mirror.com` endpoint** — on networks where huggingface.co is
+  unreachable, Settings → Model Manager Neo → Network lets every Hugging Face
+  call (search, information, downloads) go through the hf-mirror.com mirror;
+  the Xet transport is then disabled automatically.
 - <img src="https://api.iconify.design/lucide/languages.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Japanese & Traditional Chinese locales** — complete Japanese and
   Traditional Chinese (zh-TW) bundles join English and Simplified
   Chinese. The UI follows ComfyUI's own language setting; region
@@ -303,6 +307,9 @@ command palette.
   backend refuses tasks whose announced size does not fit in it.
 - Pause / resume / delete tasks; progress, speed and size update live.
 - Hugging Face downloads use `huggingface_hub` (+ `hf_xet` when available).
+  If huggingface.co is unreachable, select **hf-mirror.com** under
+  Settings → Model Manager Neo → Network — search, information and downloads
+  then go through the mirror (Xet disabled automatically).
 - Civitai downloads are SHA256‑verified on completion, routed by file type,
   and screened for base‑model mismatches and executable payload formats.
 

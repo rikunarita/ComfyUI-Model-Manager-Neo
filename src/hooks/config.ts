@@ -469,6 +469,23 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       },
     })
 
+    // Hugging Face endpoint: official hub or the hf-mirror.com community
+    // mirror for networks where huggingface.co is unreachable. Read on the
+    // PYTHON side (py/hf_endpoint.py) from the persisted setting - no store
+    // wiring here on purpose. The change applies within a few seconds.
+    app.ui?.settings.addSetting({
+      id: 'ModelManager.Network.HuggingFaceEndpoint',
+      category: [t('modelManager'), t('setting.network'), 'HuggingFaceEndpoint'],
+      name: t('setting.hfEndpoint'),
+      tooltip: t('setting.hfEndpointTooltip'),
+      type: 'combo',
+      defaultValue: 'https://huggingface.co',
+      options: [
+        { text: t('hfEndpointOfficial'), value: 'https://huggingface.co' },
+        { text: t('hfEndpointMirror'), value: 'https://hf-mirror.com' },
+      ],
+    })
+
     app.ui?.settings.addSetting({
       id: 'ModelManager.Zipnn.AutoCompressUnusedDays',
       category: [t('modelManager'), t('setting.zipnn'), 'AutoCompressUnusedDays'],
