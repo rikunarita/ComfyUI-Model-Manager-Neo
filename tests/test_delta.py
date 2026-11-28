@@ -1,6 +1,6 @@
-"""Phase 3 (L4) / Phase 8: delta route/batch goldens (single path).
+"""Delta route/batch goldens (single path).
 
-The Phase-3 contract, kept verbatim after the Phase-8 removal of the legacy
+The delta compression contract, kept verbatim after the prebuilt distribution's removal of the legacy
 vendored C core (the native Rust pipeline is the only engine):
 
 * ``POST /model-manager/zipnn/delta-{compress,decompress}`` keep the historic
@@ -8,14 +8,14 @@ vendored C core (the native Rust pipeline is the only engine):
   with ``kind: "delta"``, stats ``originalBytes``/``compressedBytes``), and
   the historic ERROR WORDING reaches the UI verbatim;
 * the compressor writes the official STREAMING delta form (cross-validation
-  against the official pip zipnn 0.5.4 lives in the L5 CI gate,
-  ``scripts/l5/official_cross.py`` — the transition-era cross-path tests
+  against the official pip zipnn 0.5.4 lives in the official interoperability gate CI gate,
+  ``scripts/cross_validation/official_cross.py`` — the transition-era cross-path tests
   against the vendored C core were retired together with it);
 * the ``.neo-delta.json`` sidecar keeps ``basePad``/``ftPad`` and gains
   ``ftSha256`` (restore verification, ``.corrupt`` retreat);
 * the Appendix-C SEGFAULT class (padded total % 256 KiB ∈ {1,2,3} — the C
-  core died on it, Phase 0 BENCH §4.3 proved the then-production path
-  reached it) round-trips through the production route byte-exactly (K5);
+  core died on it, the baseline BENCH §4.3 measurements proved the then-production path
+  reached it) round-trips through the production route byte-exactly (Cコア既知欠陥);
 * the folder batch (``batch-folder``) produces the correct bundle tree
   (bundles, sidecar moves, delta restores, stats), with the walk and
   sidecar-move primitives golden-compared against independent Python
@@ -56,7 +56,7 @@ _DELTA_STATS_KEYS = {"originalBytes", "compressedBytes"}
 
 
 # ---------------------------------------------------------------------------
-# helpers (same conventions as test_phase2_routes.py)
+# helpers (same conventions as test_routes.py)
 # ---------------------------------------------------------------------------
 def _compress_mod():
     return import_ext("compress")
@@ -205,12 +205,12 @@ def _assert_delta_contract(events, task_id: str, mode: str):
 # ---------------------------------------------------------------------------
 
 
-def test_native_core_exposes_the_phase3_api():
+def test_native_core_exposes_the_delta_api():
     mm = _native_core_or_skip()
     for fn in ("zipnn_delta_compress", "zipnn_delta_decompress", "walk_models", "move_with_sidecars"):
         assert hasattr(mm, fn), f"mm_core.{fn} missing (api_version={mm.api_version()})"
-    # The Phase 3 surface is still present at api_version 6 (Phase 5/6/7 ADDED the
-    # scan/hash functions; it did not remove the delta/batch ones).
+    # The delta surface is still present at api_version 6 (later versions ADDED
+    # the scan/hash functions; they did not remove the delta/batch ones).
     assert mm.api_version() == 6
 
 
@@ -298,7 +298,7 @@ async def test_route_delta_roundtrip_native_golden(prompt_server, model_lib, mon
 @pytest.mark.asyncio
 async def test_delta_segfault_class_totals_roundtrip_native(prompt_server, model_lib, monkeypatch):
     """Padded totals ≡ 1/2/3 (mod 256 KiB): the vendored C core SEGFAULTs
-    (demonstrated against the C core; Phase 0 proved the legacy delta route
+    (demonstrated against the C core; the baseline measurements proved the legacy delta route
     reaches it with real files). The native route must complete — byte-exactly."""
     _native_core_or_skip()
     ck = model_lib / "checkpoints"
@@ -440,7 +440,7 @@ async def test_delta_paranoid_mode_native(prompt_server, model_lib, monkeypatch)
 async def test_delta_cancel_native(prompt_server, model_lib, monkeypatch):
     _native_core_or_skip()
     # a pair big enough that an immediate cancel usually lands mid-run;
-    # both outcomes are valid but must be CONSISTENT (Phase-2 pattern)
+    # both outcomes are valid but must be CONSISTENT (the safetensors pipeline pattern)
     ck = model_lib / "checkpoints"
     big = synth_bf16(8 * 1024 * 1024, 8, low_entropy=False)
     write_safetensors(ck / "cb.safetensors", {"w": ("BF16", [8192, 1024], big)}, {"format": "pt"})
@@ -507,7 +507,7 @@ def _batch_tree(model_lib):
 
 
 # Independent Python reference walkers (the contract the Rust walk_models
-# must satisfy — verbatim semantics of the Phase-3 Python twins that Phase 8
+# must satisfy — verbatim semantics of the delta compression Python twins that the prebuilt distribution
 # retired from py/compress.py; kept HERE so the golden parity survives the
 # single-path switch and pins the Rust walk against an executable spec).
 def _ref_walk_compress(folder: str) -> list[str]:
@@ -591,7 +591,7 @@ def test_walk_models_releases_the_gil(tmp_path):
     The batch routes call ``walk_models`` from ``cpu_executor`` threads; a
     GIL-holding walk would freeze the ComfyUI event loop (WebSocket
     progress included) for the whole scan — the very class of bug Quick
-    Win A1 removed for the model-info route. Mechanical check: a busy
+    Win model-detail route executorization removed for the model-info route. Mechanical check: a busy
     Python counter thread can only advance WHILE the walk runs if the
     walk released the GIL (the main thread holds it otherwise, and the
     few bytecodes between the snapshots cannot hit the 5 ms switch
@@ -683,7 +683,7 @@ def test_move_with_sidecars_matches_the_python_mover(model_lib):
 
 
 # ---------------------------------------------------------------------------
-# folder batch — native path, identical behaviour QA (Phase 3)
+# folder batch — native path, identical behaviour QA (delta compression)
 # ---------------------------------------------------------------------------
 
 

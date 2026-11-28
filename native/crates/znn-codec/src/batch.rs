@@ -1,4 +1,4 @@
-//! Batch primitives (Phase 3): the mechanical halves of the
+//! Batch primitives (delta compression): the mechanical halves of the
 //! folder-batch flow — a parallel directory walk (`walk_models`, the
 //! `os.walk` + name-filter + `sorted()` replacement) and the model sidecar
 //! mover (`move_with_sidecars`, the `_sidecar_move` / `_delta_sidecar_move`
@@ -7,7 +7,7 @@
 //! The BUNDLE SEMANTICS stay in Python (`py/compress.py`): which folder is
 //! a bundle, where compressed output lands (`_bundle_dst_root`), where a
 //! bundle empties back to (`_batch_restore_root` / `_decompress_target`) —
-//! Phase 3 rule: "バンドル意味論（`*_DeltaZNN`・type-root 内包・
+//! delta compression rule: "バンドル意味論（`*_DeltaZNN`・type-root 内包・
 //! legacy `_ZNN`）は Python 現行ロジックを維持". This module only walks and
 //! moves, with every naming rule a faithful port of `py/utils.py` /
 //! `py/compress.py` (constants arrive through [`WalkOpts`] so the Python
@@ -222,7 +222,7 @@ fn preview_slot_suffixes() -> Vec<String> {
 /// Every file name that could hold a preview of `basename`, in slot-major
 /// display order — the faithful port of `py/utils.py preview_candidates()`
 /// (20 slots × 8 extensions). Shared by `move_with_sidecars` (which moves the
-/// present ones) and the Phase-5 scan (`scan::previews_in_names`, which lists
+/// present ones) and the scan/index scan (`scan::previews_in_names`, which lists
 /// the present ones as URLs); keeping ONE definition is what guarantees the
 /// listing order and the mover agree.
 #[must_use]

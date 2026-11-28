@@ -1,4 +1,4 @@
-//! Library scan + hygiene scan (Phase 5).
+//! Library scan + hygiene scan (the scan/index work).
 //!
 //! The Rust port of `py/manager.py ModelManager.scan_models()` and
 //! `scan_hygiene()`: a PARALLEL directory walk (`rayon`, the `ignore`
@@ -33,7 +33,7 @@
 //!   `updatedAt = round(st_mtime_ns / 1e6)`, reproducing Python's
 //!   round-half-to-even float division bit-for-bit (`f64::round_ties_even`);
 //! * **order** — entries are sorted by `(pathIndex, path)` so the listing is
-//!   fully deterministic between refreshes ("安定順序"); the
+//!   fully deterministic between refreshes ("stable order"); the
 //!   Python reference sorts identically, so the two agree entry-for-entry.
 
 use std::collections::{HashMap, HashSet};
@@ -383,7 +383,7 @@ pub fn scan_models(opts: &ScanOpts) -> String {
         ),
     );
     // Deterministic order: (pathIndex, path) — matches the Python reference's
-    // per-base sort (安定順序).
+    // per-base sort (stable order).
     entries.sort_by(|a, b| {
         a.path_index
             .cmp(&b.path_index)

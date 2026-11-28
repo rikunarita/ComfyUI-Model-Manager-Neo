@@ -3,7 +3,7 @@
 //! This crate is the Python-independent heart of the native core: the ZipNN
 //! byte format (ZN header + plane split + huff0/FSE chunks), safetensors I/O,
 //! the streaming delta codec, the parallel library scan and the multi-hash
-//! pass. Phase 1 implements the format core:
+//! pass. znn-codec implements the format core:
 //!
 //! | module             | contents                                                     |
 //! |--------------------|--------------------------------------------------------------|
@@ -17,29 +17,29 @@
 //! | [`codec`]          | the `zipnn_core` equivalent layer (chunking, threshold,      |
 //! |                    | chunkTypes/cumSizes layout — byte-identical structure to C)  |
 //! | [`safetensors_io`] | mmap container parse, canonical order-preserving writer,     |
-//! |                    | atomic `.tmp` → fsync → rename (Phase 2)                     |
+//! |                    | atomic `.tmp` → fsync → rename (the safetensors pipeline)                     |
 //! | [`znn_tensor`]     | per-tensor ZN blobs + the full dtype table (all 22 + pseudo) |
 //! | [`pipeline`]       | the compress/decompress jobs: integrity pipeline, progress,  |
-//! |                    | cancellation, paranoid mode (Phase 2)                        |
+//! |                    | cancellation, paranoid mode (the safetensors pipeline)                        |
 //! | [`delta`]          | file-level delta (de)compression: padded renderings, the     |
-//! |                    | streaming XOR chunk loop, sidecar + ftSha256 (Phase 3)       |
+//! |                    | streaming XOR chunk loop, sidecar + ftSha256 (delta compression)       |
 //! | [`batch`]          | batch primitives: the parallel folder walk + the sidecar     |
-//! |                    | mover (Phase 3; bundle semantics stay in Python)             |
+//! |                    | mover (delta compression; bundle semantics stay in Python)             |
 //! | [`scan`]           | library scan + hygiene scan: the parallel `os.scandir`/       |
 //! |                    | `os.walk` port, preview resolution, front-matter, the exact   |
-//! |                    | listing JSON shape (Phase 5)                                  |
+//! |                    | listing JSON shape (the scan/index work)                                  |
 //! | [`index`]          | persistent front-matter cache (bincode + blake3, atomic,      |
-//! |                    | auto-rebuild — survives restarts, Phase 5)                    |
+//! |                    | auto-rebuild — survives restarts, the scan/index work)                    |
 //! | [`hash`]           | multi-algorithm one-pass hashing (SHA256/AutoV1/AutoV2/CRC32/ |
 //! |                    | BLAKE3) + the incremental hasher for download inline verify   |
-//! |                    | (Phase 5)                                                     |
+//! |                    | (the scan/index work)                                                     |
 //! | [`watch`]          | optional library file-watching (notify + debouncer-full,       |
-//! |                    | 500 ms debounce, watch-budget degrade — Phase 6)               |
+//! |                    | 500 ms debounce, watch-budget degrade)                             |
 //!
-//! `safetensors_io` also carries the Phase-5 `header_display_json` (the
+//! `safetensors_io` also carries the `header_display_json` (the
 //! header-only jiter parse behind `get_model_metadata`/`get_model_tensors`,
-//! B4) and the Phase-6 `tensor_tree_json` (the display tensor tree
-//! pre-grouped in Rust — "テンソルツリー事前グループ化").
+//! 32 MiB header cap) and the `tensor_tree_json` (the display tensor tree
+//! pre-grouped in Rust — "tensor-tree pre-grouping").
 //! File-watching (`watch_roots`) lives behind the `watch`
 //! feature, which is ON by default so the shipped prebuilt binaries expose
 //! `mm_core.watch_*` — the *runtime* switch (a ComfyUI setting) is what
@@ -48,13 +48,13 @@
 //! Test organisation: unit tests are inline `#[cfg(test)]`
 //! (they reach private APIs — the Rust convention); the `tests/` folder
 //! manages the crate-level integration gates over the PUBLIC API
-//! (`extended_band.rs` = the Phase-4 K14 round-trip gate).
+//! (`extended_band.rs` = the dtype extension 対応dtype数 round-trip gate).
 //!
-//! Correctness strategy: L1 unit/proptest suites here and L3 cargo-fuzz on
-//! hostile inputs (`fuzz/`). The L2 differential gate against the original C
+//! Correctness strategy: unit contract (unit + proptest) suites here and ASan cargo-fuzz on
+//! hostile inputs (`fuzz/`). The golden differential gate against the original C
 //! core was retired together with the core (its evidence stays committed in
-//! `scripts/bench/results/`); the official-`zipnn` cross-validation (L5,
-//! `scripts/l5/`) is the permanent compatibility gate. The Appendix C crash
+//! `scripts/bench/results/`); the official-`zipnn` cross-validation (official interoperability gate,
+//! `scripts/cross_validation/`) is the permanent compatibility gate. The Appendix C crash
 //! cases are permanent regression tests: every documented C-core SEGFAULT
 //! input must answer with [`CodecError`] or a correct result, never a crash
 //! or UB.
@@ -65,16 +65,16 @@
 //!   cumulative sizes, stream bounds, allocation caps) instead of trusting it;
 //! * the encoder targets BYTE-IDENTICAL output to the C encoder (same
 //!   tableLog choice, same tree build, same weight-encoding choice, same
-//!   bitstream order) so L2 can golden-diff compressed bytes, not just ratios.
+//!   bitstream order) so the golden differential gate can compare compressed bytes, not just ratios.
 //!
 //! Lint policy: workspace lints (pedantic = warn, unsafe =
-//! deny); the format core (Phase 1) contains NO `unsafe` at all. Phase 2
+//! deny); the format core (znn-codec) contains NO `unsafe` at all. The safetensors pipeline
 //! adds exactly ONE reviewed unsafe boundary: the read-only `memmap2`
 //! mapping in [`safetensors_io::StContainer::open`] (documented SAFETY
 //! block; the zero-copy mmap design is deliberate, and the
 //! Python safetensors reader this replaces mmaps identically).
 
-// Phase 1 kept the whole crate unsafe-free; the deny makes any further
+// znn-codec kept the whole crate unsafe-free; the deny makes any further
 // introduction a conscious, reviewed change (with `// SAFETY:` comments).
 // The single reviewed exception (the mmap boundary) carries a function-level
 // `#[allow(unsafe_code)]` next to its SAFETY block.

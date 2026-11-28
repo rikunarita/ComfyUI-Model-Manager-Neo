@@ -1,27 +1,27 @@
 /**
  * Search-filter and sort primitives shared by the two grid layouts
- * (C1 + C2).
+ * (regex hoisting + shared comparator).
  *
  * Both used to live inline in `DialogManager.vue` / `DialogExplorer.vue`,
  * which cost two things on a large library:
  *
- * - **C1 (regex hoisting)** — the flat view rebuilt one `RegExp` per search
+ * - **Regex hoisting** — the flat view rebuilt one `RegExp` per search
  *   token *per model* inside the filter callback, so a 5,000-model library
  *   compiled the same 1–3 regexes 5,000 times on every keystroke. The tokens
  *   are now compiled ONCE per query ([buildSearchTokens]) and reused for the
  *   whole pass ([filterModels]).
- * - **C2 (collation)** — every `localeCompare` call site now goes through one
+ * - **shared comparator (collation)** — every `localeCompare` call site now goes through one
  *   of two measured comparators ([compareText] / [compareTextNumeric]). The
  *   numeric variant is the big win: passing options to `localeCompare` makes
  *   V8 rebuild a collator per call (measured 363 ms vs 11.4 ms for a 5,050-name
  *   sort), while for the DEFAULT variant V8's own builtin is faster than a
  *   hoisted `Intl.Collator` - so the two shapes keep different implementations
- *   with identical ordering. Numbers and gates: `scripts/bench/front/k15.mjs`,
+ *   with identical ordering. Numbers and gates: `scripts/bench/front/render-bench.mjs`,
  *   docs/BENCH.md §11.
  *
  * The module is deliberately dependency-free (no Vue, no component imports) so
- * the headless K15 harness (`scripts/bench/front/k15.mjs`) can compile and
- * measure the very same code the browser runs — the C5 "計測基盤".
+ * the headless render-bench harness (`scripts/bench/front/render-bench.mjs`) can compile and
+ * measure the very same code the browser runs — the measurement harness "measurement harness".
  */
 
 /** One whitespace-separated search token together with its compiled matcher. */
@@ -78,7 +78,7 @@ const buildTokenRegex = (raw: string): RegExp => {
 }
 
 /**
- * Split a query into tokens and compile each ONCE (C1).
+ * Split a query into tokens and compile each ONCE (regex hoisting).
  *
  * Call this outside the per-model loop (a `computed`, or once per filter pass)
  * and hand the result to [filterModels]; an empty/blank query yields `[]`,
@@ -144,7 +144,7 @@ const chunkRows = <T>(list: T[], columns: number, keyOf: (model: T) => string): 
 
 /**
  * The flat grid's whole row pipeline — filter → sort → chunk — as one pure
- * function so the component and the K15 harness measure identical code.
+ * function so the component and the render-bench harness measure identical code.
  *
  * `compare` receives two models and returns their order (the component passes
  * its star-first + chosen-sort-order comparator); the sort is applied to the
@@ -166,8 +166,8 @@ export const buildModelRows = <T extends GridModel>(
 }
 
 /**
- * Comparators (C2) — chosen by MEASUREMENT, not by intuition
- * (`scripts/bench/front/k15.mjs`, docs/BENCH.md §11).
+ * Comparators (shared comparator) — chosen by MEASUREMENT, not by intuition
+ * (`scripts/bench/front/render-bench.mjs`, docs/BENCH.md §11).
  *
  * Sorting 5,050 model names on this repository's V8 (Node 20 / Chrome's engine)
  * measured:
@@ -179,7 +179,7 @@ export const buildModelRows = <T extends GridModel>(
  * | `a.localeCompare(b, undefined, {numeric})`  | 363 ms  |
  * | hoisted numeric `Intl.Collator().compare`   | 11.4 ms |
  *
- * So the C2 hypothesis holds spectacularly for the NUMERIC variant
+ * So the shared comparator hypothesis holds spectacularly for the NUMERIC variant
  * (V8 has no fast path when options are passed, so every call rebuilt a
  * collator: 32x) but is **inverted for the default variant**: V8 caches the
  * default collator inside `localeCompare` and its builtin beats the public

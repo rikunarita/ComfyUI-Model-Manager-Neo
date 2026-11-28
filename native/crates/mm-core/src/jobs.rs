@@ -598,7 +598,7 @@ pub fn move_with_sidecars(py: Python<'_>, src: &str, dst: &str) -> PyResult<()> 
 /// The OUTCOME record is the sole terminal signal: the pipeline sets its
 /// `Done` phase before the worker thread stores the outcome, so reporting
 /// the raw phase would open a window where `job_progress` says done but
-/// `job_result` is not readable yet (found by the Phase-2 bench harness).
+/// `job_result` is not readable yet (found by the safetensors pipeline bench harness).
 /// While no outcome exists, a terminal pipeline phase is reported as
 /// `verify` — the poller keeps spinning for the microseconds until the
 /// outcome lands.
@@ -667,7 +667,7 @@ pub fn job_error(id: u64) -> PyResult<Option<String>> {
 #[cfg(test)]
 mod tests {
     // The job API end-to-end (spawn → poll → result) runs from Python —
-    // tests/test_phase2_* drive it against the built artifact (CI: the
+    // tests/test_native_pipeline.py et al. drive it against the built artifact (CI: the
     // native workflow's integration job). Here we cover the registry
     // primitives that do not need an interpreter.
 

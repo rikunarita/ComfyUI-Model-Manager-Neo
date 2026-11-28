@@ -10,7 +10,7 @@
 #                     in .github/workflows/native.yml and scripts/pgo/README.md).
 #                     Adds -Cllvm-args=-pgo-warn-missing-function so a stale /
 #                     mismatched profile shows up as countable warnings (the
-#                     CI asserts their ratio, gate G2).
+#                     CI asserts their ratio, gate profile-check).
 #   --pgo-train       macOS / Windows only: hand `--pgo` to maturin, which
 #                     runs its three-phase flow (instrumented wheel into a
 #                     temporary venv -> [tool.maturin] pgo-command training ->
@@ -30,7 +30,7 @@
 # EXCLUSIVE feature set `--no-default-features --features [extension-module,]ft`
 # (never together with stable-abi — combining them makes the produced flavour
 # host-dependent). Requires a Python >= 3.15 HOST interpreter (PyO3 host >=
-# target; CI uses the 3.15 final from the runner manifest — D4 settled
+# target; CI uses the 3.15 final from the runner manifest — 3.15 stable decision settled
 # 2026-10-13). Outputs: mm_core.abi3t.so (POSIX) / mm_core.pyd
 # (Windows — PEP 803 keeps the plain suffix); loadable by BOTH the
 # free-threaded and the GIL build of CPython 3.15+.
@@ -164,7 +164,7 @@ build_linux() {
   fi
   local -a pgo_env=()
   if [[ -n "$PGO_PROFDATA" ]]; then
-    log "PGO: -Cprofile-use=$PGO_PROFDATA (+ warn-missing-function for the G2 gate)"
+    log "PGO: -Cprofile-use=$PGO_PROFDATA (+ warn-missing-function for the profile-applied check)"
     pgo_env=(env "RUSTFLAGS=-Cprofile-use=$PGO_PROFDATA -Cllvm-args=-pgo-warn-missing-function")
   fi
   # ${feat[*]+...} — bash 3.2 (macOS /bin/bash) treats an EMPTY array as

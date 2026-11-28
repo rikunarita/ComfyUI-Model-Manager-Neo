@@ -16,7 +16,7 @@
 //! | float8_e4m3fn    | 29   | 1      | 1 (ignored) | 10           | 1    |
 //! | float8_e5m2      | 30   | 1      | 1 (ignored) | 10           | 1    |
 //!
-//! ## Neo extension band (codes 128–255, Phase 4)
+//! ## Neo extension band (codes 128–255, dtype extension)
 //!
 //! Codes deliberately far above the upstream enum (which ends at 30), so the
 //! official zipnn 0.5.4 decoder can never mistake them for its own: it
@@ -53,7 +53,7 @@
 //! 2026-09-26):** the upstream enum reserves code 9 for COMPLEX64, but the
 //! official 0.5.4 decoder's dtype dispatch has no arm for it — `decompress_bin`
 //! ends in `raise ValueError(f"Unsupported Dtype {self.dtype}")` for 9 exactly
-//! like for Neo-band codes (proven against the pip build; L5 section E2 pins
+//! like for Neo-band codes (proven against the pip build; official interoperability gate section E2 pins
 //! it). Writing C64 as code 9 would therefore produce files the official tool
 //! rejects anyway, while LOSING the clean band separation — so C64 uses the
 //! Neo extension code 130.
@@ -63,7 +63,7 @@
 //! The C core's truncation modes are dead code (`handle_split_mode_41/9/1`
 //! commented out; the dtype16 8/1 paths leave the second plane's container
 //! slots uninitialized) and `zipnn.py` never writes them. Neo formalises them
-//! (Phase 4 "トランケートモード 1/9/41/8 の正式実装"): when whole
+//! (dtype extension "トランケートモード 1/9/41/8 の正式実装"): when whole
 //! byte planes of an integer tensor are zero across the ENTIRE tensor (checked
 //! by the compressor), those planes are DROPPED from the payload and the mode
 //! byte records which planes survive; the decompressor zero-fills the dropped
@@ -306,7 +306,7 @@ pub const fn is_neo_code(code: u8) -> bool {
 /// Validate a header's (byte_reorder, num_planes) combination at the CODEC
 /// level (dtype-agnostic). Accepts the C core's ratio gates
 /// (`buffer_ratio_dtype32`: 220; `buffer_ratio_dtype16`: 10/8/1; `num_buf==1`:
-/// 10 via `split_bytearray_dtype8`) PLUS the Neo Phase-4 extensions: the
+/// 10 via `split_bytearray_dtype8`) PLUS the Neo dtype extension extensions: the
 /// 8-plane mode and the truncation modes. Which of these a given BLOB may
 /// actually use is a dtype-level question — [`PlaneScheme::allows_mode`]
 /// enforces it where the dtype code is known (compatibility-band blobs stay
@@ -495,7 +495,7 @@ mod tests {
         }
         // the code-9 (COMPLEX64) rejection is the demonstrated settlement of
         // the band question: upstream reserved the code but its
-        // decoder raises — Neo uses 130 (module docs, L5 section E2)
+        // decoder raises — Neo uses 130 (module docs, official interoperability gate section E2)
         let err = scheme_for_dtype(9).unwrap_err().to_string();
         assert!(err.contains("not implemented"), "{err}");
         // unassigned extension-band codes stay rejected
@@ -507,14 +507,14 @@ mod tests {
 
     #[test]
     fn mode_validation_matches_the_gates() {
-        // compatibility combinations (unchanged from Phase 1)
+        // compatibility combinations (unchanged from znn-codec)
         assert!(validate_mode(MODE_4PLANES, 4).is_ok());
         assert!(validate_mode(MODE_2PLANES, 2).is_ok());
         assert!(validate_mode(MODE_2PLANES, 1).is_ok());
         assert!(validate_mode(MODE_2PLANES, 4).is_err());
         assert!(validate_mode(MODE_4PLANES, 2).is_err());
         assert!(validate_mode(255, 4).is_err());
-        // Neo Phase-4 combinations
+        // Neo dtype extension combinations
         assert!(validate_mode(MODE_8PLANES, 8).is_ok());
         assert!(validate_mode(MODE_8PLANES, 4).is_err());
         assert!(validate_mode(88, 2).is_err());

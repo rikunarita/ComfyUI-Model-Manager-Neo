@@ -1,5 +1,5 @@
-//! Phase 6 bindings — the display tensor tree + the optional library watcher
-//! ("テンソルツリー事前グループ化", `watch_roots`).
+//! Display (tensor tree) and watcher bindings — the display tensor tree + the optional library watcher
+//! ("tensor-tree pre-grouping", `watch_roots`).
 //!
 //! Both surfaces follow the crate's boundary rules: paths and
 //! JSON strings cross the boundary (never buffers), long or blocking work runs
@@ -14,7 +14,7 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-/// The B4-unified safetensors header cap (32 MiB) — the tree is built from the
+/// The 32 MiB safetensors header cap — the tree is built from the
 /// same header parse as `safetensors_header`, so it enforces the same cap.
 const HEADER_CAP: u64 = 32 * 1024 * 1024;
 

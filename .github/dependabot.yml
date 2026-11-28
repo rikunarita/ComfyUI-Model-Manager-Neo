@@ -9,7 +9,7 @@
 #
 # NOT configured (deliberate — Agent/MEMO.md §11): the `pip` ecosystem.
 # requirements.txt is the runtime contract kept in SYNC with pyproject.toml
-# (equality pinned mechanically by tests/test_phase8_distribution.py); a
+# (equality pinned mechanically by tests/test_distribution.py); a
 # Dependabot edit to either file alone would break that parity. Python moves
 # through the `uv` ecosystem below (pyproject.toml + uv.lock together), and
 # requirements.txt follows by the established manual-sync rule.
@@ -111,7 +111,7 @@ updates:
 
   # ---- CI itself (SHA-pinned actions & reusable workflows) -----------------
   # Dependabot updates SHA pins in place (keeping the `# vX.Y.Z` comments),
-  # which is what keeps the Step-4 hash-pinning from going stale. The
+  # which is what keeps the hash-pinning from going stale. The
   # dtolnay/rust-toolchain BRANCH refs (@stable/@nightly, floating by policy
   # — Agent/MEMO.md §11) carry no version semantics and are left alone;
   # should a PR ever propose touching them, close it.

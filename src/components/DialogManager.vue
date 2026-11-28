@@ -153,7 +153,7 @@ const cols = computed(() => {
 })
 
 /**
- * C1: the search query is compiled into its token regexes ONCE per
+ * regex hoisting: the search query is compiled into its token regexes ONCE per
  * change instead of once per model per keystroke - a 5,000-model library used
  * to rebuild the same 1-3 `RegExp` objects 5,000 times on every recompute.
  */
@@ -166,7 +166,7 @@ const matchesTypeAndCollection = (model: Model) => {
   return matchType && (!activeCol.value || matchesCollection(model, activeCol.value.query))
 }
 
-/** The chosen sort order, as a comparator (C2: the text order goes through the
+/** The chosen sort order, as a comparator (shared comparator: the text order goes through the
  *  shared, MEASURED comparator in utils/modelFilter - see the note there for why
  *  the default variant stays on V8's `localeCompare` builtin). */
 const sortStrategy = computed<(a: Model, b: Model) => number>(() => {

@@ -28,8 +28,8 @@
 //! ```
 //!
 //! The decompressor validates everything it consumes: magic,
-//! method, lossy-zero, and (Phase 1 scope) rejects delta/streaming payloads
-//! with explicit errors — they land in Phase 3.
+//! method, lossy-zero, and (znn-codec scope) rejects delta/streaming payloads
+//! with explicit errors — they land in delta compression.
 
 // `dim as u8/u16/u32` casts in `pack_shape` are range-checked immediately
 // before the cast (the width indicator IS the range check).
@@ -160,7 +160,7 @@ impl ZnHeader {
             // The low 7 bits are the streaming_chunk log2 ONLY when the
             // streaming flag is set (zipnn.py writes a plain 0 otherwise and
             // its reader ignores the low bits — normalising here keeps
-            // encode∘decode canonical, which the L3 zn_header fuzz target
+            // encode∘decode canonical, which the zn_header ASan fuzz target
             // asserts as an invariant; found by the fuzzer within seconds).
             streaming_chunk_log2: if buf[13] & 0x80 != 0 {
                 buf[13] & 0x7F
@@ -202,8 +202,8 @@ impl ZnHeader {
         out
     }
 
-    /// Decode + the Phase-1 scope guards for PAYLOAD consumption: delta and
-    /// streaming containers are Phase 3 work — refuse them explicitly
+    /// Decode + the znn-codec scope guards for PAYLOAD consumption: delta and
+    /// streaming containers are delta compression work — refuse them explicitly
     /// (never mis-decode). `chunk_size` = the compression chunk the payload
     /// was built with (2^compression_chunk_log2), sanity-checked > 0.
     pub fn validate_for_decode(&self) -> CodecResult<usize> {
@@ -417,7 +417,7 @@ mod tests {
         assert_eq!(h.encode()[13], 128 + 20);
         let back = ZnHeader::decode(&h.encode()).expect("decode");
         assert!(back.streaming && back.streaming_chunk_log2 == 20);
-        // streaming containers are Phase 3 scope — validate must refuse them
+        // streaming containers are delta compression scope — validate must refuse them
         assert!(back.validate_for_decode().is_err());
     }
 

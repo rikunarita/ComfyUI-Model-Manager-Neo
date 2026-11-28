@@ -1,4 +1,4 @@
-//! L3 fuzz target 1/3: the huff0 block decoder against fully hostile input.
+//! ASan fuzz target 1/3: the huff0 block decoder against fully hostile input.
 //! The decoder is the trust boundary for existing
 //! `.znn` archives: malformed weight headers, jump tables and bitstreams
 //! must produce `Err`, never a panic / OOB / unbounded allocation.

@@ -26,7 +26,7 @@
 # --- PyPI: httpx2/httpcore2 floor-resolution artifacts --------------------
 # requirements.txt is the loose-floor RUNTIME CONTRACT (kept in sync with
 # pyproject.toml; the equality is pinned mechanically by
-# tests/test_phase8_distribution.py). OSV-Scanner resolves manifests
+# tests/test_distribution.py). OSV-Scanner resolves manifests
 # best-effort and reports the FLOOR versions (httpx2/httpcore2 2.9.1), which
 # its own docs warn "may not be the version that is installed". The
 # authoritative lock (uv.lock) resolves BOTH packages to 2.13.1 — unaffected
@@ -53,7 +53,7 @@ effectiveUntil = 2027-01-07
 reason = "requirements.txt floor-resolution artifact (PYSEC-2026-3844 + alias); uv.lock pins 2.13.1 which is unaffected. Re-review when the huggingface_hub floor moves."
 
 # certifi floor-resolution artifact (same class as the httpx2/httpcore2
-# entries above — D3): requirements.txt declares only the four hub packages
+# entries above): requirements.txt declares only the four hub packages
 # with loose floors, and OSV-Scanner's best-effort manifest resolution
 # reports the FLOOR (certifi 2026.7.22, PYSEC-2026-4320 / GHSA-6q48-6c7w-9gw2,
 # CVSS 9.1, fixed 2026.10.19) instead of what any real environment installs.

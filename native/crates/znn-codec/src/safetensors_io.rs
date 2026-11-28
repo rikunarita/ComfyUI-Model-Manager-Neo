@@ -329,7 +329,7 @@ fn parse_header_json(json: &[u8]) -> StResult<ParsedHeader> {
     // rule is O(1) per tensor. A linear `tensors.iter().position(..)` scan per
     // key would be O(n²): a 64k-tensor MoE header then takes SECONDS to parse
     // (measured 6 s vs 0.33 s for the legacy json.loads path) — and both the
-    // display route (`get_model_tensors`, K11) and the compress pipeline go
+    // display route (`get_model_tensors`, large-MoE header parsing) and the compress pipeline go
     // through here, so the map matters for correctness of the KPI, not just
     // cosmetics.
     let mut name_index: HashMap<String, usize> = HashMap::new();
@@ -695,12 +695,11 @@ pub fn py_dumps_compressed_vectors(infos: &[(String, String, String)]) -> String
 /// incumbent `comfy.utils.safetensors_header`).
 ///
 /// Shared by [`header_display_json`] and [`tensor_tree_json`] so both display
-/// paths enforce the same B4 cap and see the same bytes (and therefore the same
+/// paths enforce the same 32 MiB header cap and see the same bytes (and therefore the same
 /// tensor order — the tree's leaf indices address that order).
 ///
 /// # Errors
-/// Open/read failures, an oversized header (`max_header`, the B4 unified
-/// 32 MiB cap) or a file truncated before the end of its header.
+/// Open/read failures, an oversized header (`max_header`, the 32 MiB cap) or a file truncated before the end of its header.
 fn read_header_region(path: &Path, max_header: u64) -> StResult<Vec<u8>> {
     use std::io::Read;
     let mut f = File::open(path).map_err(|e| crate::pipeline::io_ctx(e, "reading", path))?;
@@ -757,7 +756,7 @@ fn tensor_params(shape: &[u64]) -> u64 {
 }
 
 /// Fold a parsed header's tensor list into the display tree and encode it
-/// ("テンソルツリー事前グループ化", Phase 6).
+/// ("tensor-tree pre-grouping").
 ///
 /// Grouping rule — identical to the frontend's historical `tensorTree`
 /// computed, which this replaces for the expensive part: a tensor name is split
@@ -915,7 +914,7 @@ pub fn encode_tensor_tree(tensors: &[TensorEntry]) -> String {
 /// frontend never re-transfers the tensor entries.
 ///
 /// # Errors
-/// The same failures as [`header_display_json`] (open/read, the B4 cap,
+/// The same failures as [`header_display_json`] (open/read, the 32 MiB header cap,
 /// a truncated or invalid header).
 pub fn tensor_tree_json(path: &Path, max_header: u64) -> StResult<String> {
     let region = read_header_region(path, max_header)?;
@@ -931,7 +930,7 @@ pub fn tensor_tree_json(path: &Path, max_header: u64) -> StResult<String> {
 /// mmap — a display read must succeed on a file whose tensor data is truncated
 /// as long as its header is intact, exactly like the incumbent
 /// `comfy.utils.safetensors_header` + `json.loads`), parses it with jiter (the
-/// K11 fast path), and returns the DIGESTED shape the two Python functions
+/// large-MoE header parsing fast path), and returns the DIGESTED shape the two Python functions
 /// need as one JSON document:
 ///
 /// ```json
@@ -943,8 +942,7 @@ pub fn tensor_tree_json(path: &Path, max_header: u64) -> StResult<String> {
 /// `"__metadata__" not in dt → {}`); `tensors` preserves the header order and
 /// omits `__metadata__` (Python's loop skips it). Strings are escaped with
 /// [`py_escape_json_string`] so a `json.loads` on the Python side reproduces
-/// the exact values the raw-header parse would. `max_header` is the B4 unified
-/// cap (32 MiB) — an oversized header is an error the Python caller turns into
+/// the exact values the raw-header parse would. `max_header` is the 32 MiB cap — an oversized header is an error the Python caller turns into
 /// `{}`/`[]` (matching `safetensors_header(...) is None`).
 ///
 /// # Errors
@@ -1312,7 +1310,7 @@ mod tests {
     #[test]
     fn writer_matches_the_reference_format() {
         // Pinned byte-for-byte against a torch/safetensors-0.8.0 written
-        // file (regenerated and diffed during the Phase-2 implementation
+        // file (regenerated and diffed during the safetensors pipeline implementation
         // against `safetensors.torch.save_file` output — see tests/harness
         // cross-check on the Python side too).
         let meta = vec![("format".to_owned(), "pt".to_owned())];
@@ -1611,7 +1609,7 @@ mod tests {
         assert_eq!(dtype_bitsize(""), None);
     }
 
-    // ---- Phase 6: the display tensor tree ---------------------------------
+    // ---- the display tensor tree ------------------------------------------
 
     fn tensor(name: &str, shape: &[u64]) -> TensorEntry {
         TensorEntry {
@@ -1818,7 +1816,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let missing = dir.path().join("gone.safetensors");
         assert!(tensor_tree_json(&missing, 1024).is_err());
-        // a header larger than the cap is refused (B4 guard parity)
+        // a header larger than the cap is refused (unified cap guard parity)
         let path = dir.path().join("big.safetensors");
         let out = vec![entry("w", "F32", &[1], 0, 4)];
         let image = file_image(None, &out, &[0u8; 4]);

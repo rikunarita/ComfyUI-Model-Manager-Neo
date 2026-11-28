@@ -1,6 +1,6 @@
-"""Shared aiohttp client for the extension's hub round-trips (Quick Win A3).
+"""Shared aiohttp client for the extension's hub round-trips (aiohttp migration).
 
-Quick Win A3 (Phase 6): `search.py`, `information.py` and
+aiohttp migration: `search.py`, `information.py` and
 `identify.py` used to issue their hub API calls with **blocking `requests.get`
 inside io-executor workers**. Every call therefore cost a thread hop and pinned
 one of the eight IO-pool slots for the whole round trip (DNS + TLS + body),
@@ -14,7 +14,7 @@ distribution, measured 4.9 MB for a minimal probe, and `huggingface_hub` 2.x is
 httpx2-based anyway - so a Rust HTTP stack would be a *third* stack, not a
 unification.
 
-Behaviour parity with the `requests` call sites it replaces (A3
+Behaviour parity with the `requests` call sites it replaces (aiohttp migration
 "挙動 parity"):
 
 * **timeouts** stay the historical pairs. A `requests` timeout is
@@ -58,7 +58,7 @@ HUB_TIMEOUT: SearchTimeout = (10.0, 60.0)
 #: The avatar/owner probes: `timeout=8`.
 AVATAR_TIMEOUT: SearchTimeout = (8.0, 8.0)
 #: `utils.py`'s preview fetch: `timeout=(15, 120)` - now used by
-#: [fetch_preview] (Phase 7 T8 moved the two preview round trips onto the
+#: [fetch_preview] (the aiohttp migration moved the two preview round trips onto the
 #: shared session; the PIL/write leg stays in the executor).
 PREVIEW_TIMEOUT: SearchTimeout = (15.0, 120.0)
 
@@ -287,10 +287,10 @@ async def fetch_preview(
     """GET a preview URL; return ``(body, content-type)``.
 
     The aiohttp replacement of the two ``requests.get(url, timeout=(15, 120))``
-    calls in ``utils.py``'s preview pipeline (Phase 7 T8): the network
+    calls in ``utils.py``'s preview pipeline (aiohttp): the network
     wait now runs on the event loop instead of pinning one of the eight
     io-executor workers for up to the 120 s read timeout (the same pool-
-    exhaustion class A3 removed for the hub calls). A non-2xx status raises
+    exhaustion class aiohttp migration removed for the hub calls). A non-2xx status raises
     [HttpStatusError] with the verbatim `requests` wording the callers already
     surface; the content-type defaults to ``""`` exactly like
     ``response.headers.get("content-type", "")``. `requests` downloaded the

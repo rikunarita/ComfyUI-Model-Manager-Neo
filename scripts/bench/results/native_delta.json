@@ -399,8 +399,8 @@
       "peakRssMib": 424.1211,
       "limitRssMib": 183.137
     },
-    "k4LimitRatioNative": 2.0876,
-    "k4LimitRatioLegacy": 5.425,
-    "k5AllSurvivedByteExact": true
+    "deltaPeakRamLimitRatioNative": 2.0876,
+    "deltaPeakRamLimitRatioLegacy": 5.425,
+    "knownDefectAllSurvivedByteExact": true
   }
 }

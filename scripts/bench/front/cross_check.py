@@ -1,4 +1,4 @@
-"""Rust <-> TypeScript tensor-tree cross-check helper (scripts/bench/front/k15.mjs).
+"""Rust <-> TypeScript tensor-tree cross-check helper (scripts/bench/front/render-bench.mjs).
 
 Reads a JSON list of ``[name, dtype, shape]`` triples, writes them as a real
 safetensors container (through the repository's own byte-exact test writer),

@@ -1,6 +1,6 @@
-//! L1 unit tests of the delta codec (Phase 3). The end-to-end route/ws
+//! Unit contract tests of the delta codec (delta compression). The end-to-end route/ws
 //! contract and the cross-path (legacy ⇄ native) goldens live in the Python
-//! suite (`tests/test_phase3_delta.py`); these tests pin the wire format,
+//! suite (`tests/test_delta.py`); these tests pin the wire format,
 //! the legacy error wording, the Appendix-C SEGFAULT class (pinned
 //! end-to-end: "付録 C の SEGFAULT ケースをデルタ端到端テストに固定化"), the
 //! integrity pipeline (ftSha256 / `.corrupt` / paranoid / cancel) and the
@@ -130,7 +130,7 @@ fn parse_sidecar(raw: &str) -> DeltaMeta {
 }
 
 // ---------------------------------------------------------------------------
-// Round-trips (K: delta 往復 byte-exact、検証付き)
+// Round-trips (delta round-trips byte-exact, with verification)
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -189,10 +189,10 @@ fn roundtrip_identical_files_compresses_tiny() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 3: the Appendix-C SEGFAULT class, pinned end-to-end.
+// delta compression: the Appendix-C SEGFAULT class, pinned end-to-end.
 // The C core SEGFAULTs (NULL-plane write) whenever the final 256 KiB
 // compression chunk of the 4-plane path is 1–3 bytes; delta padding makes
-// EVERY remainder reachable with real files (Phase 0 BENCH §4.3 proved the
+// EVERY remainder reachable with real files (the baseline measurements BENCH §4.3 proved the
 // production path hits it). The Rust codec must complete normally.
 // ---------------------------------------------------------------------------
 
@@ -849,7 +849,7 @@ fn sidecar_json_keeps_the_legacy_key_order() {
 // The official-toolchain method byte (zipnn.py API default AUTO=0, the delta
 // CLI's --method choices) — delta containers must decode regardless, exactly
 // like the official decompressor which ignores byte 7 (primary sources in
-// `ZnHeader::decode_delta`). The TENSOR path keeps the strict Phase-2 gate.
+// `ZnHeader::decode_delta`). The TENSOR path keeps the strict the safetensors pipeline gate.
 // ---------------------------------------------------------------------------
 
 #[test]

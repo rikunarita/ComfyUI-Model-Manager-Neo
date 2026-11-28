@@ -10,7 +10,7 @@ their own terms; the ONE copyleft component that is not GPL-compatible-by-
 default is called out explicitly below.
 
 ---------------------------------------------------------------------------
-zenwebp — pure-Rust WebP codec (preview WebP pipeline, Phase 7 / T7)
+zenwebp — pure-Rust WebP codec (the preview WebP codec)
 ---------------------------------------------------------------------------
 Used for the preview WebP pipeline: `znn-codec`'s `webp` module decodes WebP
 (still + animated) and encodes WebP (still + animated) through zenwebp, and
@@ -31,7 +31,7 @@ network-interaction clause (§13) is effectively inoperative for this use; the
 distribution copyleft obligation (making the corresponding source available) is
 satisfied by this public source repository. zenwebp itself is `forbid(unsafe_code)`
 and carries an upstream fuzz suite; Neo additionally fuzzes the decode path
-(`fuzz/fuzz_targets/webp_decode.rs`, the L3 `webp_decode` target).
+(`fuzz/fuzz_targets/webp_decode.rs`, the `webp_decode` ASan fuzz target).
 
 ---------------------------------------------------------------------------
 ZipNN format + FiniteStateEntropy (huff0) — pure-Rust port in `znn-codec`
@@ -46,7 +46,7 @@ format and its FSE-derived huff0 coder.
                              the BSD-2-Clause path (GPL-2.0-only is incompatible
                              with GPL-3.0-only).
 
-Phase 8 removed the transition-era `third_party/` tree (the vendored ZipNN
+プリビルト配布 removed the transition-era `third_party/` tree (the vendored ZipNN
 0.5.4 Python package, its C sources and the prebuilt C core); the licence
 texts it carried are inherited verbatim below, as the NOTICE always promised.
 Per-file copyright / SPDX headers for the FSE-derived code live in

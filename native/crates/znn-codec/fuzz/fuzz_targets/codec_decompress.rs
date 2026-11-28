@@ -1,4 +1,4 @@
-//! L3 fuzz target 3/3: the full payload decoder (`combine_dtype` — the
+//! ASan fuzz target 3/3: the full payload decoder (`combine_dtype` — the
 //! `zipnn_core` layer) against hostile payloads AND hostile parameters.
 //! Exercises: chunkType validation, cumSizes
 //! monotonicity/span checks, raw-slice length checks, huff0 sub-decoding,
@@ -15,7 +15,7 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
     // adversarial-but-structured parameters (also legal combos: 1/2/4/8
-    // planes — 8 is the Phase-4 f64/i64 layout — modes 220/10/88 plus the
+    // planes — 8 is the dtype extension f64/i64 layout — modes 220/10/88 plus the
     // truncation modes 41/9/1/8, chunks 1..=512 KiB)
     let num_buf = match data[0] % 8 {
         0 => 1usize,

@@ -153,7 +153,7 @@ README 本体では `Windows x86_64` / `Windows x64` と表記されているが
 - `native/crates/znn-codec/src/*`
 - `tests/*`
 - `scripts/bench/*`
-- `scripts/l5/*`
+- `scripts/cross_validation/*`
 - `.gitignore`
 - `requirements.txt`
 - `pyproject.toml`
@@ -911,10 +911,10 @@ git ls-files | rg -i '[p]hase|[k][0-9]|[t][0-9]|[l][0-9]'
 | 意味                           | 置換先の表現                         |
 | ------------------------------ | ------------------------------------ |
 | 初期 loader handshake          | availability / version handshake     |
-| safetensors job API            | native safetensors jobs              |
-| delta jobs                     | delta jobs                           |
-| dtype extension work           | extension-band dtype coverage        |
-| scan / index / hash            | library scan and hashing             |
+| safetensors job API            | safetensors パイプライン             |
+| デルタ圧縮                     | デルタ圧縮                           |
+| dtype extension work           | dtype 拡張                           |
+| scan / index / hash            | スキャン系実装                       |
 | tensor tree fold               | display tensor tree                  |
 | file watcher                   | library watcher                      |
 | WebP preview codec             | preview WebP codec                   |
@@ -925,7 +925,7 @@ git ls-files | rg -i '[p]hase|[k][0-9]|[t][0-9]|[l][0-9]'
 | reference-machine verification | reference-machine verification       |
 | interoperability gate          | official interoperability gate       |
 | unit gate                      | unit contract                        |
-| integration gate               | integration contract                 |
+| integration gate               | integration corpus                   |
 | benchmark KPI                  | acceptance metric                    |
 | task branch / step             | implementation step                  |
 
@@ -943,10 +943,10 @@ git ls-files | rg -i '[p]hase|[k][0-9]|[t][0-9]|[l][0-9]'
 - `tests/` 配下で `phase` を含むファイル名
 - `scripts/bench/front/` のタスク番号つき計測器
 - `native/crates/mm-core/src/` の段階番号つき bindings
-- `scripts/l5/official_cross.py`（内部ゲート名入りパス）および全参照
+- `scripts/cross_validation/official_cross.py`（内部ゲート名入りパス）および全参照
   - rename 例: `scripts/cross_validation/official_cross.py`（または同等の意味ベース名）
-  - 参照: `.github/workflows/native.yml`（integration / L4/L5 コメント・step 名）、`scripts/bench/README.md`、`docs/BENCH.md`、`native/README.md`、各 `tests/test_*` のコメント
-  - ファイル内の `L5` / `L4/L5` / `l5.*` 一時ファイル名接頭辞も意味ベースへ正規化
+  - 参照: `.github/workflows/native.yml`（integration / 統合・公式 interoperability 検証 コメント・step 名）、`scripts/bench/README.md`、`docs/BENCH.md`、`native/README.md`、各 `tests/test_*` のコメント
+  - ファイル内の `official interoperability gate` / `統合・公式 interoperability 検証` / `l5.*` 一時ファイル名接頭辞も意味ベースへ正規化
 - `docs/BENCH.md` の段階番号見出し
 - `scripts/bench/results/` の段階番号つき filename / note
 - `.github/workflows/` の内部タスク番号つき comment / summary key
@@ -1229,7 +1229,7 @@ pnpm build
 - `dev` へ commit & push
 - PR は `dev` → `main`
 - PR description には少なくとも以下を含める
-  1. Windows ARM64 の tooling matrix と CI run ID
+  1. Windows ARM64 のビルド matrix と CI run ID
   2. artifact SHA-256 / size
   3. README 4 言語差分
   4. optimization decision table

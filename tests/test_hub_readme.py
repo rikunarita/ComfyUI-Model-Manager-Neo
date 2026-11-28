@@ -27,7 +27,7 @@ from aiohttp import web
 
 
 # ---------------------------------------------------------------------------
-# local mock hub (same shape as test_phase6_http.py's, kept self-contained)
+# local mock hub (same shape as test_http.py's, kept self-contained)
 # ---------------------------------------------------------------------------
 class MockHub:
     def __init__(self, routes: dict[str, object]):

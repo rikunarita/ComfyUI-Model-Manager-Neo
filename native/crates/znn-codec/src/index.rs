@@ -1,4 +1,4 @@
-//! Persistent front-matter index (Phase 5).
+//! Persistent front-matter index (the scan/index work).
 //!
 //! The library scan re-reads every model's `.md` sidecar header on every
 //! refresh to recover `modelPage` / `website` / `hashes.SHA256` / `baseModel`
@@ -356,7 +356,7 @@ mod tests {
         idx.save().unwrap();
         assert!(dir.path().join("mm-scan-index.bin").exists());
 
-        // reopen: the entries survive the restart (the whole point of B3)
+        // reopen: the entries survive the restart (the whole point of persistent index)
         let reloaded = SiteIndex::open(Some(dir.path()));
         assert_eq!(reloaded.len(), 2);
         assert_eq!(

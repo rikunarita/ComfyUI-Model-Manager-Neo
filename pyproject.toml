@@ -21,7 +21,7 @@ Icon = ""
 
 # ---------------------------------------------------------------------------
 # uv: Python package management for the DEVELOPMENT and CI layers only
-# (Phase 7 T4 - a pip replacement). The runtime contract is unchanged:
+# (uv adoption - a pip replacement). The runtime contract is unchanged:
 # requirements.txt (read by ComfyUI / ComfyUI-Manager) and __init__.py ->
 # utils.pip_install run inside the USER's ComfyUI Python, where uv cannot be
 # assumed. The frontend (pnpm) is entirely out of scope for uv.
@@ -37,7 +37,7 @@ Icon = ""
 package = false
 
 # torch's CPU wheels are ~200 MB lighter than the default CUDA build; the
-# EXPLICIT index keeps ONLY torch on the CPU wheelhouse (T4). Every other
+# EXPLICIT index keeps ONLY torch on the CPU wheelhouse (uv adoption). Every other
 # package still resolves from the default index.
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -51,7 +51,7 @@ torch = { index = "pytorch-cpu" }
 # deps ComfyUI itself provides (pillow, aiohttp) so the suite runs standalone.
 # The runtime hub deps are listed for a self-contained dev environment (uv
 # resolves them together with [project].dependencies). ruff is pinned to match
-# CI (T3).
+# CI.
 [dependency-groups]
 dev = [
     "pytest",
@@ -72,7 +72,7 @@ dev = [
 ]
 
 # ---------------------------------------------------------------------------
-# mypy: static types for the Python backend (Phase 7 T5 - the former
+# mypy: static types for the Python backend (config consolidation - the former
 # mypy.ini, mechanically converted; mypy >= 1.x auto-discovers `[tool.mypy]`
 # in pyproject.toml, verified on mypy 2.3.1).
 #
@@ -148,11 +148,11 @@ ignore = [
 # /tmp scratch paths in tests are sandboxed by pytest's tmp fixtures or
 # deliberate (S108).
 "tests/*" = ["S101", "S106", "S108"]
-# The PGO training harness and the L5 official-zipnn cross-validation gate
+# The PGO training harness and the official-zipnn cross-validation gate
 # are plain-stdlib scripts whose in-run verification mechanism IS `assert`
 # (no pytest on those paths — train.py must stay stdlib-only by design).
 "scripts/pgo/*" = ["S101"]
-"scripts/l5/*" = ["S101"]
+"scripts/cross_validation/*" = ["S101"]
 
 [tool.ruff.format]
 docstring-code-format = false

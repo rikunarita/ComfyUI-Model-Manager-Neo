@@ -1,4 +1,4 @@
-//! L3 fuzz target 2/3: the ZN header + packed-shape parser against hostile
+//! ASan fuzz target 2/3: the ZN header + packed-shape parser against hostile
 //! bytes. Parsing must be total: every input either yields a
 //! validated header/shape or an error — never a panic, never an unbounded
 //! allocation (ndims is a single byte; dim widths are 1/2/4/8-checked).

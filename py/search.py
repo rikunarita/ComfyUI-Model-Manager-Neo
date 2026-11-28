@@ -23,7 +23,7 @@ GET /model-manager/civitai/image-meta?model-version-id=&url=
     preview image of a Civitai model version (``withMeta=true&flatMeta=true``).
 
 Network calls run on the event loop through the shared aiohttp session
-(``py/http_client.py``, Quick Win A3); only the hub SDKs
+(``py/http_client.py``, aiohttp migration); only the hub SDKs
 (``huggingface_hub`` / ``modelscope_hub``) still use an IO-executor worker, and
 a failing provider degrades to an ``error`` entry instead of failing the whole
 search.
@@ -40,7 +40,7 @@ from aiohttp import web
 from . import auth, hf_endpoint, http_client, utils
 from .information import MODELSCOPE_INTL_ENDPOINT
 
-# A3 (Phase 6): every hub round trip of this module goes
+# aiohttp migration: every hub round trip of this module goes
 # through the shared aiohttp session (`py/http_client.py`) instead of a
 # blocking `requests.get` in an io-executor worker - no thread hop, one
 # connector, one timeout policy. The base URLs are module constants so the mock
@@ -173,7 +173,7 @@ async def _hf_avatar(owner: str) -> str | None:
 def _hf_list_models(query: str, limit: int, offset: int, sort: str) -> list[Any]:
     """The blocking `huggingface_hub` page fetch (httpx2 under the hood).
 
-    Stays in an executor: A3 unifies Neo's OWN round trips on aiohttp, it does
+    Stays in an executor: aiohttp migration unifies Neo's OWN round trips on aiohttp, it does
     not replace the hub SDK (`huggingface_hub` 2.x is httpx2-based,
     so a "unified" stack would be a third one).
     """
@@ -245,7 +245,7 @@ async def _search_huggingface(query: str, limit: int, cursor: str | None, sort: 
     has_more = len(page) > limit
     page = page[:limit]
 
-    # A3: one avatar probe per DISTINCT owner, concurrently (the cache still
+    # aiohttp migration: one avatar probe per DISTINCT owner, concurrently (the cache still
     # absorbs repeats across searches).
     owners = list(dict.fromkeys(owner for _, owner in page))
     avatars = await asyncio.gather(*[_hf_avatar(owner) for owner in owners])
@@ -364,7 +364,7 @@ async def _ms_owner_info(owner: str, name: str) -> tuple[str | None, str | None,
 
 
 def _ms_list_repos(query: str, limit: int, page_number: int, sort: str) -> Any:
-    """The blocking `modelscope_hub` page fetch (stays in an executor — A3
+    """The blocking `modelscope_hub` page fetch (stays in an executor — aiohttp migration
     unifies Neo's own round trips, not the hub SDKs)."""
     from modelscope_hub import HubApi
 
@@ -385,7 +385,7 @@ async def _search_modelscope(query: str, limit: int, cursor: str | None, sort: s
             continue
         rows.append((r, owner, name))
 
-    # A3: the owner probes (one per result) run concurrently on the loop
+    # aiohttp migration: the owner probes (one per result) run concurrently on the loop
     # instead of serially inside an executor worker.
     infos = await asyncio.gather(*[_ms_owner_info(owner, name) for _, owner, name in rows])
 
@@ -421,7 +421,7 @@ async def _search_civitai(query: str, limit: int, cursor: str | None, sort: str)
     # (verified live: "Cannot use page param with query search").
     if cursor:
         params["cursor"] = cursor
-    # A3: fully async (no executor hop at all) - and a non-2xx still raises the
+    # aiohttp migration: fully async (no executor hop at all) - and a non-2xx still raises the
     # requests-worded HttpStatusError the provider wrapper reports verbatim.
     payload = (
         await http_client.fetch_json(
@@ -540,7 +540,7 @@ class SearchRoutes:
                     return provider, {"items": [], "error": str(e), "nextCursor": None}
 
             if platform in _PROVIDERS:
-                # A3: the providers are coroutines now, so the
+                # aiohttp migration: the providers are coroutines now, so the
                 # whole request runs on the event loop - the io-executor hop
                 # (one of eight workers, pinned for the entire round trip) is
                 # gone.
@@ -548,7 +548,7 @@ class SearchRoutes:
                 return web.json_response({"success": True, "data": {name: res}})
 
             # The three-provider sweep runs as three concurrent coroutines on
-            # the loop (A3): the wait no longer needs an executor worker, and
+            # the loop (aiohttp migration): the wait no longer needs an executor worker, and
             # the historical contract is kept exactly - the sweep is bounded by
             # the search timeout + 5 s and a provider that does not answer in
             # time degrades to a per-column "search timed out" entry instead of
@@ -605,7 +605,7 @@ class SearchRoutes:
 
             hit = _AVATAR_PROXY_CACHE.get(url)
             if hit is None:
-                # A3: the fetch is async now, so the io-executor hop (and the
+                # aiohttp migration: the fetch is async now, so the io-executor hop (and the
                 # worker it pinned for the whole round trip) is gone.
                 body = await _fetch_avatar_bytes(url)
                 if body is None:
@@ -653,7 +653,7 @@ class SearchRoutes:
                     }
                 )
             try:
-                # A3: async on the loop (was a blocking requests.get inside an
+                # aiohttp migration: async on the loop (was a blocking requests.get inside an
                 # io-executor worker). The exception shape is unchanged -
                 # `HttpStatusError.response.status_code` is what the 401 hint
                 # below reads, and `str(e)` keeps the requests wording.
@@ -697,7 +697,7 @@ class SearchRoutes:
             if not version_id or not url:
                 return web.json_response({"success": True, "data": None})
             try:
-                # A3: async on the loop (was a blocking requests.get in a
+                # aiohttp migration: async on the loop (was a blocking requests.get in a
                 # worker).
                 payload = (
                     await http_client.fetch_json(

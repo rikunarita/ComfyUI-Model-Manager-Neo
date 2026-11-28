@@ -1,18 +1,18 @@
-//! Phase 5 bindings — scan / hygiene / safetensors header / hashing.
+//! Scan/hygiene/header/hash bindings — scan / hygiene / safetensors header / hashing.
 //!
 //! These are SYNCHRONOUS, GIL-released calls (like `walk_models`): the routes
 //! run them inside executors, and releasing the GIL keeps the ComfyUI event
 //! loop responsive during a multi-thousand-file walk or a multi-gigabyte hash
 //! (a held GIL would freeze the websocket progress
-//! stream for the whole operation, the exact class of bug Quick Win A1 and the
-//! Phase-3 `walk_models` GIL fix removed).
+//! stream for the whole operation, the exact class of bug model-detail route executorization and the
+//! delta compression `walk_models` GIL fix removed).
 //!
 //! Two process-wide registries live here:
 //! * the persistent front-matter [`SiteIndex`] (one per index directory, shared
 //!   across every `scan_models` call so the cache survives both the per-type
 //!   scans of one refresh and process restarts);
 //! * the incremental hashers (`hasher_new`/`update`/`finalize`) the download
-//!   loop feeds chunk by chunk for inline Civitai verification (K7 —
+//!   loop feeds chunk by chunk for inline Civitai verification (download verification —
 //!   the finished download's SHA256 is known without a full re-read).
 
 use std::collections::{HashMap, HashSet};
@@ -27,7 +27,7 @@ use znn_codec::hash::MultiHasher;
 use znn_codec::index::SiteIndex;
 use znn_codec::scan::{HygieneOpts, ScanOpts};
 
-/// The B4-unified safetensors header cap (32 MiB) — `get_model_metadata` and
+/// The 32 MiB safetensors header cap — `get_model_metadata` and
 /// `get_model_tensors` both used to guard at different sizes (1 MiB silently
 /// emptied large MoE `__metadata__`; 32 MiB for tensors). One cap now.
 const HEADER_CAP: u64 = 32 * 1024 * 1024;
@@ -181,7 +181,7 @@ pub fn scan_hygiene(
 
 /// The digested safetensors header (`{"metadata": {…}, "tensors": […]}`) for
 /// the model-detail display functions. Header-only (no data
-/// validation), jiter-parsed (K11), 32 MiB cap. Synchronous; the GIL is
+/// validation), jiter-parsed (large-MoE header parsing), 32 MiB cap. Synchronous; the GIL is
 /// released for the read+parse.
 ///
 /// # Errors
@@ -199,7 +199,7 @@ pub fn safetensors_header(py: Python<'_>, path: &str) -> PyResult<String> {
 /// object (`{"SHA256": "…", "AutoV2": …, "AutoV1": …, "CRC32": …,
 /// "BLAKE3": …}` — only the requested ones). `algos` defaults to the four
 /// Civitai notations identify needs. Synchronous; the GIL is released for the
-/// read (K8: 5 notations, one pass).
+/// read (multi-hash measurement: 5 notations, one pass).
 ///
 /// # Errors
 /// A file that cannot be read.
@@ -225,7 +225,7 @@ pub fn hash_file(py: Python<'_>, path: &str, algos: Option<Vec<String>>) -> PyRe
 
 /// Start an incremental hasher for `algos`; returns its handle. The download
 /// loop feeds it each written chunk (`hasher_update`) and finalises at the end
-/// (`hasher_finalize`) — the inline Civitai verification (K7:
+/// (`hasher_finalize`) — the inline Civitai verification (download verification:
 /// no full re-read of a finished download).
 ///
 /// # Errors
@@ -291,7 +291,7 @@ pub fn hasher_finalize(handle: u64) -> PyResult<String> {
 
 /// Diagnostics for the settings/about surface: the index entry count and the
 /// live hasher count (never raises).
-pub fn phase5_diagnostics() -> HashMap<&'static str, usize> {
+pub fn scan_diagnostics() -> HashMap<&'static str, usize> {
     let indexes = index_registry()
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);

@@ -293,7 +293,7 @@ const sortFolderContents = (list: ModelTreeNode[]): ModelTreeNode[] => {
     const bValue = b[sortField]
 
     if (typeof aValue === 'string' && typeof bValue === 'string') {
-      // C2: one shared Intl.Collator instead of a per-comparison
+      // shared comparator: one shared Intl.Collator instead of a per-comparison
       // locale resolution (identical order to a bare String#localeCompare).
       return compareText(aValue, bValue)
     }

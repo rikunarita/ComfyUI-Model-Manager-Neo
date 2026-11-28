@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""G2 gate — verify that a PGO profile was actually applied to a build.
+"""profile-applied check — verify that a PGO profile was actually applied to a build.
 
-Part of the PGO pipeline (Step 3 pilot / Step 4 shipping jobs). Inputs:
+Part of the PGO pipeline (pilot measurement / shipping build jobs). Inputs:
 
 * ``show_txt``  — the output of ``llvm-profdata show merged.profdata``
 * ``build_log`` — the ``-Cprofile-use`` build log, built with
@@ -61,7 +61,7 @@ def main() -> int:
     m_funcs = re.search(r"Total functions:\s+(\d+)", show)
     m_count = re.search(r"Total count:\s+(\d+)", show)
     if not m_funcs or not m_count:
-        print("G2 FAILED: cannot parse `Total functions` / `Total count` from the llvm-profdata show output")
+        print("profile-check FAILED: cannot parse `Total functions` / `Total count` from the llvm-profdata show output")
         return 1
     total_functions = int(m_funcs.group(1))
     total_count = int(m_count.group(1))
@@ -74,7 +74,7 @@ def main() -> int:
         codec_funcs = len(set(re.findall(r"\S*znn_codec\S*", _read(args.all_functions_txt))))
 
     print(
-        f"G2: profiled functions={total_functions}, total count={total_count}, "
+        f"profile-check: profiled functions={total_functions}, total count={total_count}, "
         f"missing-profile warnings={missing} ({ratio:.2%}), znn_codec symbols={codec_funcs}"
     )
 
@@ -96,10 +96,10 @@ def main() -> int:
 
     if failures:
         for failure in failures:
-            print(f"G2 FAILED: {failure}")
+            print(f"profile-check FAILED: {failure}")
         return 1
     print(
-        f"G2 OK: profile applied (missing {ratio:.2%} < {args.max_missing_ratio:.0%}"
+        f"profile-check OK: profile applied (missing {ratio:.2%} < {args.max_missing_ratio:.0%}"
         " = benign fat-LTO/PGO inliner divergence)"
     )
     return 0

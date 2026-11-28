@@ -114,7 +114,7 @@ export const useModels = defineStore('models', store => {
   provide(modelFolderProvideKey, folders)
 
   /**
-   * The model listing, per type (C3).
+   * The model listing, per type (shallowRef).
    *
    * `shallowRef`, not `ref`: a 5,000-model library used to be wrapped in deep
    * reactive Proxies (every model object, every nested `metadata` map), which
@@ -834,7 +834,7 @@ export const useModelFolder = (option: { type?: MaybeRefOrGetter<string | undefi
 
     const folderItems = cloneDeep(models.value[type]) ?? []
     const pureFolders = folderItems.filter(item => item.isFolder)
-    // C2: shared Intl.Collator instead of String#localeCompare.
+    // shared comparator: shared Intl.Collator instead of String#localeCompare.
     pureFolders.sort((a, b) => compareText(a.basename, b.basename))
 
     const folders = modelFolders.value[type] ?? []

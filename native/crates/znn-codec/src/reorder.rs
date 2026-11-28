@@ -11,7 +11,7 @@
 //!   man=u&0x007F_FFFF;  u' = exp|sign|man`   → layout `[exp8][sign][man23]`
 //! * bf16 pair (u32 LE holding two bf16):
 //!   `sign=(u>>8)&0x0080_0080; exp=(u<<1)&0xFF00_FF00; man=u&0x007F_007F`
-//! * f64 (u64 LE word, Neo's new Phase-4 scheme — the exact f32
+//! * f64 (u64 LE word, Neo's new dtype extension scheme — the exact f32
 //!   generalisation): `sign=(u>>11)&0x0010_0000_0000_0000;
 //!   exp=(u<<1)&0xFFE0_0000_0000_0000; man=u&0x000F_FFFF_FFFF_FFFF`
 //!   → layout `[exp11 bits 63..53][sign bit 52][man52 bits 51..0]`.
@@ -45,7 +45,7 @@ pub enum ReorderKind {
     F32,
     /// bf16 pairs packed in u32 (2-plane, `bit_reorder=1`).
     Bf16,
-    /// f64 / complex128-as-u64 (8-plane, Phase 4).
+    /// f64 / complex128-as-u64 (8-plane, dtype extension).
     F64,
 }
 
@@ -160,7 +160,7 @@ fn transform_in_place(kind: ReorderKind, buf: &mut [u8], forward: bool) {
 /// 1-plane data is NEVER reordered regardless of the header bit (fp8 headers
 /// carry bit_reorder=1; the C core ignores it — verified byte-identical
 /// payloads for bits 0/1, see dtype.rs module docs). The 8-plane layout is
-/// Neo's Phase-4 extension: bit_reorder=1 selects the f64 transform
+/// Neo's dtype extension extension: bit_reorder=1 selects the f64 transform
 /// (F64/complex128), 0 keeps the words untouched (I64/U64). `is_f64_scheme`
 /// is retained for callers that know the dtype independently of the plane
 /// count (an 8-plane layout implies it anyway).
@@ -293,7 +293,7 @@ mod tests {
         assert_eq!(kind_for(1, 1, false), ReorderKind::None); // fp8: bits ignored
         assert_eq!(kind_for(1, 8, true), ReorderKind::F64);
         assert_eq!(kind_for(0, 8, true), ReorderKind::None);
-        // Phase 4: the 8-plane layout IMPLIES the f64 scheme when the
+        // dtype extension: the 8-plane layout IMPLIES the f64 scheme when the
         // reorder bit is set (I64/U64 carry bit_reorder=0 → None)
         assert_eq!(kind_for(1, 8, false), ReorderKind::F64);
         assert_eq!(kind_for(0, 8, false), ReorderKind::None);
@@ -307,7 +307,7 @@ mod proptests {
 
     proptest! {
         /// Every transform is a bijection with its revert as the exact
-        /// inverse — "全単射" (pinned by proptest).
+        /// inverse — "bijective" (pinned by proptest).
         #[test]
         fn f32_reorder_is_a_bijection(u in any::<u32>()) {
             prop_assert_eq!(revert_f32_word(reorder_f32_word(u)), u);

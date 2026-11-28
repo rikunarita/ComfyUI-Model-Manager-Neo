@@ -5,11 +5,11 @@
 
 <div align="center">
 
-# <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI‑Model‑Manager‑Neo
+# <img src="https://api.iconify.design/lucide/boxes.svg?color=%236366f1" width="41" height="41" align="middle" alt=""> ComfyUI-Model-Manager-Neo
 
 ### 瀏覽 · 下載 · 上傳 · 拖放 —— 所有模型，盡在一處。
 
-在 **Vue 3 + Tailwind CSS v4 + reka‑ui** 之上重新建置的 ComfyUI 模型管理器，
+在 **Vue 3 + Tailwind CSS v4 + reka-ui** 之上重新建置的 ComfyUI 模型管理器，
 採用現代玻璃擬態介面重新設計；包括 ZipNN 壓縮引擎在內的所有熱點路徑，
 均由**預建置的純 Rust 核心**執行。
 
@@ -74,7 +74,7 @@
 
 ## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f59e0b" width="34" height="34" align="middle" alt=""> Why Neo?
 
-**ComfyUI‑Model‑Manager‑Neo** 從零開始重建了原版管理器：
+**ComfyUI-Model-Manager-Neo** 從零開始重建了原版管理器：
 
 **1. Neo 新增**
 
@@ -91,7 +91,7 @@
 - <img src="https://api.iconify.design/lucide/shield-check.svg?color=%2322c55e" width="19" height="19" align="middle" alt=""> **經過驗證的記憶體安全壓縮** —— Rust 引擎透過 lint 禁止 `unsafe` 程式碼：
   格式核心完全不含 `unsafe`，唯一需要它的邊界（只讀記憶體對映）經過了安全
   評審並有文件記錄。引擎還由七個持續 fuzz 目標加固，每次還原都會與壓縮時
-  記錄的 SHA‑256 進行校驗。與官方 `zipnn` 0.5.4 包的格式相容性是一項 CI 關卡，
+  記錄的 SHA-256 進行校驗。與官方 `zipnn` 0.5.4 包的格式相容性是一項 CI 關卡，
   每次 push 都會雙向交叉驗證。
 - <img src="https://api.iconify.design/lucide/package-plus.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **ZipNN 無失真壓縮** —— 就地壓縮與解壓縮 safetensors 模型（`.znn.safetensors`）、
   將整個資料夾批次打包為密封的 `<name>_DeltaZNN` 包、把微調模型相對其
@@ -119,17 +119,17 @@
   淺色/深色配色。
 - <img src="https://api.iconify.design/lucide/puzzle.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Reka-UI 全面重新整理** —— PrimeVue 相依已替換為輕量、無樣式的 **[reka-ui]**
   原語、**Tailwind CSS v4** 與 **[Lucide]** 圖示：一套讀得懂、改得動的
-  shadcn‑vue 風格元件。
+  shadcn-vue 風格元件。
 - <img src="https://api.iconify.design/lucide/workflow.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **一流的節點圖整合** —— 把模型拖到畫布上即可生成或填充節點，把 embedding
   拖進文字區，載入預覽圖中內嵌的工作流。
 - <img src="https://api.iconify.design/lucide/monitor-smartphone.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **響應式** —— 面向桌面、移動與多屏環境設計。
 - <img src="https://api.iconify.design/lucide/wrench.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **現代工具鏈** —— Vite 8（Rolldown）、TypeScript 6、ESLint 10 flat config、
-  Prettier、Stylelint、Ruff、clippy、husky + lint‑staged。確定性的、
+  Prettier、Stylelint、Ruff、clippy、husky + lint-staged。確定性的、
   lint 零警告的建置。
 
 > [!NOTE]
 > Neo 是 [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
-> 的 **fork**，以相同的 **GPL‑3.0** 授權分發。原版架構的全部功勞屬於其
+> 的 **fork**，以相同的 **GPL-3.0** 授權分發。原版架構的全部功勞屬於其
 > 作者 —— 見[致謝](#credits)。
 
 ---
@@ -199,7 +199,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 
 Neo 已釋出在 ComfyUI registry 上，節點名為
 [`comfyui-model-manager-neo`](https://registry.comfy.org/publishers/rikunarita7669/nodes/comfyui-model-manager-neo)：
-在 [ComfyUI-Manager] 中搜尋 **“ComfyUI‑Model‑Manager‑Neo”**，或使用官方
+在 [ComfyUI-Manager] 中搜尋 **“ComfyUI-Model-Manager-Neo”**，或使用官方
 命令列安裝：
 
 ```bash
@@ -300,7 +300,7 @@ Node.js 也不需要編譯器 —— 一次普通的 `import` 即可載入核心
 <summary><b>模型資訊與維護</b></summary>
 
 - 在只讀的 **Information** 表中檢視模型的全部記錄資訊：筆記 YAML
-  front‑matter 解析出的作者、基礎模型、全部雜湊（`AutoV1` …
+  front-matter 解析出的作者、基礎模型、全部雜湊（`AutoV1` …
   `SHA256_12`）、格式與精度、模型平台、模型頁連結與所有預覽 URL（未知
   鍵原樣列在末尾）；沒有筆記的模型則顯示 safetensors 的 `__metadata__`
   塊。
@@ -311,7 +311,7 @@ Node.js 也不需要編譯器 —— 一次普通的 `import` 即可載入核心
 - 重新命名、在資料夾或類型之間移動，或**永久刪除**模型及其預覽與筆記；
   在有未儲存更改時取消編輯會先請求確認。
 - 檢視、編輯並儲存模型旁邊的 Markdown 筆記；Information 表本身也可在
-  明確警告之後編輯（儲存時會重寫筆記的 front‑matter）。
+  明確警告之後編輯（儲存時會重寫筆記的 front-matter）。
 - 管理預覽**圖集**：排序、移除、新增本地圖片，並選擇主預覽（編輯模式
   中帶藍色圓環的那張）。
 - **開啟模型頁**按鈕帶有模型來源 hub（Civitai、Hugging Face 或
@@ -442,7 +442,7 @@ Rust 核心以兩個互操作帶壓縮 **safetensors 0.8 定義的全部 22 種 
 
 - 官方解碼器對所有未實現的 dtype 碼都會以
   `ValueError: Unsupported Dtype N` 拒絕 —— Neo 擴充套件檔案在原理上就不可能
-  被上游工具誤解碼；在 Neo 內部則與其他檔案一樣以 SHA‑256 校驗逐位元組
+  被上游工具誤解碼；在 Neo 內部則與其他檔案一樣以 SHA-256 校驗逐位元組
   還原；
 - `complex64` 使用 Neo 帶（碼 130）：官方 0.5.4 解碼器沒有保留碼 9 的
   分支，會像拒絕 Neo 碼一樣拒絕它（已在 CI 中用測試實證），因此不存在
@@ -463,7 +463,7 @@ Rust 核心以兩個互操作帶壓縮 **safetensors 0.8 定義的全部 22 種 
    跟隨改名，網格自動重新整理。
 
 壓縮是可逆的：在壓縮檔案完全寫入並校驗通過之前，原檔案絕不會被刪除；
-解壓縮時會與壓縮時記錄的 SHA‑256 進行校驗。
+解壓縮時會與壓縮時記錄的 SHA-256 進行校驗。
 
 開啟**已壓縮**的模型時，同一按鈕翻轉為_解壓縮_（以反色顯示），還原出普通
 `.safetensors`。資訊表會以**原始檔案大小**、**壓縮後檔案大小**與
@@ -507,7 +507,7 @@ Rust 核心以兩個互操作帶壓縮 **safetensors 0.8 定義的全部 22 種 
 **`<base>_DeltaZNN/<ft>_delta_<base>.znn`**，冗餘的微調檔案被刪除。
 解壓縮差分（其卡片按鈕，反色顯示）會把微調模型**逐位元組精確**還原到基礎
 模型旁邊，並刪除清空的差分資料夾。還原需要基礎模型仍在，且差分檔案
-記錄了微調模型自身的 SHA‑256，因此還原全程可驗證。
+記錄了微調模型自身的 SHA-256，因此還原全程可驗證。
 
 差分檔案以官方 ZipNN 的 **streaming 容器**格式寫出：官方 `zipnn` 套件
 （位元組差分模式）可以逐位元組精確地還原它們，反過來 Neo 也能還原官方
@@ -556,8 +556,8 @@ Windows x86_64 的 GIL 二進位經過 **PGO 最佳化**：profile 在每次 CI 
 邊界檢查，唯一的 `unsafe` 邊界（只讀 mmap）也經過安全評審 —— 當年觸發
 崩潰的輸入已被固定為迴歸測試。互操作由 CI 強制執行：`integration`
 工作流在每次 push 時與**官方 pip `zipnn` 0.5.4** 雙向交叉驗證。授權：
-格式移植歸屬 ZipNN（MIT）與 FiniteStateEntropy（BSD‑2‑Clause）；預覽
-WebP 編解碼使用 zenwebp（AGPL‑3.0）—— 全文見
+格式移植歸屬 ZipNN（MIT）與 FiniteStateEntropy（BSD-2-Clause）；預覽
+WebP 編解碼使用 zenwebp（AGPL-3.0）—— 全文見
 [`native/NOTICE`](native/NOTICE)。
 
 在沒有對應二進位的平台上（其他架構、32 位、特殊 libc），擴充套件仍然可以
@@ -567,7 +567,7 @@ WebP 編解碼使用 zenwebp（AGPL‑3.0）—— 全文見
 > [!NOTE]
 > 壓縮透過 mmap 流式處理檔案 —— 峰值記憶體約等於最大單張量，而非整個
 > 模型（12 GB 的檢查點也能在 1 GB 以內完成壓縮）。**無損且經過驗證**：
-> 核心在壓縮時記錄原件的 SHA‑256，還原時內聯複核（不匹配則保留壓縮
+> 核心在壓縮時記錄原件的 SHA-256，還原時內聯複核（不匹配則保留壓縮
 > 檔案，並把產物移為 `.corrupt` 以供檢查）；普通 `.safetensors` 只在
 > `.znn.safetensors` 寫入並透過原子改名驗證之後才被刪除，失敗的執行會
 > 清理自己的部分產物。可選的 **paranoid 模式**還會在刪除原件之前再解壓縮
@@ -579,7 +579,7 @@ WebP 編解碼使用 zenwebp（AGPL‑3.0）—— 全文見
 
 ## <img src="https://api.iconify.design/lucide/git-compare.svg?color=%23a855f7" width="34" height="34" align="middle" alt=""> 與原版相比改變了什麼
 
-本節按 GPL‑3.0 授權的要求明示 fork 的差異。比較基準為
+本節按 GPL-3.0 授權的要求明示 fork 的差異。比較基準為
 [`hayden-cn/ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)
 **v2.8.5**。功能被保留並擴展；被_移除_的共有三樣：PrimeVue 相依本身、
 批次掃描功能，以及複製節點按鈕 —— 見[被移除的功能](#removed-features)。
@@ -588,12 +588,12 @@ WebP 編解碼使用 zenwebp（AGPL‑3.0）—— 全文見
 
 | 區域           | 原版                                                      | **Neo**                                                                                                                                                                                                              |
 | -------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 元件庫         | PrimeVue 4                                                | **reka‑ui**（無樣式）+ shadcn‑vue 風格封裝                                                                                                                                                                           |
+| 元件庫         | PrimeVue 4                                                | **reka-ui**（無樣式）+ shadcn-vue 風格封裝                                                                                                                                                                           |
 | 樣式           | Tailwind CSS v3 + PrimeVue 主題                           | 帶作用域 `--mm-*` 設計權杖的 **Tailwind CSS v4**                                                                                                                                                                     |
 | 圖示           | PrimeIcons                                                | 透過圖示對映使用 **Lucide**（`@lucide/vue`）                                                                                                                                                                         |
 | 觀感           | 標準 PrimeVue 表面                                        | **玻璃擬態**（模糊、層次、微互動），自動深色模式                                                                                                                                                                     |
-| 對話方塊       | PrimeVue `Dialog`/`ContextMenu`                           | reka‑ui 對話方塊，逐對話方塊尺寸/位置、拖曳移動、帶錨點的右鍵選單                                                                                                                                                    |
-| 模型詳細標籤頁 | Description + Metadata（原始 safetensors `__metadata__`） | Description + **Information**：解析筆記 YAML front‑matter 的只讀表格（作者、基礎模型、雜湊、格式與精度、模型平台、模型頁連結、所有預覽 URL，未知鍵原樣列出），回退為原始 `__metadata__`，外加 safetensors **張量樹** |
+| 對話方塊       | PrimeVue `Dialog`/`ContextMenu`                           | reka-ui 對話方塊，逐對話方塊尺寸/位置、拖曳移動、帶錨點的右鍵選單                                                                                                                                                    |
+| 模型詳細標籤頁 | Description + Metadata（原始 safetensors `__metadata__`） | Description + **Information**：解析筆記 YAML front-matter 的只讀表格（作者、基礎模型、雜湊、格式與精度、模型平台、模型頁連結、所有預覽 URL，未知鍵原樣列出），回退為原始 `__metadata__`，外加 safetensors **張量樹** |
 | 語言           | English、中文                                             | English、中文（簡體＋**繁體**）、**日本語**（完整語言包）                                                                                                                                                            |
 
 ### <img src="https://api.iconify.design/lucide/cpu.svg?color=%230ea5e9" width="26" height="26" align="middle" alt=""> 後端與引擎
@@ -606,12 +606,12 @@ WebP 編解碼使用 zenwebp（AGPL‑3.0）—— 全文見
 
 | 區域             | 原版                                                                                                   | **Neo**                                                                                                                                                                                                                                                                    |
 | ---------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 模型列表         | 每次請求遞迴 Python `os.scandir`                                                                       | Rust 並行遍歷 + 跨重啟持久化的 front‑matter 索引（5,000 模型掃描冷啟動約 7.5 倍、熱態約 100 ms；逐條目 golden 測試）                                                                                                                                                       |
+| 模型列表         | 每次請求遞迴 Python `os.scandir`                                                                       | Rust 並行遍歷 + 跨重啟持久化的 front-matter 索引（5,000 模型掃描冷啟動約 7.5 倍、熱態約 100 ms；逐條目 golden 測試）                                                                                                                                                       |
 | 模型詳細路由     | 頭部解析跑在**事件迴圈上** —— 巨大 MoE 頭部會凍住整個伺服器                                            | 經 executor + Rust 解析；伺服器保持響應                                                                                                                                                                                                                                    |
-| 雜湊             | 單條 `hashlib` SHA‑256 迴圈                                                                            | 五種記法（`SHA256`/`AutoV1`/`AutoV2`/`CRC32`/`BLAKE3`）**一遍**流式完成                                                                                                                                                                                                    |
-| 下載校驗         | 完成後整檔案重讀                                                                                       | 寫入迴圈供給的內聯摘要 —— 零額外 I/O —— 保留 Civitai SHA‑256 關卡                                                                                                                                                                                                          |
+| 雜湊             | 單條 `hashlib` SHA-256 迴圈                                                                            | 五種記法（`SHA256`/`AutoV1`/`AutoV2`/`CRC32`/`BLAKE3`）**一遍**流式完成                                                                                                                                                                                                    |
+| 下載校驗         | 完成後整檔案重讀                                                                                       | 寫入迴圈供給的內聯摘要 —— 零額外 I/O —— 保留 Civitai SHA-256 關卡                                                                                                                                                                                                          |
 | safetensors 頭部 | `comfy.utils` + `json.loads`                                                                           | 單一路由後的 Rust jiter 解析（metadata + tensors + 預分組展示樹；65k 張量 MoE 樹建置約快 100 倍，wire 格式與 JS 交叉核對）                                                                                                                                                 |
-| ZipNN 壓縮       | —                                                                                                      | 整個引擎：壓縮 / 解壓縮 / 資料夾批次 / 微調差分，mmap 流式（任何模型都低於 1 GB 記憶體）、SHA‑256 校驗還原、協作式取消                                                                                                                                                     |
+| ZipNN 壓縮       | —                                                                                                      | 整個引擎：壓縮 / 解壓縮 / 資料夾批次 / 微調差分，mmap 流式（任何模型都低於 1 GB 記憶體）、SHA-256 校驗還原、協作式取消                                                                                                                                                     |
 | 預覽圖           | PIL 重編碼；動畫固定到第 1 幀                                                                          | zenwebp（純 Rust）編碼/解碼；動畫 GIF/WebP 預覽**保持動畫**（幀、時長、迴圈數與 ICC 配置檔案均保留）                                                                                                                                                                       |
 | Hub 整合         | 僅 Civitai 與 Hugging Face：頁面解析用阻塞 `requests`，檔案經普通 HTTP URL 取得 —— 完全沒有 ModelScope | **Civitai + Hugging Face + ModelScope** —— ModelScope 為全新整合（下載源、上傳目標、搜尋樞紐與認證）。SDK 傳輸（`huggingface_hub` + `hf_xet`、`modelscope_hub`）、三樞紐並行名稱搜尋、依樞紐存於 `private.key` 的 API 金鑰（環境變數回退 + 從 ComfyUI 設定遷移）、雜湊反查 |
 | Hub HTTP         | 執行緒池 worker 內的阻塞 `requests`                                                                    | 事件迴圈上一條共享 `aiohttp` 會話（停滯的 CDN 再也無法按 read timeout 的 120 秒佔住 worker）                                                                                                                                                                               |
@@ -636,7 +636,7 @@ Neo 新增的功能。
   `date-fns`（← dayjs）、`vue-sonner`（通知）、
   `class-variance-authority`、`clsx`、`tailwind-merge`。
 - **升級：** Vite 5 → **8**（Rolldown）、TypeScript 5 → **6**、Vue i18n 9 →
-  **11**、markdown‑it 14 → **15**、`@vueuse/core` 11 → **15**、`yaml` 2.6 →
+  **11**、markdown-it 14 → **15**、`@vueuse/core` 11 → **15**、`yaml` 2.6 →
   **2.9**。
 - **Python：** 新增 `huggingface_hub` + `hf_xet` + `modelscope_hub`（原版僅
   需要 `markdownify`）；以 asyncio 任務池取代舊執行緒池；以共享 aiohttp
@@ -659,9 +659,9 @@ Neo 新增的功能。
 
 - **資料夾卡片**靜止時顯示一隻玻璃資料夾；懸停時開始輕柔的 CSS 浮動
   （上下起伏），指標離開後立即恢復靜止。SVG 為不含 SMIL 的純向量檔案，
-  透過 HTTP 以 ETag 和一天 max‑age 提供服務，所有卡片共享同一份快取副本。
+  透過 HTTP 以 ETag 和一天 max-age 提供服務，所有卡片共享同一份快取副本。
 - **麵包屑**為每一段加上小資料夾字形。
-- **沒有預覽的模型**使用玻璃質感的 NO‑PREVIEW 圖案，以向量
+- **沒有預覽的模型**使用玻璃質感的 NO-PREVIEW 圖案，以向量
   （`image/svg+xml`）形式提供，因此絕不會被柵格化。
 - **模型 hub 標誌**（Civitai、Hugging Face、ModelScope）作為**開啟模型
   頁**按鈕的背景，模型來源一眼可辨。
@@ -673,9 +673,9 @@ _為什麼偏偏是淡綠松石？因為這是 **Neo**。_
 lint 與格式化流水線是一套約定俗成、配置完整的組合：前端 **ESLint 10
 flat config** + **Prettier** + **Stylelint 17**，Python 後端 **Ruff** +
 **mypy**，Rust 工作區 **clippy `-D warnings`** + **rustfmt**，並由
-**dependency‑cruiser**（匯入圖關卡）與 [Fallow](https://fallow.tools)
+**dependency-cruiser**（匯入圖關卡）與 [Fallow](https://fallow.tools)
 （死程式碼與重複）補全。品質由五層測試金字塔保障：Rust 單元測試、golden
-契約測試、**cargo‑fuzz** 目標（7 種、每週每目標 3 小時預算）、在
+契約測試、**cargo-fuzz** 目標（7 種、每週每目標 3 小時預算）、在
 三個 OS 上針對建置產物的完整 pytest 套件，以及官方 `zipnn` 交叉驗證
 （見[開發](#development)）。
 
@@ -765,7 +765,7 @@ pnpm install
 uv sync --frozen         # Python 開發/測試環境（.venv）
 ```
 
-Python 開發/測試環境（pytest、ruff、mypy、hub SDK、torch‑CPU）由
+Python 開發/測試環境（pytest、ruff、mypy、hub SDK、torch-CPU）由
 **[uv]** 管理 —— `uv sync --frozen` 從 `pyproject.toml` 的
 `[dependency-groups]` 與已提交的 `uv.lock` 一次性重建。這只是開發上的
 便利：_執行時_契約不變 —— ComfyUI 仍會在首次啟動時自行安裝
@@ -780,7 +780,7 @@ cp target/debug/libmm_core.so native-bin/linux-x86_64/mm_core.abi3.so   # 本平
 ```
 
 `scripts/build-native.sh --target <tag> --size-gate` 可復現隨附的 release
-產物（cargo‑zigbuild 保證 glibc ≥ 2.28 下限、maturin + lipo 生成 macOS
+產物（cargo-zigbuild 保證 glibc ≥ 2.28 下限、maturin + lipo 生成 macOS
 universal2、maturin/MSVC 生成 Windows）；[`native/README.md`](native/README.md)
 記錄了工作區、測試金字塔與 fuzz 配置。
 
@@ -823,14 +823,14 @@ ESLint + Stylelint + Prettier，後端 Ruff），外加完整的 `pnpm typecheck
 `eslint-plugin-import-x`、`eslint-plugin-tailwindcss` 與
 `eslint-config-prettier`；**Prettier** 負責格式化與 Tailwind 類排序；
 **Stylelint 17** 檢查 `src/style.css` 與所有 SFC style 塊；
-**dependency‑cruiser 18** 把關 `src/` 的匯入圖（無迴圈、無孤兒、出貨
+**dependency-cruiser 18** 把關 `src/` 的匯入圖（無迴圈、無孤兒、出貨
 程式碼不匯入 devDependency 與 Node core）。
 
 **Ruff**（`pyproject.toml [tool.ruff]`）負責後端 lint 與格式化（目標
 `py312`、行寬 120、精選規則集），其上再由 **mypy** 檢查靜態類型。
 
 **CI** 在每次 push 時執行以上全部，外加前端測量關卡
-（`scripts/bench/front/k15.mjs`）；`native` 工作流建置十個平台產物
+（`scripts/bench/front/render-bench.mjs`）；`native` 工作流建置十個平台產物
 （五個 abi3 + 五個 abi3t）、強制執行尺寸預算、對全部七個 fuzz 目標做
 smoke fuzz、在 CPython 3.12 與 3.14 下 import abi3 產物、在 3.15 的
 GIL/自由執行緒兩種建置下（x86_64 與 Windows ARM64 雙方）import abi3t 產物，
@@ -883,27 +883,27 @@ Actions 設定本身）、**OSV-Scanner**（全部四個相依面；PR 以新引
 
 ## <img src="https://api.iconify.design/lucide/heart-handshake.svg?color=%23ec4899" width="34" height="34" align="middle" alt=""> 致謝與歸屬
 
-ComfyUI‑Model‑Manager‑Neo 之所以存在，只因為
-**[hayden‑cn](https://github.com/hayden-cn)** 的
+ComfyUI-Model-Manager-Neo 之所以存在，只因為
+**[hayden-cn](https://github.com/hayden-cn)** 的
 **[`ComfyUI-Model-Manager`](https://github.com/hayden-cn/ComfyUI-Model-Manager)**
 先存在。這個 fork 中的每一個結構性想法 —— 模型資料夾抽象、帶 websocket
 進度協議的可恢復下載任務系統、Civitai 與 Hugging Face 頁面解析器、把
 卡片拖到節點圖上的整合、模型編輯器的表單處理，乃至卡片尺寸預設這樣的
-小細節 —— 都是 hayden‑cn 的設計。Neo 改變的是介面層、相依與大量 bug，
+小細節 —— 都是 hayden-cn 的設計。Neo 改變的是介面層、相依與大量 bug，
 但它不必從零發明底層設計。閱讀原版仍然是理解_這個程式碼庫為何是現在這樣_
-的最快途徑；架構的歸屬很明確 —— **hayden‑cn**。
+的最快途徑；架構的歸屬很明確 —— **hayden-cn**。
 
 壓縮引擎實現了 **[ZipNN](https://github.com/zipnn/zipnn)** 專案（MIT）的
 格式 —— Hershcovitch 等人，_“ZipNN: Lossless Compression for AI Models”_
 （[arXiv:2411.05239](https://arxiv.org/abs/2411.05239)）—— 熵編碼遵循
-zstd huff0/FSE 規範（RFC 8878）與 FiniteStateEntropy（BSD‑2‑Clause）。
+zstd huff0/FSE 規範（RFC 8878）與 FiniteStateEntropy（BSD-2-Clause）。
 原生核心的完整第三方歸屬見 [`native/NOTICE`](native/NOTICE)。
 
 本 fork 是依據 **GNU General Public License v3.0** 使用與修改的衍生
 作品。Neo 中的修改（UI 重建、PrimeVue 移除、Rust 原生核心、ZipNN
 壓縮、Hugging Face / ModelScope 樞紐整合、多 hub 搜尋與雜湊識別、包現代化、工具鏈、
 可靠性與安全性加固、批次掃描移除、日語本地化 —— 逐條見
-[與原版相比改變了什麼](#what-changed)）以相同的 GPL‑3.0 授權提供。
+[與原版相比改變了什麼](#what-changed)）以相同的 GPL-3.0 授權提供。
 按授權要求，原版版權宣告與授權全文保留在 [`LICENSE`](LICENSE) 中。
 
 ### <img src="https://api.iconify.design/logos/qwen-icon.svg" width="26" height="26" align="middle" alt=""> Built with Qwen Studio
@@ -935,11 +935,11 @@ Python 與 Rust 原始碼以及 CI 設定本身進行的靜態分析、涵蓋完
 
 ## <img src="https://api.iconify.design/lucide/scale.svg?color=%2394a3b8" width="34" height="34" align="middle" alt=""> 授權
 
-**GPL‑3.0‑only** —— 全文見 [`LICENSE`](LICENSE)。
+**GPL-3.0-only** —— 全文見 [`LICENSE`](LICENSE)。
 
 Rust 原生核心（[`native/`](native/)）還為預覽 WebP 管線額外連結
-**[zenwebp]** —— 純 Rust WebP 編解碼器，**AGPL‑3.0‑only** 或 Imazen
-商業雙許可。Neo 為 GPL‑3.0‑only，並在 **AGPL‑3.0** 條款下使用 zenwebp
+**[zenwebp]** —— 純 Rust WebP 編解碼器，**AGPL-3.0-only** 或 Imazen
+商業雙許可。Neo 為 GPL-3.0-only，並在 **AGPL-3.0** 條款下使用 zenwebp
 （AGPLv3 §13 明確允許 AGPL 作品與 GPLv3 作品結合，AGPL 部分保持
 AGPL）。ComfyUI 是**本地**應用而非網路服務，因此 AGPL 的網路條款在此
 實質上不發生作用；分發時的原始碼可得義務由本公開儲存庫滿足。原生核心的

@@ -1,4 +1,4 @@
-"""Phase 6 - the optional `watch_roots` library watcher.
+"""The optional `watch_roots` library watcher.
 
 The acceptance condition: *"既定 OFF + degrade 動作 +
 primitive テスト"*. The tests below cover exactly those three:
@@ -12,7 +12,7 @@ primitive テスト"*. The tests below cover exactly those three:
   charge;
 * **end to end** (native binary required) - a file created by an EXTERNAL
   process under a model root produces the same `models_changed {type, reason}`
-  websocket broadcast Phase 5 introduced, so the frontend listener needs no
+  websocket broadcast the scan/index work introduced, so the frontend listener needs no
   change.
 """
 
@@ -180,7 +180,7 @@ async def test_disabled_watcher_never_arms_a_session(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_external_change_broadcasts_models_changed(prompt_server, tmp_path, monkeypatch):
-    """The whole point of the feature: an EXTERNAL write becomes the Phase-5
+    """The whole point of the feature: an EXTERNAL write becomes the scan/index work
     `models_changed` event, so the frontend listener is reused unchanged."""
     _watcher_mod, service, root = _make_watcher(monkeypatch, tmp_path)
     if not _native_available():
@@ -197,7 +197,7 @@ async def test_external_change_broadcasts_models_changed(prompt_server, tmp_path
     (root / "external.safetensors").write_bytes(b"x" * 8)
     # 25 s bound: Linux inotify answers in ~0.6 s (500 ms debounce + 1 s poll),
     # macOS FSEvents and Windows ReadDirectoryChangesW can take a few seconds on
-    # a loaded CI runner. The Rust L1 watch test (same event, 10 s bound) already
+    # a loaded CI runner. The Rust watch test (same event, 10 s bound) already
     # passed on all three OSes in native-test.
     deadline = time.monotonic() + 25.0
     while time.monotonic() < deadline and not prompt_server.sent:
@@ -446,7 +446,7 @@ async def test_tmp_artefacts_alone_do_not_broadcast(prompt_server, tmp_path, mon
 @pytest.mark.asyncio
 async def test_arm_and_release_run_off_the_event_loop(tmp_path, monkeypatch):
     """`watch_start` walks the tree and adds one inotify watch per directory, so
-    it MUST NOT run on the loop (the Phase-5 audit fixed the same defect class in
+    it MUST NOT run on the loop (the scan/index audit fixed the same defect class in
     the download resume path). Pinned by recording the executing thread."""
     import threading
 

@@ -155,10 +155,10 @@ jobs:
           ./scripts/build-native.sh --target linux-aarch64 --size-gate \
             --pgo "$RUNNER_TEMP/pgo-prof/merged.profdata" 2>&1 | tee "$RUNNER_TEMP/pgo-build.log"
           cp native/native-bin/linux-aarch64/mm_core.abi3.so "$RUNNER_TEMP/ab/pgo/"
-      - name: "G2 gate: the profile applied (no-op detection)"
+      - name: "profile-applied check: the profile applied (no-op detection)"
         run: |
           set -euo pipefail
-          python scripts/pgo/g2_check.py \
+          python scripts/pgo/profile_check.py \
             "$RUNNER_TEMP/pgo-prof/show.txt" \
             "$RUNNER_TEMP/pgo-build.log" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: A/B measure (baseline vs PGO), median of 5 rounds

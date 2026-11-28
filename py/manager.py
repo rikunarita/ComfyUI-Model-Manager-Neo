@@ -113,8 +113,8 @@ class ModelManager:
             Read-only: whether the setting is on, whether the polling task and
             the native session are up, how many roots are armed (network roots
             are skipped by design), the degrade state and the event/broadcast
-            counters. Handy for a bug report - and for the Phase-6 acceptance
-            check that a network mount or an exhausted inotify budget degrades
+            counters. Handy for a bug report - and for the frontend watcher
+            acceptance check that a network mount or an exhausted inotify budget degrades
             to the TTL refresh instead of failing.
             """
             return web.json_response({"success": True, "data": watcher.watcher.diagnostics()})
@@ -124,7 +124,7 @@ class ModelManager:
             """
             Returns the base folders for models.
             """
-            # Phase 6: the watcher task normally starts from the server's
+            # The watcher task normally starts from the server's
             # on_startup hook; this is the lazy fallback for a host where that
             # hook was not available (it is a no-op once the task is up, and it
             # never raises - the watcher is optional).
@@ -280,7 +280,7 @@ class ModelManager:
                 # inline froze the server event loop for the whole operation
                 # (and deadlocks outright when the preview URL points back at
                 # ComfyUI itself).
-                # Phase 7 T8: the HTTP fetch now runs on the event loop
+                # the HTTP fetch now runs on the event loop
                 # (resolve_preview_sources via the shared aiohttp session), so a
                 # stalled CDN no longer pins one of the eight io-executor workers
                 # for the 120 s read timeout; only the millisecond-scale PIL /
@@ -385,9 +385,9 @@ class ModelManager:
     def scan_models(self, folder: str, include_hidden_files: bool = False):
         folders, *_ = folder_paths.folder_names_and_paths[folder]
 
-        # Native path (Phase 5): the Rust parallel walk returns the
+        # Native path (the scan/index work): the Rust parallel walk returns the
         # EXACT same JSON shape as the Python walk below (golden-tested entry
-        # for entry in tests/test_phase5_scan.py). The naming constants arrive
+        # for entry in tests/test_scan.py). The naming constants arrive
         # from py/utils + folder_paths so the Python side stays the single
         # source of truth; `indexDir` enables the persistent front-matter cache.
         # A native failure degrades to the Python walk rather
@@ -531,7 +531,7 @@ class ModelManager:
                 continue
             dir_names: dict[str, set[str]] = {}
             file_entries = get_all_files_entry(base_path, dir_names)
-            # Deterministic listing order (安定順序): sort the walk
+            # Deterministic listing order (stable order): sort the walk
             # by normalised path so the order never shifts between refreshes AND
             # matches the native Rust scan entry-for-entry (golden parity — the
             # native walk sorts by the same key). The grid re-sorts by the
@@ -556,7 +556,7 @@ class ModelManager:
         return result
 
     def scan_hygiene(self):
-        # Native path (Phase 5): the Rust walk returns the same
+        # Native path (the scan/index work): the Rust walk returns the same
         # `{orphans, empty}` JSON (golden-tested against the Python walk below).
         mm = native.core_if_enabled()
         if mm is not None:
@@ -643,14 +643,14 @@ class ModelManager:
             "metadata": header["metadata"],
             "description": description,
             "tensors": header["tensors"],
-            # Phase 6: the tensor tree folded in Rust (leaf indices address the
+            # The tensor tree folded in Rust (leaf indices address the
             # `tensors` array above). `None` = the frontend folds it itself,
-            # exactly as before Phase 6 — an additive, optional field.
+            # exactly as before the tree landed — an additive, optional field.
             "tensorTree": header["tensorTree"],
         }
 
     async def _resolve_update_previews(self, model_data: dict) -> tuple | None:
-        """Resolve the editor gallery on the event loop (Phase 7 T8).
+        """Resolve the editor gallery on the event loop (aiohttp migration).
 
         Returns ``None`` (no preview work), ``("write", staged)`` (a resolved
         gallery to rewrite) or ``("remove",)`` (an emptied gallery to delete).
@@ -687,7 +687,7 @@ class ModelManager:
 
     def update_model(self, model_path: str, model_data: dict, resolved_previews: tuple | None = None):
 
-        # Previews were resolved on the event loop (T8 - _resolve_update_
+        # Previews were resolved on the event loop (aiohttp migration - _resolve_update_
         # previews); this runs in the io executor and only writes / moves.
         if resolved_previews is not None:
             action = resolved_previews[0]

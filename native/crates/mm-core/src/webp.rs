@@ -1,4 +1,4 @@
-//! Phase 7 bindings — the preview **WebP** codec (T7).
+//! WebP bindings — the preview **WebP** codec (preview WebP).
 //!
 //! Thin PyO3 wrappers over [`znn_codec::webp`] (the zenwebp-backed pure-Rust
 //! codec). Boundary rules: pixels cross as `bytes` (previews are
@@ -27,7 +27,7 @@ fn opts(quality: f32, method: u8, lossless: bool) -> WebpEncodeOpts {
 /// Returns `(rgba, width, height, icc_profile)`; `icc_profile` is empty when the
 /// file carries no ICCP chunk. The WebP-decode leg of the preview pipeline (a
 /// WebP input is decoded here, re-encoded by [`webp_encode`]) and the surface
-/// the L3 `webp_decode` fuzz target drives. Hostile input comes back as a
+/// the `webp_decode` ASan fuzz target drives. Hostile input comes back as a
 /// `RuntimeError`, never a panic. GIL released for the decode.
 pub fn webp_decode(py: Python<'_>, data: &[u8]) -> PyResult<(Vec<u8>, u32, u32, Vec<u8>)> {
     let data = data.to_vec();
@@ -92,7 +92,7 @@ pub fn webp_decode_animation(
 /// `durations_ms` is the per-frame display time (a missing entry defaults to
 /// 100 ms), `loop_count` is 0 = forever (matching PIL's `image.info["loop"]`).
 /// This is what keeps an animated GIF / WebP preview animated instead of
-/// freezing it to the first frame (the pre-T7 PIL behaviour). GIL released.
+/// freezing it to the first frame (the pre-preview WebP PIL behaviour). GIL released.
 #[allow(clippy::too_many_arguments)] // a flat PyO3 signature (frames + durations + encoder knobs)
 pub fn webp_encode_animation(
     py: Python<'_>,

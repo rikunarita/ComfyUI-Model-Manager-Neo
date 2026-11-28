@@ -5,7 +5,7 @@
 //! Output is BYTE-IDENTICAL to the C encoder for the same input (same
 //! histogram decisions, same incompressible/RLE heuristics, same tableLog,
 //! same tree, same weight-header choice, same reverse-order bit packing and
-//! flush points), which turns the L2 golden diff into an exact byte compare.
+//! flush points), which turns the golden diff into an exact byte compare.
 //!
 //! `zipnn_core.c` only ever calls `HUF_compress(dst, origChunkSize, src,
 //! srcSize)` = `HUF_compress2(dst, cap, src, len, 255, HUF_TABLELOG_DEFAULT
@@ -238,7 +238,7 @@ fn compress_1x(
     // symbol walk is bounds-check-free via chunks_exact().rev(). OUTPUT IS
     // BYTE-IDENTICAL to the C writer (same reverse symbol order, same
     // flush cadence — cadence-invariant byte stream, see below — same
-    // sentinel); the L2 golden diff enforces it on every case.
+    // sentinel); the golden diff enforces it on every case.
     // `buf` is the caller-owned scratch, already sized ≥ dst_size + 8.
     debug_assert!(buf.len() >= dst_size + 8);
     let end = dst_size - 8; // C: endPtr = start + dstCapacity - 8
@@ -285,7 +285,7 @@ fn compress_1x(
     // flushBitsFast/flushBits split relies on this). The C flushes every 4
     // symbols (4×12+7 = 55 bits); with this encoder's hard 11-bit cap we
     // flush every 5 (5×11+7 = 62 < 64) — 20% fewer flushes, byte-identical
-    // output (the L2 golden diff asserts exactly that on every case).
+    // output (the golden diff asserts exactly that on every case).
     let n5 = src.len() / 5;
     // tail 0-4 symbols (encoded first = read last), then flush (the C also
     // flushes unconditionally after its 1-3 symbol tail switch)

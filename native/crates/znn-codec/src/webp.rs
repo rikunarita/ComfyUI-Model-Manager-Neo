@@ -1,4 +1,4 @@
-//! Phase 7 (T7) — the preview **WebP** codec.
+//! preview WebP codec — the preview **WebP** codec.
 //!
 //! A thin, adversarial-input-hardened wrapper over [`zenwebp`] (the pure-Rust
 //! VP8/VP8L codec). The preview pipeline in `py/utils.py` decodes an incoming
@@ -10,7 +10,7 @@
 //! the canvas dimensions and the pixel count BEFORE allocating, and every
 //! zenwebp error is mapped to [`WebpError`] (never a panic).
 //!
-//! [`decode_still`] is the L3 fuzz target (`webp_decode`): hostile WebP bytes
+//! [`decode_still`] is the ASan fuzz target (`webp_decode`): hostile WebP bytes
 //! must always come back as `Err`, never a panic and never an allocation beyond
 //! the input's own scale.
 //!
@@ -35,7 +35,7 @@ const MAX_PIXELS: u64 = 64 * 1024 * 1024;
 const BPP: usize = 4;
 
 /// Encoder knobs. The defaults mirror PIL's `Image.save(..., "WEBP")` closely
-/// enough that the pre/post-T7 preview sizes land in the same band (the pytest
+/// enough that the pre/post-preview WebP preview sizes land in the same band (the pytest
 /// parity gate is "same dimensions, decodable, size within a tolerance", not
 /// byte-identity — the encoders differ).
 #[derive(Debug, Clone, Copy)]
@@ -114,7 +114,7 @@ fn rgba_len(w: u32, h: u32) -> Result<usize, WebpError> {
 /// Returns `(rgba, width, height, icc_profile)` — `icc_profile` is empty when
 /// the file carries no ICCP chunk. This is the still-image leg of the preview
 /// pipeline (a WebP input is decoded here, re-encoded by [`encode_still`]) and
-/// the **L3 fuzz surface**: `data` is treated as fully hostile, so the canvas
+/// the **ASan fuzz surface**: `data` is treated as fully hostile, so the canvas
 /// is validated from the header ([`ImageInfo::from_webp`]) BEFORE any decode
 /// allocation, and every zenwebp error becomes [`WebpError::Decode`].
 ///
@@ -290,7 +290,7 @@ pub fn encode_still(
 /// (0 = loop forever, matching PIL's `image.info["loop"]`).
 ///
 /// This is what keeps an animated GIF / animated WebP preview animated instead
-/// of freezing it to the first frame (the pre-T7 PIL behaviour). Frames are
+/// of freezing it to the first frame (the pre-preview WebP PIL behaviour). Frames are
 /// presented by cumulative timestamp; zenwebp derives each frame's duration
 /// from the gap to the next (and `finalize` sets the last one).
 ///

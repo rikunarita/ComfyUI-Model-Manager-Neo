@@ -9,7 +9,7 @@
 # still holds.
 #
 # NOT ignored here (handled in the workflows themselves):
-#   - template-injection: fixed via env bindings (2026-10-07, Step 1)
+#   - template-injection: fixed via env bindings (2026-10-07)
 #   - artipacked: persist-credentials: false everywhere; the single publish-bot
 #     checkout carries an inline `# zizmor: ignore[artipacked]` with its reason
 #   - adhoc-packages: inline ignore with reason (typescript@6.0.3 cross-check)
@@ -35,7 +35,7 @@ rules:
   cache-poisoning:
     # native.yml is flagged because its `tags: v*` trigger makes it a
     # "release workflow" that reads CI caches. Both primitives are already
-    # mitigated in the workflow itself (2026-10-07, Step 1):
+    # mitigated in the workflow itself (2026-10-07):
     #   1. WRITES are restricted to trusted events by every rust-cache
     #      `save-if` (non-PR pushes to main/dev only — the authoritative
     #      comment lives at native.yml's native-test rust-cache step);

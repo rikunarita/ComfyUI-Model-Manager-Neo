@@ -1,7 +1,7 @@
-//! L3 fuzz target 7/7: hostile WebP bytes → the zenwebp DECODE path
-//! (Phase 7 / T7). The preview pipeline decodes untrusted CDN images, and while
+//! ASan fuzz target 7/7: hostile WebP bytes → the zenwebp DECODE path
+//! (the preview WebP codec). The preview pipeline decodes untrusted CDN images, and while
 //! zenwebp is pure Rust (`forbid(unsafe_code)`, upstream-fuzzed), v0.4.x is
-//! young — so T7 makes the decode path a permanent fuzz surface (an adoption
+//! young — so preview WebP makes the decode path a permanent fuzz surface (an adoption
 //! precondition, not a deferral).
 //!
 //! Every input must come back `Ok` (validated pixels) or `Err` — never a panic,

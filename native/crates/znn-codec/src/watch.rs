@@ -1,11 +1,11 @@
-//! Optional filesystem watching of the model library (Phase 6).
+//! Optional filesystem watching of the model library.
 //!
 //! `notify` 8.2.0 + `notify-debouncer-full` 0.7.0 **directly** (the
 //! `extended-notify` wrapper is explicitly NOT used: a 0.1.x
 //! single-author crate that pulls `tokio` into the shipped binary and pins
 //! debouncer-full a generation back).
 //!
-//! Shape of the feature (Phase 6):
+//! Shape of the feature:
 //!
 //! * **polling, not callbacks** — the debouncer thread only appends to a
 //!   shared, deduplicated path set; Python drains it with [`watch_poll`] from

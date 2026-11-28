@@ -561,7 +561,7 @@ function useAddConfigSettings(store: import('hooks/store').StoreProvider) {
       type: 'boolean',
     })
 
-    // Phase 6: the OPTIONAL filesystem watcher that turns
+    // The OPTIONAL filesystem watcher that turns
     // external changes (a copy into models/, another downloader) into the same
     // `models_changed` event the UI's own operations broadcast. Default OFF -
     // it holds one inotify watch per folder on Linux, and the backend skips

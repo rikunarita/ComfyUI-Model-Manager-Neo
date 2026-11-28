@@ -1,19 +1,19 @@
 //! `mm_core` — the PyO3 extension module of ComfyUI-Model-Manager-Neo.
 //!
-//! API surface by phase:
+//! API surface map:
 //!
-//! * Phase 0 — availability/version handshake (`api_version`, `core_version`),
-//! * **Phase 2 — the ZipNN safetensors jobs**: `zipnn_compress` /
+//! * the baseline measurements — availability/version handshake (`api_version`, `core_version`),
+//! * **the ZipNN safetensors jobs**: `zipnn_compress` /
 //!   `zipnn_decompress` (async, polling-based: `job_progress` /
 //!   `job_cancel` / `job_result` / `job_error`) with the end-to-end
 //!   integrity pipeline (source sha recording, default-ON
 //!   verification, `.corrupt` retreat, paranoid mode),
-//! * Phase 3 — the delta jobs + batch primitives (`api_version` 3),
-//! * Phase 4 — NO surface change: the dtype extension (all 22 safetensors
+//! * delta compression — the delta compression + batch primitives (`api_version` 3),
+//! * dtype extension — NO surface change: the dtype extension (all 22 safetensors
 //!   dtypes, Neo band 128–146) lives inside `znn-codec`; the `api_version`
 //!   stays 3 (the `/zipnn/inspect` route is pure Python),
-//! * Phase 5 — scan / index / hash,
-//! * Phase 6 — the display tensor tree + the optional library watcher.
+//! * the scan/index work— scan / index / hash,
+//! * The display tensor tree + the optional library watcher.
 //!
 //! Binding facts:
 //!
@@ -36,35 +36,35 @@
 use pyo3::prelude::*;
 
 mod jobs;
-mod phase5;
-mod phase6;
-mod phase7;
+mod scan;
+mod display;
+mod webp;
 
 /// Version of the Python-facing API surface (`api_version()`).
 /// Bumped whenever the surface changes incompatibly; `py/native.py` checks it
 /// after import.
 ///
-/// * 1 — Phase 0: version handshake only,
-/// * 2 — Phase 2: the ZipNN safetensors job API (compress/decompress +
+/// * 1 — the baseline measurements: version handshake only,
+/// * 2 — the safetensors pipeline: the ZipNN safetensors job API (compress/decompress +
 ///   progress/cancel/result/error). `py/compress.py` calls these directly,
 ///   so a v1 binary must NOT pass the loader handshake of a v2 backend.
-/// * 3 — Phase 3: the delta jobs (`zipnn_delta_compress` /
+/// * 3 — delta compression: the delta compression (`zipnn_delta_compress` /
 ///   `zipnn_delta_decompress`) + the batch primitives (`walk_models` /
 ///   `move_with_sidecars`). The delta routes call these directly, so a v2
 ///   binary must NOT pass the loader handshake of a v3 backend (exact-range
 ///   check in `py/native.py`).
-/// * 4 — Phase 5: the scan / hygiene / header / hash surface (`scan_models`,
+/// * 4 — the scan/index work: the scan / hygiene / header / hash surface (`scan_models`,
 ///   `scan_hygiene`, `safetensors_header`, `hash_file`, `hasher_new` /
 ///   `hasher_update` / `hasher_finalize`) + the persistent front-matter index.
 ///   `py/manager.py` / `py/utils.py` / `py/identify.py` / `py/download.py` call
 ///   these directly, so a v3 binary must NOT pass the loader handshake of a v4
 ///   backend (exact-range check in `py/native.py`).
-/// * 5 — Phase 6: the display tensor tree (`safetensors_tensor_tree`, the
+/// * 5 — the display tensor tree (`safetensors_tensor_tree`, the
 ///   Rust pre-grouping) + the optional library watcher
 ///   (`watch_start` / `watch_poll` / `watch_stop` / `watch_diagnostics`,
-///   Phase 6). `py/manager.py` and `py/watcher.py` call these directly,
+///   the display work). `py/manager.py` and `py/watcher.py` call these directly,
 ///   so a v4 binary must NOT pass the loader handshake of a v5 backend.
-/// * 6 — Phase 7 (T7): the preview WebP codec (`webp_decode` / `webp_encode` /
+/// * 6 — preview WebP: the WebP codec (`webp_decode` / `webp_encode` /
 ///   `webp_encode_animation`, the zenwebp-backed pure-Rust encode/decode/
 ///   animation). `py/utils.py` calls these directly (with a
 ///   PIL fallback), so a v5 binary must NOT pass the loader handshake of a v6
@@ -85,14 +85,14 @@ fn core_version_string() -> String {
 ///
 /// Built with the CPython Stable ABI (abi3-py312): this single binary serves
 /// CPython 3.12 and newer. The free-threaded flavour (`abi3t-py315`, PEP 803)
-/// is a separate artifact per platform tag. Phase 2 exposed the ZipNN
-/// safetensors jobs, Phase 3 the delta jobs + batch primitives; Phase 4
+/// is a separate artifact per platform tag. The safetensors pipeline exposed the ZipNN
+/// safetensors jobs, delta compression the delta compression + batch primitives; dtype extension
 /// extended the dtype coverage INSIDE the codec (no new functions —
-/// `api_version` stayed 3); Phase 5 (`api_version` 4) adds the scan / hygiene
+/// `api_version` stayed 3); the scan/index work (`api_version` 4) adds the scan / hygiene
 /// / safetensors-header / hash surface (`scan_models`, `scan_hygiene`,
 /// `safetensors_header`, `hash_file`, `hasher_new`/`update`/`finalize`) + the
 /// persistent front-matter index (the later phases of the refresh plan);
-/// Phase 6 (`api_version` 5) adds the display tensor tree and the optional
+/// `api_version` 5 adds the display tensor tree and the optional
 /// library watcher.
 #[pymodule]
 mod mm_core {
@@ -189,7 +189,7 @@ mod mm_core {
         roots: Vec<String>,
         opts: Option<&Bound<'_, PyDict>>,
     ) -> String {
-        super::phase5::scan_models(py, model_type, roots, opts)
+        super::scan::scan_models(py, model_type, roots, opts)
     }
 
     /// The local hygiene report (orphaned sidecars + empty folders) as JSON.
@@ -202,7 +202,7 @@ mod mm_core {
         base_paths: &Bound<'_, PyDict>,
         extensions: Vec<String>,
     ) -> PyResult<String> {
-        super::phase5::scan_hygiene(py, base_paths, extensions)
+        super::scan::scan_hygiene(py, base_paths, extensions)
     }
 
     /// The digested safetensors header (`{"metadata": {…}, "tensors": […]}`)
@@ -211,44 +211,44 @@ mod mm_core {
     /// unreadable / oversized header (the caller degrades to `{}`/`[]`).
     #[pyfunction]
     fn safetensors_header(py: Python<'_>, path: &str) -> PyResult<String> {
-        super::phase5::safetensors_header(py, path)
+        super::scan::safetensors_header(py, path)
     }
 
     /// Hash a whole file in one pass; returns the requested notations as a JSON
-    /// object (SHA256 / AutoV2 / AutoV1 / CRC32 / BLAKE3 — K8).
+    /// object (SHA256 / AutoV2 / AutoV1 / CRC32 / BLAKE3 — multi-hash measurement).
     /// `algos` defaults to all five. Synchronous (GIL released for the read).
     #[pyfunction]
     #[pyo3(signature = (path, algos=None))]
     fn hash_file(py: Python<'_>, path: &str, algos: Option<Vec<String>>) -> PyResult<String> {
-        super::phase5::hash_file(py, path, algos)
+        super::scan::hash_file(py, path, algos)
     }
 
-    /// Start an incremental hasher (download inline verification, K7);
+    /// Start an incremental hasher (download inline verification, download verification);
     /// returns its handle. Feed it each written chunk with
     /// `hasher_update`, then `hasher_finalize` for the digest JSON.
     #[pyfunction]
     #[pyo3(signature = (algos=None))]
     fn hasher_new(algos: Option<Vec<String>>) -> u64 {
-        super::phase5::hasher_new(algos)
+        super::scan::hasher_new(algos)
     }
 
     /// Feed the next chunk (borrowed zero-copy) to a hasher handle.
     #[pyfunction]
     fn hasher_update(handle: u64, chunk: &[u8]) -> PyResult<()> {
-        super::phase5::hasher_update(handle, chunk)
+        super::scan::hasher_update(handle, chunk)
     }
 
     /// Finalise + remove a hasher handle; returns the digest JSON.
     #[pyfunction]
     fn hasher_finalize(handle: u64) -> PyResult<String> {
-        super::phase5::hasher_finalize(handle)
+        super::scan::hasher_finalize(handle)
     }
 
-    /// Phase 5 diagnostics: `{"indexDirs": n, "liveHashers": n}` (the
+    /// the scan/index work diagnostics: `{"indexDirs": n, "liveHashers": n}` (the
     /// settings/about surface and bug reports).
     #[pyfunction]
-    fn phase5_diagnostics() -> std::collections::HashMap<&'static str, usize> {
-        super::phase5::phase5_diagnostics()
+    fn scan_diagnostics() -> std::collections::HashMap<&'static str, usize> {
+        super::scan::scan_diagnostics()
     }
 
     /// The display tensor tree of a safetensors file, pre-grouped in Rust
@@ -257,10 +257,10 @@ mod mm_core {
     /// The leaf indices address the `tensors` array of `safetensors_header`
     /// for the SAME file. Synchronous (GIL released); raises on an unreadable
     /// / oversized / invalid header (the caller degrades to the frontend's own
-    /// grouping). Phase 6.
+    /// grouping). Added with the display tree.
     #[pyfunction]
     fn safetensors_tensor_tree(py: Python<'_>, path: &str) -> PyResult<String> {
-        super::phase6::safetensors_tensor_tree(py, path)
+        super::display::safetensors_tensor_tree(py, path)
     }
 
     /// Start watching `roots` recursively (`watch_roots`);
@@ -274,7 +274,7 @@ mod mm_core {
         roots: Vec<String>,
         opts: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<u64> {
-        super::phase6::watch_start(py, roots, opts)
+        super::display::watch_start(py, roots, opts)
     }
 
     /// Drain a session's pending changes as JSON (`paths` / `rescan` /
@@ -282,31 +282,31 @@ mod mm_core {
     /// Cheap and non-blocking — polled from the Python asyncio task.
     #[pyfunction]
     fn watch_poll(handle: u64) -> PyResult<String> {
-        super::phase6::watch_poll(handle)
+        super::display::watch_poll(handle)
     }
 
     /// Stop a watch session and drop it (raises on an unknown handle).
     #[pyfunction]
     fn watch_stop(handle: u64) -> PyResult<()> {
-        super::phase6::watch_stop(handle)
+        super::display::watch_stop(handle)
     }
 
     /// Watcher diagnostics: `{"sessions": n, "watchedRoots": n,
     /// "inotifyBudget": n|null}` (never raises).
     #[pyfunction]
     fn watch_diagnostics(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
-        super::phase6::watch_diagnostics(py)
+        super::display::watch_diagnostics(py)
     }
 
     /// Decode the first frame of a WebP into RGBA: returns
     /// `(rgba, width, height, icc_profile)` (`icc_profile` empty when the file
     /// carries no ICCP chunk). The WebP-decode leg of the preview pipeline and
-    /// the surface the L3 `webp_decode` fuzz target drives (T7). GIL
+    /// the surface the `webp_decode` ASan fuzz target drives (preview WebP). GIL
     /// released; corrupt / hostile input raises `RuntimeError` (the
     /// Python caller falls back to the PIL path), never a panic.
     #[pyfunction]
     fn webp_decode(py: Python<'_>, data: &[u8]) -> PyResult<(Vec<u8>, u32, u32, Vec<u8>)> {
-        super::phase7::webp_decode(py, data)
+        super::webp::webp_decode(py, data)
     }
 
     /// Decode every frame of an animated WebP: returns
@@ -320,7 +320,7 @@ mod mm_core {
         py: Python<'_>,
         data: &[u8],
     ) -> PyResult<(Vec<Vec<u8>>, u32, u32, Vec<u32>, u16, Vec<u8>)> {
-        super::phase7::webp_decode_animation(py, data)
+        super::webp::webp_decode_animation(py, data)
     }
 
     /// Encode an RGBA buffer (`w * h * 4` bytes) into WebP bytes. A non-empty
@@ -339,7 +339,7 @@ mod mm_core {
         method: u8,
         lossless: bool,
     ) -> PyResult<Vec<u8>> {
-        super::phase7::webp_encode(py, rgba, w, h, icc, quality, method, lossless)
+        super::webp::webp_encode(py, rgba, w, h, icc, quality, method, lossless)
     }
 
     /// Encode RGBA frames (each `w * h * 4` bytes) into an **animated** WebP,
@@ -360,7 +360,7 @@ mod mm_core {
         method: u8,
         lossless: bool,
     ) -> PyResult<Vec<u8>> {
-        super::phase7::webp_encode_animation(
+        super::webp::webp_encode_animation(
             py,
             frames,
             w,

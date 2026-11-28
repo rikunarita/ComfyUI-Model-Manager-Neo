@@ -19,9 +19,9 @@ from aiohttp import web
 
 from . import auth, config, hf_endpoint, native, thread, utils
 
-# Quick Win A2: the download write loop used to pull 8 KiB
+# The download write loop used to pull 8 KiB
 # chunks (1.3 M Python-loop iterations for a 10 GB file). 1 MiB cuts that to
-# ~10 K, freeing the event loop and feeding the inline hasher (B1) efficiently.
+# ~10 K, freeing the event loop and feeding the inline hasher efficiently.
 _DOWNLOAD_CHUNK = 1024 * 1024
 
 
@@ -135,7 +135,7 @@ class TaskContent:
 def _seed_hasher_from_file(mm, handle: int, path: str) -> bool:
     """Feed an already-downloaded partial file to an incremental hasher.
 
-    BUG FIX (Phase 5 audit): this read used to run directly ON the event loop
+    BUG FIX (the scan/index audit): this read used to run directly ON the event loop
     inside `download_model_file_http`. A resumed download can be tens of
     gigabytes and the "it is page-cached anyway" assumption only holds while
     the same process wrote it moments ago - after a ComfyUI restart the cache is
@@ -195,7 +195,7 @@ def _is_task_id(task_id: str) -> bool:
 class ModelDownload:
     def __init__(self):
         self.api_key = auth.get_api_key()
-        # Inline Civitai verification (K7): the download write
+        # Inline Civitai verification (download verification): the download write
         # loop feeds a native hasher as bytes land, so a finished download's
         # SHA256 is known WITHOUT the extra full re-read `_sha256_of` did. The
         # digest is staged here (keyed by task) for `_download_complete` to
@@ -575,7 +575,7 @@ class ModelDownload:
         # never masquerade as a finished download.
         expected_sha = (task_content.hashes or {}).get("SHA256")
         if task_content.downloadPlatform == "civitai" and expected_sha:
-            # B1 (K7): prefer the INLINE digest the write loop fed
+            # Download verification: prefer the INLINE digest the write loop fed
             # the native hasher — verifying costs ZERO extra I/O. Fall back to
             # the full re-read only when no inline digest was staged (no
             # native core on this machine, a file that was already complete on
@@ -640,7 +640,7 @@ class ModelDownload:
         task_status = self.get_task_status(task_id)
         task_content = self.get_task_content(task_id)
 
-        # Inline Civitai verification (K7): when the native core
+        # Inline Civitai verification (download verification): when the native core
         # is available and this is a Civitai download with a published SHA256, a
         # streaming hasher consumes each written chunk, so the finished file's
         # digest is known WITHOUT the extra full re-read `_sha256_of` did. The
@@ -804,7 +804,7 @@ class ModelDownload:
 
                     # Settle the inline hasher: a COMPLETE download stages its
                     # digest for `_download_complete` (verifying then costs zero
-                    # extra I/O — K7); a paused/incomplete one drops it (the
+                    # extra I/O — download verification); a paused/incomplete one drops it (the
                     # resume re-seeds from the partial file). A finalize failure
                     # degrades to the re-read fallback in `_download_complete`.
                     if hasher is not None and mm is not None:
