@@ -15,7 +15,7 @@ layout) and a tensor whose compressed form is not smaller is stored untouched �
 so ``<base>.znn.safetensors`` files stay readable by the official ZipNN tools
 within the compatibility band.
 
-Phase 8 removed the transition-era dual path: there is no vendored C core, no
+the prebuilt distribution removed the transition-era dual path: there is no vendored C core, no
 source build, no pip cascade and no ``MM_NATIVE`` switch any more. The prebuilt
 ``mm_core`` under ``native/native-bin/<platform tag>/`` is the single engine;
 when it cannot load (an unsupported platform, a broken installation) the ZipNN
@@ -45,7 +45,7 @@ SAFE_SUFFIX = ".safetensors"
 # file carries exactly the metadata the original had.
 ZNN_ORIGINAL_SIZE_KEY = "znn_neo_original_bytes"
 
-# Phase 2 (native pipeline) integrity records — written by the Rust core
+# the safetensors pipeline (native pipeline) integrity records — written by the Rust core
 # and stripped by BOTH decompressors so a restored file never
 # leaks Neo bookkeeping:
 #   znn_neo_src_sha256        SHA-256 of the whole source file (verified on
@@ -58,7 +58,7 @@ ZNN_ORIGINAL_SIZE_KEY = "znn_neo_original_bytes"
 #                             minimum guarantee
 #   znn_neo_src_meta_absent   "1" when the source had no __metadata__ at all
 #   znn_neo_extended          "1" when Neo-extension-band blobs are stored
-#                             (Phase 4, implemented: written by the native
+#                             (dtype extension, implemented: written by the native
 #                             engine; stripped here already so extended
 #                             files round-trip through both paths)
 ZNN_SRC_SHA_KEY = "znn_neo_src_sha256"
@@ -94,7 +94,7 @@ def _spawn_background(loop: asyncio.AbstractEventLoop, coro) -> None:
 ProgressCb = Callable[[int, int, str], None]
 
 # ---------------------------------------------------------------------------
-# Native (Rust `mm_core`) job path — the Phase 2 switchover.
+# Native (Rust `mm_core`) job path — the safetensors pipeline switchover.
 #
 # The Rust core runs the whole pipeline (mmap → per-tensor codec → integrity
 # sha → atomic rename) on its own thread; this side only POLLS the atomic
@@ -133,7 +133,7 @@ _NATIVE_POLL_INTERVAL = 0.1
 
 
 def native_core():
-    """The loaded ``mm_core`` — REQUIRED for every ZipNN operation (Phase 8).
+    """The loaded ``mm_core`` — REQUIRED for every ZipNN operation (the prebuilt distribution).
 
     The native core is the single engine: when it cannot load (an unsupported
     platform, a missing/corrupt binary, a failed API handshake) this raises a
@@ -179,7 +179,7 @@ _STRAY_TMP_MIN_AGE_S = 900.0
 def _cleanup_delta_failure(dst: str, mode: str) -> None:
     """Delta-route failure cleanup (the native pipeline's own partials are the
     Rust Drop guard's job — a blind Python sweep could destroy a CONCURRENT
-    job's tmp, the Phase-2 lesson — so this only handles the committed-delta
+    job's tmp, the safetensors pipeline lesson — so this only handles the committed-delta
     exception).
 
     Compressed-delta case: when the job died AFTER the delta file was renamed
@@ -444,7 +444,7 @@ def _run_native_job_sync(mm: Any, task_id: str | None, submit: Callable[..., Any
 
 def _walk_files(folder: str, mode: str, mm: Any) -> list[str]:
     """The batch file set for `mode` — the Rust parallel walk
-    (``mm.walk_models``, the Phase 3 batch primitive), in the stable
+    (``mm.walk_models``, the delta compression batch primitive), in the stable
     sorted order. The bundle-semantics constants come from ``py/utils`` so
     the Python side stays the single source of truth.
     """
@@ -648,7 +648,7 @@ def _delta_sidecar_move(src_model: str, dst_model: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Phase 4: dtype-band classification for the UI
+# dtype extension: dtype-band classification for the UI
 # ---------------------------------------------------------------------------
 
 # The safetensors dtypes whose ZN blobs stay in the UPSTREAM COMPATIBILITY
@@ -657,7 +657,7 @@ def _delta_sidecar_move(src_model: str, dst_model: str) -> None:
 # (codes 128-146): the resulting file carries `znn_neo_extended="1"` and is
 # rejected with an explicit error by official tools. This set mirrors the
 # compatibility table of the Rust core (`znn_tensor.rs`); the parity is
-# pinned mechanically by tests/test_phase4_dtypes.py (the engine-written
+# pinned mechanically by tests/test_dtypes.py (the engine-written
 # marker is compared against this classifier for every dtype).
 COMPAT_ST_DTYPES = frozenset({"F32", "F16", "BF16", "F8_E4M3", "F8_E5M2"})
 
@@ -672,7 +672,7 @@ def inspect_safetensors_dtypes(path: str) -> dict[str, Any]:
     names from ``znn_compressed_vectors``.
 
     Header-only work (no tensor data is read) through the native header parse
-    (``mm_core.safetensors_header`` — the B4 single route, jiter-backed and
+    (``mm_core.safetensors_header`` — the 32 MiB header cap single route, jiter-backed and
     independent of ComfyUI's ``comfy.utils`` API); errors are returned as
     ``{"error": ...}`` so the confirm dialog can fall back to its generic
     message instead of blocking on a diagnosis.
@@ -731,7 +731,7 @@ class ZipNNRoutes:
     def add_routes(self, routes):
         @routes.get("/model-manager/zipnn/available")
         async def zipnn_status(request):
-            # Phase 8: the native core IS the capability (single engine — the
+            # the prebuilt distribution: the native core IS the capability (single engine — the
             # vendored C core is gone). The probe is cheap and cached (the
             # loader is idempotent), so this diagnostic route never blocks the
             # event loop. The response shape is unchanged for wire
@@ -778,10 +778,10 @@ class ZipNNRoutes:
 
         @routes.post("/model-manager/zipnn/inspect")
         async def zipnn_inspect(request):
-            """Phase 4: the dtype breakdown behind the compress
+            """dtype extension: the dtype breakdown behind the compress
             confirmation ("official-compatible" vs "Neo extended format").
 
-            Header-only and cheap, but still off the event loop (K12 lesson:
+            Header-only and cheap, but still off the event loop (イベントループ阻塞 lesson:
             MoE headers are megabytes of JSON). Any failure answers
             ``success: true`` with an ``error`` field so the dialog can fall
             back to its generic message — this route must never block a
@@ -838,7 +838,7 @@ class ZipNNRoutes:
             return web.json_response({"success": True, "data": {"wasRunning": was_running}})
 
     async def _run_native_job(self, mm, task_id: str, mode: str, src: str, dst: str, paranoid: bool):
-        """Drive one compress/decompress job on the Rust core (Phase 2 path).
+        """Drive one compress/decompress job on the Rust core (the safetensors pipeline path).
 
         Submits the job, then hands over to [`_poll_native_job`]. Returns
         the stats dict on success, or None after reporting the failure
@@ -861,7 +861,7 @@ class ZipNNRoutes:
         return await self._poll_native_job(mm, task_id, mode, src, handle, _WS_PHASE_FOR_NATIVE)
 
     async def _run_native_delta_job(self, mm, task_id: str, mode: str, src: str, second: str, dst: str, paranoid: bool):
-        """Drive one delta job on the Rust core (Phase 3 path).
+        """Drive one delta job on the Rust core (delta compression path).
 
         compress: `src` = base model, `second` = fine-tune → `dst` delta
         file (+ `.neo-delta.json` sidecar, written by the job itself with

@@ -301,8 +301,8 @@
       "legacy-decompress-MBps-best": 311.217565418376,
       "legacy-decompress-peakRssMib-min": 351.07421875,
       "legacy-decompress-baselineRssMib": 240.7421875,
-      "K2-ratio": 0.44789483442488914,
-      "K3-ratio": 0.24810814979288576
+      "compressionThroughput-ratio": 0.44789483442488914,
+      "decompressionThroughput-ratio": 0.24810814979288576
     }
   ]
 }

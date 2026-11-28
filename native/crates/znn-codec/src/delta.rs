@@ -1,4 +1,4 @@
-//! File-level delta (de)compression — Phase 3.
+//! File-level delta (de)compression — delta compression.
 //!
 //! The native replacement of `py/compress.py`'s `delta_compress_files` /
 //! `delta_decompress_file`, which wrap the official ZipNN delta API
@@ -29,7 +29,7 @@
 //!   `[24:32]` = container size — the layout `zipnn.py`'s streaming
 //!   decompress walks). Peak RAM is O(streaming chunk) instead of the
 //!   legacy O(4–5 × file) of whole-file `f.read()` + numpy XOR copies
-//!   (KPI K4).
+//!   (delta peak RAM).
 //! * **Decompression accepts BOTH forms**: the streaming chain Neo writes
 //!   AND the single-container files the legacy Python path (and the
 //!   official non-streaming byte API) produced — `header[13] == 0`.
@@ -59,7 +59,7 @@
 //! against the remaining expected length BEFORE it is allocated (the
 //! expected total is exactly known from the base rendering), and the C
 //! core's Appendix-C SEGFAULT class (`total % 256 KiB ∈ {1,2,3}` — reachable
-//! through delta padding with real files, proven in Phase 0 BENCH §4.3)
+//! through delta padding with real files, proven in the baseline measurements BENCH §4.3)
 //! decodes through the bounds-checked Rust codec (pinned by the end-to-end
 //! regression tests below).
 
@@ -121,7 +121,7 @@ pub fn sidecar_path(delta: &Path) -> PathBuf {
 }
 
 /// The `.neo-delta.json` record (`basePad`/`ftPad` are
-/// the legacy keys; `ftSha256` is the Neo Phase-3 integrity addition).
+/// the legacy keys; `ftSha256` is the Neo delta compression integrity addition).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DeltaMeta {
     /// Spaces appended to the BASE header rendering.
@@ -241,7 +241,7 @@ fn split_raw(file: &[u8]) -> StResult<(u64, &[u8], &[u8])> {
 /// The padded rendering of one safetensors file — the byte-equal-length
 /// view both sides of the delta XOR (legacy `_delta_aligned_bytes`),
 /// materialised lazily region by region (NEVER as a whole-file copy — the
-/// K4 memory guarantee):
+/// デルタピークRAM memory guarantee):
 ///
 /// ```text
 /// [u64 LE hlen+pad][header JSON][spaces × pad][data section]
@@ -345,7 +345,7 @@ fn annotate(e: StError, what: &str, path: &Path) -> StError {
 /// path of the legacy `delta_compress_files`; the output is the official
 /// streaming container chain — see the module docs).
 ///
-/// Ordering / crash guarantees mirror Phase 2: `dst` appears
+/// Ordering / crash guarantees mirror the safetensors pipeline: `dst` appears
 /// only through the AtomicWriter rename AFTER the artifact is complete and
 /// fsynced (and, in paranoid mode, fully re-decoded and sha-verified); the
 /// sidecar is committed after the delta file. Removing the now-redundant
@@ -630,7 +630,7 @@ fn decode_delta_container(
     let scheme = dtype::scheme_for_dtype(hdr.dtype_code)?;
     // zipnn.py decompress_bin: the plane count comes from the dtype code,
     // the reorder modes from the header; FP8 clamps the chunk to 128 KiB
-    // (the Phase-2 `fp8_container_chunk_clamp` finding applies here too).
+    // (the safetensors pipeline `fp8_container_chunk_clamp` finding applies here too).
     let mut chunk = 1usize << hdr.compression_chunk_log2;
     if scheme.num_planes == 1 {
         chunk = chunk.min(HUF_BLOCKSIZE_MAX);
@@ -1054,7 +1054,7 @@ pub fn delta_decompress(
                 );
             } else {
                 warnings.push(
-                    "no ftSha256 in the delta sidecar (created before Neo Phase 3, or by the official tooling): \
+                    "no ftSha256 in the delta sidecar (created before Neo delta compression, or by the official tooling): \
                      byte-exact verification skipped"
                         .to_owned(),
                 );
@@ -1077,7 +1077,7 @@ pub fn delta_decompress(
     })
 }
 
-/// Fuzz-only entry point (the L3 `delta_decompress` target): runs the whole
+/// Fuzz-only entry point (the `delta_decompress` `ASan` fuzz target): runs the whole
 /// restore core on arbitrary bytes — a hostile delta chain, hostile sidecar
 /// pads and a hostile base image — with a bounded counting sink. Must never
 /// panic and never allocate beyond the base-rendering bound (`delta_restore`

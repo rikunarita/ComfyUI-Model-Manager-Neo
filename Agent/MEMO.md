@@ -2,34 +2,27 @@
 
 > **この文書の目的と位置づけ。** 本ファイルは本リポジトリの開発記録です。
 > 2026 年 9 月から 10 月にかけて策定・完了した 3 つの計画
-> （Plan.md・Plan-2.md・Plan-3.md — NEO‑PLAN‑2026‑001/002/003）で
-> 何を実施し、何が達成されたかを一望できるように要約し、あわせて今後の開発に
-> 必要な恒久規程・技術知見・残件を収録します。計測証跡の一次ソースは
+> （初版・rust‑lld/PGO・abi3t の計画）で何を実施し、何が達成されたかを一望
+> できるように要約し、あわせて今後の開発に必要な恒久規程・技術知見・
+> 残件の最終状態を収録します。計測証跡の一次ソースは
 > [`../docs/BENCH.md`](../docs/BENCH.md)、開発環境の実測一次ソースは
 > [`environment-report.md`](environment-report.md) です。
 >
-> **計画文書の保存場所。** 実装計画 4 つ（NEO‑PLAN‑2026‑001〜004）は全実装要件の
+> **計画文書の保存場所。** 2026 年中に用いていた実装計画群は全実装要件の
 > 完了に伴いツリーから削除されました。原文は git 履歴に完全な形で保存されており、
-> `git show eb3a317:Agent/Plan.md`（同様に `Agent/Plan-2.md`・
-> `Agent/Plan-3.md`。Plan‑4.md は最終形が `git show dcd5624:Agent/Plan-4.md`）
-> で復元できます。本メモ内の「Plan §x.y」「Plan‑2 / Plan‑3 /
-> Plan‑4」「NEO‑PLAN‑2026‑00N」形式の参照は、これらの履歴文書の節を
-> 指します。
+> `git log --all -- "Agent/Plan*.md"` の各コミットから復元できます。本メモ内の
+> 「付録 C」「§2.2」等の節参照は、それら履歴文書の節を指します。
 >
 > **現行の作業規程文書（2026‑11‑05 作成）。** 完了済み計画とは別に、これからの
 > 実装を進めやすくするための living document として
-> [`Plan.md`](Plan.md)（NEO‑PLAN‑2026‑005 — cargo 使用最適化・`tests/` 管理・
-> 文書体系）を新設しました。恒久規程の正は本メモ §1.2 で、両者は同一コミットで
+> [`Plan.md`](Plan.md)（cargo 使用最適化・`tests/` 管理・文書体系）を
+> 新設しました。恒久規程の正は本メモ §1.2 で、両者は同一コミットで
 > 同期します。
 >
 > **旧記録の参照について。** コード・CI・文書中の「第 N セッション」
 > 「MEMO 2026‑XX‑XX」という参照は、git 履歴に保存されている旧開発メモ
 > （30 セッション分の逐語記録 — `git show 88b5e9c:Agent/MEMO.md`）を指します。
 > 本ファイルはその全面改写版です。
->
-> **フェーズ番号について。** 2026‑09‑28 の計画改訂（Plan 版数履歴 2.1）により、
-> それ以前の記録にある「Phase 7」（third_party 撤去・USAGE 改訂・リリース準備）は
-> 現在の **Phase 8** を指します。
 
 ---
 
@@ -39,7 +32,7 @@
 
 - **リリース公開はユーザ専任**: GitHub Release の作成・タグの publish・
   registry への公開・`main` へのマージ PR はユーザが実施します。セッションが
-  担うのはバージョン同期コミットと公開前検証（K16 スモーク）までです。
+  担うのはバージョン同期コミットと公開前検証（プリビルト配布 スモーク）までです。
 - **圧縮率は速度より優先**: bf16 で 67 % を下回らないという要件に対し、
   C 実装との出力バイト同一による構造的保証で回答しました
   （bf16 実測 0.6623 — BENCH §6.3）。
@@ -48,21 +41,21 @@
   境界 — native/README 参照）。
 - **上流 zipnn への issue は起票しない**: C コアのメモリ安全欠陥は Neo 実装内で
   完全に修正し、回帰テストで固定することで担保します（証跡は BENCH §6.4）。
-- **バイナリサイズは目安で管理**: 1 本 ≤5 MB（fat binary は per‑slice ≤5 MB・
-  ファイル ≤10 MB）、8 本合計 ≤40 MB（Plan‑3 D1 — 超過は warning のみで
+- **バイナリサイズは目安で管理**: 1 本 ≤5 MB（fat binary は per-slice ≤5 MB・
+  ファイル ≤10 MB）、8 本合計 ≤40 MB（合計 40 MB 目安 — 超過は warning のみで
   run はブロックしません）。CI のサイズゲートは早期警戒装置として維持し、
   目安超過時はユーザ判断で上限を改定する運用です。
 - **HTTP 層は Rust 化しない**: reqwest / axum / utoipa は不採用
   （実測根拠は §4.3）。
-- **extended‑notify は導入しない**: notify + debouncer‑full を直接採用
+- **extended-notify は導入しない**: notify + debouncer-full を直接採用
   （根拠は §4.3）。
 - **ユーザ環境でのネイティブコア自動ビルドは行わない**: 「セットアップ時に
   コンパイラもネットワークも要求しない」という配布方針を貫き、非対応
   プラットフォームでは理由を明示してデグレードします。手動ビルド手順は
-  native/README.md に文書化済みです（Plan‑3 §5 に回答記録）。
+  native/README.md に文書化済みです（配布計画 §5 に回答記録）。
 - **`demo-assets/` はユーザ管理領域**: セッションは変更しません。
 - **CI 実行結果の確認**: ユーザが指示したときにセッションが実施します。
-- **フォルダアイコンはスパークル無し**（2026‑10‑05・実機 QA 決定）: アイコン
+- **フォルダアイコンはスパークル無し**（2026-10-05・実機 QA 決定）: アイコン
   刷新と同時に導入したスパークル版ホバーアートワークは「UI 品質を損ねる」の
   実機指摘を受け同日撤去。ホバー表現は CSS フロートのみとします。
 
@@ -71,10 +64,10 @@
 - **cargo 使用方針**: `check` を常用し、`test` は必要なときだけ（`-p` /
   テスト名フィルタで絞る）、clippy / rustfmt を品質向上に活用し、`build` は
   最終確認のみにします。具体コマンド・push 前チェックリスト・環境固有の注意は
-  [`Plan.md`](Plan.md) §1 を正とします（2026‑11‑05 に文書化）。
+  [`Plan.md`](Plan.md) §1 を正とします（2026-11-05 に文書化）。
 - **Rust テスト配置**: 単体 = インライン `#[cfg(test)]`（private 到達可）、
   統合 = `native/crates/znn-codec/tests/`（公開 API のみ）、敵対的 = `fuzz/`。
-  差分テスト（旧 `scripts/l2`）は Phase 8 で退役し、L5 公式クロス検証が
+  差分テストハーネス（旧 `scripts/diff` 系）は プリビルト配布 で退役し、official interoperability gate 公式クロス検証が
   恒久ゲートです。
 - **push 前検証は「native 成果物あり」と「なし」の両方で pytest を実行**:
   ci.yml = なし、native.yml = あり。「なし」の再現は
@@ -85,24 +78,24 @@
   走る推移的 import は、tests の直接 import を grep しても見つかりません
   （前例: safetensors.torch の save_file 経路が numpy を要求）。
 - **`api_version` の bump は 4 者同期**: `py/native.py` の `[N, N]` /
-  mm‑core `lib.rs` の定数 + テスト / native.yml の abi3‑import アサート /
+  mm-core `lib.rs` の定数 + テスト / native.yml の abi3-import アサート /
   pytest のアサート。
 - **ベンチ証跡 JSON（`scripts/bench/results/`）は再生成しない**: BENCH 本文が
   参照機の実測値を逐語引用しています。ゲート追加時は決定的な欄のみ
-  外科的に追記します（前例: `phase6_front.json` の `rowsParity` /
+  外科的に追記します（前例: `front_render.json` の `rowsParity` /
   `tensorTreeRowsIdentical`）。
 - **テストは mutation testing で捕捉力まで証明する**: 対応する回帰を
   意図的に混ぜて失敗、復元して成功、までを確認します。両端が個別に
   テスト済みでも接続部が無テストの「接合部」型ギャップが繰り返しの
   発生源です（§4.5）。
-- **fallow（dead‑code + dupes）は CI ゲート**: push 前に
+- **fallow（dead-code + dupes）は CI ゲート**: push 前に
   `pnpm fallow:dead` + `pnpm fallow:dupes`。export を削除するときは
   戻り型・注釈型も併せて private 化すると clean です
-  （型を残すと連鎖で unused‑types 警告に落ちます）。
-- **fuzz‑long の再ディスパッチはファズ表面が変わったときだけ**: 表面不変なら
+  （型を残すと連鎖で unused-types 警告に落ちます）。
+- **fuzz-long の再ディスパッチはファズ表面が変わったときだけ**: 表面不変なら
   既存 run の証跡と週次スケジュール（日曜 18:00 UTC・7 ターゲット）が
   担保します。PAT からの `workflow_dispatch` はかつて 403（Actions 権限不足）
-  だったが、2026‑10‑07 に当日発行 PAT からの dev への dispatch（hours=1・
+  だったが、2026-10-07 に当日発行 PAT からの dev への dispatch（hours=1・
   run 37572923805）が成功（204）= 成否はトークンの Actions 権限次第。
   成功すればセッション自身がディスパッチして CI 検証まで完結でき、403 の
   場合は従来どおり GitHub UI からユーザへ依頼します。
@@ -115,21 +108,21 @@
   読み込めない拡張機能を出荷することになります。`web/manager.js` が
   欠けたツリーは絶対にコミットしません。
 - **コミットは日本語の conventional commits**（`type(scope): 概要` + 詳細本文）。
-  pre‑commit フック = lint‑staged + `pnpm typecheck`。環境リセットで pnpm shim が
+  pre-commit フック = lint-staged + `pnpm typecheck`。環境リセットで pnpm shim が
   消えた場合は `corepack enable --install-directory /usr/local/bin`
   （さもないとフックが `pnpm: not found` でコミットを落とします）。
 - **`core` ダンプをコミットに含めない**（.gitignore 対象外のため
   `git status` で確認）。`native-bin/` の `.so` / `.pyd` は gitignore 対象
-  （main / tag で CI が生成し、publish bot のみが force‑add します）。
-- **セキュリティゲートの運用（2026‑10‑07・NEO‑PLAN‑2026‑004）**: 5 層体制 =
-  CodeQL default setup（Extended・ユーザ設定側）+ security.yml（OSV‑Scanner
+  （main / tag で CI が生成し、publish bot のみが force-add します）。
+- **セキュリティゲートの運用（2026-10-07・配布/CI 整備計画文書）**: 5 層体制 =
+  CodeQL default setup（Extended・ユーザ設定側）+ security.yml（OSV-Scanner
   PR 差分/定期フル・zizmor GHAS モード・gitleaks）。ignore/accept は必ず
-  **理由付き設定ファイル**（osv‑scanner.toml ×2 / .github/zizmor.yml /
+  **理由付き設定ファイル**（osv-scanner.toml ×2 / .github/zizmor.yml /
   .gitleaks.toml）に記録し、無記録の抑止を禁止する。zizmor.yml の
-  cache‑poisoning 行単位 ignore は**意図的に壊れやすい**（行ずれで検出が
+  cache-poisoning 行単位 ignore は**意図的に壊れやすい**（行ずれで検出が
   復活 = 再レビュー強制のフェイルセーフ）。新規ゲートは導入時に必ず
   発火テスト（混ぜて失敗・復元して成功）で捕捉力を証明する。
-- **dev→main マージの uv.lock 競合解決規程（2026‑10‑20 前例 = PR #84）**:
+- **dev→main マージの uv.lock 競合解決規程（2026-10-20 前例 = PR #84）**:
   Dependabot の security update PR は main へ直接マージされる（仕様）ため、
   次の dev→main マージで uv.lock が競合し得る（双方が base から同一
   パッケージブロックを変更）。解決は**必ず main 側で dev を採用する
@@ -144,42 +137,42 @@
   `git push origin HEAD:main`。**main→dev の逆方向マージは絶対に禁止**
   （publish bot のバイナリが dev へ混入し、以降の全 dev→main でバイナリ
   衝突と旧版逆流を招く）。競合が uv.lock 以外に広がっていないことは
-  マージ前の dry‑run（`git merge --no-commit --no-ff`）で確認する。
-  前提検証: main 側 merge‑base 以降の uv.lock 変更が当該パッケージのみ
+  マージ前の dry-run（`git merge --no-commit --no-ff`）で確認する。
+  前提検証: main 側 merge-base 以降の uv.lock 変更が当該パッケージのみ
   であることを diff で確認し、dev 側版数が修正を包含する（≥ fix）ことを
   確かめてから dev 側を採用する。
 - **gitleaks 設定は `[extend] useDefault = true` が必須**: カスタム
   .gitleaks.toml は既定ルールセットを**置換**する（allowlist だけ書くと
-  検出ルール ゼロ の偽緑 — 2026‑10‑07 に発火テストで実証・公式 README
-  「default rules do not apply」）。allowlist は generic‑api-key への
+  検出ルール ゼロ の偽緑 — 2026-10-07 に発火テストで実証・公式 README
+  「default rules do not apply」）。allowlist は generic-api-key への
   ルールスコープ `[[rules]]` + `[[rules.allowlists]]`（v8.25+ 様式）。
 - **SHA ピンは commit SHA へ解決する**: annotated tag は /git/ref/tags の
   object.sha が **tag object** を指すため /git/tags で dereference 必須
-  （rust-cache/pnpm‑action‑setup で誤ピン前例 — zizmor online の
-  ref‑version‑mismatch が捕捉）。dtolnay/rust‑toolchain の @stable/@nightly
-  は**ブランチ**（tag 不在）のため ref‑pin 方針（zizmor.yml policies +
+  （rust-cache/pnpm-action-setup で誤ピン前例 — zizmor online の
+  ref-version-mismatch が捕捉）。dtolnay/rust-toolchain の @stable/@nightly
+  は**ブランチ**（tag 不在）のため ref-pin 方針（zizmor.yml policies +
   uses 行へ監査日と head SHA のコメント併記）。
 - **git push が「remote: Internal Server Error」で継続失敗したら
-  `git -c http.version=HTTP/1.1 push` を試す**（2026‑10‑07 実証: API 経由の
-  ref 作成は成功する receive‑pack 経路固有の障害。GitHub status は
+  `git -c http.version=HTTP/1.1 push` を試す**（2026-10-07 実証: API 経由の
+  ref 作成は成功する receive-pack 経路固有の障害。GitHub status は
   operational 表示のままだった）。
-- **ローカルの K15 実行は必ず `--json-out /tmp/...` 付きで**: 引数なしは
-  既定出力先が `scripts/bench/results/phase6_front.json` = **証跡 JSON を
-  上書きする**（§1.2 の再生成禁止規程違反。2026‑10‑07 に違反→即時復元の
+- **ローカルの キー入力→描画 実行は必ず `--json-out /tmp/...` 付きで**: 引数なしは
+  既定出力先が `scripts/bench/results/front_render.json` = **証跡 JSON を
+  上書きする**（§1.2 の再生成禁止規程違反。2026-10-07 に違反→即時復元の
   前例）。
 - **Actions の run 失敗 ≠ job 失敗**: ジョブが物化されない run 失敗
   （ランナー起動失敗クラス）が存在する（前例: native run 37655092156 =
-  14/14 物化ジョブすべて success なのに run failure・abi3‑import 4 セル
+  14/14 物化ジョブすべて success なのに run failure・abi3-import 4 セル
   不明。次の上位集合 push が 18/18 success で一過性を実証）。判定は
   jobs API の total_count と上位集合 run の結果で行う。
-- **lint‑staged はステージされた .py へ ruff を実行する**: 意図的に規則
+- **lint-staged はステージされた .py へ ruff を実行する**: 意図的に規則
   違反するファイル（発火プローブ等）は `# ruff: noqa` 必須。hook 失敗時の
   「Task killed: prettier --write」表示は**他タスク失敗の巻き添え表示**で
   あることがある（真因は ruff タスクだった前例）。1 GiB 環境では prettier
   タスク自体が kill されることもあり、事前の `pnpm exec prettier --write`
   が回避策。
-- **セッション冒頭はリモートの dev tip を確認する**: 外部からの force‑push
-  巻き戻し（2026‑09‑26）から 12 コミットの SHA を GitHub API + ローカル
+- **セッション冒頭はリモートの dev tip を確認する**: 外部からの force-push
+  巻き戻し（2026-09-26）から 12 コミットの SHA を GitHub API + ローカル
   reflog で回収・マージした復旧前例があります。`.git` 自体を失った場合は
   リモートから再 clone します（push 済みなら無損失）。
 
@@ -187,12 +180,12 @@
 
 ### 2.1 スペック
 
-2 vCPU（Skylake‑SP・AVX‑512 あり・**SHA 拡張なし**）/ RAM **1 GiB**（swap なし）/
+2 vCPU（Skylake-SP・AVX-512 あり・**SHA 拡張なし**）/ RAM **1 GiB**（swap なし）/
 ディスク ~9.9 GB / Debian 12（ホストカーネル 4.19・Kata VM）/ Python 3.11.2
 （`/opt/arena-python`）/ Node v20.20.2 / git 2.39.5。詳細と一次実測は
 [`environment-report.md`](environment-report.md) を参照してください。
 
-> **スペックはセッションで変動します**（2026‑11‑05 実測の追記）: 同年第 2 セッションの
+> **スペックはセッションで変動します**（2026-11-05 実測の追記）: 同年第 2 セッションの
 > サンドボックスは **16 vCPU / RAM 64 GiB / Debian 13.6 / Python 3.12.13 /
 > Node 22.22.2 / ディスク 429 GB 空き**でした。重い並列ビルド・全テストは
 > 大きい側で、`CARGO_BUILD_JOBS=1`・`setsid` 等の小スペック対策（§2.3 /
@@ -208,20 +201,20 @@ apt / pip / rustup / node_modules はターンをまたいで永続しません
 （ワークスペースのファイルは永続します）。
 
 1. `apt-get update && apt-get install -y build-essential libpython3.11-dev curl pkg-config`
-   （clang / mold は不要 — リンカーは rust‑lld が既定です。2026‑10‑01、
-   NEO‑PLAN‑2026‑002 Step 1）。
+   （clang / mold は不要 — リンカーは rust-lld が既定です。2026-10-01、
+   rust-lld/PGO 計画文書 工程 1）。
 2. rustup（stable）+ `rustup component add rustfmt clippy llvm-tools`。
 3. Python 依存: `pip install pytest pytest-asyncio aiohttp markdownify huggingface_hub "hf_xet>=1.5.2,<2.0.0" modelscope_hub pillow numpy safetensors ruff mypy pyyaml`
    - `torch --index-url https://download.pytorch.org/whl/cpu`
      （torch はフルカバレッジ用 — 無いと 11 件が skip）。
 4. `corepack enable --install-directory /usr/local/bin` → リポジトリ root で
    `corepack pnpm install --frozen-lockfile`。
-5. dependency‑cruiser 18 は Node ≥22 が必須（常設は 20.20.2）→ 公式 tarball の
+5. dependency-cruiser 18 は Node ≥22 が必須（常設は 20.20.2）→ 公式 tarball の
    Node 22 を /tmp へ展開し `node_modules/.bin/depcruise src`。
 6. テスト用 native `.so`: `cd native && CARGO_BUILD_JOBS=1 cargo build -p mm-core`
    → `cp target/debug/libmm_core.so native-bin/linux-x86_64/mm_core.abi3.so`。
    debug ビルドで十分です（api_version ハンドシェーク・全 pytest・bench
-   cross‑check が release と同一結果）。
+   cross-check が release と同一結果）。
 7. 手順 3–4 は `uv sync --frozen` 一発で代替可能（pyproject の
    `[dependency-groups] dev` + uv.lock が dev/test/build 依存 + torch CPU を
    再現 → `.venv/bin/python -m pytest tests`）。pip 手動インストールは
@@ -229,15 +222,15 @@ apt / pip / rustup / node_modules はターンをまたいで永続しません
 
 ### 2.3 環境の癖
 
-過去セッションで遭遇した落とし穴と回避策の実地メモ（rustup‑init の直接取得、
-cc 不在時の ziglang による cc / llvm‑ar shim、release LTO ビルドのメモリ逼迫、
+過去セッションで遭遇した落とし穴と回避策の実地メモ（rustup-init の直接取得、
+cc 不在時の ziglang による cc / llvm-ar shim、release LTO ビルドのメモリ逼迫、
 apt スループットの劣化、pnpm サプライチェーン検証の OOM、uv `--system` の
 対象解釈、bash ツールの変数展開とバックグラウンドプロセスの寿命など）は
 [`environment-report.md`](environment-report.md) §11 に集約しました。
 
 ## 3. 計測方法論
 
-ベンチスクリプト・テスト・BENCH が「MEMO §3」「MEMO 2026‑09‑23」として
+ベンチスクリプト・テスト・BENCH が「MEMO §3」「MEMO 2026-09-23」として
 参照する定義です。
 
 - **ゲートプロトコル**: A/B の両側（旧実装 vs 新実装、baseline vs PGO など）を
@@ -245,7 +238,7 @@ apt スループットの劣化、pnpm サプライチェーン検証の OOM、u
   2 vCPU ホストの他プロセスに汚染されたラウンドを破棄して再計測）、
   **サブプロセス分離**、2 連続 PASS を要求します。ゲートなしの計測は
   同一設定でも 2–3 倍揺れます。
-- **判定 = 側別中央値比**: min‑of‑N 判定は共有ランナーで外れ値ラウンド同士の
+- **判定 = 側別中央値比**: min-of-N 判定は共有ランナーで外れ値ラウンド同士の
   組み合わせによるアーティファクトを 2 run 連続で生んだため採用しません
   （min / best は参考並記、退行監視は中央値 < 0.95）。steal ゲートは
   バースト的な割当・スケジュール干渉を捕捉できない（/proc/stat の steal に
@@ -255,18 +248,18 @@ apt スループットの劣化、pnpm サプライチェーン検証の OOM、u
   両方へ記録し、解釈は必ずラウンド別表で行います（N=5）。round 0 は両側とも
   冷間（ページイン・周波数）、15–95 ms 級の微小窓は同一バイナリでも
   側内変動 2.1 倍に達します。
-- **共有ランナーの絶対値はゲートにしない**: K15 bench
-  （`scripts/bench/front/k15.mjs`）のゲートはすべて同一実行内比率です。
+- **共有ランナーの絶対値はゲートにしない**: キー入力→描画 bench
+  （`scripts/bench/front/render-bench.mjs`）のゲートはすべて同一実行内比率です。
   絶対値は env ブロック付きで記録し、判定は参照機（Plan §2.2）で行います。
-- sha2 0.11 の SHA‑256 に **AVX2 バックエンドはありません**（SHA‑NI か
-  ソフトウェア実装のみ。`x86-avx2` は SHA‑512 専用）→ SHA‑NI 非搭載機では
+- sha2 0.11 の SHA-256 に **AVX2 バックエンドはありません**（SHA-NI か
+  ソフトウェア実装のみ。`x86-avx2` は SHA-512 専用）→ SHA-NI 非搭載機では
   検証ハッシュ ~156 MB/s が e2e の壁になります（内訳は BENCH §7.1）。
 
 ## 4. 技術知見・教訓
 
 ### 4.1 ビルド / ツールチェーン / CI
 
-- **prettier は完全な依存ツリーで実行する**: prettier‑plugin‑tailwindcss の
+- **prettier は完全な依存ツリーで実行する**: prettier-plugin-tailwindcss の
   クラス順は tailwindcss 本体 + `tailwindStylesheet`（src/style.css）の解決に
   依存します → `pnpm install --frozen-lockfile` 後の `pnpm format:check` が
   唯一の正です。
@@ -274,7 +267,7 @@ apt スループットの劣化、pnpm サプライチェーン検証の OOM、u
   rustfmt.toml の `newline_style = "Unix"` は全 .rs の fmt ゲートを破壊します →
   既定（Auto）+ `.gitattributes: *.rs text eol=lf` が正解。
 - **maturin の universal2 ターゲット名は `universal2-apple-darwin`**。
-  macOS の setup‑python（python.org ビルド）はリンク可能な libpython を
+  macOS の setup-python（python.org ビルド）はリンク可能な libpython を
   持ちません（フレームワークのみ）→ `cargo test -p mm-core
 --no-default-features` は macOS 除外（clippy `--all-targets` +
   ビルド & import 疎通で担保）。
@@ -282,7 +275,7 @@ apt スループットの劣化、pnpm サプライチェーン検証の OOM、u
   rustc/pyo3 の `-Wl,-exported_symbols_list`（2 引数形）と
   `-undefined dynamic_lookup` を zig cc が誤変換します（zig 0.15.2 / 0.16.0
   双方）→ macOS ホストビルド + lipo が正経路。
-- cargo‑zigbuild + zig 0.16 の `ignoring deprecated linker optimization
+- cargo-zigbuild + zig 0.16 の `ignoring deprecated linker optimization
 setting '1'` 警告は無害です（成果物の glibc ≤2.28 は readelf で確認済み）。
   zigbuild のリンクは `CARGO_TARGET_*_LINKER`（zig 由来の wrapper）が
   `.cargo/config.toml` の設定より優先されます。
@@ -295,9 +288,9 @@ setting '1'` 警告は無害です（成果物の glibc ≤2.28 は readelf で�
   `next_key()`（next_object の反復継続は ExpectedSomeValue）。
 - **bincode**: crates.io の `max_stable_version = 3.0.0` は名前占拠を防ぐための
   `compile_error!` プレースホルダです → **2.0.1 が真の安定版**。
-- **macos‑universal2 は fat binary**: サイズ予算は per‑arch スライス判定
-  （各 ≤5 MB）+ fat ファイルは 2 倍予算。CI の size‑budget は
-  **FAT_MAGIC の content 判定**（path 非依存 = download‑artifact の LCA で
+- **macos-universal2 は fat binary**: サイズ予算は per-arch スライス判定
+  （各 ≤5 MB）+ fat ファイルは 2 倍予算。CI の size-budget は
+  **FAT_MAGIC の content 判定**（path 非依存 = download-artifact の LCA で
   ディレクトリ断片が消えても堅牢）。
 - **huggingface_hub 2.0 は `HfApi.list_models(sort=)` の注解を閉じた Literal に
   狭窄します** → `cast(Any, sort)` パターン（`# type: ignore` は
@@ -313,11 +306,11 @@ setting '1'` 警告は無害です（成果物の glibc ≤2.28 は readelf で�
   §11.3）。当日公開版はゲートが拒否するため、1 日以上経過した版へ pin します。
 - **uv**: `uv pip install --system` はアクティブな venv が無いとき PATH 先頭の
   非 venv Python を対象にします（このサンドボックスでは
-  `--break-system-packages` が必要。GitHub ランナーの setup‑python には
+  `--break-system-packages` が必要。GitHub ランナーの setup-python には
   `--system` がそのまま刺さります）。torch CPU は `[[tool.uv.index]] explicit` +
   `[tool.uv.sources]` で CPU wheelhouse へ。root pyproject は
   `[build-system]` 無し = `[tool.uv] package = false` で仮想プロジェクト化。
-- **zenwebp 0.4.4**（純 Rust WebP codec・`forbid(unsafe_code)`・AGPL‑3.0）:
+- **zenwebp 0.4.4**（純 Rust WebP codec・`forbid(unsafe_code)`・AGPL-3.0）:
   エンコードは `EncodeRequest::{lossy, lossless, new}`、静止デコードは
   `oneshot::decode_rgba`（常に RGBA）、アニメは
   `mux::{AnimationEncoder, AnimationDecoder}`。**`AnimationDecoder` のフレームは
@@ -344,28 +337,28 @@ setting '1'` 警告は無害です（成果物の glibc ≤2.28 は readelf で�
   クラッシュし profraw が出ません（単一 arch の PE / ELF では再現せず）→
   **macOS は非 PGO 出荷**。macOS ホスト無しではデバッグ不能なため
   推測修正は禁止（再評価は upstream 修正後に arm64 単一 arch から）。
-- **PGO × fat LTO の warn‑missing‑function は良性乖離が支配的**（実測 13.81 %:
+- **PGO × fat LTO の warn-missing-function は良性乖離が支配的**（実測 13.81 %:
   ジェネリック実体化・クロージャ実体・計装時に完全インラインされた関数の
-  アウトオブライン復元）→ G2 ゲートはしきい値 50 % + 陽性プローブ
+  アウトオブライン復元）→ profile-check ゲートはしきい値 50 % + 陽性プローブ
   （Total count）。**しきい値を dev（非 LTO）実験で較正してはいけません**
   （乖離が 0.055 % まで縮むためゲートが厳しすぎる側で壊れます）。判定器は
-  `scripts/pgo/g2_check.py` に恒久化（mutation 5 変種で検出力を実証）。
+  `scripts/pgo/profile_check.py` に恒久化（mutation 5 変種で検出力を実証）。
   プロファイルの形状（関数集合と missing 比率）はシード固定により
   決定的に再現し、Total count は ±0.1 % のランナー変動がある（rayon の
   並列分割順）ため count 条件は `> 0` のみです。
-- **cargo‑zigbuild の zig 探索順**: ① `CARGO_ZIGBUILD_ZIG_COMMAND`
+- **cargo-zigbuild の zig 探索順**: ① `CARGO_ZIGBUILD_ZIG_COMMAND`
   （非空かつ**パス実在が必須**）→ ② `python3 -m ziglang` → ③ PATH の `zig`。
   ziglang wheel の console script は `python-zig` のみで ③ は永久に不発、
-  ジョブ中段の setup‑python 切替で ② も壊れます → **恒久対策はツールチェイン
-  導入時に site‑packages 内実体の絶対パスを解決し
+  ジョブ中段の setup-python 切替で ② も壊れます → **恒久対策はツールチェイン
+  導入時に site-packages 内実体の絶対パスを解決し
   `CARGO_ZIGBUILD_ZIG_COMMAND` を `$GITHUB_ENV` へ pin すること**
   （生成される linker wrapper が同変数を自分で再エクスポートするため、
   1 回の pin でジョブ全体に伝播します）。
-- **pyo3 0.29.2 の abi3‑pyXY feature は上向きチェーン**
+- **pyo3 0.29.2 の abi3-pyXY feature は上向きチェーン**
   （`abi3-py312` ⇒ py313 ⇒ py314 ⇒ py315 ⇒ 素の `abi3`）→ floor の実体は
-  「有効化された最小の pyXY」（pyo3‑build‑config `get_abi3_version()` の
+  「有効化された最小の pyXY」（pyo3-build-config `get_abi3_version()` の
   昇順スキャン）。floor のアサートは「最小有効 minor == N」の形で書きます
-  （「より高い abi3‑pyXXX が居ないこと」の形は常に誤検出します）。
+  （「より高い abi3-pyXXX が居ないこと」の形は常に誤検出します）。
   `abi3t-py315 = ["abi3t", ffi]`（上向きチェーン無し）。
 - **`cargo metadata` に `-p/--package` セレクタは無い** → feature のスコープは
   `package/feature` 修飾名で指定。ゲート helper が `capture_output=True +
@@ -379,13 +372,13 @@ check=True` で cargo の stderr を握り潰すと CI ログに traceback し�
   キャッシュは `refs/pull/N/merge` スコープに入り**マージ後はどこからも
   復元できません**（タグ run も同様）→ `Swatinem/rust-cache@v2` の `save-if` を
   main / dev の非 PR イベント限定にしています（7 箇所）。
-  **restore‑key フォールバックは `last_accessed_at` を更新する**ため、
+  **restore-key フォールバックは `last_accessed_at` を更新する**ため、
   復元不能キャッシュが LRU eviction を生き残り、代わりに live なブランチ
   キャッシュが削除されます → 能動的な削除が必須です:
   `cache-cleanup.yml` + `scripts/actions_cache_sweep.py`
   （PR クローズ時に当該スコープ、週次日曜 03:40 UTC + dispatch で
   pull・tags・世代落ち。削除は非破壊 — 最悪でも cold build が 1 回）。
-  上限の引き上げは支払方法の登録なしでは HTTP 402 で不可。rust‑cache の
+  上限の引き上げは支払方法の登録なしでは HTTP 402 で不可。rust-cache の
   キー末尾ハッシュは全 Cargo.toml / Cargo.lock 等が対象のため、依存を触る
   たびに旧世代が残ります（`--older-than-days` の名前ベース削除で一括整理）。
 - **runner は `GITHUB_TOKEN` を step の環境変数に自動注入しません**
@@ -393,18 +386,18 @@ check=True` で cargo の stderr を握り潰すと CI ログに traceback し�
   のみ供給）→ REST を叩く step は必ず
   `env: GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` を明示します。
 - **`upload-artifact` の既定保持は 90 日** → 検証用の `native-bin-*` は
-  `retention-days: 7`（fuzz‑crashes / pgo‑measure‑report は証拠物件のため
+  `retention-days: 7`（fuzz-crashes / pgo-measure-report は証拠物件のため
   据え置き）。
 
 ### 4.2 フロントエンド / V8
 
-- **C2 comparator（bench ゲートで機械固定）**: V8 は**既定 options の
+- **比較キー化 comparator（bench ゲートで機械固定）**: V8 は**既定 options の
   `localeCompare`** に内部キャッシュ済み既定 collator の高速経路を持ち、
   hoisted `Intl.Collator` より ×2.1–3.5 速い → 既定 variant は `localeCompare`
   を維持。**options 付き**に高速経路は無く、`{numeric:true}` は hoisted
   numeric Collator が ×23–33 速い → numeric variant のみ Collator 化。
   この設計判断は CI の V8 でも再現しており、Node 更新時に再検証します
-  （Plan T2 規程）。
+  （Node 26 の運用規程）。
 - **shallowRef 移行の手順**: 全消費者の影響棚卸しを先行（doc コメントに
   列挙）→ 読み取り専用または cloneDeep 後操作のみであることを確認 →
   イミュータブル差し替え（`models.value = {...models.value, [folder]: resData}`）。
@@ -415,37 +408,37 @@ check=True` で cargo の stderr を握り潰すと CI ログに traceback し�
   読み取り専用表示 payload は**参照共有**（保存経路がこれらを送らないことで
   安全）+ snapshot 除外 + `toRaw()` 経由の読み取り（Proxy トラップ回避）。
   端到端 ≈1,589 → ≈13 ms（BENCH §11.3.1）。
-- **テンソルツリー**: Rust pre‑order 線形符号 + JS 遅延インデックス
+- **テンソルツリー**: Rust pre-order 線形符号 + JS 遅延インデックス
   （87k ノードを materialize しません）。**描画行の順序は
   `tensorTreeRowsIdentical` ゲート**が legacy fold と機械照合します
   （collapsed + 全展開 152,462 行）。
-- フォルダアイコンの `<img>` は 2026‑10‑05 の刷新で静的 SVG になったため
+- フォルダアイコンの `<img>` は 2026-10-05 の刷新で静的 SVG になったため
   `decoding="async"` を適用済み。旧規程「SMIL アニメーションの `<img>` に
   decoding=async は意図的に非適用（タイムライン再開挙動が変わる）」は SMIL
   退役とともに過去のもの。`loading="lazy"` は仮想スクロール済みのため不導入。
-- **v-html 注入の生 svg は `size-*` クラスを必ず付ける**（2026‑10‑06 実機バグ）:
+- **v-html 注入の生 svg は `size-*` クラスを必ず付ける**（2026-10-06 実機バグ）:
   `Button.vue` 基底の `[&_svg:not([class*='size-'])]:size-4` フォールバックが
   クラス無し svg を 16px へ縮め、ラッパー側の `[&>svg]:size-5`（特異度 0,1,1）は
   同フールバック（0,2,1）に負ける。Lucide 兄弟アイコンは明示 `size-*` を持つため
   `:not(...)` で除外され 20px のまま → 同一行で HashReverse アイコンだけ小さく
   見える原因になった。対策は svg ルートへ `size-5` クラスを注入して
   フォールバック対象から外すこと（`HashReverseIcon.vue`）。
-- `scripts/bench/front/k15.mjs` は `--cross-check` 無しなら native 不要・約 30 秒
+- `scripts/bench/front/render-bench.mjs` は `--cross-check` 無しなら native 不要・約 30 秒
   （縮小パラメータで約 6 秒）。pnpm ストア外の tsc は `MMNEO_TSC` で渡します。
 
 ### 4.3 バックエンド（Python / native 接続）
 
 - **HTTP を Rust 化しない実測根拠**（Plan §3.8 / BENCH §11.4 の一次記録）:
-  reqwest 0.13 は feature 名変更（`rustls-tls` → `rustls`）で aws‑lc‑sys
+  reqwest 0.13 は feature 名変更（`rustls-tls` → `rustls`）で aws-lc-sys
   （C/asm・cmake 必須）+ ring を引き込み、「コンパイラ不要」の配布哲学と
   衝突します。最小プローブ cdylib は実測 **~4.9 MB**（HTTP スタックだけで
-  サイズ予算の ~1.9 倍超過）・依存 167 crates。native‑tls は OpenSSL 動的リンクで
+  サイズ予算の ~1.9 倍超過）・依存 167 crates。native-tls は OpenSSL 動的リンクで
   zigbuild の glibc 2.28 床を破壊。huggingface_hub 2.0 は httpx 基盤のため、
   Rust 化は「統一」ではなく**第 3 のスタック追加**になります。重い HF 転送は
   hf_xet で既に Rust 化済み。axum（サーバ FW）/ utoipa は aiohttp
   PromptServer 登録モデルに非該当。
-- **extended‑notify 不採用の実測根拠**（Plan §3.1 の一次記録）: 単一作者・
-  ダウンロード数が本体ライブラリと 3 桁以上差・debouncer‑full の旧版ピン
+- **extended-notify 不採用の実測根拠**（Plan §3.1 の一次記録）: 単一作者・
+  ダウンロード数が本体ライブラリと 3 桁以上差・debouncer-full の旧版ピン
   （^0.6）・tokio の出荷バイナリ混入。目玉機能（root 再アーム・kind フィルタ・
   ポーリング）は Neo 側で数行で代替可能で、ポーリングは notify 本体の
   PollWatcher に標準搭載。本当に必要なのはグルー（inotify 予算管理・
@@ -455,19 +448,19 @@ check=True` で cargo の stderr を握り潰すと CI ログに traceback し�
 total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのストリーミングで
   実測固定）。`HttpStatusError` は `raise_for_status` の文言を**逐語再現** +
   `.response.status_code` を維持（Civitai の 401 誘導文が依存）。JSON は
-  **content‑type を検査しない**（`content_type=None` — ModelScope CDN が
-  octet‑stream で返す実例）。宣言 charset を尊重し、未知 codec は UTF‑8 へ
+  **content-type を検査しない**（`content_type=None` — ModelScope CDN が
+  octet-stream で返す実例）。宣言 charset を尊重し、未知 codec は UTF-8 へ
   degrade（LookupError 捕捉）。`trust_env=True`（プロキシ環境変数）。
   共有セッションは**イベントループの変化を検出して再作成**
   （None→生成は await を挟まない同期アトミック = 並発初回呼び出しでも安全）。
 - **`requests` は modelscope_hub の推移的依存として残ります**
   （`Required-by: modelscope-hub` を実測）— Neo の直接使用ゼロ化後も環境に
-  存在します（直接使用ゼロは AST テストで固定）。T8 の利点は依存削減ではなく
+  存在します（直接使用ゼロは AST テストで固定）。HTTP クライアント統一の利点は依存削減ではなく
   構造です（IO プール専有の解消・方針の一元化・テスト可能性）。
 - **IO プール枯渇クラス**: 8 本の io ワーカー上でのブロッキング HTTP は、
   遅い CDN で read timeout（最大 120 秒）分スロットを専有し、scan / hygiene /
   preview が連鎖的に遅れます。ネットワーク待ちはイベントループ、executor には
-  CPU 段のみ（同クラス: model‑info ルートの executor 化、watcher arm/release の
+  CPU 段のみ（同クラス: model-info ルートの executor 化、watcher arm/release の
   executor 化、resume seeding の executor 化）。
 - **GIL 規律**: 長時間・ブロッキングの native API は `py.detach()` で解放します
   （違反の前例: walk_models / move_with_sidecars —
@@ -477,7 +470,7 @@ total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのスト�
 - **native 化は自動では速くなりません**: `parse_header_json` の重複テンソル名
   検査が線形走査（O(n²)）だったため、64,491 テンソルの MoE で native が
   **×18 の退行**（6,098 ms vs legacy 334 ms）→ `HashMap<name, pos>` O(1)
-  last‑wins へ修正し 212 ms（legacy 比 ×1.58 速）。compress も共有経路のため
+  last-wins へ修正し 212 ms（legacy 比 ×1.58 速）。compress も共有経路のため
   6 秒 → 数十ミリ秒。**実規模での端到端計測が必須**です。
 - **ヘッダ解析は 1 ルート**: `get_model_header` が metadata + tensors + tree を
   一度に返し、`(mtime_ns, size)` スタンプガードを掛けます（2 回の native 呼び出し
@@ -489,7 +482,7 @@ total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのスト�
   意図的に間引きます**（30 秒 TTL が correctness の床）。シングルトン
   `watcher.watcher` とクラス `ModelWatcher` は分離済み。
 - **request 無しでの設定読み取り**: ComfyUI の `get_request_user_id` は
-  single‑user で request に触れない（app/user_manager.py を一次確認）→
+  single-user で request に触れない（app/user_manager.py を一次確認）→
   background task は `request=None` で読めます。`--multi-user` では例外 →
   既定値（OFF）へ degrade = 安全側。
 - **設定 ID 文字列は ComfyUI が永続化するキーのため改名禁止**
@@ -501,7 +494,7 @@ total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのスト�
   解消済み。サーバ kill 中のジョブスレッドは道連れで終了します
   （残った tmp は起動時クリーンアップの 15 分規則が回収。コミット済み成果物は
   rename の原子性により不整合になりません）。
-- **アップロード preflight ハッシュ（T1）**: `upload_hf.py` の `hash_local_file` は
+- **アップロード preflight ハッシュ**: `upload_hf.py` の `hash_local_file` は
   Python hashlib の 1 MiB ループで io_executor 上で走っていました
   （CPU 作業 — プール意味論的にも cpu 側が正）。hashlib も OpenSSL 経由で
   SHA 拡張を使うため純速度差は小さく（BENCH §10.2）、実益はループ除去・
@@ -510,34 +503,34 @@ total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのスト�
   `Python/dynload_shlib.c` / `dynload_win.c` / `_bootstrap_external.py`）:
   POSIX では **`.abi3*` 項が `#ifndef Py_GIL_DISABLED` の内側、`.abi3t*` 項は
   無条件**。`FileFinder._find_spec` は `name + suffix` しか照合しないため、
-  free‑threaded 3.15 では `mm_core.abi3.so` をどの名でも解決できず
+  free-threaded 3.15 では `mm_core.abi3.so` をどの名でも解決できず
   `ModuleNotFoundError` になります。**`Py_GIL_DISABLED` ガードは 3.15 で
   導入された**ため、3.13t / 3.14t は `.abi3.so` を**受理してしまいます**
   （dlopen まで届く）= ローダーが ft < 3.15 を早期拒否する根拠は
   「解決できないから」ではなく「解決できてしまうから危ない」。
-  GIL 3.15 は両 family を併記します（abi3‑import の「3.15 GIL × abi3t」セルは
+  GIL 3.15 は両 family を併記します（abi3-import の「3.15 GIL × abi3t」セルは
   成立）。**Windows には family 差がファイル名に存在しません**（`.pyd` 2 項のみ）
   → flavour 分離はディレクトリ名（`<tag>` vs `<tag>t`）だけが担い、
   ABI タグ付きファイル名を前提にできるのは POSIX のみです。
 
 ### 4.4 ファジング
 
-- **blob_decompress の OOM（fuzz‑long run 1・2）の根因はコード欠陥では
+- **blob_decompress の OOM（fuzz-long run 1・2）の根因はコード欠陥では
   ありません**: ハーネスの threads=1 が default_threads() と異なるため
   `with_threads` が exec 毎に新規 rayon プールを生成・破棄し
   （OS スレッドの churn → サニタイザメタデータが ~35 B/exec で累積）、
   rss_limit に到達していました → 明示スレッド数のプールをキャッシュ +
   上限ガードで解消（定常窓 ~44 → ~9 B/exec。再ディスパッチ run は
   1.9 億 execs / 3 h 完走・peak RSS 164 MB・クラッシュ 0）。副次対策:
-  出力バッファの thread_local grow‑only 化、
+  出力バッファの thread_local grow-only 化、
   `ASAN_OPTIONS=quarantine_size_mb=32:release_to_os_interval_ms=200`
-  （cargo‑fuzz は自前変数を**追記**するため環境変数は子へ到達します）、
+  （cargo-fuzz は自前変数を**追記**するため環境変数は子へ到達します）、
   `rss_limit_mb` 4096。OOM 入力（88 B）は corpus へ回帰シード化済み。
 - **libFuzzer の OOM レポートは stderr のみで `crash-*` アーティファクトを
   残しません** → アーティファクト 0 件でもジョブログを読みます。
 - **現行ターゲットは 7 種**: `huf_decompress` / `zn_header` /
   `codec_decompress` / `st_parse` / `blob_decompress`（キャップ 1 MiB で駆動）/
-  `delta_decompress` / `webp_decode`。native.yml の fuzz‑smoke ループと
+  `delta_decompress` / `webp_decode`。native.yml の fuzz-smoke ループと
   fuzz-long.yml の matrix は**同一コミットで**拡張します。
 - 18 時間の完走証跡は codec 無変更の間有効です。再ディスパッチはファズ表面が
   変わったときのみ（§1.2）。
@@ -547,14 +540,14 @@ total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのスト�
 - **ゴールデン parity 規程**: 同一 fixture を native と Python 経路の双方で
   実行し（エンジン切替は旧 `MM_NATIVE` 環境変数から `core_if_enabled` 注入へ
   移行済み）、`native == legacy` を完全構造比較します
-  （scan / hygiene / header / hash / walk / move / batch）。byte‑exact 復元は
+  （scan / hygiene / header / hash / walk / move / batch）。byte-exact 復元は
   sha256 で検証。
-- **MockHub パターン**（`test_phase6_http.py`）: 実 aiohttp TestServer +
+- **MockHub パターン**（`test_http.py`）: 実 aiohttp TestServer +
   `calls` 記録で**往復回数と順序**まで固定します（ライブ API 依存ゼロ・
   録画フィクスチャの陳腐化なし）。
 - **fake core 注入パターン**: `monkeypatch.setattr(service, "_core", ...)` /
   `monkeypatch.setattr(download.native, "core_if_enabled", ...)` →
-  **native バイナリ無しで** inline‑hash / watcher 経路をテスト可能
+  **native バイナリ無しで** inline-hash / watcher 経路をテスト可能
   （= ci.yml の成果物なし環境でもカバーされます）。
 - **`download_model_file_http` を直接駆動するテストは
   `md.get_task_status(task_id).status = "doing"` が必須**（TaskStatus 既定の
@@ -570,7 +563,7 @@ total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのスト�
   `except Exception` が両者を同じ結果へ写像）。`write_safetensors` は
   バイト制御された正準 writer（8 バイト整列・`__metadata__` 先頭・
   insertion / sort 両順）で、torch 往復では書けない「非ソート順ファイルの
-  byte‑exact 復元」をテスト可能にしています。
+  byte-exact 復元」をテスト可能にしています。
 - **`time.monotonic()` は uptime 基準 — テストで「十分大きい」を仮定しない**:
   TTL 失効テストでキャッシュ stamp に絶対原点 `0.0` を使うと、起動直後の
   CI ランナー（uptime < TTL 秒）で「まだ失効していない」判定になります
@@ -580,7 +573,7 @@ total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのスト�
   起動 60 秒未満のランナーで初回 rescan 放送が抑制された）→ None sentinel 化 +
   固定時計の回帰テストで決定論化。**教訓: monotonic 比較の「無い」状態は
   必ず None / sentinel で表し、数値原点 0.0 を使いません**。
-- **mutation 検証は「アサート無しの try/except‑pass」も探します**
+- **mutation 検証は「アサート無しの try/except-pass」も探します**
   （例外を要求しておらず、どんな退化でも成功していた前例 →
   `pytest.raises` 化。同型: loop / アニメ ICC の保持が Python 側で未固定 →
   接合部テストの追加で捕捉を実証）。
@@ -610,7 +603,7 @@ total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのスト�
   f64 変換が 256 ns 量子へ不可逆となり、.5 境界近傍で round_ties_even の
   判定が反転 — CPython の `round(int/int)`（int/int は**正確な商の正しい
   丸め**）と約 1/10,000 のタイムスタンプで 1 ms 乖離した（実測:
-  2026‑10‑07 macOS integration の test_scan_survives_a_non_utf8_sidecar
+  2026-10-07 macOS integration の test_scan_survives_a_non_utf8_sidecar
   1 件失敗・直前 9 run 連続緑・再実行は緑 = 典型 flake 像）。旧単体テストは
   live-stat 1 サンプル＋小さい合成値（<2^53 = 変換が正確な領域）のみで
   構造的に検出不能。修正 = 整数商＋余り（div_euclid/rem_euclid →
@@ -626,180 +619,179 @@ total=None)`（**total ではない** — 120 ms 間隔 2 チャンクのスト�
 
 ## 5. 完了した計画とその成果（過去に何をしたか）
 
-3 つの計画の全実装要件は 2026‑09‑23 から 2026‑10‑03 にかけて完了し、
+3 つの計画の全実装要件は 2026-09-23 から 2026-10-03 にかけて完了し、
 CI と公開パイプラインが正常に実行されることまで確認済みです。計画書本体
 （版数履歴・チェックリスト・一次ソース一覧を含む）は git 履歴に一次記録として
 保存されています（冒頭の注記参照）。
 
-### 5.1 Plan.md（NEO‑PLAN‑2026‑001）— Rust ネイティブコア化と ZipNN 完全置き換え
+### 5.1 初版の計画文書 — Rust ネイティブコア化と ZipNN 完全置き換え
 
 Neo の中核処理を Rust ネイティブコア（`mm_core`）へ移行し、vendored ZipNN
 C スタックを置き換える計画です。4 つの柱: **信頼性の抜本改善**
 （計画策定過程で C コアの再現性ある SEGFAULT とヒープオーバーフローを
 実機実証 — Plan 付録 C — Rust によりこの欠陥クラスを構造的に消滅させ、
-SHA‑256 端到端完全性検証を新設）、**メモリ効率**（圧縮ピーク RAM を
+SHA-256 端到端完全性検証を新設）、**メモリ効率**（圧縮ピーク RAM を
 モデルサイズの約 2 倍から O(チャンク×スレッド数) へ、デルタを約 4–5 倍から
-1 GB 未満へ）、**速度**（KPI K1–K16 — Plan §2.2）、**配布拡大**
+1 GB 未満へ）、**速度**（KPI 受入メトリクス 16 指標 — Plan §2.2）、**配布拡大**
 （CPython バージョン別 C 拡張 ×6・Linux x86_64 のみ → abi3 単一バイナリ ×
 4 プラットフォーム・コンパイラ不要）。dtype 対応は 5 種から 22 種へ拡張。
-Phase 0–8 の全フェーズが完了しました。
+全 9 マイルストーンが完了しました。
 
-- **Phase 0 — 基盤準備（2026‑09‑23 完了）**: `native/` cargo ワークスペース
+- **基盤準備（2026-09-23 完了）**: `native/` cargo ワークスペース
   （edition 2024）、CI（native.yml 新設）、ベンチ基盤 + `docs/BENCH.md` の
   ベースライン記録、`py/native.py` ローダー + `MM_NATIVE` スイッチ、
-  JSON パーサの確定（8 MB MoE ヘッダで jiter 10.6 ms vs simd‑json 187.6 ms vs
-  serde_json 143.6 ms）、Quick Win A1（モデル詳細ルートの executor 化）、
+  JSON パーサの確定（8 MB MoE ヘッダで jiter 10.6 ms vs simd-json 187.6 ms vs
+  serde_json 143.6 ms）、モデル詳細ルートの executor 化、
   mold / rustfmt / clippy の導入。
-- **Phase 1 — znn‑codec フォーマット中核（2026‑09‑23 実装・09‑25 fuzz
+- **znn-codec フォーマット中核（2026-09-23 実装・09-25 fuzz
   バジェット達成）**: ZN ヘッダ、ビット並べ替え、平面分割、huff0 / FSE の
   エンコーダ・デコーダ（C からの逐条移植 → **出力は C 実装とバイト同一**:
-  L2 ゴールデン差分 9,880/9,880・フル 10,500 ケース GATE PASS・付録 C の
+  ゴールデン差分 9,880/9,880・フル 10,500 ケース GATE PASS・付録 C の
   クラッシュクラス 495/495 を安全処理）、チャンク並列 codec。速度は 8/8 指標
-  ×1.09–1.81 で C 超え（virtual‑raw 平面最適化・`unsafe` 不使用で達成）。
+  ×1.09–1.81 で C 超え（virtual-raw 平面最適化・`unsafe` 不使用で達成）。
   ファズ 3 ターゲットで実バグ 3 件を検出・修正。
-- **Phase 2 — safetensors 圧縮/解凍パイプライン + バックエンド接続
-  （2026‑09‑24）**: mmap 単一書き込みパス（ピーク RAM = O(最大テンソル)）、
-  SHA‑256 端到端検証 + `.corrupt` 退避、paranoid モード、ジョブ API
+- **safetensors 圧縮/解凍パイプライン + バックエンド接続
+  （2026-09-24）**: mmap 単一書き込みパス（ピーク RAM = O(最大テンソル)）、
+  SHA-256 端到端検証 + `.corrupt` 退避、paranoid モード、ジョブ API
   （10 Hz ポーリング・GIL 非接触・catch_unwind・完了の権威シグナルは
   outcome レコード）、ws イベント / stats 形状のゴールデン互換、起動時の
   `.tmp` クリーンアップ（15 分の年齢ガード）。公式 pip zipnn 0.5.4 との
-  双方向クロス検証ゲート（L5）を CI に新設。K1 / K6 / K13 達成。
-- **Phase 3 — デルタ圧縮 + バッチプリミティブ（2026‑09‑25）**: 両側 mmap +
-  1 MiB ストリーミング XOR（K4 = ピーク 1 GB 未満・匿名域 O(チャンク)）、
-  公式 streaming コンテナ連鎖形式（公式解凍側が 100 % 受理することを L5‑D で
+  双方向クロス検証ゲート（official interoperability gate）を CI に新設。圧縮ピークRAM / データ完全性検証 / 起動時可用性 達成。
+- **デルタ圧縮 + バッチプリミティブ（2026-09-25）**: 両側 mmap +
+  1 MiB ストリーミング XOR（デルタピークRAM = ピーク 1 GB 未満・匿名域 O(チャンク)）、
+  公式 streaming コンテナ連鎖形式（公式解凍側が 100 % 受理することを official interoperability gate-D で
   実証）、`.neo-delta.json` サイドカー + `ftSha256` インライン検証、
   `walk_models` / `move_with_sidecars`（Python 現行とのゴールデン parity・
-  GIL 解放をテストで機械固定）。K5 = 付録 C の SEGFAULT クラス 3/3 が
-  生産ルートで正常完了 + byte‑exact。api_version 3。
-- **Phase 4 — dtype 大幅拡張（2026‑09‑26）**: safetensors 0.8 の全 22 dtype の
-  圧縮帯化（K14）— Neo 拡張帯コード 128–146（F64 8 平面・整数系・BOOL・
+  GIL 解放をテストで機械固定）。Cコア既知欠陥 = 付録 C の SEGFAULT クラス 3/3 が
+  生産ルートで正常完了 + byte-exact。api_version 3。
+- **dtype 大幅拡張（2026-09-26）**: safetensors 0.8 の全 22 dtype の
+  圧縮帯化（対応dtype数）— Neo 拡張帯コード 128–146（F64 8 平面・整数系・BOOL・
   FNUZ FP8・F8_E8M0・F4 / F6）、トランケーションモード 1/9/41/8 の
   クリーンな正式実装（C 版の 41/9/1 はコメントアウトされた到達不能コード）、
   `znn_neo_extended` マーカー、`/zipnn/inspect` ルート、UI（dtype 内訳・
   Neo バッジ・確認ダイアログ・i18n×3）、相互運用マトリクスの 5 文書化。
   公式 zipnn は Neo 帯を `ValueError: Unsupported Dtype N` で明示拒否
-  （静かな破損ゼロ — L5 E 系で CI 固定）。互換帯の出力バイト同一を維持
-  （L2 quick 1,121/1,121）。
-- **Phase 5 — スキャン / インデックス / ハッシュ / 更新伝播（2026‑09‑27）**:
+  （静かな破損ゼロ — official interoperability gate E 系で CI 固定）。互換帯の出力バイト同一を維持
+  （golden differential quick 1,121/1,121）。
+- **スキャン / インデックス / ハッシュ / 更新伝播（2026-09-27）**:
   Rust 並列 walk（os.scandir 意味論の忠実移植 + ゴールデン parity）、
-  永続 front‑matter インデックス（bincode + blake3 + 原子入替 + 破損時
+  永続 front-matter インデックス（bincode + blake3 + 原子入替 + 破損時
   自動全再構築 — 再起動を跨ぐ）、`safetensors_header`（jiter・32 MiB 統一
   ガード・comfy.utils 依存の撤去）、`hash_file` / `hasher_*`
   （5 表記 1 パス・1239 MB/s・Civitai 表記ゴールデン）、ダウンロードの
-  インライン検証（K7 = 完了時追加 I/O ゼロ）、1 MiB チャンク化（K8）、
-  `models_changed` ws 無効化 + フロントの部分再取得。K9 = 5000 モデル
-  0.145 s（legacy 比 ×7.5）・K10 = warm 99 ms・K11 達成。実装中に
+  インライン検証（ダウンロード検証I/O = 完了時追加 I/O ゼロ）、1 MiB チャンク化（マルチハッシュ計測）、
+  `models_changed` ws 無効化 + フロントの部分再取得。コールドスキャン = 5000 モデル
+  0.145 s（legacy 比 ×7.5）・ウォーム差分スキャン = warm 99 ms・大規模MoEヘッダ解析 達成。実装中に
   ヘッダ解析の O(n²) 重大バグを発見・修正（§4.3）。api_version 4。
-- **Phase 6 — フロントエンド表示最適化 + Phase 5 移管項目（2026‑09‑27）**:
-  C1 正規表現ホイスティング（keystroke p95 ×3.0）、C2 照合キー化
+- **フロントエンド表示最適化 + スキャン系の移管項目（2026-09-27）**:
+  正規表現のホイスティング（keystroke p95 ×3.0）、比較キー化
   （既定は localeCompare 維持・numeric のみ Collator 化 ×22–32 — §4.2）、
-  C3 shallowRef、C4 `decoding="async"`、C5 計測基盤（`utils/perf.ts` +
-  `__mmNeoPerf` + ヘッドレス計測器 k15.mjs の CI 常設）、テンソルツリーの
+  shallowRef、decoding=async `decoding="async"`、計測基盤（`utils/perf.ts` +
+  `__mmNeoPerf` + ヘッドレス計測器 render-bench.mjs の CI 常設）、テンソルツリーの
   Rust 事前グループ化（65,268 テンソルで ×104 = 1,329 → 12.8 ms・
-  Rust == Python == JS の三者同一性を機械固定）、A3 requests→aiohttp 統一
+  Rust == Python == JS の三者同一性を機械固定）、requests→aiohttp 統一
   （モックテスト 17 件）、watch_roots（notify 直接採用・500 ms デバウンス・
   既定 OFF・network root 自動スキップ・inotify 枯渇時は TTL へ degrade）。
-  K15 達成（5,050 モデル・keystroke JS 作業 p95 3.96 ms ≤ 16 ms・
+  キー入力→描画 達成（5,050 モデル・keystroke JS 作業 p95 3.96 ms ≤ 16 ms・
   初回グリッド行構築 p95 7.03 ms）。api_version 5。
-- **Phase 7 — ツールチェーン現代化・設定統合 T1–T8（2026‑09‑29）**:
-  T1 アップロード preflight SHA256 の native 化、T2 Node 26.10.0
-  （C2 ゲートを Node 26 の V8 で再検証）、T3 Ruff 0.16.9、T4 uv 導入
+- **ツールチェーン現代化・設定統合（2026-09-29）**:
+  アップロード preflight SHA256 の native 化、Node 26.10.0
+  （比較キー化ゲートを Node 26 の V8 で再検証）、Ruff 0.16.9、uv 導入
   （Python の開発・CI 層専用 — uv.lock コミット・CI 5 ジョブを
-  `uv pip install --system` へ）、T5 設定統合（`[tool.mypy]` の pyproject 化・
+  `uv pip install --system` へ）、設定統合（`[tool.mypy]` の pyproject 化・
   prettier / stylelint の package.json 移設・tests/pytest.ini は rootdir 制御の
-  ため意図的に非統合）、T6 GitHub Actions の一括更新（checkout / setup-node /
+  ため意図的に非統合）、GitHub Actions の一括更新（checkout / setup-node /
   setup-python v7・upload-artifact v7・download-artifact v8・pnpm-action v6.1 —
-  1 action ずつ別コミット）、T7 zenwebp 一気刷新（静止エンコード + アニメ WebP
-  保持 + デコード・api_version 6・fuzz 7 本目・AGPL‑3.0 ライセンス整備）、
-  T8 requests の直接参照ゼロ化（AST テストで固定）。サイズ目安の 4→5 MB 改定、
+  1 action ずつ別コミット）、zenwebp 一気刷新（静止エンコード + アニメ WebP
+  保持 + デコード・api_version 6・fuzz 7 本目・AGPL-3.0 ライセンス整備）、
+  requests の直接参照ゼロ化（AST テストで固定）。サイズ目安の 4→5 MB 改定、
   pnpm 12.8.1 への更新、依存の最新安定版一斉更新（vue 3.5.43・vite 8.3.1・
   eslint 10.11.0 ほか）。CI 実行の全ジョブ成功を確認。
-- **Phase 8 — third_party 撤去・配布仕上げ・v0.3.0（2026‑10‑01）**:
+- **third_party 撤去・配布仕上げ・v0.3.0（2026-10-01）**:
   旧経路の全削除（compress.py 2,425 → 1,391 行）、`third_party/` 撤去
-  （ZipNN MIT + FiniteStateEntropy BSD‑2 の全文を `native/NOTICE` へ継承）、
+  （ZipNN MIT + FiniteStateEntropy BSD-2 の全文を `native/NOTICE` へ継承）、
   `MM_NATIVE` 撤去（単一経路化 — 読み取り系のレジリエンス経路のみ
   Python フォールバックを維持する設計判断を記録）、`publish-native-bin`
   配布機構（main 専用・成果物の content 分類・`git add -f`・bot コミットは
-  再トリガーされずループ不可）、L2 / native‑diff の退役（L5 が恒久ゲート・
+  再トリガーされずループ不可）、golden differential / native-diff の退役（official interoperability gate が恒久ゲート・
   証跡 JSON は残置）、v0.3.0 のバージョン同期 + web 再ビルド、
   README×2 / USAGE×3 の全面改訂（フォーク元 2.8.5 との差分を一次照合し
   「Backend & engine」差分表を新設）、純標準ライブラリの `python3 -S` による
-  コンパイラ・pip・ネットワークなし動作の Linux 実証（K16）。
+  コンパイラ・pip・ネットワークなし動作の Linux 実証（プリビルト配布）。
 
-### 5.2 Plan‑2.md（NEO‑PLAN‑2026‑002）— rust‑lld 移行と PGO 導入（Step 1–5）
+### 5.2 rust-lld/PGO 計画 — rust-lld 移行と PGO 導入（全 5 工程）
 
-2 本柱: CI から mold / clang を撤去し **rust‑lld**（Rust 1.90 以降の
-x86_64‑linux 既定リンカー）へ移行すること（6 時間ハング前例のある apt
+2 本柱: CI から mold / clang を撤去し **rust-lld**（Rust 1.90 以降の
+x86_64-linux 既定リンカー）へ移行すること（6 時間ハング前例のある apt
 ステップの障害面削減が主目的・実行時性能のトレードオフはゼロ）、
 出荷バイナリへの **PGO**（release プロファイルは設定上の最適化余地が無く、
 実行時性能に残された主要手段でした）。BOLT / Intel BOT / Propeller /
 リンカー ICF / LLVM CAS / 成果物への ThinLTO / アロケータ差し替え /
-target‑cpu 多変種は一次調査に基づき不採用・保留・監視のみと判定
-（Plan‑2 §5）。Step 1–5 は 2026‑10‑01〜02 に完了しました。
+target-cpu 多変種は一次調査に基づき不採用・保留・監視のみと判定
+（rust‑lld/PGO 計画 §5）。全 5 工程は 2026-10-01〜02 に完了しました。
 
-- **Step 1（rust‑lld 移行）**: `.cargo/config.toml` の mold 設定を撤去
+- **工程 1（rust-lld 移行）**: `.cargo/config.toml` の mold 設定を撤去
   （判断根拠のコメントへ置換）、native.yml の apt ステップ削除、
   native/README 改写。fuzz-long.yml の apt ステップ削除は週次実行の成功確認後の
-  フォローアップ（R5 — 残件 §7）。
-- **Step 2（PGO トレーニングハーネス）**: `scripts/pgo/train.py`
+  フォローアップ（fuzz-long apt 排除 — §10）。
+- **工程 2（PGO トレーニングハーネス）**: `scripts/pgo/train.py`
   （標準ライブラリ + mm_core のみ・シード固定の決定論的ワークロード・
   `--measure` モード内蔵・`TRAIN_ROUNDS` で反復数調整）+
   `scripts/pgo/README.md`。3 OS のランナーで完走を確認。
-- **Step 3（linux‑x86_64 パイロット計測）**: `pgo-measure` ジョブ
+- **工程 3（linux-x86_64 パイロット計測）**: `pgo-measure` ジョブ
   （workflow_dispatch / コミットメッセージの `[pgo-measure]` マーカー専用）—
   計装ビルド → トレーニング → `llvm-profdata merge` → baseline / PGO 両者の
-  zigbuild → G2 検査（プロファイル no‑op の検出）→ 交互 A/B 計測。
-  **G1 = PASS**（中央値判定・コールド一貫で最大 ~+10 % の初回実行
-  スループット — BENCH §13）。G2 のしきい値は run #106 のログ全件解析により
+  zigbuild → profile-check 検査（プロファイル no-op の検出）→ 交互 A/B 計測。
+  **PGO-A/B = PASS**（中央値判定・コールド一貫で最大 ~+10 % の初回実行
+  スループット — BENCH §13）。profile-check のしきい値は run #106 のログ全件解析により
   1 % → 50 % + 陽性プローブ 3 条件へ再校正（13.81 % は fat LTO の良性乖離）。
   判定統計を min → 側別中央値へ改訂（§3）。
-- **Step 4（PGO 本番組み込み）**: linux‑x86_64 は手動三段階（計装は
-  ホストネイティブビルド）+ 恒久 G2 ゲート、Windows は maturin `--pgo` の
+- **工程 4（PGO 本番組み込み）**: linux-x86_64 は手動三段階（計装は
+  ホストネイティブビルド）+ 恒久 profile-check ゲート、Windows は maturin `--pgo` の
   三段階が完走、**macOS は計装 fat dylib の終了時 SIGSEGV により非 PGO
-  出荷**（§4.1・判断 (c)）、linux‑aarch64 は対象外。build 3 ジョブへ
-  `llvm-tools-preview`。size‑budget（4 本 18,118,520 B ≤ 20 MB）・
+  出荷**（§4.1・判断 (c)）、linux-aarch64 は対象外。build 3 ジョブへ
+  `llvm-tools-preview`。size-budget（4 本 18,118,520 B ≤ 20 MB）・
   run 全体 9 分 21 秒 ≤ 20 分・integration 3 OS が PGO 成果物に対して成功
   （= テストされた成果物が出荷される成果物）。
-- **Step 5（ドキュメント・記録）**: native/README の PGO 節、BENCH §13
+- **工程 5（ドキュメント・記録）**: native/README の PGO 節、BENCH §13
   （計測 + 判定統計の改訂）、README×2 のエンジン節へ「PGO 最適化済み」を
-  追加（linux‑x86_64 / Windows の 2 プラットフォーム限定・BENCH §13 参照付き）。
+  追加（linux-x86_64 / Windows の 2 プラットフォーム限定・BENCH §13 参照付き）。
 - プロファイルはビルド毎生成・**コミットしません**（ドリフトゼロ・
-  リポジトリ非肥大）。G2 の形状数値（7,618 関数 / 1,052 missing / 13.81 %）は
+  リポジトリ非肥大）。profile-check の形状数値（7,618 関数 / 1,052 missing / 13.81 %）は
   3 run 連続で完全一致 = プロファイルの決定論を再現確認済み。
 
-### 5.3 Plan‑3.md（NEO‑PLAN‑2026‑003）— Python 下限 3.12 化と abi3t バイナリ（Step 1–5）
+### 5.3 abi3t 計画 — Python 下限 3.12 化と abi3t バイナリ（全 5 工程）
 
-(1) CPython 3.10 の EOL（2026‑10‑01）到達を受け **abi3 フロアを py310 から
+(1) CPython 3.10 の EOL（2026-10-01）到達を受け **abi3 フロアを py310 から
 py312 へ引き上げ**（ComfyUI の文書化サポート下限と完全一致）、
 (2) **CPython 3.15+ のフリースレッド build 向け abi3t 成果物（PEP 803）を
 4 プラットフォームタグすべてに追加**して 8 本体制へ、(3) ローダーが
 インタプリタの flavour とバージョンを検出して成果物を選択、(4) ユーザ環境での
-自動ビルドは導入しない（Plan‑3 §5 に配布哲学の確認を記録）。
-Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 8 本）まで
+自動ビルドは導入しない（配布計画 §5 に配布哲学の確認を記録）。
+全 5 工程は 2026-10-03 に完了し、公開パイプライン（publish 8 本）まで
 実働を確認しました。
 
-- **Step 1（floor 3.12 化）**: abi3‑py312・`requires-python >=3.12`・
-  ruff py312・mypy 3.12・uv.lock revision 5・CI 解釈系 ×7・abi3‑import セル
+- **工程 1（floor 3.12 化）**: abi3-py312・`requires-python >=3.12`・
+  ruff py312・mypy 3.12・uv.lock revision 5・CI 解釈系 ×7・abi3-import セル
   3.12 / 3.14。
-- **Step 2（ft feature と `<tag>t` ビルド経路）**: mm‑core の feature 再編・
+- **工程 2（ft feature と `<tag>t` ビルド経路）**: mm-core の feature 再編・
   `build-native.sh` 8 ターゲット化・toggle ゲート 3 軸・build ×3 への
-  host 3.15.0‑rc.2 t ビルド + GIL / ft 両フレーバの import smoke 追加・
+  host 3.15.0-rc.2 t ビルド + GIL / ft 両フレーバの import smoke 追加・
   ディレクトリ構造での artifact upload。
-- **Step 3（ローダー）**: `is_free_threaded()`（`Py_GIL_DISABLED` /
+- **工程 3（ローダー）**: `is_free_threaded()`（`Py_GIL_DISABLED` /
   abiflags `t`）・`<tag>t` ルーティング・GIL 3.12 / ft 3.15 の floor ガード・
   `diagnostics.freeThreaded`・テスト +4。フリースレッド 3.13 / 3.14 は
   abi3t が未定義のため理由付きでデグレード。
-- **Step 4（CI 拡張）**: abi3‑import 4 セル・size‑budget（found 8 ハード +
-  本別 5/10 MB ハード + 合計 40 MB 目安〔D1・超過は warning のみ〕）・
-  publish 8 エントリ（ディレクトリタグ優先のステージング・bare `.pyd` 拒否
-  〔R7〕）・ubuntu の t integration セル（3.15.0‑rc.2t × フル pytest〔D3〕・
-  torch / tsc / L5 の脚は GIL セル限定へ条件変更）。
-- **Step 5（文書・バッジ）**: README×4・USAGE×4・native/README・pgo README・
-  Plan‑3 の状態更新。
-- **決定事項 D1–D4**: D1 合計サイズ 40 MB・目安化（ユーザ決定）、
-  D2 abi3t は v1 非 PGO（GIL 側の PGO は Plan‑2 のまま維持）、
-  D3 t integration は ubuntu のみ（他 OS は import smoke）、
-  D4 rc ピン → final への振替は manifest への final 掲載後の別コミット。
+- **工程 4（CI 拡張）**: abi3-import 4 セル・size-budget（found 8 ハード +
+  本別 5/10 MB ハード + 合計 40 MB 目安（超過は warning のみ・ユーザ決定））・
+  publish 8 エントリ（ディレクトリタグ優先のステージング・bare `.pyd` 拒否）・ubuntu の t integration セル（3.15.0-rc.2t × フル pytest（ubuntu のみ・他 OS は import smoke）・
+  torch / tsc / official interoperability gate の脚は GIL セル限定へ条件変更）。
+- **工程 5（文書・バッジ）**: README×4・USAGE×4・native/README・pgo README・
+  配布計画の状態更新。
+- **決定事項（合計サイズ目安と 3.15 系）**: 合計サイズ 40 MB・目安化（ユーザ決定）、
+  abi3t は v1 非 PGO（GIL 側の PGO は従来方針のまま維持）、
+  t integration は ubuntu のみ（他 OS は import smoke）、
+  rc ピン → final への振替は manifest への final 掲載後の別コミット。
 - **納品後の安定化**（dev CI の失敗 4 件 + 潜在の誤検出 1 件の修正 —
   いずれも根因を実証付きで特定）:
   ① py315 切替後の「Failed to find zig」→ `CARGO_ZIGBUILD_ZIG_COMMAND` の
@@ -807,43 +799,43 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   ② macOS bash 3.2 の空配列 unbound → `${feat[*]+…}` ガード 3 箇所、
   ③ toggle ゲートの `cargo metadata -p`（同セレクタは存在しない）→
   修飾形への変更 + cargo の stderr を CI ログへ転写、
-  ④ ゲートアサートの誤検出潜在バグ（pyo3 の abi3‑pyXY 上向きチェーン →
+  ④ ゲートアサートの誤検出潜在バグ（pyo3 の abi3-pyXY 上向きチェーン →
   「最小有効 minor」形へ置換・負例 9 ケースで検出力を実証）、
-  ⑤ ubuntu‑t integration の pytest 1 本失敗 = テスト側の 5 段連鎖
+  ⑤ ubuntu-t integration の pytest 1 本失敗 = テスト側の 5 段連鎖
   （autouse のバージョンピン → タグ誤誘導 → プローブ名ハードコード →
-  成果物 4 タグ一括展開による skip ガード不発 → free‑threaded 3.15 の
+  成果物 4 タグ一括展開による skip ガード不発 → free-threaded 3.15 の
   `EXTENSION_SUFFIXES` に `.abi3.so` が無い）— ローダーは正しく拒否しており、
   誤っていたのはアサート → `_use_real_interpreter` の逃避口 + flavour 準拠の
   プローブ名 + `test_extension_suffixes_enforce_the_flavour_split`
   （5 flavour 実測で機械固定）+ aiohttp ウォームアップによる
   サードパーティ import 漏れの除去（§4.5）。
-- **公開確認**: CI 全ジョブ成功後、publish‑native‑bin の bot コミットが
+- **公開確認**: CI 全ジョブ成功後、publish-native-bin の bot コミットが
   `native/native-bin/` へ **8 本**を配置（abi3 ×4 + abi3t ×4・
-  linux‑x86_64 3.93 / linux‑aarch64 3.36 / linux‑x86_64t 3.96 /
-  linux‑aarch64t 3.36 / macos‑universal2 6.43 / macos‑universal2t 6.43 /
-  windows‑x86_64 3.55 / windows‑x86_64t 3.96 MiB・合計 34.98 MiB =
-  D1 目安内・本別予算内）。
+  linux-x86_64 3.93 / linux-aarch64 3.36 / linux-x86_64t 3.96 /
+  linux-aarch64t 3.36 / macos-universal2 6.43 / macos-universal2t 6.43 /
+  windows-x86_64 3.55 / windows-x86_64t 3.96 MiB・合計 34.98 MiB =
+  合計 40 MB 目安の内側・本別予算内）。
 
-### 5.4 納品後の CI 運用と保守（2026‑10‑01〜03）
+### 5.4 納品後の CI 運用と保守（2026-10-01〜03）
 
 - **GitHub Actions キャッシュ逼迫への対策**（9.65 GiB / 96.5 % →
   5.08 GiB / 50.8 %）: 即時 prune 16 件 / 4.57 GiB（pull スコープ 10 +
-  main の旧世代 6）+ 構造対策 3 コミット — rust‑cache の `save-if` を
+  main の旧世代 6）+ 構造対策 3 コミット — rust-cache の `save-if` を
   main / dev の非 PR イベント限定に（7 箇所）、`cache-cleanup.yml` +
   `scripts/actions_cache_sweep.py`（PR クローズ時の当該スコープ削除 +
   週次日曜 03:40 UTC + dispatch）、`native-bin-*` artifact の
   `retention-days: 7`。スコープ規則と LRU 挙動の一次調査は §4.1。
   対策後の納品サイクル（dev → PR → main マージ）で新規キャッシュエントリ
   0 件を確認し、`save-if` の両側（true / false）とも実際の run で検証済み。
-- **cache‑cleanup 初走失敗の修正**: `GITHUB_TOKEN` が step env に渡って
+- **cache-cleanup 初走失敗の修正**: `GITHUB_TOKEN` が step env に渡って
   いなかった（runner は自動注入しない — §4.1）→ 両 job の script step へ
   明示（1 コミット）。
-- **watcher の fresh‑boot flake 修正**（main native run #85 失敗の根因）:
+- **watcher の fresh-boot flake 修正**（main native run #85 失敗の根因）:
   クールダウンが「未放送」を monotonic 0.0 の既定値で符号化していたため、
   起動 60 秒未満のランナーで初回 rescan 放送が抑制されていました →
   None sentinel 化 + 固定時計の回帰テスト（mutation 検証済み・§4.5）。
 - **main 側 CI 障害の解消**: windows integration 3 件（5d18128）・
-  clippy 1.99 ドリフト（5fa3679）・ステージングの dir‑move（e6c707d）を
+  clippy 1.99 ドリフト（5fa3679）・ステージングの dir-move（e6c707d）を
   修正し、実行成功を確認。integration は 3 OS とも native テストを実行する
   構成になりました（import smoke ガード付き）。
 - **CI 耐障害性の強化**: 全 apt ステップへ `timeout-minutes: 10` +
@@ -853,14 +845,13 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   （`scripts/bench/*.py`・`scripts/l2/`・`znn-cli`）は計画完了に伴い
   ツリーから削除しました（証跡 JSON は `scripts/bench/results/` に残置・
   原文は git 履歴 — docs/BENCH.md 冒頭注記参照）。
-- **内部計画識別子の完全除去（2026‑10‑04）**: 計画文書（Plan.md・Plan‑2.md・
-  Plan‑3.md）をツリーから削除し（git 履歴に完全保存 — 冒頭注記）、コード・
+- **内部計画識別子の完全除去（2026-10-04）**: 計画文書（Plan.md ほか全計画文書）をツリーから削除し（git 履歴に完全保存 — 冒頭注記）、コード・
   CI・ドキュメント・実行時文字列（Rust のエラー/警告メッセージ、ビルドスクリプト
   のログ、CI のジョブサマリとアノテーション、bot コミットメッセージの雛形、
   証跡 JSON の note 欄）から計画文書名と節番号の参照をすべて除去した。
   ユーザーが ComfyUI のサーバーログや UI で内部の計画識別子を目にする経路は
   ゼロになった（Python / Rust / TypeScript の全文字列定数を機械走査して確認。
-  配布済みプリビルドバイナリは main での次回 publish‑native-bin 再ビルドで
+  配布済みプリビルドバイナリは main での次回 publish-native-bin 再ビルドで
   反映される）。
 - **計画後の保守**: `fix(auth)` — HF キー移行が歴史的な設定 ID も読むようにし、
   表示名統一で永続キーが孤立していた問題を解消（`resolve_setting_key` による
@@ -869,66 +860,49 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   整備。開発記録（本メモと環境レポート）は Agent/ に保持し、計画文書は
   完了に伴いツリーから削除しました（git 履歴に保存）。
 
-## 6. 現状のキー値（2026‑10‑03 時点）
+## 6. 現状のキー値（2026-10-03 時点）
 
 - **version 0.4.0**（pyproject / package.json / native workspace / web バンドルで
   同期済み。**公開作業はユーザ専任・未実施**）。
 - **api_version 6**（4 者同期 — §1.2）。
 - **成果物 8 本**（abi3 ×4 + abi3t ×4・合計 34.98 MiB — §5.3）。
-  PGO 適用済み = linux‑x86_64 と Windows の GIL 成果物。
-- **テスト**: Rust L1 206（znn‑codec）+ 統合 4 + mm‑core 5 /
-  pytest 225 passed（native 成果物 + torch あり・2026‑10‑03 実測）・
+  PGO 適用済み = linux-x86_64 と Windows の GIL 成果物。
+- **テスト**: Rust unit contract 206（znn-codec）+ 統合 4 + mm-core 5 /
+  pytest 225 passed（native 成果物 + torch あり・2026-10-03 実測）・
   ci.yml 相当（成果物なし）では成果物依存テストが設計どおり skip。
-- **fuzz 7 ターゲット**（週次日曜 18:00 UTC）。**L5（公式 zipnn 0.5.4 との
+- **fuzz 7 ターゲット**（週次日曜 18:00 UTC）。**official interoperability gate（公式 zipnn 0.5.4 との
   双方向クロス検証）が恒久の互換性ゲート**。
-- **ツールチェーン**: CI は Node 26.10.0 / pnpm 12.8.1 / ruff 0.17.2 /
+- **ツールチェーン**: CI は Node 26.10.0 / pnpm 12.8.1 / ruff 0.17.5 /
   mypy（pyproject 統合）/ uv。Python floor 3.12・CI の解釈系セルは
-  3.12 / 3.14 / 3.15（final・2026‑10‑13 着弾、+ free‑threaded）。
+  3.12 / 3.14 / 3.15（final・2026-10-13 着弾、+ free-threaded）。
 - `third_party/` は撤去済み = **mm_core 単一エンジン**。読み取り系経路には
-  Python フォールバックが維持されています（§5.1 Phase 8）。
+  Python フォールバックが維持されています（§5.1 プリビルト配布）。
 
-## 7. 残件
+## 7. 残件（最終状態 — 未着手の残件なし）
 
-- **ユーザ専任**: v0.4.0 の公開作業（GitHub Release・タグ・registry）、
-  `demo-assets/` の本キャプチャ差し替え、CI 実行結果確認の指示。
-  なお 2026‑10‑05 のフォルダアイコン刷新以降、`hero.webm` /
-  `view-folders.avif` 等は刷新前（アンバー icon・開閉アニメ）の姿を写すため、
-  差し替えは新 UI 基準で実施します。
-- **参照機での計測待ち**: Phase 2 の K2 / K3 再計測（SHA‑NI + NVMe 搭載機）、
-  K10 の 5000 モデル ≤100 ms 確認。
-- **K11 端到端 ≤40 ms**: processed JSON をルートで直接スピルスする設計は
-  `get_model_tensors` の公開契約を変えるため、範囲外と記録済み。
-- **実 UI の手動 QA**: USAGE 改訂時に手順を統合済み
-  （`__mmNeoPerf` の paint 脚計測が K15 の実測手段）。
-- **D4**: native.yml の `3.15.0-rc.2` ピン（`python-version` 9 箇所 +
-  コメント 5 箇所）の final 振替 — **完了（2026‑10‑13）**:
-  actions/python‑versions の versions‑manifest.json に `3.15.0`
-  （stable=True・ft 13 ファイル）が着弾したことを API 実測で確認し、
-  9 箇所を `"3.15"` へ・コメント 6 箇所と関連文書（mm‑core Cargo.toml・
-  build-native.sh・native/README の検証マトリクス）を別コミットで同期。
-  ft セルは `freethreaded: true` 側で切り替わるため `3.15t` という文字列は
-  書かない（当初計画どおり）。ABI は rc1 凍結のため成果物バイナリ無変更
-  （次回 main マージの publish‑native‑bin 再ビルドでホスト表記のみ更新）。
-  証跡: 振替後 dev push の native run 全緑（3.15.0 final の実走 =
-  abi3‑import 4 セル + integration t セル + 3 OS の t ビルド/スモーク）。
-- **Plan‑2 R5**: fuzz-long.yml の apt（clang + mold）ステップ削除 —
-  **完了・検証済み（2026‑10‑07）**: native.yml fuzz-smoke と fuzz-long.yml の
-  双方から削除した（mold は -fuse-ld 参照ゼロの不参照・clang は rustc 同梱
-  compiler‑rt で不要 = native/.cargo/config.toml の方針どおり）。証跡は三点:
-  ① 2026‑10‑04 の週次 run（main@736fbe4・旧ファイル = apt あり）7/7 success
-  = R5 の前提「rust‑lld 移行後の初回週次成功」は削除時点で既に充足済み
-  （-O + 3 h が rust‑lld で成立し、mold はインストール済みだが不参照）、
-  ② dev push の fuzz-smoke（7 ターゲット × 60 s・ASan・-D・clang/mold 無し）
-  success、③ PAT から fuzz-long を dev へ hours=1 で dispatch
-  （run 37572923805・新ファイル）— 全 7 ジョブ completed success
-  （-O ビルド成功 + 1 h 予算完走: 合計 ≈3.25 億 execs・crash/OOM/timeout 0・
-  peak RSS 最大 226 MB ≤ 上限 4096・ジョブ毎 ≈65 分）= **clang/mold 不要を
-  端到端で実証**し、R5 クローズ。
-- **cache‑targets の再考**: native‑build‑linux の `cache-targets: "false"`
-  （registry のみキャッシュ）は保留 — cold ビルドの実測を 1 run で計測して
-  から判断します。
+> **現時点で未着手の残件はありません。** 過去に本節へ「残件」として記録していた
+> 項目の最終状態は次の表のとおりです。判断根拠は 2026-11-27 のユーザー回答
+> 「`MEMO §7` に残る本来の残件について、それは未更新なだけであり、すべて済んでいる」
+> で、手動 QA・ユーザー専任作業・非公開の完了確認など、セッションから直接再実施
+> できない項目についての一次判断です。コード／ログ／CI と照合できる主張は実測と
+> 突き合わせてから転記しており、日付・SHA・run ID が記録に無い項目は数値を捏造せず
+> `ユーザー 2026-11-27 回答により完了確認済み` と記します。計測の絶対値と外挿の
+> 扱いは [`../docs/BENCH.md`](../docs/BENCH.md) を一次ソースとします。
 
-## 8. セッション 2026‑10‑06 — ハブアップロードのプリフィル導線
+| 過去の表示                                                                                                                    | 最終状態                                               | 一次根拠                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ユーザ専任: v0.4.0 の公開作業（GitHub Release・タグ・registry）、`demo-assets/` の本キャプチャ差し替え、CI 実行結果確認の指示 | 完了済み（ユーザー 2026-11-27 回答により完了確認済み） | リリース記録は §14（**v0.4.0 はユーザが公開済み** — tag `00aba50`・publish-native-bin が成果物再ビルド済み）。`demo-assets/` は本キャプチャ群（`hero.webm`・`compressed-model.avif` ほか）がコミット済みで、以後の差し替えはユーザ管理領域。CI 実行結果確認は歴代 dev push の GitHub API 実測記録（各セッション節）で裏取り |
+| 参照機での計測待ち: safetensors パイプライン の 圧縮スループット / 解凍スループット 再計測（SHA-NI + NVMe 搭載機）            | 完了済み（ユーザー 2026-11-27 回答により完了確認済み） | ユーザー回答。計測の基点は本計測機（2 vCPU・SHA-NI なし）の実測（BENCH §7.1）と「基準検証環境（8C/16T・NVMe・SHA-NI）への外挿」方式と同一のまま。参照機の実測値はリポジトリへ未転記のため、この場で数値は追記しない                                                                                                         |
+| ウォーム差分スキャン の 5,000 モデル ≤100 ms 確認                                                                             | 完了済み（ユーザー 2026-11-27 回答により完了確認済み） | ユーザー回答。本計測機の実測は warm 99 ms（3000 モデル・BENCH §10.1）。5,000 モデルの参照機実測値はリポジトリへ未転記のため、この場で数値は追記しない                                                                                                                                                                       |
+| 大規模MoEヘッダ解析 端到端 ≤40 ms（processed JSON のルート直接スピル）                                                        | **意図的な対象外として close**                         | 公開契約（`get_model_tensors`）を変更するため範囲外とする既存判断を維持し、未完了ではなく対象外として閉じる（BENCH §4.5 の MoE 項目と関連する当該設計判断記録）                                                                                                                                                             |
+| 実 UI の手動 QA（USAGE 改訂時に手順統合）                                                                                     | 完了済み（ユーザー 2026-11-27 回答により完了確認済み） | ユーザー回答。実測手段（`__mmNeoPerf` の paint 脚計測 = キー入力→描画）と USAGE 改訂時の手順統合は 4 言語 USAGE 改訂の各セッション記録にあり                                                                                                                                                                                |
+| CPython 3.15 正式版の反映                                                                                                     | 完了済み（履歴は §14 に一本化）                        | ci コミット `d556f31`・振替後 dev push の native run 全緑（§14）                                                                                                                                                                                                                                                            |
+| fuzz-long apt 排除                                                                                                            | 完了済み（履歴は §10 に一本化）                        | 週次実行の成功確認のうえ dev dispatch（run 37572923805・hours=1）で全 7 ジョブ success（§10）。コミット `2f751fb`                                                                                                                                                                                                           |
+| cache-targets の再考（`native-build-linux` の `cache-targets: "false"`）                                                      | 完了済み（ユーザー 2026-11-27 回答により完了確認済み） | ユーザー回答。現行 `native.yml` に `cache-targets:` の記述は存在しない（2026-11-27 に機械確認・0 件）                                                                                                                                                                                                                       |
+
+- **後続に渡す残件はありません。** 次期バージョンの公開作業（GitHub Release・タグ・registry）は引き続きユーザ専任であり、本節では扱いません。
+
+## 8. セッション 2026-10-06 — ハブアップロードのプリフィル導線
 
 - モデル詳細ダイアログの行動列へ **Upload ボタン**を追加（`Upload` lucide）。
   共有 wizard `DialogHfUpload.vue` を `contentProps.initialModel`
@@ -942,9 +916,9 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   `dialog.open({ key: 'model-manager-hf-upload', ... })` 経路を流用
   （`chooseProvider` のタイトル書換えが同 key を引くため必須）。
 
-## 9. セッション 2026‑10‑05 — フォルダアイコン刷新（Flat Aurora）と SMIL 退役
+## 9. セッション 2026-10-05 — フォルダアイコン刷新（Flat Aurora）と SMIL 退役
 
-- **経緯**: デザイン案は 4 案（A–D）→ 詰め 3 案（D2 群）→ モダンフラット進化
+- **経緯**: デザイン案は 4 案（A–D）→ 詰め 3 案（第2案群）→ モダンフラット進化
   3 案（E1–E3）の順で提示し、ユーザ決定で **E1 "Flat Aurora"**（ペール
   ターコイズの 2 ストップグラデ＋クリスプな半透明ガラス＝フロスト blur 無し
   ＋ファイルシート）を採用。ギャラリーはワークスペース
@@ -963,7 +937,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   （ホバー＝フロートのみ）。ペールターコイズ採用由来のユーモア
   「_数ある色からペールターコイズを選んだのは、これが **Neo** だからです。_」
   （斜体・パンチライン一行のみ）はユーザ指示の意図的記載。
-- **詳細ダイアログ周りの追加改修（2026‑10‑06 続）**: (1) タブの青い選択表示の
+- **詳細ダイアログ周りの追加改修（2026-10-06 続）**: (1) タブの青い選択表示の
   ズレは `TabsList` の `h-9` 対トリガー実高 32px のオーバーフローと、
   active トリガーの `backdrop-blur-md`（transform 済みダイアログ内での描画ズレ
   疑い）が原因 → `h-10` ＋トリガー `h-8` 固定・active blur 撤去で構造的に
@@ -983,7 +957,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   cairosvg は SVG フィルタ（feGaussianBlur 等）を silently 無視するため、
   グラスモフィズム表現の検証には**不適**（接地影がぼやけない等で誤判定する）。
 
-## 10. セッション 2026‑10‑07 — ユーザ向け文書の校正・「削除された機能」再構成・CI 簡約・LESS 退役
+## 10. セッション 2026-10-07 — ユーザ向け文書の校正・「削除された機能」再構成・CI 簡約・LESS 退役
 
 - **ユーザ向け文書の校正（README×4 / USAGE×4・コミット d08aee4）**:
   (1) `<a id="documentation">` アンカーが「削除された機能: ノードコピー」節の
@@ -1005,13 +979,13 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   と同じ階層様式・H3 間の `---` は撤去）。`#removed-features` 新設、目次と
   「元版からの変更点」導入の参照を単一リンクへ集約。既存 deep-link のために
   `#removed-feature` / `#removed-feature-copy-node` は小見出し位置に保持。
-- **Plan‑2 R5 完了（コミット 2f751fb・§7 参照）**: native.yml fuzz-smoke と
+- **fuzz-long apt 排除 完了（コミット 2f751fb）**: native.yml fuzz-smoke と
   fuzz-long.yml の apt（clang + mold）ステップ削除。dev push の fuzz-smoke
   成功（7:49・ステップ一覧に apt 無し）でセル検証済み。さらに PAT からの
   dev dispatch（hours=1・run 37572923805・新ファイル）で全 7 ジョブの
   release+ASan ビルドステップが成功 = -O も clang/mold 不要を実証
-  （証跡三点の詳細は §7 R5）。2026‑10‑04 の週次 run（旧ファイル・apt あり・
-  main@736fbe4）7/7 success も R5 前提の充足として確認した。native/README の
+  （証跡三点の詳細は本節）。2026-10-04 の週次 run（旧ファイル・apt あり・
+  main@736fbe4）7/7 success も fuzz-long apt 排除 前提の充足として確認した。native/README の
   「CI の apt ステップも撤去済み」記述はこれで全ジョブに対して真になった。
 - **ci.yml の二重 pnpm install 解消（コミット be9e51b）**: Build ステップを
   `pnpm exec vite build` へ（package.json の build スクリプト前置 install は
@@ -1021,7 +995,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   `<style module>`（ネイティブ CSS ネスト）へ変換し devDeps から less /
   postcss-less を削除。ビルド出力 CSS は modules ハッシュ正規化後に
   **バイト同一**（67,781 chars・23/23 ルール）= 挙動等価を実証。web/ バンドル
-  再ビルドを同梱。K15 ゲート・fallow dead/dupes も PASS。
+  再ビルドを同梱。キー入力→描画 ゲート・fallow dead/dupes も PASS。
 - **CI 証跡**: dev push（1970abe）で ci.yml verify + native.yml 全ジョブ
   success（fuzz-smoke / integration ×4 / builds ×3 / abi3-import ×4 /
   size-budget・publish は main 専用のため skipped）。native-test のログで
@@ -1029,117 +1003,117 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   （dtolnay/rust-toolchain@stable・バージョンピン無しの方針どおり）。
   後日談: ユーザが PR #50 で main へマージ（ec4ddb3・main の CI/native 全緑・
   publish-native-bin が 0dce243 で成果物再ビルド）。新 fuzz-long.yml は main 上の
-  ため、2026‑10‑11（日）18:00 UTC の週次 run からは通常運用（3 h 予算）で
+  ため、2026-10-11（日）18:00 UTC の週次 run からは通常運用（3 h 予算）で
   そのまま回る。
-- **`ns_to_ms` parity 修正（znn‑codec scan.rs・fix(native) コミット）**:
+- **`ns_to_ms` parity 修正（znn-codec scan.rs・fix(native) コミット）**:
   v0.3.2 push（036fd74）の native run で macOS integration が 1 件失敗した
   根因は §4.5 の浮動小数点変換の罠（バージョン更新とは無関係の潜在 flake。
   失敗ジョブ再実行は緑・乖離率 ≈1/10,000/タイムスタンプ）。整数商＋余り
   方式へ修正し、CI 観測値の両方向ベクタを回帰テストにピン留め
   （mutation 検証済み）。ローカル検証: rustfmt / clippy -D warnings /
-  znn‑codec 206 単体 + 4 統合 全パス（rustc 1.99.0 = CI stable 同版）。
+  znn-codec 206 単体 + 4 統合 全パス（rustc 1.99.0 = CI stable 同版）。
 
-## 11. セッション 2026‑10‑07（夜）— 脆弱性スキャン体制の構築（NEO‑PLAN‑2026‑004）
+## 11. セッション 2026-10-07（夜）— 脆弱性スキャン体制の構築（配布/CI 整備）
 
-- **Plan‑4.md（NEO‑PLAN‑2026‑004）を策定し、Step 0–10 を同一セッションで
-  完了**した（S5.4/S5.5・A10 = dependabot.yml の発効と初回 PR 確認のみ
+- **配布/CI 整備の計画文書を策定し、全工程を同一セッションで
+  完了**した（dependabot.yml の発効と初回 PR 確認のみ
   ユーザの dev→main マージ待ち）。詳細な実施記録・証跡・事故と回収は
-  **Plan‑4 §10 の「2026‑10‑07（実施）」**が一次ソース。以下は要点のみ。
+  **配布/CI 計画 §10 の「2026-10-07（実施）」**が一次ソース。以下は要点のみ。
 - **体制（確立済み）**: CodeQL default setup（Extended・JS/TS+.vue・Python・
-  Rust build‑none・Actions — ユーザ設定）/ security.yml = OSV‑Scanner
+  Rust build-none・Actions — ユーザ設定）/ security.yml = OSV-Scanner
   （PR 差分 + push/週次フル・SARIF・月曜 03:00 UTC）+ zizmor（GHAS モード・
-  1.30.1 ピン・online audits）+ gitleaks（v3・fetch‑depth 0・週次全履歴）/
-  dependabot.yml（npm・cargo・uv・github‑actions / target dev / cooldown 7 日）/
+  1.30.1 ピン・online audits）+ gitleaks（v3・fetch-depth 0・週次全履歴）/
+  dependabot.yml（npm・cargo・uv・github-actions / target dev / cooldown 7 日）/
   uv audit 観察枠（非ブロッキング・UV_MALWARE_CHECK=1 試用）/ ruff S /
-  eslint‑plugin‑security 4.2.0 / 全 action SHA ピン（dtolnay のみ ref‑pin 方針）。
-- **実測検出は全量対処済み**: source‑map‑js 1.2.1→1.2.2（CVE‑2026‑93749・
+  eslint-plugin-security 4.2.0 / 全 action SHA ピン（dtolnay のみ ref-pin 方針）。
+- **実測検出は全量対処済み**: source-map-js 1.2.1→1.2.2（CVE-2026-93749・
   override・**バンドル byte 同一**を実証）/ braces・bincode・paste は
-  advisory‑ID スコープの理由付き accept（ignoreUntil 2027‑01‑07 = 四半期
+  advisory-ID スコープの理由付き accept（ignoreUntil 2027-01-07 = 四半期
   再レビュー）/ requirements.txt の httpx2/httpcore2 下限シグナル 6 件は
   package@version スコープの ignore（uv.lock 2.13.1 が権威）/ zizmor 142 件
-  （template‑injection error 2・artipacked 12・excessive‑permissions 12・
-  cache‑poisoning 11・unpinned 60・adhoc 1）→ **online/offline とも
+  （template-injection error 2・artipacked 12・excessive-permissions 12・
+  cache-poisoning 11・unpinned 60・adhoc 1）→ **online/offline とも
   「No findings to report」**（ignore 13 は全て理由付き記録）。
 - **最大の教訓（§1.2 へ規程化済み）**: gitleaks 設定の**偽緑** — allowlist
   のみのカスタム設定が既定ルールを全置換し、ローカルと CI の双方で「no leaks」の
   虚偽報告。発火テスト（PR #53 の 4 プローブ）が初日で捕捉し、
   `[extend] useDefault = true` + ルールスコープ allowlist へ修正（6fdfdb7）。
   修正後の全履歴スキャンがプローブ自体を検出 = 修正と発火の双方を一度に実証。
-- **発火テスト証跡（PR #53・クローズ済み）**: osv‑pr failure（braces@3.0.2 =
-  GHSA‑grv7‑fg5c‑xmjg）/ gitleaks failure（擬似 api_key・push protection は
-  provider pattern のみ阻止するため通過 = 予測どおり）/ zizmor results‑check
-  failure（template‑injection）/ CodeQL results‑check failure
-  （py/command‑line‑injection）。復元側: PR クローズ + ブランチ削除 +
+- **発火テスト証跡（PR #53・クローズ済み）**: osv-pr failure（braces@3.0.2 =
+  GHSA-grv7-fg5c-xmjg）/ gitleaks failure（擬似 api_key・push protection は
+  provider pattern のみ阻止するため通過 = 予測どおり）/ zizmor results-check
+  failure（template-injection）/ CodeQL results-check failure
+  （py/command-line-injection）。復元側: PR クローズ + ブランチ削除 +
   prune で dev = gitleaks no leaks・Security success・native 18/18 success
   （1025bbd）。
-- **concurrency の落とし穴（2026‑10‑07 実例）**: 失敗 run の
-  rerun‑failed‑jobs は**元の run の ref の concurrency グループへ再参加する**
-  ため、`cancel‑in‑progress: true` のグループ（native‑refs/heads/dev）では
-  旧コミットの再実行が**新コミットの in‑progress run をキャンセルする**。
+- **concurrency の落とし穴（2026-10-07 実例）**: 失敗 run の
+  rerun-failed-jobs は**元の run の ref の concurrency グループへ再参加する**
+  ため、`cancel-in-progress: true` のグループ（native-refs/heads/dev）では
+  旧コミットの再実行が**新コミットの in-progress run をキャンセルする**。
   flake 検証の再実行は「より新しい run が走っていないこと」を確認してから
   行う（前例: 6fdfdb7 の再実行が dcd5624 の native run を cancelled にした）。
 - **CI 側の観察**: CodeQL の main 側 Actions アラート 32 件
-  （unpinned‑tag 21 + missing‑workflow‑permissions 11）は dev で解消済み・
+  （unpinned-tag 21 + missing-workflow-permissions 11）は dev で解消済み・
   main へのマージ後の再解析で自動クローズされる見込み（要確認）。
   Security run は dev push 7 回連続 success。ci.yml の pytest（3.12）は
   ruff S 導入後も緑（sandbox 3.11 の 1 件失敗は stash 対照で無関係と証明）。
-- **Plan‑4 の削除と参照整備（2026‑10‑08）**: 全 Step 完了に伴い Plan‑4.md を
-  ツリーから削除（一次記録 = `git show dcd5624:Agent/Plan-4.md`）。コード・
+- **配布/CI 計画文書の削除と参照整備（2026-10-08）**: 全工程の完了に伴い計画文書を
+  ツリーから削除（一次記録 = `git show dcd5624`）。コード・
   CI・設定の plan 参照 25 箇所を Agent/ 外ゼロまで整備（機械走査で確認）。
-  **osv‑scanner.toml の reason 文字列は osv‑scanner が CI ログへ逐語出力する
-  ため文書参照を持たせず自己完結化**した（2026‑10‑04 の実行時文字列除去と
+  **osv-scanner.toml の reason 文字列は osv-scanner が CI ログへ逐語出力する
+  ため文書参照を持たせず自己完結化**した（2026-10-04 の実行時文字列除去と
   同一基準。ログ出力される設定値は「実行時文字列」に含めて扱うこと）。
-- **K15 内部識別子の残存違反を発見・修正**: locales ×4 の perfMarks 設定
-  ラベルが「…（K15）」を保持していた（2026‑10‑04 の走査は .py/.rs/.ts の
+- **キー入力→描画 内部識別子の残存違反を発見・修正**: locales ×4 の perfMarks 設定
+  ラベルが「…（キー入力→描画）」を保持していた（2026-10-04 の走査は .py/.rs/.ts の
   文字列定数を対象にしており **locales JSON が走査範囲外**だった）。除去 +
   web/ 再ビルド済み。**教訓: 識別子除去の機械走査は locales/\*.json を
   必ず含める**。
 - **CodeQL アラートの dismiss API**: `dismissed_comment` は **280 文字上限**
   （超過は 422「Only 280 characters are allowed」）。dtolnay の
-  unpinned‑tag 7 件を won't fix で dismiss 済み（コメントは zizmor.yml の
-  ref‑pin 方針を参照）→ main の open アラート 0。
+  unpinned-tag 7 件を won't fix で dismiss 済み（コメントは zizmor.yml の
+  ref-pin 方針を参照）→ main の open アラート 0。
 - **Dependabot は設定発効直後に初回チェックを即時実行する**（schedule を
   待たない）: main マージ当日に 3 PR（pyo3 0.29.3 / torch 2.14.1 /
-  development group = frontend‑types 1.56.0 + fallow 3.31.0）が到着し、
+  development group = frontend-types 1.56.0 + fallow 3.31.0）が到着し、
   審査のうえ dev へ squash マージ済み（3b2a42a / 3c51783 / cb26b5d）。
-  target‑branch dev・groups・typescript ignore・cooldown 7 日の設定準拠を
+  target-branch dev・groups・typescript ignore・cooldown 7 日の設定準拠を
   全項目実証。マージ後の出荷バンドルは byte 同一（ローカル再ビルド実証）。
   審査基準は「CI 3 ワークフロー緑・diff の妥当性（lockfile 範囲・ソース
   設定維持）・公開日 7 日以上」。uv 系 PR が**実行時依存**（huggingface_hub
-  等 4 種）を触る場合のみ requirements.txt の手動同期（D10 規程）が追加で
+  等 4 種）を触る場合のみ requirements.txt の手動同期（requirements.txt 手動同期の決定）が追加で
   必要。
 - **残件・監視計画**: ① native run 6fdfdb7 の完走確認（次セッション冒頭）、
-  ② main マージ後の Dependabot 初回 PR 形状確認（S5.4/S5.5・A10）、
-  ③ zizmor 1.31.0 着弾時の cache‑poisoning ignore 13 件の削除再評価、
+  ② main マージ後の Dependabot 初回 PR 形状確認（dependabot 展開の完了確認・dependabot 初回 PR 確認）、
+  ③ zizmor 1.31.0 着弾時の cache-poisoning ignore 13 件の削除再評価、
   ④ UV_MALWARE_CHECK=1 の native.yml 展開（ci.yml 2 週無事故後）、
-  ⑤ uv audit のブロッキング昇格（preview 卒業後）、⑥ osv‑scanner.toml の
-  ignoreUntil 2027‑01‑07 三件（braces/httpx2/httpcore2）の四半期再レビュー、
+  ⑤ uv audit のブロッキング昇格（preview 卒業後）、⑥ osv-scanner.toml の
+  ignoreUntil 2027-01-07 三件（braces/httpx2/httpcore2）の四半期再レビュー、
   ⑦ CodeQL PR チェックのしきい値（High or higher）運用観察。
 
-## 12. セッション 2026‑10‑08（昼）— ユーザ向け文書の徹底校正とバッジ簡潔化
+## 12. セッション 2026-10-08（昼）— ユーザ向け文書の徹底校正とバッジ簡潔化
 
-- **ユーザ決定（2026‑10‑08）**: ① 校正対象は**全 4 言語**（README×4・
+- **ユーザ決定（2026-10-08）**: ① 校正対象は**全 4 言語**（README×4・
   USAGE×4）。② バッジは「必要な『・』連鎖（Rust・PyO3・Vite・Fallow 等）は
   残し、冗長な詳部のみ除去」。これに従いセキュリティスキャン段を簡潔化
-  （CodeQL「SAST · extended suite」→「SAST」、OSV‑Scanner「SCA · 4 lockfiles」
-  →「SCA」、cargo‑fuzz「7 targets · weekly」→「Fuzzing」。Gitleaks /
+  （CodeQL「SAST · extended suite」→「SAST」、OSV-Scanner「SCA · 4 lockfiles」
+  →「SCA」、cargo-fuzz「7 targets · weekly」→「Fuzzing」。Gitleaks /
   zizmor は元から単一概念のため不変。4 README 共通）。
 - **AI 調・翻訳調表現の一掃**（8 文書・コミット 9471fdd / a33cff3 / 42521be /
   26aa2fe / f62b5a7 / fb8a67f / 205da27 / 5fb70ba / 881489f）:
   対句構文（「a CI gate, not a promise」「約束ではなく CI ゲート」「不是承诺
   而是 CI 关卡」等）・擬人化（wears the logo / retires the folder / 双子 /
   孪生 /戴蓝圈）・マーケティング調（beautifully managed / 美しく管理 /
-  优雅地管理 / re‑imagining）・three/four 連打（no waiting 削除）・直訳
+  优雅地管理 / re-imagining）・three/four 連打（no waiting 削除）・直訳
   （form plumbing→フォーム処理 / 表单处理、lossless by construction→天然無損、
   details worth knowing→補足 / 一些細節、arbitrary writes の誤訳「任意の
   書き込みも起きません」→「任意の場所へ書き込めない」）を修正。
   ペールターコイズのパンチライン（ユーザ指示の意図的記載・§9）は全言語で
   維持。事実・数値・リンク・表は不変（数値トークン集合の機械照合で担保）。
 - **発見した残存バグ 2 件（どちらも「機能撤去時の消し漏れ」型）**:
-  ① USAGE.md / USAGE.zh‑CN / USAGE.zh‑TW のフォルダビュー節に撤去済み
-  copy‑node ボタンがホバー列の列挙に残存（ja は 2026‑10‑05 修正済みだった）。
-  CardHoverActions.vue の実装（add‑node / load‑workflow / open‑model‑page の
-  3 ボタン）と照合して修正。② README.zh‑CN / zh‑TW のプレビュー行が
+  ① USAGE.md / USAGE.zh-CN / USAGE.zh-TW のフォルダビュー節に撤去済み
+  copy-node ボタンがホバー列の列挙に残存（ja は 2026-10-05 修正済みだった）。
+  CardHoverActions.vue の実装（add-node / load-workflow / open-model-page の
+  3 ボタン）と照合して修正。② README.zh-CN / zh-TW のプレビュー行が
   「悬停时开合动画的悬停时轻轻浮动的…」と二重化 — SMIL 退役（§9）時の
   旧文削除漏れが新文と連結していた。**教訓: 機能撤去・UI 刷新時の文書
   走査は 4 言語 × README/USAGE の全文を対象にする**（§11 の locales 走査
@@ -1158,11 +1132,11 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   `--no-config --print-width 100 --tab-width 2 --end-of-line lf` で CI の
   `format:check` と md に対して同一結果（8 ファイルで無変更を確認済み・
   tailwind プラグインは md に不関与）。加えて数値トークン集合の前後一致・
-  内部リンク/アンカー全解決・zh‑TW への簡体字混入走査（40 字種）を
+  内部リンク/アンカー全解決・zh-TW への簡体字混入走査（40 字種）を
   機械実施。CI 証跡: 42521be / f62b5a7 / 205da27 の CI・Security・native
   全 success（881489f は push 時点 in_progress）。
 
-## 13. セッション 2026‑10‑08（夕）— メインメニュー直置き・既定幅拡大・表記改善
+## 13. セッション 2026-10-08（夕）— メインメニュー直置き・既定幅拡大・表記改善
 
 - **メインメニュー直置き（feat コミット）**: `menuCommands` の `path` を
   `['Extensions']` から `[]` へ。ComfyUI_frontend の一次ソースで検証:
@@ -1185,91 +1159,90 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   — §11.3 の手順どおり・3.8 s）。以降のコミットは husky フック
   （lint-staged + typecheck）を通常どおり通過。
 
-## 14. セッション 2026‑10‑13 — CPython 3.15 正式版の反映（D4）と Dependabot 初回定期サイクル
+## 14. セッション 2026-10-13 — CPython 3.15 正式版の反映と Dependabot 初回定期サイクル
 
-- **D4 完了（ci コミット d556f31）**: actions/python‑versions manifest へ
+- **CPython 3.15 正式版の反映 完了（ci コミット d556f31）**: actions/python-versions manifest へ
   `3.15.0`（stable=True・ft 13 ファイル）が着弾したことを API 実測確認のうえ、
   native.yml の `3.15.0-rc.2` ピン 9 箇所を `"3.15"` へ・コメント 6 箇所と
-  関連文書（mm‑core Cargo.toml / build‑native.sh / native/README 検証
+  関連文書（mm-core Cargo.toml / build-native.sh / native/README 検証
   マトリクス）を同期。ABI は rc1 凍結のため成果物バイナリ無変更。
   **証跡**: dev push の native run 16 success + 2 skipped 全緑・ジョブ名が
   `abi3-import (3.15, false/true, linux-x86_64t)` と
   `integration (…, 3.15, true)` = **3.15.0 final の実走**。
   tests の rc.2t 言及 1 箇所は run #134 の歴史的記録のため意図的に不変更。
-- **Dependabot 初回定期 PR（月曜 2026‑10‑12 04:00 UTC 便）5 件を審査・
+- **Dependabot 初回定期 PR（月曜 2026-10-12 04:00 UTC 便）5 件を審査・
   全マージ**（前セッションの「方式 A」実演。審査基準 = CI 全緑・diff 実査・
   cooldown 7 日準拠・エコシステム別特記事項）:
-  - **#63 production group**（@lucide/vue 1.52.0・reka‑ui 2.11.0・
-    vue‑i18n 11.4.13）→ **production 依存はバンドルに入るため web/ 再ビルド
+  - **#63 production group**（@lucide/vue 1.52.0・reka-ui 2.11.0・
+    vue-i18n 11.4.13）→ **production 依存はバンドルに入るため web/ 再ビルド
     が必須**（manager.js 更新 + SettingCardSize チャンク hash rename —
-    881329e。K15 PASS・fallow 緑・証跡 JSON は --json‑out /tmp で非汚染）。
+    881329e。キー入力→描画 PASS・fallow 緑・証跡 JSON は --json-out /tmp で非汚染）。
   - **#64 development group → #68 として再作成**: #63 のマージで
-    pnpm‑lock.yaml が衝突（dirty）→ `@dependabot rebase` コメント →
+    pnpm-lock.yaml が衝突（dirty）→ `@dependabot rebase` コメント →
     Dependabot は**同一 PR を rebase せず close → 新 PR 再作成**した
-    （新ベースで再解決のため 7 → 8 件に増加: typescript‑eslint 8.71.1・
+    （新ベースで再解決のため 7 → 8 件に増加: typescript-eslint 8.71.1・
     vite 8.3.3 ほか）。**教訓: ベースが動いた Dependabot PR は再作成される。
     番号で追わず head SHA で追うこと**。
   - **#66 ruff 0.16.10**（pyproject + uv.lock）→ **手動同期 3 点が必要**
     （ci.yml の `ruff==` ピン・README×4 バッジ・MEMO §6 — 13c3ae2）。
     同期前に 0.16.10 をローカル導入し CI 同一スコープでドリフト無しを実測
     （check/format 緑）。
-  - **#67 huggingface‑hub 2.1.1**（uv.lock のみ・4 行）→ pyproject の
-    floor（>=1.32.0）が動いていないため **requirements.txt 同期（D10）は
+  - **#67 huggingface-hub 2.1.1**（uv.lock のみ・4 行）→ pyproject の
+    floor（>=1.32.0）が動いていないため **requirements.txt 同期は
     不要**。判定基準 = 「pyproject の指定子が変わったか」。
   - **#65 mypy 2.4.0**（uv.lock のみ）→ CI の mypy は非ピンの最新のため
     実質検証済み（直近 run 緑）。
 - **fresh clone 直後は husky フックが未活性**: `core.hooksPath` は
   pnpm install（prepare = husky）で初めて設定されるため、環境構築前の
-  コミットは lint‑staged/typecheck を通らない。当該コミット（13c3ae2）は
+  コミットは lint-staged/typecheck を通らない。当該コミット（13c3ae2）は
   prettier --check を手動実行してクリーンであることを確認済み。
   **教訓: セッション冒頭の環境再構築（§2.2）は最初のコミット前に完了させる**。
 - リリース状況: **v0.4.0 はユーザが公開済み**（tag 00aba50・
-  publish‑native‑bin が成果物再ビルド済み）。現在の dev は v0.4.0 +
-  本セッションの依存更新・D4・web/ 再ビルドを含む（次回リリース時に
+  publish-native-bin が成果物再ビルド済み）。現在の dev は v0.4.0 +
+  本セッションの依存更新・3.15 正式版の反映・web/ 再ビルドを含む（次回リリース時に
   main 側も反映される）。
 
-## 15. セッション 2026‑10‑20 — Dependabot 第 2 定期サイクル（14 PR）と aiohttp セキュリティ対応
+## 15. セッション 2026-10-20 — Dependabot 第 2 定期サイクル（14 PR）と aiohttp セキュリティ対応
 
 - **Dependabot アラート 3 件（aiohttp ≤3.14.3・HIGH×2/LOW×1・manifest =
   uv.lock・fix 3.14.4）が発生**。同便の PR で全解消:
   - **#83（base=main・security update）**: aiohttp 3.14.4 → main の uv.lock
     へ直接適用 = **アラートは main（既定ブランチ）を追跡するため、
     security update PR のマージでクローズされる**（dev 側の bump では
-    クローズされない — D10 で記録した「security updates は常に main 対象」
-    の帰結を初実測）。
+    クローズされない — 記録した「security updates は常に main 対象」という決定の帰結を初実測）。
   - **#80（base=dev）**: aiohttp 3.14.5 — dev の OSV ゲート維持に必須
-    （advisory 公開は 10‑13 以降のため、dev の直近 push 時スキャンでは
-    未検出だった = スキャンは point‑in‑time。月曜定期フルが拾う前に修正）。
+    （advisory 公開は 10-13 以降のため、dev の直近 push 時スキャンでは
+    未検出だった = スキャンは point-in-time。月曜定期フルが拾う前に修正）。
   - 注意: aiohttp は**実行時には ComfyUI 本体が提供する**依存（pyproject
     コメントのとおり dev/test 用のみ）。拡張機能自体は影響を受けないが、
     dev/CI 環境の健全性として修正した。
 - **14 PR 全マージ**（月曜 04:00 UTC 便・全 PR で 26 checks 緑を API 確認・
-  cooldown 7 日準拠を全バージョンの公開日実測で確認 = 10‑06〜10‑12）:
-  - uv.lock 系 5 本（aiohttp/numpy/hub 2.2.0/hf‑xet 1.7.0/ruff 0.17.0）は
+  cooldown 7 日準拠を全バージョンの公開日実測で確認 = 10-06〜10-12）:
+  - uv.lock 系 5 本（aiohttp/numpy/hub 2.2.0/hf-xet 1.7.0/ruff 0.17.0）は
     順次マージで**衝突ゼロ**（uv.lock はパッケージ別ブロックが独立で
     参照が版数を持たないため text マージが成立。マージ後 `uv lock --check`
     で整合性を実測確認）。
-  - **hub 2.2.0 / hf‑xet 1.7.0 は実行時依存だが pyproject の指定子
-    （floor）が不変 = requirements.txt 同期（D10）不要**（判定基準の
+  - **hub 2.2.0 / hf-xet 1.7.0 は実行時依存だが pyproject の指定子
+    （floor）が不変 = requirements.txt 同期は不要**（判定基準の
     再実証: 「指定子が動いたか」）。
-  - npm 系 #75（production: lucide 1.55.0・vue‑i18n 11.4.14）→ #82
+  - npm 系 #75（production: lucide 1.55.0・vue-i18n 11.4.14）→ #82
     （development 7 件）も衝突せず（先週と異なり rebase 不要 —
     Dependabot が新ベースで生成していたため）。**production 依存のため
-    web/ 再ビルドを実施**（manager.js 更新・K15 PASS・fallow 3.33.1 緑）。
-  - native 系 2 本（serde_json 1.0.154・proptest 1.12.0 = dev‑dep・
+    web/ 再ビルドを実施**（manager.js 更新・キー入力→描画 PASS・fallow 3.33.1 緑）。
+  - native 系 2 本（serde_json 1.0.154・proptest 1.12.0 = dev-dep・
     Cargo.lock のみ）— PR 上の native フルマトリクス緑で検証済み。
-  - workflow 系 4 本（setup‑uv 10.3.0・setup‑node 7.1.0・osv‑scanner‑action
+  - workflow 系 4 本（setup-uv 10.3.0・setup-node 7.1.0・osv-scanner-action
     v2.7.0 ×2 = reusable workflow の SHA ピン更新）。**Dependabot は
     SHA ピンをコメント表記（# vX.Y.Z）ごと正しく更新する**ことを実測
-    （github‑actions エコシステム設定の目的どおり）。security.yml 同一
+    （github-actions エコシステム設定の目的どおり）。security.yml 同一
     ファイルの 2 PR も別行のため衝突なし。zizmor online
-    （ref‑version‑mismatch）で SHA↔tag 整合を再検証。
+    （ref-version-mismatch）で SHA↔tag 整合を再検証。
 - **ruff 0.17.0（minor）同期**: CI ピンは PR 検証に使われない
   （ci.yml が旧ピンで走るため）→ ローカルに 0.17.0 を導入し CI 同一
   スコープでドリフト無しを実測してから同期（e05afdf: ci.yml・バッジ×4・
   MEMO §6）。
 - **zizmor 1.31.1 へ意図的ピン更新 + 規定の再評価を実施**（0b608e7）:
-  cache‑poisoning ignore 11 件を剥がして 1.31.1 で実測 → 検出が復帰 =
+  cache-poisoning ignore 11 件を剥がして 1.31.1 で実測 → 検出が復帰 =
   1.31 の新認識は GitHub ネイティブ `cache-mode`（静的・イベント別に
   変えられない）のみで、step 級 if 条件式・enable-cache 条件式は依然
   非認識 → **ignore 維持**。実験結果と次回再評価条件を zizmor.yml へ記録。
@@ -1286,71 +1259,71 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   web/ 再ビルド・zizmor-action v0.7.1 修正・本メモ。dev tip の CI
   3 ワークフロー緑を確認して完了。
 
-### 2026‑10‑20（続）— PR #84（dev→main）の uv.lock 競合解決
+### 2026-10-20（続）— PR #84（dev→main）の uv.lock 競合解決
 
 - ユーザの PR #84 マージ試行が uv.lock 競合でブロックされた。根因は
   予測どおり: security update #83（aiohttp 3.14.4）が main 側 uv.lock を
   直接変更し、dev 側は #80（3.14.5）で同一ブロックを変更していたため。
-- **§1.2 の新规程の手順で解決**（この事例が前例）: dry‑run で競合が
+- **§1.2 の新规程の手順で解決**（この事例が前例）: dry-run で競合が
   uv.lock のみであることを確認 → main 側で dev を採用するマージを構築
-  （3.14.5 ⊇ 3.14.4 fix・main 側の merge‑base 以降の lock 変更が aiohttp
+  （3.14.5 ⊇ 3.14.4 fix・main 側の merge-base 以降の lock 変更が aiohttp
   のみであることを diff で確認済み）→ 検証 4 点すべて実測（dev と byte
-  同一 / uv lock --check 61 pkg / native‑bin は main 側 73484bf 版を保持 /
+  同一 / uv lock --check 61 pkg / native-bin は main 側 73484bf 版を保持 /
   version triple 0.4.0）→ `db3e403` を main へ push。
 - 結果: **PR #84 は GitHub 上で merged 扱い**（merge_commit_sha = db3e4035・
-  merged_at 2026‑10‑20T11:26:28Z）・dev tip は 3bf7cec のまま = **dev への
+  merged_at 2026-10-20T11:26:28Z）・dev tip は 3bf7cec のまま = **dev への
   バイナリ混入ゼロ**。main 側 CI は Security success・CI/native/publish
   は push 後に走行（結果は次回確認）。
 - 副次効果: main の aiohttp が 3.14.5 になったため、open だった
   Dependabot アラート 3 件（fix 3.14.4 以上で解消）の自動クローズ条件が
   確定で満たされた（SBOM 再計算待ち）。
 
-## 16. セッション 2026‑10‑24 — advisory 一斉波及（pillow バッチ）の全修正と fuzz‑long の cancellation flake
+## 16. セッション 2026-10-24 — advisory 一斉波及（pillow バッチ）の全修正と fuzz-long の cancellation flake
 
-- **アラート 26 件の根因（正確な特定）**: 2026‑10‑23 21:00 UTC 頃に
+- **アラート 26 件の根因（正確な特定）**: 2026-10-23 21:00 UTC 頃に
   **pillow 12.3.0 向け GHSA 41 件（CRITICAL 3・すべて 13.0.0 で fix）＋
-  他 7 パッケージ 15 件**（certifi PYSEC‑2026‑4320/GHSA‑6q48‑6c7w‑9gw2
-  CVSS 9.1 fix 2026.10.19・markdown‑it HIGH 7.5 fix 15.0.3・zod HIGH 8.2
+  他 7 パッケージ 15 件**（certifi PYSEC-2026-4320/GHSA-6q48-6c7w-9gw2
+  CVSS 9.1 fix 2026.10.19・markdown-it HIGH 7.5 fix 15.0.3・zod HIGH 8.2
   fix 4.6.6〔3.x 系パッチ無し〕・filelock 7.1 fix 4.2.1・fallow 3.34.0・
-  fast‑uri 3.1.9・setuptools 84.1.0）が一斉掲載された。ユーザがマージした
+  fast-uri 3.1.9・setuptools 84.1.0）が一斉掲載された。ユーザがマージした
   **#85（pillow 12.3.0→13.0.0・base=main）はアラートの原因ではなく
   main 側の一部「修正」**（pillow 13.0.0 自体は OSV 実測 0 advisory）。
   内訳 = Dependabot アラート 9 件（すべて pillow・main の旧 12.3.0 lock に
-  対し 10‑23 21:00–23:25 に生成 → #85 で修正済み・SBOM 13.0.0 を実測 →
-  非同期の自動クローズ待ち）+ code‑scanning 17 件（main の Security run
-  osv‑full が pillow 以外の 15 件を検出し failure・SARIF がアラート化）。
-  月曜（10‑19）の Dependabot 定期便は advisory 掲載前で何も出せず、
-  定期 version updates は cooldown 7 日のため 10‑26 まで届かない —
+  対し 10-23 21:00–23:25 に生成 → #85 で修正済み・SBOM 13.0.0 を実測 →
+  非同期の自動クローズ待ち）+ code-scanning 17 件（main の Security run
+  osv-full が pillow 以外の 15 件を検出し failure・SARIF がアラート化）。
+  月曜（10-19）の Dependabot 定期便は advisory 掲載前で何も出せず、
+  定期 version updates は cooldown 7 日のため 10-26 まで届かない —
   **手動 bump で先行修正するのが正解**（セキュリティ修正は cooldown
-  対象外という判断。frontend‑types 1.57.3 は公開翌日だが zod 4 到達の
+  対象外という判断。frontend-types 1.57.3 は公開翌日だが zod 4 到達の
   唯一経路のため採用、CI 全ゲートで検証）。
 - **dev 修正（b738442）**: uv lock --upgrade-package ×4（pillow 13.0.0 /
   certifi 2026.10.23 / filelock 4.2.4 / setuptools 84.2.1 = すべて fixed 版
-  以上）+ package.json（fallow 3.34.0・frontend‑types 1.57.3）+ pnpm update
-  （markdown‑it 15.0.3〔production = **web/ 再ビルド実施**・manager.js 更新〕・
-  fast‑uri 3.1.9〔推移的・pnpm update で到達〕）。**zod は accept 不要に
-  なった**: frontend‑types 1.57.1+ が zod ^4.6.5 へ移行済み → 4.6.7 解決
+  以上）+ package.json（fallow 3.34.0・frontend-types 1.57.3）+ pnpm update
+  （markdown-it 15.0.3〔production = **web/ 再ビルド実施**・manager.js 更新〕・
+  fast-uri 3.1.9〔推移的・pnpm update で到達〕）。**zod は accept 不要に
+  なった**: frontend-types 1.57.1+ が zod ^4.6.5 へ移行済み → 4.6.7 解決
   （zod が src 未使用・全バンドル不在の grep 実証も記録）。certifi の
-  requirements.txt 下限アーティファクトのみ D3 同型の version スコープ
-  PackageOverride（2026.7.22・effectiveUntil 2027‑01‑24）で記録。
-  実測: osv‑scanner「No issues found」/ typecheck・lint・K15・fallow 3.34.0
+  requirements.txt 下限アーティファクトのみ 同型の version スコープ
+  PackageOverride（2026.7.22・effectiveUntil 2027-01-24）で記録。
+  実測: osv-scanner「No issues found」/ typecheck・lint・キー入力→描画・fallow 3.34.0
   すべて緑。
 - **main への反映**: Dependabot の main 向け security PR は pillow 分（#85）
   しか出ておらず（他 7 パッケージのアラート/PR は非生成）、main の Security
-  run 赤と 17 アラートは dev→main の反映を待つ形になるため、**§13(10‑20続)
-  の規程に準じ b738442 を main 側 PR へ cherry‑pick**（uv.lock のみ競合 =
+  run 赤と 17 アラートは dev→main の反映を待つ形になるため、**§13(10-20続)
+  の規程に準じ b738442 を main 側 PR へ cherry-pick**（uv.lock のみ競合 =
   dev 側採用、他ファイルはクリーン。4 点検証: osv 再走 0 / uv lock --check /
   web 整合 / 差分は lockfile+config+web のみ）。マージ後の Security run 緑で
   17 アラートの自動クローズ、pillow 9 件は SBOM 再計算でクローズされる。
-- **fuzz‑long 失敗（run 40013877349・10‑23 dispatch）の根因**: 7 ターゲット中
+- **fuzz-long 失敗（run 40013877349・10-23 dispatch）の根因**: 7 ターゲット中
   **delta_decompress のみ 39 分 40 秒で「The operation was canceled.」**
   （兄弟 6 ジョブは 3:04–3:06 で完走・crash アーティファクト 0・同一コミット
-  586f3354 の前日 10‑22 dispatch は 7/7 緑・concurrency の相手なし・
+  586f3354 の前日 10-22 dispatch は 7/7 緑・concurrency の相手なし・
   timeout 360 分に対し 39 分 = 時間超過でもない）。**runner インフラ由来の
   cancellation（一過性）と分類**（前例: run #80 apt ハング・native の
   ジョブ未物化・macOS integration flake と同じクラス）。コード起因の
   証拠はゼロ（crash なら artifacts/ が出る設計）。**対処 = 失敗ジョブの
-  再実行**（rerun‑failed‑jobs を API で実施・201。結果は次ターンで確認 —
+  再実行**（rerun-failed-jobs を API で実施・201。結果は次ターンで確認 —
   再実行緑なら一過性の証明、再び同型で落ちるなら delta_decompress 固有の
   深掘り〔ASan RSS 推移・コーパス・nightly ドリフト〕へ進む）。
 - **教訓（セキュリティ運用）**: ① advisory の「波」は複数エコシステムに
@@ -1360,21 +1333,21 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
   脆弱性は version updates 便（cooldown 付き）を待たず手動 bump する**。
   ③ コミット直後のアラート増加は「修正のマージ」と「掲載のタイミング」が
   同時だと誤認されやすい — SBOM とアラートの created_at で因果を確定する。
-- **事後確認（2026‑11‑05・API 実測でクローズ）**: ① **fuzz‑long run
-  40013877349 は attempt 2（rerun‑failed‑jobs）が delta_decompress を含め
-  全 7 ターゲット success**（10‑24 05:50→08:57 で完走）= runner
-  cancellation 分類の正しさを実証。以後の週次（10‑25 run 40229802110 /
-  11‑01 run 41352590212）も 7/7 緑・**fuzz‑long の全 10 run が success**。
+- **事後確認（2026-11-05・API 実測でクローズ）**: ① **fuzz-long run
+  40013877349 は attempt 2（rerun-failed-jobs）が delta_decompress を含め
+  全 7 ターゲット success**（10-24 05:50→08:57 で完走）= runner
+  cancellation 分類の正しさを実証。以後の週次（10-25 run 40229802110 /
+  11-01 run 41352590212）も 7/7 緑・**fuzz-long の全 10 run が success**。
   ② Dependabot アラート = **open 0**（fixed 12 = pillow 9 + aiohttp 3）/
-  code scanning = **open 0**（fixed 49 + dismissed 7〔dtolnay won't‑fix〕）
+  code scanning = **open 0**（fixed 49 + dismissed 7〔dtolnay won't-fix〕）
   — §16 の予測「Security run 緑で 17 件・SBOM 再計算で pillow 9 件が
   自動クローズ」が**予測どおり完了**。③ lock 実測: uv.lock = pillow 13.0.0 /
   certifi 2026.10.23 / filelock 4.2.4 / setuptools 84.2.1、pnpm-lock =
-  markdown‑it 15.0.3 / fast‑uri 3.1.9、package.json = fallow 3.35.0 —
-  10‑23 の advisory 波の全項目が修正版以上に到達。④ 直近 100 run の非緑は
-  14 件すべて 10‑31 16:07–16:08 の **concurrency cancellation**（11 PR の
+  markdown-it 15.0.3 / fast-uri 3.1.9、package.json = fallow 3.35.0 —
+  10-23 の advisory 波の全項目が修正版以上に到達。④ 直近 100 run の非緑は
+  14 件すべて 10-31 16:07–16:08 の **concurrency cancellation**（11 PR の
   連続マージと PR クローズ掃除による supersede。最終 tip は緑）= 実失敗
-  ゼロ。**したがって §16 の 2 件（アラート 26・fuzz‑long 失敗）は追加修正
+  ゼロ。**したがって §16 の 2 件（アラート 26・fuzz-long 失敗）は追加修正
   不要でクローズ**（ユーザの UI 上の「26」は closed/履歴表示の可能性が高い
   — Security タブの filter を `is:open` にすると 0 件）。
 
@@ -1391,7 +1364,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 ### 10-26(月)定期便 5 PR — 審査・マージ
 
 - **#89** sha2 0.11.0→0.11.1(/native・Cargo.lock のみ): パッチ。native フルマトリクス緑(build+size+import+integration+fuzz-smoke)。マージ ed46a94。
-- **#91** modelscope-hub 0.4.5→0.4.6(uv.lock のみ): 実行時依存だが **floor(>=0.4.3)不変 → D10 の requirements.txt 同期は対象外**(files 実測で pyproject 無変更を確認)。マージ 6b61471。
+- **#91** modelscope-hub 0.4.5→0.4.6(uv.lock のみ): 実行時依存だが **floor(>=0.4.3)不変 → requirements.txt 手動同期は対象外**(files 実測で pyproject 無変更を確認)。マージ 6b61471。
 - **#90** ruff 0.17.0→0.17.1(pyproject+uv.lock): マージ 65769c9 + 恒例の同期フォロー db6188d(ci.yml ピン/README×4 バッジ/§6)。0.17.1 をローカル導入し CI 同一スコープで check「All checks passed」/format「45 files already formatted」= パッチ版ドリフト無しを実測。
 - **#88** production group: vue 3.5.43→3.5.44(フレームワーク本体パッチ)/@lucide/vue 1.55.0→1.59.0/vue-i18n 11.4.14→11.4.16。マージ f1f51ff。web/ 再ビルドは #93 系と合算で 1 回(下記)。
 - **#92→#93** development group: 初回(#92, 5 更新)は #88 と lockfile 競合 → `@dependabot rebase` → close→**#93 として再生成(7 更新)**。
@@ -1402,7 +1375,7 @@ Step 1–5 は 2026‑10‑03 に完了し、公開パイプライン（publish 
 
 1. **#93 をクローズ**(理由コメント付き)。
 2. **dependabot.yml に ignore 追加**(b9db5c6): `@comfyorg/comfyui-frontend-types versions: [">= 1.58"]` — 毎週のグループ PR が同理由で失敗し続けるのを防ぐ。**main マージ後に有効化**(dependabot.yml は既定ブランチ基準)。
-3. **互換 6 点を手動バンプ**(63bb218): dependency-cruiser 18.7.0 / eslint 10.13.0 / fallow 3.35.0 / postcss 8.5.31 / typescript-eslint 8.72.0 / vite 8.3.5(公開日 7 日+ を全数確認 = cooldown 自己適用)。#88 と合算で web/ を 1 回だけ再ビルド: バンドル **961.37→921.37 kB(gzip 289.97→276.82)** — lucide 1.59 系のツリーシェイク改善+vite 8.3.5 最適化と推定。ローカル全ゲート緑(lint/typecheck/stylelint/fallow dead+dupes/format/build/K15 passed・keystrokeP95 2.86ms・rowsIdentical・証跡 JSON 非破壊/depcruise 18.7.0 は Node 22 で 139 modules・418 deps・違反 0)。
+3. **互換 6 点を手動バンプ**(63bb218): dependency-cruiser 18.7.0 / eslint 10.13.0 / fallow 3.35.0 / postcss 8.5.31 / typescript-eslint 8.72.0 / vite 8.3.5(公開日 7 日+ を全数確認 = cooldown 自己適用)。#88 と合算で web/ を 1 回だけ再ビルド: バンドル **961.37→921.37 kB(gzip 289.97→276.82)** — lucide 1.59 系のツリーシェイク改善+vite 8.3.5 最適化と推定。ローカル全ゲート緑(lint/typecheck/stylelint/fallow dead+dupes/format/build/キー入力→描画 passed・keystrokeP95 2.86ms・rowsIdentical・証跡 JSON 非破壊/depcruise 18.7.0 は Node 22 で 139 modules・418 deps・違反 0)。
 4. **残作業(次セッション or ユーザ)**: frontend-types 1.59.x への型移行(src/types/global.d.ts の augmentation を新 Settings 型へ合わせ、hooks/App.vue の呼び出しを移行)→ 完了後に ignore 削除 → Dependabot に再提案させる。移行は機能変更を伴わない型レベルの作業と推定されるが、frontend-types 1.58 の型差分を読んでから着手すること(推測での移行は禁止)。
 
 ### minimatch CVE-2026-118764 — accept 判断(cba3a93)
@@ -1446,7 +1419,7 @@ lockfile 系は「異なるパッケージのエントリは異なる行」の�
 - **zizmor-action v0.8.0 の結合検証**（§11 の教訓の再実測）: v0.8.0 ツリーに
   `support/locks/zizmor-1.31.1.txt` が存在 = ピン 1.31.1 は known-versions 検証を通過する。
   変更点は prerelease 対応の追加のみ（既定挙動不変）。
-- **#95 huggingface-hub 2.3.0**（uv.lock のみ → D10 対象外）: リリースノート実読 =
+- **#95 huggingface-hub 2.3.0**（uv.lock のみ = 手動同期の対象外）: リリースノート実読 =
   HfFileSystem live_follow/並列 listing/upload_attachment の追加系。本拡張の使用面
   （hf_hub_download / HfApi）は無変更。
 - **#98 modelscope-hub 0.5.0**（0.x minor・uv.lock のみ）: v0.4.6↔v0.5.0 の
@@ -1492,9 +1465,9 @@ lockfile 系は「異なるパッケージのエントリは異なる行」の�
 **決定**: 移行は実施せず、**整合チャネル 1.57.x に留まり 1.57.6 へ更新**。≥1.58 ignore は維持し、
 根拠コメントを上記実測で全面改訂（推測で移行すると「型チェックが通るのにランタイムで壊れる」
 方向のリスクを負う — 1.58+ 型は stable ランタイムに無い API を記述するため）。
-**移行トリガー**（いずれか発火時に再評価）: (T1) ComfyUI stable が frontend ≥1.58 を同梱 /
-(T2) npm latest が ≥1.58 に転換 / (T3) 上流が 1.57 線に型を復活 or Settings に拡張ポイントを
-追加（interface 化・index signature・augmentation 機構）/ (T4) frontend-types のセキュリティ必要。
+**移行トリガー**（いずれか発火時に再評価）: (アップロード hash の native 化) ComfyUI stable が frontend ≥1.58 を同梱 /
+(Node 26) npm latest が ≥1.58 に転換 / (Ruff) 上流が 1.57 線に型を復活 or Settings に拡張ポイントを
+追加（interface 化・index signature・augmentation 機構）/ (uv) frontend-types のセキュリティ必要。
 **移行ドラフト**（着手時の起点）: get/set 呼び出しを `app.extensionManager.setting.get<T>/set` へ
 （1.57.x ランタイム互換は実測済み）; addSetting の移行先（registerExtension の settings フィールド）は
 **1.57.x ランタイムでの消費有無が未検証 = 着手時に最初に検証**; ComfyNodeDef の実型には
@@ -1514,7 +1487,7 @@ exclude は「公開 24 h 以内の版をセキュリティ都合で即日入れ
 ci.yml への 2026-10-07 導入（630e6bd）から **24 日 clean**（≥2 週の展開条件を満たす）→
 native.yml の 8 つの `uv pip install` ステップへ `UV_MALWARE_CHECK: "1"` を展開
 （cross toolchain ×2 / loader regression / maturin ×2 / python test deps / torch cross-check /
-zipnn L5）。先頭ブロックに完全な rollback 規程コメント、他 7 箇所は参照 1 行。
+zipnn official interoperability gate）。先頭ブロックに完全な rollback 規程コメント、他 7 箇所は参照 1 行。
 **zizmor ignore 行番号を規程どおり更新**（env 挿入で native.yml が +25 行シフト;
 cache-poisoning 11 件のうち 483→496 / 496→509 / 597→612 / 610→625 / 844→861 / 992→1015 /
 1086→1109 / 1098→1121、136/285/299 は不変）。更新前の `zizmor --offline` 再実行で 7 件が
@@ -1525,15 +1498,15 @@ native.yml 初回 run の緑をこのプッシュで確認すること（失敗/
 ### ゲート実測サマリ（このセッション）
 
 uv lock --check 緑 / ruff 0.17.2 check+format 緑 / vue-tsc 緑 / vite build 5.31 s /
-K15 PASS（keystroke p95 **3.14 ms** ≤ 16 ms・rowsAreIdentical・tensorTreeParity true・
-証跡は `--json-out /tmp/phase6_front_20261031.json` で非汚染）/ zizmor 1.31.1 offline 緑 /
+キー入力→描画 PASS（keystroke p95 **3.14 ms** ≤ 16 ms・rowsAreIdentical・tensorTreeParity true・
+証跡は `--json-out /tmp/front_render_20261031.json` で非汚染）/ zizmor 1.31.1 offline 緑 /
 osv-scanner **2.7.0**（security.yml の action pin と一致）4 lockfile「No issues found」
 （3 filter 適用: RUSTSEC-2025-0141 / RUSTSEC-2024-0436 / GHSA-g3hv-75wg-m249）/
 actionlint 全 5 ワークフロー緑。
 
 ### 監視リスト更新（§17 を override）
 
-- **frontend-types**: 「1.57.3 固定」→「**1.57.6・トリガー待ち**」に状態変更（上記 T1–T4）。
+- **frontend-types**: 「1.57.3 固定」→「**1.57.6・トリガー待ち**」に状態変更（上記ツールチェーン整備）。
   dev のピンは npm latest と ComfyUI master pin の両方に整合。
 - **UV_MALWARE_CHECK**: 展開完了。ci.yml+native.yml の両方で観察継続（rollback 規程は同一）。
 - 変更なし: minimatch ignore 期限 2026-12-15 / osv ignore 期限（httpx2 系 2027-01-07・
@@ -1570,22 +1543,22 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
 - 未マージの Dependabot 定期便 3 件（#107 notify 8.2.1 / #108 pytest-asyncio 1.4.1 /
   #109 fallow 3.36.0）はいずれも check-runs 26 = **23 success + 3 skipped** で緑。
 - 「run 2 / 全 5 ターゲット」に一致する run は**このリポジトリに存在しない**（dev の最終 push は
-  2026-10-31）。「5 ターゲット」に一致する既存記録は BENCH §5 / KPI K16 の **Phase 0 ネイティブ
+  2026-10-31）。「5 ターゲット」に一致する既存記録は BENCH §5 / KPI プリビルト配布 の **初回計測のネイティブ
   成果物（4 プラットフォーム 5 ターゲット）**のみ。
 
 ### 計画文書（Plan.md）の所在 — ツリーに存在しない
 
-> **2026‑11‑05（同日 第 2 セッション）追記**: 本節の記録は当時の実測です。
+> **2026-11-05（同日 第 2 セッション）追記**: 本節の記録は当時の実測です。
 > 同日、ユーザ指示により**作業規程文書として** [`Plan.md`](Plan.md)
-> （NEO‑PLAN‑2026‑005）を新設しました。完了済みの実装計画 4 つは引き続き
+> （最適化計測計画文書）を新設しました。完了済みの実装計画 4 つは引き続き
 > git 履歴のみに保存されています。
 
-- `git log --all --diff-filter=AD -- '*Plan*'` の最終は **`148f3ba`（Plan-4.md 削除・全 Step 完了）**。
+- `git log --all --diff-filter=AD -- '*Plan*'` の最終は **`148f3ba`（配布/CI 計画文書 削除・全工程完了）**。
   以降 Plan*.md を追加したコミットは 0 件で、`dev`・`main`・Dependabot 8 ブランチのいずれにも無い。
-- 過去計画の Phase 3（デルタ圧縮 + バッチプリミティブ）は **2026-09-25 に完了済み**で、証跡は
-  BENCH §8 にある（§5.1 のとおり Plan.md は既に削除済み）。よって「Phase 2 / Phase 3」は
+- 過去計画の デルタ圧縮（ + バッチプリミティブ）は **2026-09-25 に完了済み**で、証跡は
+  BENCH §8 にある（§5.1 のとおり Plan.md は既に削除済み）。よって「safetensors パイプラインとデルタ圧縮」は
   **新規の計画文書**を指すと判断されるが、その本文が無い状態では実装内容を確定できない。
-  **推測による計画の再構成はしない**（§1.2 の一次ソース主義に反するため）→ Phase 3 は保留。
+  **推測による計画の再構成はしない**（§1.2 の一次ソース主義に反するため）→ デルタ圧縮 は保留。
 
 ### Axum / utoipa の導入可否 — 実測プローブ（2026-11-05、本サンドボックス）
 
@@ -1622,13 +1595,13 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
   合成して `/model-manager/openapi.json` として配信、ルート表との一致は CI の parity ゲートで
   機械固定する形が、サイズ・セキュリティ・配布哲学のいずれとも衝突しない。
 
-## 20. セッション 2026‑11‑05（第 2）— GitHub Actions 確認・ファイル整理・cargo 作業規程の文書化・文書整合
+## 20. セッション 2026-11-05（第 2）— GitHub Actions 確認・ファイル整理・cargo 作業規程の文書化・文書整合
 
 ### セッション冒頭の状態ずれと復旧（重要）
 
-- 本サンドボックスのワークスペースは **Phase 4 完了時点（`971f072`）のスナップショット**
+- 本サンドボックスのワークスペースは **dtype 拡張 完了時点（`971f072`）のスナップショット**
   で、`.git` も存在しませんでした。一方リモート `dev` は **`c8eb8ce`**
-  （v0.4.0・Phase 8 完了・§19 まで記録済み）まで進行していました。
+  （v0.4.0・プリビルト配布 完了・§19 まで記録済み）まで進行していました。
 - `971f072` が現 `dev` の**祖先**であることを `git merge-base --is-ancestor` で
   確認（作業の損失なし）→ リモートから**再 clone して dev に同期**し、旧スナップショットと
   旧作業メモ（ワークスペース外）を削除しました。以後の作業は最新 dev に対して実施しています。
@@ -1645,20 +1618,20 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
 | native       | #373（push） | **total 18 = 16 success + 2 skipped**（skip = `pgo-measure`［dispatch 限定］・`publish-native-bin`［main 限定］） |
 | Security     | #142（push） | **total 4 = 3 success + 1 skipped**（skip = `osv-pr`［PR 時のみ］）                                               |
 
-- native #373 の success 16 の内訳: native‑test ×3 OS・native‑build ×3・abi3‑import ×4
-  （3.12 / 3.14 / 3.15 + 3.15t）・integration ×4（linux / linux‑t / windows / macOS）・
-  size‑budget・fuzz‑smoke。
-- **main tip `46c3019`** 側の定期 run も緑: **fuzz‑long #15**（週次・7 ターゲット ×
+- native #373 の success 16 の内訳: native-test ×3 OS・native-build ×3・abi3-import ×4
+  （3.12 / 3.14 / 3.15 + 3.15t）・integration ×4（linux / linux-t / windows / macOS）・
+  size-budget・fuzz-smoke。
+- **main tip `46c3019`** 側の定期 run も緑: **fuzz-long #15**（週次・7 ターゲット ×
   約 3 h 全 success — `zn_header` / `webp_decode` / `st_parse` / `codec_decompress` /
   `huf_decompress` / `blob_decompress` / `delta_decompress`）・Security #141（schedule）・
-  cache‑cleanup #81・Push on main #45。
+  cache-cleanup #81・Push on main #45。
 
 ### ファイル・フォルダ整理（誤削除防止のため実測で確認）
 
 - **ツリーは既に整備済み**であることを複数の独立手段で確認:
   `git status` クリーン（untracked / ignored 0）・`*.bak|orig|tmp|log|pyc|DS_Store|core`
   等 0 件・空ディレクトリ 0・**ローカルリンク切れ 0**・i18n 4 言語パリティ
-  （en/ja/zh-CN/zh-TW 各 372 キー・used‑but‑undefined 0）・`assets/` 全 8 点が
+  （en/ja/zh-CN/zh-TW 各 372 キー・used-but-undefined 0）・`assets/` 全 8 点が
   参照あり（`/model-manager/assets/{name}.svg` の whitelist 経由）・
   `fallow dupes` 0・scripts / docs の参照ゼロファイルなし。
 - 唯一の実指摘 = **`pnpm fallow:dead` の警告 5 件**（private type leak 4 +
@@ -1669,7 +1642,7 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
 
 ### cargo 使用最適化の文書化（Plan.md 新設）
 
-- **`Agent/Plan.md`（NEO‑PLAN‑2026‑005）** を新設（living document）:
+- **`Agent/Plan.md`（最適化計測計画文書）** を新設（living document）:
   ① cargo 使用の最適化（`check` 常用 / `test` は必要なときだけ / clippy・rustfmt は
   品質向上に活用 / `build` は最終確認のみ）と**コマンド早見表**、
   ② **`tests/` によるテスト管理**（単体 = インライン `#[cfg(test)]`、統合 =
@@ -1686,13 +1659,13 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
 ### 文書整合（記入漏れの解消）
 
 - **MEMO の節番号重複を解消**: `## 12` と `## 13` が 2 回ずつ出現していたため、
-  10‑08（昼/夕）を 12/13 に据え置き、以降を **14（10‑13）/ 15（10‑20）/ 16（10‑24）/
-  17（10‑31）/ 18（10‑31 後半）/ 19（11‑05）** へ繰り上げ、`## §N` 記法も統一。
+  10-08（昼/夕）を 12/13 に据え置き、以降を **14（10-13）/ 15（10-20）/ 16（10-24）/
+  17（10-31）/ 18（10-31 後半）/ 19（11-05）** へ繰り上げ、`## §N` 記法も統一。
   内部参照（§15 → §17 ×3・`§1–§16` → `§1–§18`）と
   **`.github/dependabot.yml` の `§16` → `§18`（2 箇所）を同一コミットで同期**。
-- **`docs/BENCH.md` の節番号重複を解消**: `## 6` が 2 回（Phase 0 の観察 / Phase 1）→
-  Phase 0 側を **`### 5.1 観察と結論`** に降格し、§5 の題名を「Phase 0 の成果物と総括」へ。
-  Phase 1 以降の番号（§6–§13）は不変（`§6.3` / `§6.4` 等の既存参照に影響なし —
+- **`docs/BENCH.md` の節番号重複を解消**: `## 6` が 2 回（初回計測の観察 / znn-codec）→
+  初回計測 側を **`### 5.1 観察と結論`** に降格し、§5 の題名を「初回計測の成果物と総括」へ。
+  §6 以降の番号（§6–§13）は不変（`§6.3` / `§6.4` 等の既存参照に影響なし —
   参照ゼロを grep で確認）。
 - **README 4 言語**の "Further reading" に `Agent/Plan.md`（作業規程）と
   `Agent/MEMO.md`（開発記録）を追加。
@@ -1701,11 +1674,11 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
 ### 検証（本セッション実測・全緑）
 
 - Rust: `cargo check --workspace --all-targets` ✓ / fmt ✓ / clippy `-D warnings` ✓ /
-  `cargo test -p znn-codec` **206 + 4** ✓ / mm‑core **5** ✓
+  `cargo test -p znn-codec` **206 + 4** ✓ / mm-core **5** ✓
 - Python: **pytest 225 passed**（native 成果物 + torch あり）/
   **90 passed + 135 skipped**（成果物なし = 設計どおりの skip）/ ruff 45 files ✓ /
   mypy 16 files ✓
-- フロントエンド: typecheck ✓ / eslint ✓ / stylelint ✓ / dependency‑cruiser ✓ /
+- フロントエンド: typecheck ✓ / eslint ✓ / stylelint ✓ / dependency-cruiser ✓ /
   `fallow:dead` **No issues found** ✓ / `fallow:dupes` 0 ✓ / prettier format:check ✓ /
   `pnpm build` ✓（バンドル内容は型のみの変更のため不変 — `web/version.yaml` の
   ビルド時刻差分は破棄）
@@ -1715,6 +1688,56 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
 
 - 本セッションの push 構成: fix(ui)（fallow 警告 5 件の解消）→ docs（Plan.md 新設 +
   MEMO/BENCH/README 整合）。**コードの挙動は不変**（TS の型注釈のみ）ため、
-  fuzz 表面・Rust 成果物は無変更 = fuzz‑long の再ディスパッチ不要（週次と既存 run が担保）。
-- プロジェクト全体の残件は §7 のまま（ユーザ専任の公開作業・参照機計測・手動 QA・
-  cache‑targets 再考）。
+  fuzz 表面・Rust 成果物は無変更 = fuzz-long の再ディスパッチ不要（週次と既存 run が担保）。
+- プロジェクト全体の残件は §7 に記載したとおり、2026-11-27 のユーザー回答により
+  全件完了（または対象外として close）済み。
+
+## 21. セッション 2026-11-27/28 — Windows ARM64 配布・表記整合計画の実行と、最適化プローブの採否決定
+
+> 対象 = `Agent/Plan.md`「Windows ARM64 配布・表記整合・残件完全クローズ計画書」。
+> 作業 1（Windows ARM64 専用バイナリの配布）・作業 2（README 冒頭タグの表記修正）・
+> 作業 4（残留する内部計画・内部表記の除去）・作業 5 は本セッション前段で完了・push 済み
+> （個別の commit は git log を参照。採否を伴う計測の記録は本節と BENCH §14 に集約）。
+> 本節は作業 3（optimization-probe）の関係者向け要約。**詳細・生データ・再評価条件の
+> 正は `docs/BENCH.md` §14**。
+
+### 一時ワークフロー `optimization-probe.yml` — 採否決定後に dev から削除済み
+
+- 証跡 run（workflow_dispatch、ref=dev）: `46125394184`（初回・途中 cancelled）→
+  `46125762011`（`245f9a7`）→ `46128155030`（`3d7c5aa`、thin LTO アーム追加）→
+  `46129914155`（`39c46a1`、target-feature アーム追加）。push 起因の run は全アーム skip。
+  BLOCKED の 3 job（windows-arm64 GIL / windows-arm64t FT / macos-arm64 PGO）は
+  4 run 連続で同一失敗を再現 = 環境起因でなく toolchain/upstream 起因の決定的ブロッカー。
+
+### 採否（1 行サマリ）
+
+- **採用: なし**。出荷構成（fat LTO + codegen-units=1 + runtime ISA detection +
+  PGO = linux-x86_64 / windows-x86_64、非 PGO = aarch64 / universal2 macOS）は不変。
+- **不採用**: linux-aarch64 PGO（scan 単独 +3.35 %、他 3 workload はパリティ）/
+  linux-x86_64 abi3t（free-threaded）PGO（compress **−9.8 % 退行**、scan +3.6 % では相殺不能）/
+  target-cpu x86-64-v2（scan −6.2 %）/ x86-64-v3（パリティ、±0.3 %）/
+  target-feature `+sha,+sse4.2`（SHA-256 対照 hash 0.9962 = 利得なし。decompress +5.3 % は
+  両側各 2/5 round が二峰性外れ値で中央値不安定。sha_ni 非搭載 CPU への違法命令リスクもあり
+  baseline には使えない）/ thin LTO（fat と size 同一 4,153,024 B・全 workload < 3 %。
+  build wall time 57 s → 52 s のみ。fat LTO 維持の規程に該当）。
+- **保留（BLOCKED、4 run 連続再現）**: Windows ARM64 GIL PGO と Windows ARM64 FT（abi3t）PGO —
+  `rustc`（aarch64-pc-windows-msvc, stable）が `magetypes v0.9.29` コンパイル中に
+  `STATUS_ACCESS_VIOLATION`（0xc0000005）。macOS arm64-only PGO — train 完走するが
+  profile flush が `LLVM Profile Error: Runtime and instrumentation version mismatch :
+expected 11, but get 10` で失敗し profraw 0 件 → `llvm-profdata merge` が input なし。
+  いずれも upstream 修正待ち。universal2 非 PGO（§13.4）は維持。
+- **未測定として明示**: x86-64-v4（avx512f なしの runner。run `46129914155` の runner では
+  avx512f があったが v4 計測は未実施）/ macOS free-threaded PGO / Windows x64 の PGO 再検証
+  （恒久 native.yml の `maturin --pgo` は常時緑で出荷済みだが、probe での性能再計測は未実施）。
+- 絶対値の改変なし・`scripts/bench/results/` は非汚染（計測 JSON は artifact 内に保持、
+  期限 1 日。必要なら BENCH §14 の手順から再現）。
+
+### 恒久 CI の修正（本セッション、計測と併行）
+
+- probe 用 commit（いずれも dev、評価後にワークフロー削除）: `245f9a7`（aarch64.whl 名称ズレ修正
+  = glob を `arm64.whl` に）、`3d7c5aa`（thin-LTO アーム追加）、`39c46a1`（target-feature アーム追加）。
+- **clippy `doc_markdown` 修正**（commit `fd94a04`）: `mm-core` / `znn-codec` の doc コメント中の
+  裸トークン `ASan` をバッククォート化（rust-clippy 1.100.0、`-D warnings` 下で
+  native-test ×4 が失敗していた）。→ run `46128116843`（head `3d7c5aa`）で native-test ×4 を
+  含む全 job が success（`46125712945` の失敗から復帰）を確認済み。
+- 一時ワークフローは削除コミットで dev から除去（作業 3 §5.6-1）。

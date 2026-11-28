@@ -1,7 +1,7 @@
 //! Per-tensor ZipNN blobs — the container semantics the official
 //! `zipnn_compress_safetensors.py` / Neo's legacy `py/compress.py` apply to
-//! every tensor of a safetensors file, extended in Phase 4 to the FULL
-//! safetensors 0.8 dtype set (KPI K14).
+//! every tensor of a safetensors file, extended in dtype extension to the FULL
+//! safetensors 0.8 dtype set (対応dtype数).
 //!
 //! A compressed tensor is stored as a 1-D `U8` vector holding one COMPLETE
 //! ZN container: `[32-byte header][packed shape][codec payload]`, built with
@@ -12,7 +12,7 @@
 //! Neo-extension-band blobs (f64, complex64, integers, BOOL,
 //! FNUZ/MX floats — codes 128–146) are self-describing for Neo and rejected
 //! with an EXPLICIT error by official tools (demonstrated: `ValueError:
-//! Unsupported Dtype N`; L5 section E pins it) — files containing them are
+//! Unsupported Dtype N`; official interoperability gate section E pins it) — files containing them are
 //! marked `znn_neo_extended="1"` and badged in the UI.
 //!
 //! Parameter mapping (compatibility band verified against
@@ -67,7 +67,7 @@
 //! format. Legacy DEcompression of a Neo-extension file fails with the
 //! vendored decoder's explicit `ValueError: Unsupported Dtype N` (no silent
 //! corruption), which is the documented migration behaviour until the
-//! legacy path is removed (Phase 8).
+//! legacy path is removed (the prebuilt distribution).
 
 use std::sync::atomic::AtomicBool;
 
@@ -335,7 +335,7 @@ impl TensorScheme {
 }
 
 /// The scheme for a safetensors dtype string (compress direction), or
-/// `None` when the string is not a dtype Neo compresses. Since Phase 4
+/// `None` when the string is not a dtype Neo compresses. Since dtype extension
 /// this covers the FULL safetensors 0.8 set (all 22 spellings) plus the
 /// codec-level pseudo-names `C128`/`BC32`.
 #[must_use]
@@ -414,7 +414,7 @@ fn core_params(scheme: &TensorScheme, threads: usize) -> CoreParams {
 }
 
 /// Choose the truncation mode of a Neo integer tensor from its zero-byte
-/// statistics ("ゼロ統計自動選択", Phase 4): the largest byte
+/// statistics ("ゼロ統計自動選択", dtype extension): the largest byte
 /// plane suffix (or, for 2-plane words, the low plane) that is ZERO across
 /// the whole tensor is dropped from the payload and reconstructed as zeros
 /// on decode — lossless by construction. Returns the scheme with the
@@ -513,7 +513,7 @@ pub fn compress_tensor(
     Ok(out)
 }
 
-/// [`compress_tensor`] into a caller-owned, grow-only buffer — the Phase-2
+/// [`compress_tensor`] into a caller-owned, grow-only buffer — the safetensors pipeline
 /// pipeline reuses one blob buffer for every tensor of a file (no
 /// per-tensor allocation; every byte is overwritten by the assembly).
 ///
@@ -813,7 +813,7 @@ mod tests {
     }
 
     /// Every dtype of the table, at several sizes/entropies: compress →
-    /// decompress must be byte-identical (the K14 round-trip gate at the
+    /// decompress must be byte-identical (the 対応dtype数 round-trip gate at the
     /// blob level).
     #[test]
     fn band_roundtrip_all_dtypes() {
@@ -1036,7 +1036,7 @@ mod tests {
 
     /// The FP8 production quirk: byte 14 says 18 (256 KiB) while the payload
     /// is chunked at 128 KiB. A blob built exactly like `zipnn.py` does must
-    /// decode through the high-level path (regression for the Phase-1 latent
+    /// decode through the high-level path (regression for the znn-codec latent
     /// bug — see codec::decompress_container's erratum note).
     #[test]
     fn fp8_blob_decodes_through_container_helper() {
@@ -1066,7 +1066,7 @@ mod tests {
 
     #[test]
     fn header_bytes_match_production_dumps() {
-        // Production header dump (Phase 0, fp8 e4m3 tensor):
+        // Production header dump (the baseline measurements, fp8 e4m3 tensor):
         // [90,78, 0,5,4, 10, 1, 1, 2, 0, 0,0,0, 0, 18, 29, len...]
         let scheme = scheme_for_st_dtype("F8_E4M3").unwrap();
         let h = tensor_header(&scheme, 1234, &[7, 8]);
@@ -1084,7 +1084,7 @@ mod tests {
         let h = tensor_header(&scheme, 16, &[2, 4]);
         assert_eq!(&h[..10], &[90, 78, 0, 5, 4, 10, 1, 1, 2, 0]);
         assert_eq!(h[15], 6);
-        // Phase 4 header forms (Neo band): f64 = code 128, byte5 88, byte6 1
+        // dtype extension header forms (Neo band): f64 = code 128, byte5 88, byte6 1
         let scheme = scheme_for_st_dtype("F64").unwrap();
         let h = tensor_header(&scheme, 8000, &[1000]);
         assert_eq!(&h[..10], &[90, 78, 0, 5, 4, 88, 1, 1, 2, 0]);
@@ -1120,7 +1120,7 @@ mod tests {
             scheme_for_st_dtype("F8_E4M3").unwrap().torch_name,
             "float8_e4m3fn"
         );
-        // Phase 4 names (verified against torch 2.14.0 str() forms)
+        // dtype extension names (verified against torch 2.14.0 str() forms)
         assert_eq!(scheme_for_st_dtype("F64").unwrap().torch_name, "float64");
         assert_eq!(scheme_for_st_dtype("C64").unwrap().torch_name, "complex64");
         assert_eq!(scheme_for_st_dtype("BOOL").unwrap().torch_name, "bool");
@@ -1188,7 +1188,7 @@ mod tests {
         let blob = compress_tensor(&scheme, &[], &[0], 0, None).expect("compress");
         let back = decompress_tensor(&blob, 0, None).expect("decompress");
         assert!(back.data.is_empty());
-        // Phase 4 types: scalar + empty for an 8-plane and a 1-plane scheme
+        // dtype extension types: scalar + empty for an 8-plane and a 1-plane scheme
         for dtype in ["F64", "I64", "BOOL", "F4"] {
             let scheme = scheme_for_st_dtype(dtype).unwrap();
             let blob = compress_tensor(&scheme, &[], &[0], 0, None).expect("compress");
@@ -1241,7 +1241,7 @@ mod tests {
         // random garbage
         let junk: Vec<u8> = (0..1024).map(|i| (i % 251) as u8).collect();
         assert!(decompress_tensor(&junk, 0, None).is_err());
-        // Phase 4 surface: the same battery against an f64 blob and a
+        // dtype extension surface: the same battery against an f64 blob and a
         // truncated i32 blob (hostile inputs must never panic)
         let scheme = scheme_for_st_dtype("F64").unwrap();
         let data = sample("F64", 30_000, true, &[]);

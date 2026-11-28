@@ -1,15 +1,15 @@
-"""Phase 7 / T1 - the upload duplicate-preflight SHA-256 goes native.
+"""native-hash path - the upload duplicate-preflight SHA-256 goes native.
 
 ``py/upload_hf.py`` used to hash the whole model with a Python ``hashlib`` 1 MiB
 loop (``hash_local_file``) inside the Hugging Face / ModelScope duplicate
-preflight. T1 replaces that with the EXISTING native ``mm_core.hash_file``
+preflight. The native hash path replaces that with the EXISTING native ``mm_core.hash_file``
 (one pass, GIL released, SHA-NI/AVX2) behind ``_sha256_of_file`` - lower-cased
 to match the Hub's LFS ``sha256`` - and SPLITS the preflight into a network
 stage (``preflight_remote`` on the io pool) and a CPU hash stage (on the cpu
 pool). These tests pin:
 
 * the golden contract ``_sha256_of_file == hashlib.sha256(...).hexdigest()``
-  and the Phase-8 single path: no native core -> a RuntimeError with the
+  and the prebuilt distribution single path: no native core -> a RuntimeError with the
   loader's reason (the transitional Python ``hashlib`` loop was retired
   together with the MM_NATIVE switch);
 * ``HfBackend.preflight_remote``'s branches (same-size LFS object -> needs_hash,
@@ -52,7 +52,7 @@ def _reset_native_loader():
 # ---------------------------------------------------------------------------
 def test_sha256_of_file_matches_hashlib(tmp_path):
     """The native single-pass hash, lower-cased, is byte-identical to the
-    Python ``hashlib`` digest it replaced (the T1 golden gate)."""
+    Python ``hashlib`` digest it replaced (the native-hash path golden gate)."""
     native = _reset_native_loader()
     if native.core_if_enabled() is None:
         pytest.skip(f"native core unavailable: {native.reason()}")
@@ -65,7 +65,7 @@ def test_sha256_of_file_matches_hashlib(tmp_path):
 
 
 def test_sha256_of_file_raises_without_native(tmp_path, monkeypatch):
-    """Phase 8 single path: with no native core the hasher RAISES (the
+    """the prebuilt distribution single path: with no native core the hasher RAISES (the
     transitional Python hashlib loop is gone). The preflight junction degrades
     that to "go" — pinned by
     ``test_run_hub_upload_degrades_to_go_when_the_hash_stage_fails`` — and the
@@ -135,7 +135,7 @@ def test_preflight_remote_goes_on_size_mismatch_missing_target_or_no_lfs():
 
 def test_preflight_remote_swallows_api_errors():
     """A failing model_info degrades to 'go' (None), never raises - the upload
-    proceeds and the Hub decides, exactly as the pre-T1 preflight did."""
+    proceeds and the Hub decides, exactly as the pre-native-hash path preflight did."""
     upload_hf = import_ext("upload_hf")
     backend = upload_hf.HfBackend("tok", "owner/repo")
 
@@ -263,7 +263,7 @@ async def test_run_hub_upload_transfers_when_the_hash_differs(tmp_path, monkeypa
 
 @pytest.mark.asyncio
 async def test_run_hub_upload_degrades_to_go_when_the_hash_stage_fails(tmp_path, monkeypatch):
-    """JUNCTION parity (the comment in run_hub_upload promises it): pre-T1 the
+    """JUNCTION parity (the comment in run_hub_upload promises it): the pre-native-hash
     preflight caught a hash failure inside its OWN try/except and degraded to
     "go" (skip duplicate detection, still upload). Now that the hash is a
     separate cpu-pool stage, a failing ``_sha256_of_file`` (unreadable file,

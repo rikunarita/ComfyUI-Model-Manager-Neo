@@ -60,7 +60,7 @@ fn cancelled(cancel: Option<&AtomicBool>) -> bool {
 pub struct CoreParams {
     /// Number of byte planes: 1 (fp8 / Neo 1-plane types), 2 (f16/bf16/
     /// bcomplex32/i16), 4 (f32/complex64/i32) or 8 (f64/complex128/i64 —
-    /// the Neo Phase-4 layout).
+    /// the Neo dtype extension layout).
     pub num_buf: usize,
     /// `bits_mode`: 1 = sign/exponent reorder active (ignored for 1 plane).
     pub bit_reorder: u8,
@@ -132,7 +132,7 @@ static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
 /// Pools for EXPLICIT thread counts, cached per count. Building (and
 /// dropping) a rayon pool on every call churns OS threads: each spawned
 /// thread leaves runtime metadata behind that accumulates for the process
-/// lifetime — under ASan this measured ~35–100 B per exec (live heap stayed
+/// lifetime — under `ASan` this measured ~35–100 B per exec (live heap stayed
 /// ~25 MB while RSS grew linearly with the exec count), which tripped the
 /// libFuzzer `rss_limit` in the 3 h `blob_decompress` long runs (36088280583
 /// / 36114455354; the harness pins `threads = 1`). Production pays the same
@@ -250,7 +250,7 @@ pub fn zipnn_core_with(
 }
 
 /// [`zipnn_core_with`] writing into a caller-owned, grow-only buffer — the
-/// Phase-2 pipeline reuses one blob buffer across tensors (no per-tensor
+/// the safetensors pipeline reuses one blob buffer across tensors (no per-tensor
 /// allocation; `resize` zero-fills only when GROWING, and every byte is
 /// overwritten by the assembly below).
 ///
@@ -290,7 +290,7 @@ pub fn zipnn_core_into(
             "header shorter than 32 bytes".to_owned(),
         ));
     }
-    // threshold <= 0 is legal (C then never picks huff0 — the L2 harness
+    // threshold <= 0 is legal (C then never picks huff0 — the golden differential harness
     // uses 0 to dump raw plane layouts); NaN would poison comparisons.
     if params.threshold.is_nan() {
         return Err(CodecError::Unsupported("NaN threshold".to_owned()));
@@ -570,7 +570,7 @@ fn compress_chunk(
                 // (no clone, no refill memset) and the assembly phase
                 // extracts this plane straight from the source into the
                 // output — byte-identical to the materialised form (pinned by
-                // `extract_plane_matches_split_exactly` + the L2 goldens).
+                // `extract_plane_matches_split_exactly` + the golden corpus).
                 out.push((0u8, PlaneOut::Virtual));
             }
         }
@@ -614,7 +614,7 @@ pub fn combine_dtype_with(
     cancel: Option<&AtomicBool>,
 ) -> CodecResult<Vec<u8>> {
     // Output-size cap FIRST (before any orig_len-derived arithmetic — the
-    // L3 fuzzer found that `orig_len + chunk - 1` overflows on hostile
+    // ASan fuzzing found that `orig_len + chunk - 1` overflows on hostile
     // u64::MAX-scale header values). Callers SHOULD pass the declared
     // tensor size; the fallback bound keeps hostile inputs from bombing
     // the allocator with multi-GB zero fills.
@@ -634,7 +634,7 @@ pub fn combine_dtype_with(
 
 /// Decode a C-core payload INTO a caller-provided buffer whose length must
 /// equal the container's `original_len` — the allocation-free variant the
-/// Phase-2 pipeline uses with a reusable grow-only tensor buffer (no
+/// the safetensors pipeline uses with a reusable grow-only tensor buffer (no
 /// per-tensor alloc + zero-fill; every output byte is overwritten by the
 /// decode, so a dirty buffer is safe). Validation is IDENTICAL to
 /// [`combine_dtype`] minus the allocation cap (the buffer IS the cap).
@@ -656,7 +656,7 @@ pub fn combine_dtype_into(
     }
     // The C ratio gates: dtype32 → only 220; dtype16 → 10/8/1; numBuf==1 →
     // no gate (combine is a memcpy there — mirror that tolerance for
-    // compatibility). The Neo Phase-4 modes (8-plane 88, truncation 41/9/1
+    // compatibility). The Neo dtype extension modes (8-plane 88, truncation 41/9/1
     // for 4-plane words) ride the same mask derivation as the compress side.
     let mask = if n == 1 {
         let mut m: PlaneMask = [false; 8];
@@ -697,7 +697,7 @@ pub fn combine_dtype_into(
     let data = &payload[types_len + cums_len..];
 
     // parse cumSizes (u64 LE, plane-major) with monotonic + range validation.
-    // Plane offsets accumulate in CHECKED u64 (the L3 fuzzer found the naive
+    // Plane offsets accumulate in CHECKED u64 (ASan fuzzing found the naive
     // usize accumulation overflowing on hostile u64::MAX cumulative values —
     // in release the wrap could even slip past the span check below).
     let mut cums = vec![0u64; types_len];
@@ -941,9 +941,9 @@ pub fn decompress_container(blob: &[u8], max_output: Option<usize>) -> CodecResu
     // Production fp8 blobs therefore declare chunk log2 18 while their payload
     // is chunked at 128 KiB — the clamp below mirrors that, otherwise the
     // metadata sizes (numChunks × planes) are derived from the wrong chunk
-    // and every production fp8 tensor fails to decode. (Latent Phase-1 bug:
-    // decompress_container had no caller before Phase 2; L2 passes the chunk
-    // explicitly, so it never exercised this path. Found in the Phase-2
+    // and every production fp8 tensor fails to decode. (Latent znn-codec bug:
+    // decompress_container had no caller before the safetensors pipeline; golden differential passes the chunk
+    // explicitly, so it never exercised this path. Found in the safetensors pipeline
     // pre-implementation audit, pinned by `fp8_container_chunk_clamp`.)
     let chunk = if scheme.num_planes == 1 {
         chunk_hint.min(HUF_BLOCKSIZE_MAX)
@@ -1066,7 +1066,7 @@ mod tests {
         }
     }
 
-    /// Phase 4: the 8-plane layout (F64 with the fused reorder, I64/U64
+    /// dtype extension: the 8-plane layout (F64 with the fused reorder, I64/U64
     /// without) round-trips every remainder class — tail bytes (< 8) ride
     /// planes 0..rem untransformed, exactly like the 2/4-plane C layout.
     #[test]
@@ -1105,7 +1105,7 @@ mod tests {
             roundtrip(&data[..300_001], &params);
             // compression sanity on a LOW-ENTROPY f64 pattern (a small value
             // set — every plane collapses): random-mantissa f64 legitimately
-            // stores ~7/8 raw (R11 measures the honest ratio, BENCH §9)
+            // stores ~7/8 raw (honest-ratio 計測 measures the honest ratio, BENCH §9)
             let mut small: Vec<u8> = Vec::new();
             for i in 0..30_000u32 {
                 let v =
@@ -1122,7 +1122,7 @@ mod tests {
         }
     }
 
-    /// Phase 4: truncation modes (Neo integer types) — dropped planes are
+    /// dtype extension: truncation modes (Neo integer types) — dropped planes are
     /// empty raw chunks, the restore zero-fills their byte positions.
     #[test]
     fn roundtrip_truncation_modes() {
@@ -1260,7 +1260,7 @@ mod tests {
     #[test]
     fn payload_layout_matches_c_structure() {
         // deterministic check of the byte structure (sizes/offsets), the
-        // byte-exact content equality is the L2 golden suite's job
+        // byte-exact content equality is the golden differential suite's job
         let data = vec![7u8; 300_000]; // 2 chunks (262144 + 37856)
         let params = CoreParams::default();
         let header = hdr32();
@@ -1338,7 +1338,7 @@ mod tests {
     /// Regression (fuzz-long runs 36088280583 / 36114455354): an explicit
     /// thread count must NOT build a fresh rayon pool per call. The per-call
     /// build+destroy churned one OS thread per exec and accumulated runtime
-    /// metadata (~35–100 B/thread under ASan) until libFuzzer's rss_limit
+    /// metadata (~35–100 B/thread under `ASan`) until libFuzzer's rss_limit
     /// aborted the 3 h `blob_decompress` run with only ~25 MB of live heap.
     #[test]
     fn explicit_thread_counts_reuse_cached_pools() {
@@ -1466,7 +1466,7 @@ mod tests {
 
     #[test]
     fn threshold_zero_stores_everything_raw() {
-        // L2 golden-generator mode: threshold 0 → C never keeps huff0 blocks
+        // golden-generator mode: threshold 0 → C never keeps huff0 blocks
         let data: Vec<u8> = (0..300_000).map(|i| ((i / 97) % 13) as u8).collect();
         let params = CoreParams {
             threshold: 0.0,
@@ -1475,7 +1475,7 @@ mod tests {
         let comp = zipnn_core(&hdr32(), &data, &params).expect("compress");
         let types = &comp[32..32 + 4 * 2];
         assert!(types.iter().all(|&t| t == 0), "all raw");
-        // data region = pure plane bytes → the golden layout for L2
+        // data region = pure plane bytes → the golden layout for golden differential
         let out = combine_dtype(&comp[32..], data.len(), &params, None).expect("decompress");
         assert_eq!(out, data);
     }
@@ -1483,8 +1483,8 @@ mod tests {
     /// Production fp8 quirk (zipnn.py): header byte 14 says log2(256 KiB)=18
     /// while the payload was chunked at min(128 KiB, chunk)=131072 because
     /// num_buf==1. `decompress_container` must apply the same clamp — this
-    /// regressed silently in Phase 1 (no caller exercised it) and is the
-    /// decode path the Phase-2 safetensors pipeline uses for every fp8
+    /// regressed silently in znn-codec (no caller exercised it) and is the
+    /// decode path the safetensors pipeline uses for every fp8
     /// tensor blob.
     #[test]
     fn fp8_container_chunk_clamp() {

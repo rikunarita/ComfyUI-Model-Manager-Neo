@@ -64,7 +64,7 @@ try:
 except Exception:
     pass
 
-# Phase 6: the optional model-library watcher
+# The optional model-library watcher
 # (setting-gated, default OFF - py/watcher.py) starts with the server and
 # releases its inotify watches on shutdown, and the shared aiohttp session the
 # hub lookups now use is closed with the app instead of leaking at exit.

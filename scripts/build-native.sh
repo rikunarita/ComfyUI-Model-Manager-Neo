@@ -10,7 +10,7 @@
 #                     in .github/workflows/native.yml and scripts/pgo/README.md).
 #                     Adds -Cllvm-args=-pgo-warn-missing-function so a stale /
 #                     mismatched profile shows up as countable warnings (the
-#                     CI asserts their ratio, gate G2).
+#                     CI asserts their ratio, gate profile-check).
 #   --pgo-train       macOS / Windows only: hand `--pgo` to maturin, which
 #                     runs its three-phase flow (instrumented wheel into a
 #                     temporary venv -> [tool.maturin] pgo-command training ->
@@ -21,15 +21,16 @@
 #   linux-aarch64     cargo zigbuild aarch64-unknown-linux-gnu.<glibc floor>  -> mm_core.abi3.so
 #   macos-universal2  maturin universal2 (macOS host only: cargo + lipo)      -> mm_core.abi3.so
 #   windows-x86_64    maturin MSVC (Windows host only)                        -> mm_core.pyd
+#   windows-arm64     maturin MSVC (ARM64 Windows host only)                  -> mm_core.pyd
 #
-# abi3t targets (`<tag>t` = the four tags above with
+# abi3t targets (`<tag>t` = the tags above with
 # a `t` suffix: linux-x86_64t / linux-aarch64t / macos-universal2t /
-# windows-x86_64t): the free-threaded Stable ABI flavour (PEP 803, pyo3
+# windows-x86_64t / windows-arm64t): the free-threaded Stable ABI flavour (PEP 803, pyo3
 # `abi3t-py315` via mm-core's `ft` feature). Built NON-PGO with the
 # EXCLUSIVE feature set `--no-default-features --features [extension-module,]ft`
 # (never together with stable-abi — combining them makes the produced flavour
 # host-dependent). Requires a Python >= 3.15 HOST interpreter (PyO3 host >=
-# target; CI uses the 3.15 final from the runner manifest — D4 settled
+# target; CI uses the 3.15 final from the runner manifest — 3.15 stable decision settled
 # 2026-10-13). Outputs: mm_core.abi3t.so (POSIX) / mm_core.pyd
 # (Windows — PEP 803 keeps the plain suffix); loadable by BOTH the
 # free-threaded and the GIL build of CPython 3.15+.
@@ -44,7 +45,11 @@
 # Host requirements:
 #   linux    rustup stable, pip: cargo-zigbuild + ziglang (+ maturin for wheels)
 #   macos    rustup stable (+ both darwin targets), pip: maturin, Xcode CLT (lipo)
-#   windows  rustup stable (MSVC toolchain), pip: maturin, bash (git-bash)
+#   windows  rustup stable (MSVC toolchain), pip: maturin, bash (git-bash);
+#            the windows-arm64[t] targets additionally require an ARM64
+#            Windows host (the maturin default target then IS
+#            aarch64-pc-windows-msvc) — building them on an x64 host is an
+#            error, never a cross-compile
 #   <tag>t   additionally: Python >= 3.15 on PATH (GIL build is fine — the
 #            abi3t flavour is selected by the `ft` Cargo feature, and PyO3
 #            only requires host >= target)
@@ -97,7 +102,7 @@ if [[ -n "$PGO_PROFDATA" ]]; then
 fi
 if [[ "$PGO_TRAIN" -eq 1 ]]; then
   case "$TARGET" in
-    macos-universal2 | windows-x86_64) ;;
+    macos-universal2 | windows-x86_64 | windows-arm64) ;;
     *) echo "--pgo-train is macOS/Windows-GIL-only (linux uses --pgo <profdata>; <tag>t targets are non-PGO)" >&2; exit 2 ;;
   esac
 fi
@@ -159,7 +164,7 @@ build_linux() {
   fi
   local -a pgo_env=()
   if [[ -n "$PGO_PROFDATA" ]]; then
-    log "PGO: -Cprofile-use=$PGO_PROFDATA (+ warn-missing-function for the G2 gate)"
+    log "PGO: -Cprofile-use=$PGO_PROFDATA (+ warn-missing-function for the profile-applied check)"
     pgo_env=(env "RUSTFLAGS=-Cprofile-use=$PGO_PROFDATA -Cllvm-args=-pgo-warn-missing-function")
   fi
   # ${feat[*]+...} — bash 3.2 (macOS /bin/bash) treats an EMPTY array as
@@ -227,22 +232,38 @@ build_macos_universal2() {
 }
 
 build_windows() {
-  local flavour="${1:-abi3}"
+  local arch="${1:-x86_64}" flavour="${2:-abi3}"
   local os_name
   os_name="$(uname -s)"
   case "$os_name" in
     CYGWIN*|MINGW*|MSYS*|Windows_NT) ;;
-    *) echo "windows-x86_64[t] (MSVC) must be built on Windows (see header)" >&2; exit 1 ;;
+    *) echo "windows-${arch}[t] (MSVC) must be built on Windows (see header)" >&2; exit 1 ;;
   esac
-  local tag="windows-x86_64" wheel_glob="mm_core-*-cp312-abi3-win_amd64.whl"
+  # The ARM64 artifacts are built ONLY on an ARM64 Windows host —
+  # maturin's default target must be aarch64-pc-windows-msvc, otherwise the
+  # build is refused (never a silent x64 cross-compile into the arm64 tag).
+  if [[ "$arch" == "arm64" ]]; then
+    local rust_host
+    rust_host="$(rustc -vV 2>/dev/null | sed -n 's/^host: //p')"
+    if [[ "$rust_host" != "aarch64-pc-windows-msvc" ]]; then
+      echo "windows-arm64[t] must be built with the aarch64-pc-windows-msvc toolchain (rustc host reported '${rust_host:-unknown}')" >&2
+      exit 1
+    fi
+  fi
+  local tag="windows-${arch}"
+  local wheel_arch="win_amd64"
+  if [[ "$arch" == "arm64" ]]; then
+    wheel_arch="win_arm64"
+  fi
+  local wheel_glob="mm_core-*-cp312-abi3-${wheel_arch}.whl"
   local -a pgo_flag=() feat=()
   [[ "$PGO_TRAIN" -eq 1 ]] && pgo_flag=(--pgo) && log "PGO: maturin --pgo (pgo-command trains in a temporary venv)"
   if [[ "$flavour" == "ft" ]]; then
     # abi3t (PEP 803), non-PGO. PEP 803 keeps the plain `.pyd`
     # name on Windows — the GIL and t artifacts are separated by their
     # native-bin/<tag> directories, never by filename.
-    tag="windows-x86_64t"
-    wheel_glob="mm_core-*-cp315*abi3t*win_amd64.whl"
+    tag="windows-${arch}t"
+    wheel_glob="mm_core-*-cp315*abi3t*${wheel_arch}.whl"
     feat=(--no-default-features --features ft)
     log "flavour: abi3t (ft feature; non-PGO; host Python >= 3.15 required)"
   fi
@@ -267,7 +288,9 @@ case "$TARGET" in
   linux-aarch64t) build_linux aarch64 ft ;;
   macos-universal2) build_macos_universal2 ;;
   macos-universal2t) build_macos_universal2 ft ;;
-  windows-x86_64) build_windows ;;
-  windows-x86_64t) build_windows ft ;;
-  *) echo "unknown target tag: $TARGET (linux-x86_64|linux-aarch64|macos-universal2|windows-x86_64, each also with a 't' suffix for the abi3t flavour)" >&2; exit 2 ;;
+  windows-x86_64) build_windows x86_64 ;;
+  windows-x86_64t) build_windows x86_64 ft ;;
+  windows-arm64) build_windows arm64 ;;
+  windows-arm64t) build_windows arm64 ft ;;
+  *) echo "unknown target tag: $TARGET (linux-x86_64|linux-aarch64|macos-universal2|windows-x86_64|windows-arm64, each also with a 't' suffix for the abi3t flavour)" >&2; exit 2 ;;
 esac

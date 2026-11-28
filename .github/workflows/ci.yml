@@ -43,7 +43,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Phase 7 T4: uv replaces pip in the CI layer - a drop-in
+      # uv adoption: uv replaces pip in the CI layer - a drop-in
       # `uv pip install --system` (8-100x faster resolve+install) against the
       # setup-python interpreter. The RUNTIME contract is untouched:
       # requirements.txt (read by ComfyUI / ComfyUI-Manager) and
@@ -64,7 +64,7 @@ jobs:
           # rule (Agent/MEMO.md §11): ANY failure or stall attributable to
           # this env removes it in the same session.
           UV_MALWARE_CHECK: "1"
-        run: uv pip install --system -r requirements.txt mypy ruff==0.17.2 pytest pytest-asyncio aiohttp pyyaml requests pillow
+        run: uv pip install --system -r requirements.txt mypy ruff==0.17.5 pytest pytest-asyncio aiohttp pyyaml requests pillow
 
       # Observation slot (Agent/MEMO.md §11): uv audit — the uv-native
       # dependency audit (OSV backend, reads uv.lock directly; Astral
@@ -104,7 +104,7 @@ jobs:
       # devDependency, so fallow does not flag it and a clean tree exits 0. (The
       # former desktop-bridge-types override was removed 2026-09-30 once
       # comfyui-frontend-types 1.54.9 required 0.2.0 directly, making it redundant.)
-      # Added after the Phase-6 final bug check found the
+      # Added after the final frontend review found the
       # invariant had drifted (utility modules exported helpers only the bench
       # harness / their own file consume) precisely because nothing enforced it.
       - name: Dead code & duplication (fallow)
@@ -122,16 +122,16 @@ jobs:
       - name: Build
         run: pnpm exec vite build
 
-      # The K15 measurement base runs on every push. It compiles the REAL
+      # The render-bench measurement base runs on every push. It compiles the REAL
       # src/utils modules with the repository's tsc and measures them against
       # verbatim copies of the pre-optimization code, so the gates are
       # same-run ratios (hoisting, comparator choice, the Rust tensor-tree
-      # decode) and hold on a shared runner. The absolute K15 numbers are
+      # decode) and hold on a shared runner. The absolute render-bench numbers are
       # recorded with the env block and judged on the reference machine.
       # The Rust<->JS tree cross-check needs a built native binary and runs
       # in native.yml's integration job instead.
-      - name: Frontend K15 bench (C5)
-        run: node scripts/bench/front/k15.mjs --json-out /tmp/phase6_front.json
+      - name: Frontend render bench (measurement harness)
+        run: node scripts/bench/front/render-bench.mjs --json-out /tmp/front_render.json
 
       - name: Static types (mypy)
         run: python -m mypy
@@ -142,7 +142,7 @@ jobs:
       - name: Python format (ruff)
         run: ruff format --check py __init__.py tests scripts conftest.py
 
-      # Regression suite: the Quick Win A1 route contract and the py/native.py
+      # Regression suite: the model-detail route executorization contract and the py/native.py
       # loader (platform tags, handshake, diagnostics). On dev/PR checkouts no
       # mm_core binary is committed, so the native-path tests skip here; on
       # main (where publish-native-bin commits the artifacts) and in the native

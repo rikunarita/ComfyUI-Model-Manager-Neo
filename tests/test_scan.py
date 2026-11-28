@@ -1,10 +1,10 @@
-"""Phase 5 golden tests — the native Rust scan / hygiene / header / hash paths
+"""Scan golden tests — the native Rust scan / hygiene / header / hash paths
 must be byte-for-byte interchangeable with the pure-Python paths they replaced
-(Phase 5 "現行 JSON 形状 golden テスト", header, hash).
+(the "current JSON shape" golden tests, header, hash).
 
 Every test runs the SAME fixture through BOTH engines and asserts identical
 output, so a drift in the Rust port (order, preview shape, front-matter parse,
-hash notation, timestamp rounding) fails loudly. Phase 8 removed the
+hash notation, timestamp rounding) fails loudly. The prebuilt distribution removed the
 ``MM_NATIVE`` switch; the Python implementations survive as the RESILIENCE
 FALLBACK of the read paths (a native runtime failure degrades to them rather
 than breaking the grid), so the engine selection here is injection-based
@@ -26,7 +26,7 @@ import pytest
 from harness import REPO_ROOT, import_ext, write_safetensors
 
 # ---------------------------------------------------------------------------
-# engine switching helpers (injection-based since Phase 8)
+# engine switching helpers (injection-based since the prebuilt distribution)
 # ---------------------------------------------------------------------------
 
 
@@ -259,8 +259,13 @@ def test_scan_models_index_persists_frontmatter(tmp_path, monkeypatch, index_cac
     # a second scan (index warm) returns the same result
     second = manager.ModelManager().scan_models("checkpoints", False)
     assert first == second
-    # mm_core sees at least one cached index dir
-    assert mm.phase5_diagnostics()["indexDirs"] >= 1
+    # mm_core sees at least one cached index dir. The committed prebuilt binary
+    # on this branch predates the scan_diagnostics rename (it exports
+    # phase5_diagnostics); the getattr shim keeps the assertion runnable there.
+    # CI builds from source, so the shim is only for the tracked prebuilt.
+    diag_fn = getattr(mm, "scan_diagnostics", None) or getattr(mm, "phase5_diagnostics", None)
+    assert diag_fn is not None, "mm_core exports neither scan_diagnostics nor phase5_diagnostics"
+    assert diag_fn()["indexDirs"] >= 1
 
 
 # ---------------------------------------------------------------------------
@@ -427,7 +432,7 @@ def test_hash_file_all_notations_cross_check(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Phase 5 audit regressions (found by the Phase-6 bug check)
+# the scan/index audit regressions (found by the frontend review)
 # ---------------------------------------------------------------------------
 def test_scan_repeated_base_path_prefix_keeps_the_subfolder(tmp_path, monkeypatch, index_cache):
     """A sub-folder that repeats the base path must not be stripped twice.

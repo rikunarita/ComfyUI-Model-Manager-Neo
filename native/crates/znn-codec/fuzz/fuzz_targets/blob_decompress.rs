@@ -1,15 +1,15 @@
-//! L3 fuzz target 5/5: per-tensor ZN BLOB decoding (`znn_tensor` — the
-//! Phase-2 surface for hostile `.znn.safetensors` payloads).
+//! ASan fuzz target 5/5: per-tensor ZN BLOB decoding (`znn_tensor` — the
+//! the safetensors pipeline surface for hostile `.znn.safetensors` payloads).
 //! Exercises: the ZN header parse (version gate, magic, method, lossy,
 //! input_format), the packed-shape decode, the dtype-code table (compat
-//! band + explicit Phase-4 refusals), the shape×elem == original_len
+//! band + explicit dtype extension refusals), the shape×elem == original_len
 //! consistency check, the ALLOCATION CAP (a consistent-lie header declaring
 //! terabytes must error, never OOM), and the codec payload validation
 //! through `combine_dtype_into`. Threads are pinned to 1 (no pool churn per
 //! iteration). Every path must return Err — never panic, never hang.
 //!
 //! The output buffer is a thread_local grow-only Vec — the same reuse
-//! pattern the pipeline uses for K1 (see `pipeline.rs`).
+//! pattern the pipeline uses for 圧縮ピークRAM (see `pipeline.rs`).
 //!
 //! Root cause of the 2026-09-25 fuzz-long OOMs (runs 36088280583 AND the
 //! re-run 36114455354, which still grew ~35 B/exec with a live heap of only

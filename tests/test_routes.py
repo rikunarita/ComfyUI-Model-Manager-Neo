@@ -1,7 +1,7 @@
-"""Phase 2 (L4) / Phase 8: route/ws contract golden tests (single path).
+"""Safetensors pipeline route/ws contract golden tests (single path).
 
-The Phase-2 switchover contract, kept verbatim after the Phase-8
-removal of the legacy vendored C core and the ``MM_NATIVE`` switch:
+The safetensors pipeline switchover contract, kept verbatim after the removal
+of the legacy vendored C core and the ``MM_NATIVE`` switch:
 ``POST /model-manager/zipnn/{compress,decompress}`` emits the SAME websocket
 event sequence and stats shapes the frontend has always consumed — the native
 Rust pipeline is now the only engine. These tests pin:
@@ -14,8 +14,8 @@ Rust pipeline is now the only engine. These tests pin:
   reason — never a silent fallback (there is no other engine any more);
 * the startup ``.tmp``/``.corrupt`` cleanup sweep.
 
-Cross-engine compatibility with the OFFICIAL zipnn lives in the L5 CI gate
-(``scripts/l5/official_cross.py`` against pip zipnn 0.5.4) — the transition-
+Cross-engine compatibility with the OFFICIAL zipnn lives in the official interoperability gate CI gate
+(``scripts/cross_validation/official_cross.py`` against pip zipnn 0.5.4) — the transition-
 era legacy-path parity tests were retired together with the legacy path.
 """
 
@@ -253,7 +253,7 @@ async def test_cancel_route_rejects_a_task_without_a_job(prompt_server):
     """A task registered but whose native job was never submitted (the window
     between task creation and the worker's ``zipnn_compress`` call, or an
     already-finished task whose handle was popped) is refused cleanly — the
-    Phase-8 replacement of the old legacy-path refusal."""
+    prebuilt distribution's replacement of the old legacy-path refusal."""
     compress = _compress_mod()
     compress.ZipNNRoutes().add_routes(prompt_server.routes)
     compress.ZIPNN_TASKS["no-job"] = {"mode": "compress", "status": "running", "src": "x", "dst": "y"}
@@ -267,7 +267,7 @@ async def test_cancel_route_rejects_a_task_without_a_job(prompt_server):
 
 @pytest.mark.asyncio
 async def test_missing_core_fails_the_task_with_the_loader_reason(prompt_server, model_lib, tmp_path):
-    """Phase 8: no binary -> the single-file task fails with the loader's
+    """the prebuilt distribution: no binary -> the single-file task fails with the loader's
     actionable reason (never a silent fallback — there is no other engine),
     and the batch route refuses IMMEDIATELY (no task is created for a run
     that could only fail)."""

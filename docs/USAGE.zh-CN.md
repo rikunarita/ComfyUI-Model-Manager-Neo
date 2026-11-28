@@ -1,8 +1,8 @@
-# ComfyUI‑Model‑Manager‑Neo 使用指南（中文）
+# ComfyUI-Model-Manager-Neo 使用指南（中文）
 
 > 姊妹文档: [English](USAGE.md) · [日本語](USAGE.ja.md) · [繁體中文](USAGE.zh-TW.md)
 
-ComfyUI‑Model‑Manager‑Neo 是一个为 ComfyUI 增加模型**浏览、下载、上传、编辑**
+ComfyUI-Model-Manager-Neo 是一个为 ComfyUI 增加模型**浏览、下载、上传、编辑**
 能力的自定义节点。它完全运行在 ComfyUI 进程内部：后端是 ComfyUI 服务器中的
 一组 `aiohttp` 路由，前端是注入页面的单个打包 Vue 3 应用。扫描、哈希、
 头部解析以及整个 ZipNN 压缩引擎等重活，都由仓库内附带的预构建 Rust 核心执行。
@@ -41,7 +41,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 **ComfyUI Registry（ComfyUI Manager / CLI）** —— Neo 已发布在
 [ComfyUI Registry](https://registry.comfy.org/publishers/rikunarita7669/nodes/comfyui-model-manager-neo)（官方节点仓库），
 节点名为 `comfyui-model-manager-neo`：在 ComfyUI-Manager 中搜索
-**ComfyUI‑Model‑Manager‑Neo**，或用官方命令行安装：
+**ComfyUI-Model-Manager-Neo**，或用官方命令行安装：
 
 ```bash
 comfy node install comfyui-model-manager-neo
@@ -178,11 +178,11 @@ Node.js 也不需要编译器** —— 覆盖的平台见[引擎](#the-engine)�
 - **Description 标签** —— 渲染存放在模型旁 `*.md` 文件中的 Markdown。
   链接在新标签页打开。
 - **Information 标签** —— 该模型所有已记录信息的表格（默认只读；编辑模式下
-  铅笔图标会**在警告之后**打开它，保存表单会重写笔记的 front‑matter）。
-  笔记的 YAML front‑matter（Civitai / Hugging Face / ModelScope 下载时写入）
+  铅笔图标会**在警告之后**打开它，保存表单会重写笔记的 front-matter）。
+  笔记的 YAML front-matter（Civitai / Hugging Face / ModelScope 下载时写入）
   被解析成行：作者、基础模型、每个文件哈希（`AutoV1` … `SHA256_12`）、
   格式与精度、模型平台、可点击的模型页链接，以及**所有**预览图的 URL；
-  解析器不认识的键在表格末尾逐字列出。没有 front‑matter 的模型逐字显示
+  解析器不认识的键在表格末尾逐字列出。没有 front-matter 的模型逐字显示
   直接从 safetensors 头部读出的 `__metadata__` 块 —— 不做任何缓存或后台扫描。
 - **张量区**（safetensors 模型） —— 从头部解析出的精确张量布局，按
   Hugging Face safetensors 查看器的样式渲染为可折叠的**文件夹树**：
@@ -200,7 +200,7 @@ Node.js 也不需要编译器** —— 覆盖的平台见[引擎](#the-engine)�
 ### 按哈希识别
 
 模型详情操作行中的**哈希反查按钮**（HashReverse 图标）向 Civitai 目录
-询问某个本地文件是哪个模型版本：先尝试笔记 front‑matter 中已记录的哈希
+询问某个本地文件是哪个模型版本：先尝试笔记 front-matter 中已记录的哈希
 （`AutoV1` / `AutoV2` / `SHA256` / `CRC32` / `BLAKE3`），全部落空才对文件做
 单遍哈希。命中时打开解析出的模型/版本及其基础模型、触发词、文件列表，
 并附上官方 CLI 命中时打印的同一条 `civitai download` 命令（可一键复制）；
@@ -435,7 +435,7 @@ ZipNN 打包文件夹（`*_DeltaZNN`、旧式 `*_ZNN`）与普通文件夹永远
 压缩文件遵循官方 ZipNN 布局（`znn_compressed_vectors` 元数据、Huffman 压缩
 张量 —— Rust 核心覆盖**所有** safetensors dtype，见下文_dtype 覆盖与互操作_），
 因此打过 `zipnn_safetensors()` 补丁的加载器可以透明读取兼容带文件。压缩是
-**无损且经过验证的**：核心在压缩时记录源文件的 SHA‑256，还原时内联复核
+**无损且经过验证的**：核心在压缩时记录源文件的 SHA-256，还原时内联复核
 （不匹配则保留压缩文件，并把产物移为 `.corrupt` 以供检查）；只有在
 `.znn.safetensors` 写入并通过原子改名验证之后，普通 `.safetensors` 才会被
 删除，失败的运行会清理其部分产物。可选的 **paranoid 模式**（默认关；
@@ -470,10 +470,12 @@ Rust 核心压缩 **safetensors 0.8 定义的每个 dtype**（全部 22 种）�
 | Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                              |
 | macOS（Intel 与 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so`   | 单个 fat 二进制 —— Intel macOS 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC 构建                                                 |
+| Windows ARM64                   | `native-bin/windows-arm64/mm_core.pyd`          | MSVC 构建（ARM64）                                        |
 | Linux x86_64（自由线程）        | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28，自由线程 CPython 3.15+                      |
 | Linux aarch64（自由线程）       | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28，自由线程 CPython 3.15+                      |
 | macOS（自由线程）               | `native-bin/macos-universal2t/mm_core.abi3t.so` | 单个 fat 二进制，自由线程 CPython 3.15+                   |
 | Windows x86_64（自由线程）      | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC 构建，自由线程 CPython 3.15+                         |
+| Windows ARM64（自由线程）       | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC 构建（ARM64），自由线程 CPython 3.15+                |
 
 每个平台一个二进制即支持 **CPython 3.12 及更新版本**（Python Stable ABI）；
 自由线程构建由 `<tag>t` 的 **abi3t** 二进制支持（CPython 3.15+、PEP 803），
@@ -507,7 +509,7 @@ Rust 核心压缩 **safetensors 0.8 定义的每个 dtype**（全部 22 种）�
 `<base>_DeltaZNN/<ft>_delta_<base>.znn`（通常只有微调模型大小的百分之几），
 并删除冗余的微调文件。增量文件的卡片按钮（反色显示）会把微调模型
 **逐字节精确地**还原到基础模型旁边，并在增量文件夹清空后将其删除。还原需要
-基础模型仍然存在，且增量文件记录了微调模型自己的 SHA‑256，因此还原全程
+基础模型仍然存在，且增量文件记录了微调模型自己的 SHA-256，因此还原全程
 可验证。
 
 ![ZipNN 增量对话框](../demo-assets/zipnn-delta-dialog.avif)

@@ -1,7 +1,7 @@
-"""Phase 8: the distribution invariants — single path, version sync,
+"""the prebuilt distribution: the distribution invariants — single path, version sync,
 licence inheritance, no third_party residue.
 
-Phase 8 completes the migration: the vendored C core (``third_party/``) and
+the prebuilt distribution completes the migration: the vendored C core (``third_party/``) and
 the ``MM_NATIVE`` switch are gone, the prebuilt ``mm_core`` under
 ``native/native-bin/`` is the single engine, and the release is PREPARED by
 synchronising the version across pyproject / package.json / web/version.yaml
@@ -40,8 +40,7 @@ def _pyproject() -> dict:
 
 def test_requirements_matches_pyproject_dependencies():
     """The runtime contract (requirements.txt) is the pyproject dependency
-    list, comment lines aside — the documented one-way sync (T4 note /
-    Phase 8 "pyproject / requirements 整理"). A drift would mean Manager
+    list, comment lines aside — the documented one-way sync (see Agent/MEMO.md). A drift would mean Manager
     installs something the metadata does not declare (or vice versa)."""
     deps = _pyproject()["project"]["dependencies"]
     lines = [
@@ -56,7 +55,7 @@ def test_version_triple_is_in_sync():
     """pyproject == package.json == web/version.yaml (the committed bundle's
     stamp). The vite plugin writes version.yaml FROM pyproject at build time,
     so a mismatch means web/ was not rebuilt after a version bump — exactly
-    the kind of release-prep drift Phase 8's version sync must not ship."""
+    the kind of release-prep drift the prebuilt distribution's version sync must not ship."""
     py_version = _pyproject()["project"]["version"]
     pkg = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
     assert pkg["version"] == py_version, (pkg["version"], py_version)
@@ -70,7 +69,7 @@ def test_third_party_is_gone_and_unreferenced():
     """The vendored C core tree no longer exists and no runtime module (or the
     extension entry point) mentions it — a leftover sys.path push would try to
     load binaries that no longer ship."""
-    assert not (REPO_ROOT / "third_party").exists(), "third_party/ must be removed in Phase 8"
+    assert not (REPO_ROOT / "third_party").exists(), "third_party/ must be removed in the prebuilt distribution"
     sources = [REPO_ROOT / "__init__.py", *sorted((REPO_ROOT / "py").glob("*.py"))]
     for path in sources:
         text = path.read_text(encoding="utf-8")
@@ -111,7 +110,7 @@ def test_binary_ignores_stay_and_the_publisher_force_adds():
     """The *.so ignore must STAY (a dev/PR worktree may never commit a local
     debug build by accident) while the publish job is the single authorised
     writer and force-adds the release artifacts — `git add -f` is what makes
-    the K16 fresh-clone story work despite the ignore (tracked files clone
+    the prebuilt distribution fresh-clone story work despite the ignore (tracked files clone
     regardless). A negation pattern instead would re-expose every local build
     to `git add -A`."""
     ignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")

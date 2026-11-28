@@ -1,6 +1,6 @@
-"""Quick Win A1: the model-detail route must not block the loop.
+"""model-detail route executorization: the model-detail route must not block the loop.
 
-Regression test for the Quick Win A1 fix: ``GET /model-manager/model/...``
+Regression test for the model-detail route executorization fix: ``GET /model-manager/model/...``
 used to call ``ModelManager.get_model_info`` inline on the event loop, so a
 multi-megabyte MoE header parse froze the whole server (websockets
 included). The fix hands the call to the IO executor - this test asserts

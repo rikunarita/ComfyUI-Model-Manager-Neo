@@ -13,8 +13,8 @@
 //! * [`compress_block`] is a step-for-step port of `HUF_compress`
 //!   (histogram → incompressible/RLE heuristics → optimal tableLog →
 //!   `HUF_buildCTable` → `HUF_writeCTable` incl. the FSE-vs-direct choice →
-//!   4-stream bitwriter) producing BYTE-IDENTICAL blocks — so L2 golden
-//!   tests can compare compressed bytes, not just ratios.
+//!   4-stream bitwriter) producing BYTE-IDENTICAL blocks — so the golden differential
+//!   gate can compare compressed bytes, not just ratios.
 //!
 //! The decoder decodes the 4 streams sequentially into their segments
 //! (identical results to the C interleaved fast loop — the streams are

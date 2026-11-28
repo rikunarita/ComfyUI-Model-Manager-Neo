@@ -1,11 +1,11 @@
-"""Phase 2 (L4): the native safetensors pipeline through ``mm_core``.
+"""The safetensors pipeline (integration corpus): the native pipeline through ``mm_core``.
 
 Drives the REAL Rust artifact (``native/native-bin/<tag>/mm_core.abi3.so``,
 built by ``scripts/build-native.sh`` / CI) via the production loader
 (``py/native.py``): job submission, atomic-progress polling, cancellation,
 the integrity pipeline (``znn_neo_src_sha256`` recording, default-ON
 verification, ``.corrupt`` retreat, paranoid mode) and the byte-exact
-restore guarantee over the L4 model corpus (``harness.build_corpus`` —
+restore guarantee over the integration corpus model corpus (``harness.build_corpus`` —
 the corpus classes as synthetic stand-ins).
 
 Skips cleanly when no native binary exists for this platform (the CI verify
@@ -48,7 +48,7 @@ def mm(tmp_path, monkeypatch):
     config = import_ext("config")
     config.extension_uri = str(REPO_ROOT)
     # reset the loader's cached attempt state (module state is shared across
-    # the whole pytest session — the Phase-0 loader tests mutate it too)
+    # the whole pytest session — the baseline measurements loader tests mutate it too)
     native._module = None
     native._reason = None
     native._attempted = False
@@ -98,7 +98,7 @@ def _decompress(mm, src: Path, dst: Path, **opts) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Corpus round trips (the L4 gate: 圧縮→解凍→原本 SHA-256 一致)
+# Corpus round trips (the integration corpus gate: 圧縮→解凍→原本 SHA-256 一致)
 # ---------------------------------------------------------------------------
 
 
@@ -148,8 +148,8 @@ def test_moe_header_heavy_file_keeps_all_tensors(mm, corpus, tmp_path):
     assert sha256_file(back) == sha256_file(src)
 
 
-def test_former_passthrough_classes_are_compressed_since_phase4(mm, corpus, tmp_path):
-    # Phase 2 stored C64 (audio) and F64 as-is (out of band). Phase 4
+def test_former_passthrough_classes_are_compressed_since_extband(mm, corpus, tmp_path):
+    # the safetensors pipeline stored C64 (audio) and F64 as-is (out of band). dtype extension
     # compresses them through the Neo extension band (the legacy path still
     # RAISES on f64 — Neo is strictly more capable) and marks the files.
     for name, compressed, torch_name in [
@@ -162,7 +162,7 @@ def test_former_passthrough_classes_are_compressed_since_phase4(mm, corpus, tmp_
         header, tensors = read_safetensors(znn)
         meta = header["__metadata__"]
         infos = json.loads(meta["znn_compressed_vectors"])
-        assert compressed in infos, f"{name}: {compressed} must compress in Phase 4"
+        assert compressed in infos, f"{name}: {compressed} must compress in extband"
         assert infos[compressed]["dtype"] == torch_name
         assert tensors[compressed][0] == "U8", "stored as a ZN blob vector"
         assert meta["znn_neo_extended"] == "1", "Neo-band blobs flag the file"
@@ -190,7 +190,7 @@ def test_compressed_metadata_matches_the_legacy_contract(mm, corpus, tmp_path):
     assert meta["znn_neo_original_bytes"] == str(src.stat().st_size)
     assert meta["znn_neo_src_sha256"] == sha256_file(src)
     assert meta["znn_neo_exact"] == "1"
-    # Phase 4: the corpus's I64 tensor (pos.ids) now compresses through the
+    # dtype extension: the corpus's I64 tensor (pos.ids) now compresses through the
     # Neo extension band too, so the file carries the extended marker
     assert meta["znn_neo_extended"] == "1"
     # infos: EXACTLY the python json.dumps rendering (sorted names, dtype +

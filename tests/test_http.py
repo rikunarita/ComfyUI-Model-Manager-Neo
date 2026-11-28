@@ -1,6 +1,6 @@
-"""Phase 6 / Quick Win A3 - the requests -> aiohttp unification.
+"""aiohttp migration - the requests -> aiohttp unification.
 
-The acceptance condition for A3: behaviour parity
+The acceptance condition for aiohttp migration: behaviour parity
 (timeouts / error wording / what the UI shows) plus mock tests that do not
 depend on a live API. Every test here therefore runs against a LOCAL aiohttp server (no network, no
 recorded fixtures to go stale) and pins the parts of the old `requests`
@@ -50,7 +50,7 @@ def _reset_native_loader():
 
 
 def _skip_without_native():
-    """Phase 8: preview IMAGE writes go through the native zenwebp encoder
+    """the prebuilt distribution: preview IMAGE writes go through the native zenwebp encoder
     exclusively (the PIL re-encode fallback retired with MM_NATIVE), so tests
     that write a WebP need the built core; they skip on ci.yml@dev where no
     artifact is present and run on main / in the integration job."""
@@ -735,9 +735,9 @@ async def test_hf_searcher_uses_the_recursive_tree_for_sizes(hub_factory, monkey
 
 
 # ---------------------------------------------------------------------------
-# Phase 7 / T8 - the preview pipeline's requests -> aiohttp completion (A3).
+# the preview pipeline's requests -> aiohttp completion.
 #
-# Phase 7 T8 moves the LAST two blocking `requests.get` calls
+# aiohttp migration moves the LAST two blocking `requests.get` calls
 # (utils.save_model_preview's download-completion fetch and the editor-save
 # fetch) onto the shared aiohttp session, so a stalled CDN no longer pins one
 # of the eight io-executor workers for the 120 s read timeout. These tests pin
@@ -787,7 +787,7 @@ async def test_fetch_preview_passes_through_a_generic_content_type(hub_factory):
     """A generic content-type (application/octet-stream - what an unlabelled CDN
     object arrives as, and aiohttp's default for a raw body) is passed through
     unchanged; `_write_preview_content`'s magic-byte sniff handles it, exactly
-    as the pre-T8 `response.headers.get("content-type", "")` path did."""
+    as the pre-aiohttp migration `response.headers.get("content-type", "")` path did."""
     http_client = import_ext("http_client")
     png = b"\x89PNG\r\n\x1a\n" + b"0" * 16
     hub = await hub_factory({"GET /raw": (200, png)})
@@ -800,7 +800,7 @@ async def test_fetch_preview_passes_through_a_generic_content_type(hub_factory):
 async def test_save_model_preview_falls_back_to_url_content_type_when_missing(model_lib, monkeypatch):
     """When the fetch reports NO content-type (a real CDN can omit it; aiohttp's
     test server cannot), save_model_preview falls back to
-    `resolve_file_content_type(url)` exactly as the pre-T8 requests path did."""
+    `resolve_file_content_type(url)` exactly as the pre-aiohttp migration requests path did."""
     _skip_without_native()
     import os
 
@@ -872,7 +872,7 @@ async def test_save_model_preview_writes_webp_and_skips_blob(hub_factory, model_
 @pytest.mark.asyncio
 async def test_save_model_preview_local_branch_reads_the_stored_file(model_lib):
     """Our own `/model-manager/preview/...` URL is read from disk server-side
-    (no HTTP round trip), matching the pre-T8 behaviour."""
+    (no HTTP round trip), matching the pre-aiohttp migration behaviour."""
     _skip_without_native()
     import os
 
@@ -999,7 +999,7 @@ async def test_update_model_junction_resolve_write_then_remove(hub_factory, mode
 
 
 def test_py_backend_has_no_direct_requests_usage():
-    """T8 gate: `py/` must not import or call `requests` directly any more (it
+    """aiohttp migration gate: `py/` must not import or call `requests` directly any more (it
     stays only as a transitive dep of modelscope_hub). AST-based so docstrings /
     comments that mention `requests.get` (http_client.py explains the parity)
     are NOT false positives."""
@@ -1023,7 +1023,7 @@ def test_py_backend_has_no_direct_requests_usage():
 
 @pytest.mark.asyncio
 async def test_resolve_preview_sources_mixed_source_kinds(hub_factory, model_lib):
-    """Junction (T8): one gallery mixing an http URL, our own local preview URL,
+    """Junction (aiohttp migration): one gallery mixing an http URL, our own local preview URL,
     a blob: URL and a non-URL string — each takes its historical branch and the
     per-index failure wording is unchanged."""
     import os
@@ -1057,7 +1057,7 @@ async def test_resolve_preview_sources_mixed_source_kinds(hub_factory, model_lib
 
 @pytest.mark.asyncio
 async def test_save_model_preview_video_url_writes_the_original_bytes(hub_factory, model_lib):
-    """T8 parity: a video/* preview is still stored verbatim (no re-encode), the
+    """aiohttp migration parity: a video/* preview is still stored verbatim (no re-encode), the
     async fetch must not change the video branch."""
     import os
 
@@ -1089,7 +1089,7 @@ def _file_field(filename: str, content: bytes, content_type: str) -> web.FileFie
 
 @pytest.mark.asyncio
 async def test_save_model_preview_accepts_an_uploaded_file_field(model_lib):
-    """T8 junction: the editor's multipart upload branch (a ``web.FileField``
+    """aiohttp migration junction: the editor's multipart upload branch (a ``web.FileField``
     instead of a URL string) goes through the SAME async writer - the field's
     own content-type/filename drive the re-encode and no HTTP round trip
     happens. This branch moved untouched through the requests -> aiohttp
@@ -1121,7 +1121,7 @@ async def test_save_model_preview_accepts_an_uploaded_file_field(model_lib):
 
 @pytest.mark.asyncio
 async def test_resolve_preview_sources_stages_uploaded_file_fields():
-    """T8 junction: the editor gallery may mix uploaded multipart files with
+    """aiohttp migration junction: the editor gallery may mix uploaded multipart files with
     URL strings - a FileField stages its bytes under the field's filename and
     content-type, and a non-FileField object becomes the historical
     ``Invalid file`` failure entry (not a crash)."""
@@ -1138,7 +1138,7 @@ async def test_resolve_preview_sources_stages_uploaded_file_fields():
 
 @pytest.mark.asyncio
 async def test_preview_without_native_core_degrades_per_path(model_lib, monkeypatch):
-    """Phase 8 degradation contract with NO loadable core: the tolerant
+    """the prebuilt distribution degradation contract with NO loadable core: the tolerant
     download-completion path warns+skips (written == 0, the download itself
     never fails), while the editor write path surfaces the actionable
     "native core is unavailable" reason inside its historical wording."""

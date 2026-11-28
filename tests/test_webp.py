@@ -1,18 +1,18 @@
-"""Phase 7 / T7 - the preview WebP pipeline goes native (zenwebp).
+"""preview WebP - the preview WebP pipeline goes native (zenwebp).
 
 `py/utils.py::_write_preview_content` used to re-encode every preview with PIL
 (`Image.open(...).save(..., "WEBP")`), which also FROZE an animated GIF / WebP
-to its first frame. T7 routes the image leg through the native zenwebp core:
+to its first frame. preview WebP routes the image leg through the native zenwebp core:
 a WebP input is decoded by zenwebp, a non-WebP input by PIL, and the RGBA is
 re-encoded by zenwebp - stills as still WebP, animated sources as ANIMATED
 WebP (frames + durations preserved). The native core is the rollback unit: a
-failure (or `MM_NATIVE=0`) falls back to the exact pre-T7 PIL path.
+failure (or `MM_NATIVE=0`) falls back to the exact pre-preview WebP PIL path.
 
 The parity gate is a BEHAVIOUR contract, not byte-identity (the encoders
 differ): "same dimensions, decodable, size within a tolerance band". These
 tests pin that, the animation preservation (frames, per-frame durations, the
 loop count and the ICC profile at the container-byte level) and the native
-WebP decode. Phase 8 retired the PIL re-encode fallback together with the
+WebP decode. The prebuilt distribution retired the PIL re-encode fallback together with the
 MM_NATIVE switch: the zenwebp pipeline is the SINGLE image path, so a missing
 core or an undecodable input surfaces the historical RuntimeError instead of
 silently re-encoding through PIL. Every test here skips cleanly where no
@@ -42,7 +42,7 @@ def _reset_native_loader():
 
 
 def _require_native():
-    """Load the native core (skip when absent) — the only path since Phase 8."""
+    """Load the native core (skip when absent) — the only path since the prebuilt distribution."""
     native = _reset_native_loader()
     if native.core_if_enabled() is None:
         pytest.skip(f"native core unavailable: {native.reason()}")
@@ -124,7 +124,7 @@ def _webp_iccp(data: bytes) -> bytes | None:
 # ---------------------------------------------------------------------------
 def test_native_still_webp_parity_with_pil(tmp_path):
     """The native encode produces a WebP of the SAME dimensions as PIL's, that
-    decodes, and whose size is in the same band (the T7 parity contract)."""
+    decodes, and whose size is in the same band (the preview WebP parity contract)."""
     _require_native()
     utils = import_ext("utils")
     from PIL import Image
@@ -137,7 +137,7 @@ def test_native_still_webp_parity_with_pil(tmp_path):
     utils._write_preview_content(str(model), content, "image/png", "src.png", "")
     native_webp = (tmp_path / "m.webp").read_bytes()
 
-    # PIL reference (the pre-T7 behaviour)
+    # PIL reference (the pre-preview WebP behaviour)
     pil_buf = io.BytesIO()
     Image.open(io.BytesIO(content)).save(pil_buf, "WEBP")
     pil_webp = pil_buf.getvalue()
@@ -178,11 +178,11 @@ def test_native_webp_input_is_decoded_natively(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# animation preservation (the real Civitai-preview regression T7 removes)
+# animation preservation (the real Civitai-preview regression preview WebP removes)
 # ---------------------------------------------------------------------------
 def test_animated_gif_becomes_an_animated_webp(tmp_path):
     """An animated GIF preview keeps its frame count and per-frame durations
-    (the pre-T7 PIL path froze it to frame 0)."""
+    (the pre-preview WebP PIL path froze it to frame 0)."""
     _require_native()
     utils = import_ext("utils")
     from PIL import Image
@@ -305,14 +305,14 @@ def test_animation_icc_profile_is_preserved(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Phase 8: the native pipeline is the SINGLE path (no PIL re-encode fallback)
+# the prebuilt distribution: the native pipeline is the SINGLE path (no PIL re-encode fallback)
 # ---------------------------------------------------------------------------
 def test_preview_image_requires_the_native_core(tmp_path, monkeypatch):
     """With no loadable core the image branch raises the actionable
     "native core is unavailable" RuntimeError instead of silently re-encoding
-    through PIL (the pre-Phase-8 fallback is gone with the MM_NATIVE switch).
+    through PIL (the pre-native PIL fallback is gone with the MM_NATIVE switch).
     The tolerant download path turns this into a warning+skip, the editor
-    path surfaces it - both are pinned in test_phase6_http.py."""
+    path surfaces it - both are pinned in test_http.py."""
     native = _reset_native_loader()
     monkeypatch.setattr(native, "core_if_enabled", lambda: None)
     utils = import_ext("utils")
@@ -327,7 +327,7 @@ def test_native_encode_failure_raises_without_a_pil_retry(tmp_path, monkeypatch)
     """A native encode failure surfaces the historical "Unsupported or corrupt
     preview image" RuntimeError - there is NO PIL second attempt any more (a
     mutation that silently swallowed the native error and re-encoded through
-    PIL would pass the pre-Phase-8 suite; this pins the single path)."""
+    PIL would pass the pre-removal suite; this pins the single path)."""
     native = _require_native()
     utils = import_ext("utils")
 
@@ -364,7 +364,7 @@ def test_corrupt_image_raises_the_historical_wording(tmp_path):
 # the native decode surface is exposed and rejects garbage cleanly
 # ---------------------------------------------------------------------------
 def test_webp_decode_parity_with_pil():
-    """Decode parity (T7 security gate ii): zenwebp's decode matches PIL's on a
+    """Decode parity (preview WebP security gate ii): zenwebp's decode matches PIL's on a
     real WebP. A lossless (VP8L) bitstream decodes deterministically, so the
     native RGBA must be byte-identical to both the original and PIL's decode."""
     native = _require_native()
@@ -391,7 +391,7 @@ def test_webp_decode_parity_with_pil():
 
 def test_webp_decode_rejects_garbage():
     """mm_core.webp_decode maps a corrupt input to a RuntimeError (never a
-    panic / hang) - the production face of the L3 webp_decode fuzz target.
+    panic / hang) - the production face of the webp_decode ASan fuzz target.
 
     The deterministic malformed inputs MUST raise (a decode that silently
     returned pixels for garbage would defeat the whole guard chain); the

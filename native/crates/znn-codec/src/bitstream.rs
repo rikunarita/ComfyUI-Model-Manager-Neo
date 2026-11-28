@@ -9,7 +9,7 @@
 //! add/flush call sequence (the encoder relies on that for byte-exact
 //! golden parity with the C core — the compatibility contract lets us relax
 //! this, but
-//! exactness makes L2 diffing trivial).
+//! exactness makes golden differential diffing trivial).
 //!
 //! The reader mirrors `BIT_DStream_t` exactly, including the small-stream
 //! (<8 bytes) container construction and the four reload states

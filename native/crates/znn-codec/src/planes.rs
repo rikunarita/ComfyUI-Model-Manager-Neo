@@ -1,6 +1,6 @@
 //! N-plane split/join — the ZipNN "byte grouping" pre-transform
 //! (N = 1, 2, 4 compatibility + N = 8 and the truncation masks of the Neo
-//! extension band, Phase 4).
+//! extension band, dtype extension).
 //!
 //! The vendored C core (`data_manipulation_dtype16/32.c`) splits a chunk into
 //! N byte planes so that like-significant bytes land together before huff0.
@@ -18,7 +18,7 @@
 //! `q + (b < total % N)` (q = total / N). So a bounds-checked interleave is
 //! **byte-identical to the C in-bounds layout** in both directions:
 //! * Rust split → C combine: C reads only the in-bounds bytes (verified by
-//!   the L2 differential suite, `scripts/l2/`);
+//!   the golden differential suite);
 //! * C split → Rust join: same layout (the C overflow garbage lives past the
 //!   plane lengths and is never referenced).
 //!
@@ -31,12 +31,12 @@
 //! The hot loops process fixed-size blocks through `array_chunks` so LLVM
 //! emits the same SIMD shuffles gcc produces for the C's byte loops —
 //! plane split/join is memcpy-bound work and must run at memcpy speed
-//! (Phase 1 speed gate: 速度同等以上).
+//! (znn-codec speed gate: 速度同等以上).
 //!
 //! Every Appendix-C crash length is a permanent regression test here
 //! (`appendix_c_*`): split/join must succeed, round-trip, and never trap.
 //!
-//! Phase 4 additions (Neo extension band — the C core has NO 8-plane or
+//! dtype extension additions (Neo extension band — the C core has NO 8-plane or
 //! truncation code paths, so these layouts are Neo-defined; see `dtype.rs`
 //! module docs for the mode table and the interoperability rationale):
 //!
@@ -870,7 +870,7 @@ mod tests {
                     roundtrip(total, n, kind, 31);
                 }
             }
-            // Phase 4: the 8-plane path with both of its legal kinds
+            // dtype extension: the 8-plane path with both of its legal kinds
             for kind in [ReorderKind::None, ReorderKind::F64] {
                 roundtrip(total, 8, kind, 31);
             }
@@ -1191,7 +1191,7 @@ mod tests {
         let planes3: [&[u8]; 3] = [&[], &[], &[]];
         let mut dst0 = [];
         assert!(join(&planes3, &mut dst0, ReorderKind::None).is_err());
-        // F64 belongs to the Phase-4 8-plane path
+        // F64 belongs to the dtype extension 8-plane path
         let mut pa = [0u8; 5];
         let mut pb = [0u8; 5];
         assert!(split(&src, &mut [&mut pa[..], &mut pb[..]], ReorderKind::F64).is_err());
@@ -1228,7 +1228,7 @@ mod proptests {
             prop_assert_eq!(&dst, &src);
         }
 
-        /// The 8-plane path (Phase 4): split → join is the identity for
+        /// The 8-plane path (dtype extension): split → join is the identity for
         /// arbitrary lengths with both legal kinds.
         #[test]
         fn split_join_identity_8plane(

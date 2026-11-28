@@ -309,7 +309,7 @@ def get_download_path():
 
 
 def get_index_cache_dir() -> str:
-    """Directory of the persistent scan index (B3).
+    """Directory of the persistent scan index (persistent index).
 
     Derived data under the extension dir (`.mm-cache`, gitignored), created on
     demand. The native scan stores its front-matter snapshot (bincode +
@@ -350,11 +350,11 @@ def _native_core():
 def get_model_metadata(filename: str):
     """The ``__metadata__`` block of a safetensors file ({} when absent).
 
-    Native path (Phase 5, B4): ``mm_core.safetensors_header``
-    parses the header with jiter (K11 — an 8 MB MoE header in tens of
+    Native path (the scan/index work, 32 MiB header cap): ``mm_core.safetensors_header``
+    parses the header with jiter (large-MoE header parsing — an 8 MB MoE header in tens of
     milliseconds, not the ~500 ms ``json.loads`` of the raw header) and drops
     the ``comfy.utils.safetensors_header`` dependency (resilient to ComfyUI API
-    churn). B4 also unifies the header cap at 32 MiB — the legacy 1 MiB guard
+    churn). The 32 MiB header cap unifies the header limit — the legacy 1 MiB guard
     silently emptied a large MoE ``__metadata__``.
     """
     if not filename.endswith(".safetensors"):
@@ -368,7 +368,7 @@ def get_model_metadata(filename: str):
         except Exception:
             return {}
     try:
-        # B4: 32 MiB (was 1 MiB, which silently emptied large MoE metadata).
+        # 32 MiB header cap: 32 MiB (was 1 MiB, which silently emptied large MoE metadata).
         out = comfy.utils.safetensors_header(filename, max_size=1024 * 1024 * 32)
         if out is None:
             return {}
@@ -388,8 +388,8 @@ def get_model_tensors(filename: str):
     table - name / dtype / shape - like Hugging Face's safetensors viewer.
     The `__metadata__` entry is skipped; it has its own section.
 
-    Native path (Phase 5, B4): `mm_core.safetensors_header`
-    parses with jiter (K11) and returns the tensor list directly — the output
+    Native path (the scan/index work, 32 MiB header cap): `mm_core.safetensors_header`
+    parses with jiter (large-MoE header parsing) and returns the tensor list directly — the output
     shape is byte-identical to the legacy parse (golden-tested).
     """
     if not filename.endswith(".safetensors"):
@@ -443,15 +443,14 @@ def get_model_header(filename: str) -> dict:
 
     ``{"metadata": {...}, "tensors": [...], "tensorTree": {...} | None}`` —
     the first two are exactly what [get_model_metadata] / [get_model_tensors]
-    return (and are served by the same native header parse), the third is the
-    Phase-6 display tensor tree pre-grouped in Rust
-    ("テンソルツリー事前グループ化"): a ``{"v":1,"nodes":[…],"leaves":[…]}``
+    return (and are served by the same native header parse), the third is the tensor tree pre-grouped in Rust
+    ("tensor-tree pre-grouping"): a ``{"v":1,"nodes":[…],"leaves":[…]}``
     document whose leaf indices address THIS response's ``tensors`` array.
 
     ``tensorTree`` is ``None`` whenever it cannot be produced (a legacy engine,
     a non-safetensors file, a header the tree parse rejects), and the frontend
-    then folds the tree itself from ``tensors`` exactly as it did before Phase
-    6 — so this is a pure acceleration, never a behaviour change.
+    then folds the tree itself from ``tensors`` exactly as it did before the
+    tensor-tree work — so this is a pure acceleration, never a behaviour change.
     """
     empty: dict = {"metadata": {}, "tensors": [], "tensorTree": None}
     if not filename.endswith(".safetensors"):
@@ -606,8 +605,8 @@ def _resolve_local_preview(url: str) -> str | None:
     return local if os.path.isfile(local) else None
 
 
-# Phase 7 T7: the preview WebP encoder settings — kept near PIL's
-# `Image.save(..., "WEBP")` defaults (quality 80, method 4) so pre/post-T7
+# the preview WebP: the preview WebP encoder settings — kept near PIL's
+# `Image.save(..., "WEBP")` defaults (quality 80, method 4) so pre/post-preview WebP
 # preview sizes land in the same band (the parity gate is "same dimensions,
 # decodable, size within a tolerance", NOT byte-identity — the encoders differ).
 _WEBP_QUALITY = 80.0
@@ -621,17 +620,17 @@ def _is_webp(content: bytes) -> bool:
 
 
 def _encode_preview_webp_native(mm, content: bytes, preview_path: str) -> None:
-    """Encode one preview image to WebP through the native zenwebp core (T7).
+    """Encode one preview image to WebP through the native zenwebp core (preview WebP).
 
     Pipeline: a non-WebP input is decoded by PIL, a WebP input
     by zenwebp; an animated source is re-encoded as an ANIMATED WebP (the
-    pre-T7 PIL path froze those to their first frame — a real Civitai-preview
+    pre-preview WebP PIL path froze those to their first frame — a real Civitai-preview
     regression this removes). Frame extraction: an animated WebP goes through
     zenwebp's animation decoder (PIL does not surface per-frame WebP durations,
     so native keeps them intact); an animated GIF is walked by PIL (which does
     report GIF durations and applies disposal). Raises on any failure — the
     caller wraps it in the historical "Unsupported or corrupt preview image"
-    RuntimeError (Phase 8: the PIL re-encode fallback is gone with MM_NATIVE).
+    RuntimeError (the prebuilt distribution: the PIL re-encode fallback is gone with MM_NATIVE).
     """
     from PIL import ImageSequence
 
@@ -697,8 +696,8 @@ def _write_preview_content(
             f.write(content)
     elif kind == "image":
         preview_path = _get_preview_path(model_path, ".webp", suffix)
-        # Phase 8: the native zenwebp encoder is the SINGLE path (the PIL
-        # re-encode was T7's rollback unit, retired together with the
+        # the prebuilt distribution: the native zenwebp encoder is the SINGLE path (the PIL
+        # re-encode was preview WebP's rollback unit, retired together with the
         # MM_NATIVE switch; PIL still decodes non-WebP INPUTS inside
         # _encode_preview_webp_native). A failure keeps the historical
         # RuntimeError wording the tolerant download path skips on and the
@@ -727,7 +726,7 @@ async def _write_preview_content_async(
     suffix: str,
 ) -> None:
     """Run the blocking (PIL re-encode / file write) preview writer on the io
-    executor. Phase 7 T8: with the URL fetch moved onto the event loop,
+    executor. aiohttp migration: with the URL fetch moved onto the event loop,
     only this millisecond-scale leg is handed to a worker, so a slow CDN can no
     longer pin one of the eight io slots for the 120 s read timeout."""
     loop = asyncio.get_running_loop()
@@ -745,7 +744,7 @@ async def save_model_preview(
 ):
     """Save one preview file for a model. Images -> WebP, videos -> original format.
 
-    Phase 7 T8: the URL fetch runs on the event loop through the shared
+    aiohttp migration: the URL fetch runs on the event loop through the shared
     aiohttp session (``http_client.fetch_preview``) instead of a blocking
     ``requests.get`` in an io-executor worker; only the PIL / write leg goes to
     the executor (``_write_preview_content_async``).
@@ -786,7 +785,7 @@ async def save_model_preview(
                 print_warning(f"Ignoring invalid preview URL: {url}")
                 return
             # (connect, read) timeouts: a stalled CDN must not hang the
-            # download-completion path forever. T8: the wait is on the event
+            # download-completion path forever. aiohttp migration: the wait is on the event
             # loop (shared aiohttp session), not an io-worker socket.
             content, content_type = await http_client.fetch_preview(url, headers=headers or {})
             if not content_type:
@@ -808,7 +807,7 @@ async def save_model_preview(
 
 
 async def resolve_preview_sources(items: list[Any]) -> tuple[list[tuple[str, str, bytes]], list[str]]:
-    """Resolve every editor-gallery source to bytes (edit-save path, T8 async half).
+    """Resolve every editor-gallery source to bytes (edit-save path, aiohttp migration async half).
 
     Mirrors the download-completion path: every source is resolved to bytes
     FIRST (local preview file read, HTTP download, or uploaded multipart
@@ -817,7 +816,7 @@ async def resolve_preview_sources(items: list[Any]) -> tuple[list[tuple[str, str
     the resolution server-side removes every browser-side failure mode (fetch
     errors, MIME mislabeling, cache staleness).
 
-    Phase 7 T8: this is the async half of the former
+    aiohttp migration: this is the async half of the former
     ``replace_model_previews`` - HTTP fetches run on the event loop through the
     shared aiohttp session (``http_client.fetch_preview``) instead of a
     blocking ``requests.get`` inside an io-executor worker, so a stalled CDN no
@@ -872,7 +871,7 @@ async def resolve_preview_sources(items: list[Any]) -> tuple[list[tuple[str, str
 
 
 def write_resolved_previews(model_path: str, staged: list[tuple[str, str, bytes]]) -> int:
-    """Write an already-resolved gallery (edit-save path, T8 sync/executor half).
+    """Write an already-resolved gallery (edit-save path, aiohttp migration sync/executor half).
 
     The synchronous half of the former ``replace_model_previews``: the old set
     is removed and the staged bytes are re-encoded into the suffix slots. Runs
@@ -881,7 +880,7 @@ def write_resolved_previews(model_path: str, staged: list[tuple[str, str, bytes]
 
     Raises when the gallery is too large or any entry cannot be written: a
     partially written gallery would silently reorder the primary preview. The
-    RuntimeError wording is verbatim from the pre-T8 function.
+    RuntimeError wording is verbatim from the pre-aiohttp migration function.
     """
     if len(staged) > len(_PREVIEW_SUFFIXES):
         # Writing past the scheme would create files no listing ever shows
@@ -921,7 +920,7 @@ async def save_model_previews(
     being dropped: a partially written gallery would otherwise reorder the
     primary behind the caller's back (the "primary swap reverted" defect).
 
-    Phase 7 T8: async - each entry's URL fetch runs on the event loop
+    aiohttp migration: async - each entry's URL fetch runs on the event loop
     (shared aiohttp session) instead of blocking an io-executor worker.
 
     Returns the number of previews actually written.
@@ -1086,7 +1085,7 @@ def set_setting_value(request: web.Request, key: str, value: Any):
 def get_setting_value(request: web.Request | None, key: str, default: Any = None) -> Any:
     """A persisted ComfyUI setting.
 
-    ``request`` may be None for a READ from a background task (Phase 6's model
+    ``request`` may be None for a READ from a background task (the model
     watcher): ComfyUI's `UserManager.get_request_user_id` only touches the
     request in `--multi-user` mode and returns ``"default"`` otherwise, so the
     single-user default deployment resolves the setting file without one. Under

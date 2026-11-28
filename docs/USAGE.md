@@ -1,8 +1,8 @@
-# ComfyUI‑Model‑Manager‑Neo — Usage Guide (English)
+# ComfyUI-Model-Manager-Neo — Usage Guide (English)
 
 > Sister documents: [日本語](USAGE.ja.md) · [简体中文](USAGE.zh-CN.md) · [繁體中文](USAGE.zh-TW.md)
 
-ComfyUI‑Model‑Manager‑Neo is a custom node that adds a model browser,
+ComfyUI-Model-Manager-Neo is a custom node that adds a model browser,
 downloader, uploader and editor to ComfyUI. It never leaves the ComfyUI
 process: the backend is a set of `aiohttp` routes inside the ComfyUI server,
 and the frontend is a single bundled Vue 3 app injected into the page. The
@@ -43,7 +43,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 **ComfyUI Registry (ComfyUI Manager / CLI)** — Neo is published on the
 [ComfyUI registry](https://registry.comfy.org/publishers/rikunarita7669/nodes/comfyui-model-manager-neo)
 (its official node catalogue) as `comfyui-model-manager-neo`: search for
-**ComfyUI‑Model‑Manager‑Neo** in ComfyUI-Manager, or install it from
+**ComfyUI-Model-Manager-Neo** in ComfyUI-Manager, or install it from
 the command line with the official CLI:
 
 ```bash
@@ -67,17 +67,17 @@ There are four entry points; they all do the same thing:
 
 | Entry point                            | Where                                                        |
 | -------------------------------------- | ------------------------------------------------------------ |
-| **“Model Manager Neo” top‑bar button** | the ComfyUI top bar (next to the settings gear)              |
+| **“Model Manager Neo” top-bar button** | the ComfyUI top bar (next to the settings gear)              |
 | **Main menu entry**                    | **Model Manager Neo**, directly in the main menu list        |
-| **Legacy menu button**                 | the old‑style menu container, if your frontend still has one |
+| **Legacy menu button**                 | the old-style menu container, if your frontend still has one |
 | **Command palette**                    | the `Comfy.ModelManager.Open` command                        |
 
-The manager is a **non‑modal window**: it floats above ComfyUI but the canvas
+The manager is a **non-modal window**: it floats above ComfyUI but the canvas
 stays fully interactive, so you can drag models onto the graph while browsing.
 Windows are draggable by their title bar, resizable from any edge or corner,
 and maximisable with the ⤢ button. Several windows can be open at once;
 clicking one brings it to the front. The manager window's title bar shows a
-live read‑out of the library's total model size.
+live read-out of the library's total model size.
 
 > The loading indicator is **scoped to the panel it belongs to** — while a
 > request is in flight only that window is dimmed and blurred; the canvas, the
@@ -92,9 +92,9 @@ default in **Settings → Model Manager Neo → UI → Flat Layout**.
 
 A single grid of every model of every type, with a toolbar:
 
-- **Search** — multi‑token “AND” matching; `*` works as a wildcard
+- **Search** — multi-token “AND” matching; `*` works as a wildcard
   (`*anime*` matches anything containing `anime`). Tokens match the file name
-  _or_ the sub‑folder.
+  _or_ the sub-folder.
 - **Type filter** — `All` or one model type.
 - **Sort** — Name / Largest / Latest created / Latest modified / Recently used
   (opening a model or adding it to the graph records the use).
@@ -105,24 +105,24 @@ A single grid of every model of every type, with a toolbar:
 
 ### Folder layout
 
-A file‑manager style tree with a breadcrumb trail (each crumb prefixed with a
+A file-manager style tree with a breadcrumb trail (each crumb prefixed with a
 folder glyph). The trail takes no space at the root — it only appears as the
-path gets deeper. Double‑click a folder to enter it; use the breadcrumb or the ↑
-button to go back. Right‑click a model for the context menu (**Open**). As the
+path gets deeper. Double-click a folder to enter it; use the breadcrumb or the ↑
+button to go back. Right-click a model for the context menu (**Open**). As the
 window narrows, intermediate crumbs are ellipsised first and the toolbar stacks
 vertically — the same responsive rule as the flat view — so controls are never
 clipped.
 
 ![folder layout](../demo-assets/view-folders.avif)
 
-The row next to the search box offers **Add Folder** (folder‑plus icon): type
+The row next to the search box offers **Add Folder** (folder-plus icon): type
 any name and the folder is created inside the directory you are browsing
 (names ending in `_ZNN` / `_DeltaZNN` are reserved for ZipNN). The same row
 holds the **sort order** and **card size** selects: the folder view is “the
-flat view scoped to one folder, plus the folder‑only extras (parent
+flat view scoped to one folder, plus the folder-only extras (parent
 navigation, folder creation, folder compression)”, so model cards look and
 behave identically in both layouts — including the hover column with
-add‑node / workflow / model‑page buttons.
+add-node / workflow / model-page buttons.
 
 Both layouts share the **show/hide hidden files** header button (files and
 folders whose name starts with `.`).
@@ -132,28 +132,28 @@ folders whose name starts with `.`).
 - **Preview** — image or looping video; models without a preview show the glass
   **NO PREVIEW** artwork.
 - **Chips** (top left) — model type and file size, scaled with the card.
-- **Sub‑directory label** — a model filed below its type root shows the
-  sub‑directory it lives in above the name (in both layouts).
+- **Sub-directory label** — a model filed below its type root shows the
+  sub-directory it lives in above the name (in both layouts).
 - **Star toggle** (top right, on every card) — an outline star when unstarred,
   a filled yellow star when starred; clicking toggles it, and starred
   models/folders always sort first.
 - **ZipNN corner button** (top right, next to the star) — one click compresses
   (or decompresses, shown inverted) with the same confirmation and progress as
-  the detail‑window button; on folder cards it runs the folder batch.
-- **Folder cards** — a hand‑drawn pale‑turquoise glass folder (_because this
+  the detail-window button; on folder cards it runs the folder batch.
+- **Folder cards** — a hand-drawn pale-turquoise glass folder (_because this
   is **Neo**_). Hovering makes the folder float; moving the pointer away
-  settles it back at once. Type‑root cards also show the
+  settles it back at once. Type-root cards also show the
   **total size of their model type**.
 - **Duplicate warning** — a model whose recorded SHA256 matches another file in
   the library shows a red alert with the duplicate's path in the detail window.
 - **Smart collections** (flat view) — save the current search + type filter as
-  a named collection (persisted per user) and re‑apply it from the collections
+  a named collection (persisted per user) and re-apply it from the collections
   menu; the active collection shows as a chip with clear / delete buttons.
   Save and apply share a single pill button `[💾 Collections ▾]`: the
-  floppy‑disk segment is its own click / keyboard target and opens the save
+  floppy-disk segment is its own click / keyboard target and opens the save
   dialog, while the rest of the button opens the menu that applies or switches
   saved collections.
-- **Hygiene scan** (header button, both layouts) — a local‑only sweep (no
+- **Hygiene scan** (header button, both layouts) — a local-only sweep (no
   network, no hashing) listing orphaned preview / notes files, models without
   any preview (with a shortcut into their editor) and empty folders; selected
   entries are removed through the usual Danger confirmation.
@@ -165,7 +165,7 @@ folders whose name starts with `.`).
   - onto an existing node: fills the matching combo input
   - an _embedding_ dragged onto a text area appends `(embedding:name:1.0)`
   - dragging a **preview image** loads a workflow embedded in it
-- **Double‑click / single click** — opens the model detail window.
+- **Double-click / single click** — opens the model detail window.
 - **Tooltip** — hovering a card shows its absolute path.
 
 The hygiene scan collects its findings in a single dialog, each entry removable
@@ -178,7 +178,7 @@ through the usual Danger confirmation:
 ![model detail](../demo-assets/model-info.avif)
 
 The window shows the preview (with a carousel when several previews exist), a
-base‑info table, and two tabs.
+base-info table, and two tabs.
 
 | Row                                 | Meaning                                                                |
 | ----------------------------------- | ---------------------------------------------------------------------- |
@@ -189,17 +189,17 @@ base‑info table, and two tabs.
 
 ### Reading
 
-- **Download to local** — the download‑icon button in the action row saves the
+- **Download to local** — the download-icon button in the action row saves the
   model file to your machine as an attachment (file name exactly as in the
   library). All buttons in the action row (ZipNN, star, hub page, identify,
   add node, load workflow, upload to hub, local download, edit, delete) share
-  one size inside a single inline‑scrolling row.
-- **Upload to hub** — the upload‑icon button in the action row opens the shared
+  one size inside a single inline-scrolling row.
+- **Upload to hub** — the upload-icon button in the action row opens the shared
   upload wizard with this model prefilled: pick Hugging Face or ModelScope and
   the wizard skips the type / model steps, landing on the upload form with the
   model path already filled in.
-- **Copy row values** — hovering a row of the base‑info table (type, directory,
-  sub‑folder, file name, size, dates) or of the Information table reveals a
+- **Copy row values** — hovering a row of the base-info table (type, directory,
+  sub-folder, file name, size, dates) or of the Information table reveals a
   copy button at the end of that row. The button is a sticky cell: on rows
   wider than the panel it stays at the right edge of the visible area while
   the table scrolls sideways. One click puts that row's value on the
@@ -207,14 +207,14 @@ base‑info table, and two tabs.
 - **Description** tab — rendered Markdown stored in a `*.md` file next to the
   model. Links open in a new tab.
 - **Information** tab — a table of everything recorded about the model
-  (read‑only by default; in edit mode the pencil opens it **behind a warning**,
-  and saving the form rewrites the notes' front‑matter). The YAML front‑matter
+  (read-only by default; in edit mode the pencil opens it **behind a warning**,
+  and saving the form rewrites the notes' front-matter). The YAML front-matter
   of the notes (what Civitai / Hugging Face / ModelScope downloads write) is
   parsed into rows: author, base model, every file hash (`AutoV1` …
   `SHA256_12`), format and precision, the model platform, a clickable
-  model‑page link and the URLs of **all** preview images; keys the parser does
+  model-page link and the URLs of **all** preview images; keys the parser does
   not know are listed verbatim at the end of the table. Models without
-  front‑matter show the `__metadata__` block read straight from the safetensors
+  front-matter show the `__metadata__` block read straight from the safetensors
   header, verbatim — nothing is cached or scanned in the background.
 - **Tensor section** (safetensors models) — the exact tensor layout parsed from
   the header, rendered like Hugging Face's safetensors viewer as a collapsible
@@ -222,7 +222,7 @@ base‑info table, and two tabs.
   has a folder icon that collapses / expands that level (everything starts
   maximally collapsed) plus its tensor / parameter count, and leaf rows keep
   name tail / dtype / shape. Very large folders page their leaves, with an
-  explicit _show all_ action. The tree is pre‑grouped by the Rust core, so even
+  explicit _show all_ action. The tree is pre-grouped by the Rust core, so even
   MoE headers with tens of thousands of tensors open instantly.
 
   ![tensor tree](../demo-assets/tensor-tree.avif)
@@ -234,15 +234,15 @@ base‑info table, and two tabs.
 
 ### Identify by hash
 
-The **hash reverse‑lookup button** (the HashReverse artwork icon) in the model
+The **hash reverse-lookup button** (the HashReverse artwork icon) in the model
 detail action row asks the Civitai catalog which model version a local file is:
-the hashes already recorded in the notes' front‑matter (`AutoV1` / `AutoV2` /
+the hashes already recorded in the notes' front-matter (`AutoV1` / `AutoV2` /
 `SHA256` / `CRC32` / `BLAKE3`) are tried first, and only when none of them hits
 is the file hashed in a single pass. A hit opens the resolved model / version
 with its base model, trigger words and file list, plus the same `civitai
 download` command the official CLI prints on a hit (copyable with one click); a
-miss reports that no matching model version was found. The lookup is per‑file
-and on demand — no library‑wide scan or hashing ever runs.
+miss reports that no matching model version was found. The lookup is per-file
+and on demand — no library-wide scan or hashing ever runs.
 
 ### Editing
 
@@ -251,16 +251,16 @@ Press the **pencil** to enter edit mode (the window turns into a form):
 ![edit mode](../demo-assets/model-edit.avif)
 
 - **Model Type** — dropdown of the types your ComfyUI actually has folders for.
-- **Directory** — read‑only field plus the **folder button**, which opens a
-  nested folder‑picker dialog with a tree of every base path and sub‑folder:
+- **Directory** — read-only field plus the **folder button**, which opens a
+  nested folder-picker dialog with a tree of every base path and sub-folder:
 
   ![folder picker](../demo-assets/folder-picker.avif)
 
 - **File name** — accepts a **folder prefix**. Typing `subfolder/my-model`
   files the model into `…/models/unet/subfolder/` on save (missing folders are
   created). `\ : * ? " < > |` and empty / `.` / `..` segments are rejected, and
-  the backend re‑checks path traversal server‑side.
-- **Preview** — managed as a single gallery. In edit mode an inline‑scrolling
+  the backend re-checks path traversal server-side.
+- **Preview** — managed as a single gallery. In edit mode an inline-scrolling
   thumbnail strip beside / below the main preview manages it: pick the primary,
   move entries left / right, or remove single images; the thumbnail with the
   **blue ring** becomes the card's **primary** preview on save (tile clicks and
@@ -307,9 +307,9 @@ Open **Download List** from the header, then:
    (folder prefixes allowed), the preview images and a Markdown description.
    The **whole gallery** the model page offers is kept, the image left selected
    in the carousel becomes the card's primary preview, and Civitai/HF
-   descriptions are pre‑filled (including trigger words and YAML metadata).
+   descriptions are pre-filled (including trigger words and YAML metadata).
 5. **Download** starts a background task. The previews are fetched in the
-   browser when possible and server‑side otherwise; if both fail the model
+   browser when possible and server-side otherwise; if both fail the model
    still downloads, just without a preview. The dialog shows the **free space**
    of the target volume and warns (and the backend refuses) when the file
    cannot fit.
@@ -317,7 +317,7 @@ Open **Download List** from the header, then:
 ### Model name search (multi-platform)
 
 When the input does **not** start with `https://` the same field becomes a
-model‑name search box: results arrive in parallel from **Hugging Face** (left),
+model-name search box: results arrive in parallel from **Hugging Face** (left),
 **ModelScope** (middle) and **Civitai** (right). Each row carries the owner's
 avatar (or an initials badge), the download count and two deep links — owner
 name → owner page, repository name → model page (hover underlines, tap opens);
@@ -325,8 +325,8 @@ clicking anywhere else on the row resolves that model into the editor. A plain
 `username/repo-name` is accepted too. Pressing **Enter always resolves
 something**: an exact
 match among the results first, then the bare repository id as a Hugging Face
-repository, then the top row of the first non‑empty column; with no results
-yet — or with input newer than the results on screen — Enter (re‑)runs the name
+repository, then the top row of the first non-empty column; with no results
+yet — or with input newer than the results on screen — Enter (re-)runs the name
 search instead of resolving a stale row. While a search is in flight a spinner
 with “Searching…” sits centred in the results area. Each column also pages:
 scrolling it to the bottom reveals a **“∨ Show more”** button whenever a next
@@ -339,7 +339,7 @@ likes and Civitai highest rated).
 
 ### Download plan & safety checks
 
-Once a version is resolved the editor shows a dry‑run plan: the destination
+Once a version is resolved the editor shows a dry-run plan: the destination
 path, the announced size, the published SHA256 and whether the platform API key
 is configured. Civitai downloads are verified against the published SHA256 on
 completion (a mismatch deletes the file and fails the task); bundled files of
@@ -352,7 +352,7 @@ top of the window.
 
 ### Generation metadata in the lightbox
 
-Enlarging a preview of a Civitai‑origin model shows the image on the left and
+Enlarging a preview of a Civitai-origin model shows the image on the left and
 its parsed generation metadata on the right: prompt, negative prompt, sampler,
 steps, CFG scale, seed, clip skip, size, base model and the resource recipe.
 
@@ -371,9 +371,9 @@ task record. Paused downloads resume with an HTTP `Range` request.
 The wizard asks for the **upload platform** first (Hugging Face or ModelScope),
 then continues through type / model selection into the upload form. ModelScope
 uploads always talk to the international `www.modelscope.ai` domain; repository
-creation (public/private), destination path and the live progress read‑out work
-for both platforms, and the folder‑view batch upload (selected folders → every
-model inside, sub‑folders preserved) honours the chosen platform too.
+creation (public/private), destination path and the live progress read-out work
+for both platforms, and the folder-view batch upload (selected folders → every
+model inside, sub-folders preserved) honours the chosen platform too.
 
 Set your token first: **Settings → Model Manager Neo → API Key → Hugging Face
 API Key** (or export `HF_TOKEN`); for ModelScope uploads use the **ModelScope
@@ -383,7 +383,7 @@ Open **Upload to Hugging Face / ModelScope** from the header:
 
 1. **Select upload platform** — Hugging Face or ModelScope.
 2. **Select model type** — a button per type.
-3. **Select model** — the grid of that type; picking one pre‑fills the
+3. **Select model** — the grid of that type; picking one pre-fills the
    destination path with the model's relative path.
 4. **Upload**:
 
@@ -401,13 +401,13 @@ Open **Upload to Hugging Face / ModelScope** from the header:
    - **Destination path in repo** — directory + file name inside the repo.
 
 Press **Upload**. The request returns immediately and the transfer runs in the
-background, so closing the window never cancels it. The progress read‑out names
+background, so closing the window never cancels it. The progress read-out names
 the current phase:
 
 | Phase        | What happens                                                                                                             |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `Preparing…` | token check, repository lookup, pre‑upload negotiation                                                                   |
-| `Hashing…`   | the local SHA256 is computed in the native core (a multi‑GB model can take minutes); **no bytes leave your machine yet** |
+| `Preparing…` | token check, repository lookup, pre-upload negotiation                                                                   |
+| `Hashing…`   | the local SHA256 is computed in the native core (a multi-GB model can take minutes); **no bytes leave your machine yet** |
 | `Uploading…` | the real transfer, with live percentages                                                                                 |
 
 ![hf upload progress](../demo-assets/hf-upload-progress.avif)
@@ -426,26 +426,26 @@ the current phase:
 **Download List → Upload from Local File**:
 
 1. pick a model type,
-2. pick a folder (or sub‑folder) in the tree,
+2. pick a folder (or sub-folder) in the tree,
 3. choose the file.
 
 The upload is registered as a **local task** in the Download List, with
 accurate progress, and the file lands in the chosen folder when it completes.
-The destination is validated server‑side (no arbitrary writes, no path
+The destination is validated server-side (no arbitrary writes, no path
 traversal).
 
 ## 9. Feedback, galleries and the lightbox
 
 - **Toasts.** Every action reports its outcome: success (green), warning
   (amber), error (red), info (accent). Each toast has a severity icon, a
-  tinted left bar, and a **close button** in its top‑right corner; toasts stack
-  at the top‑right above every dialog and auto‑dismiss after their timeout.
+  tinted left bar, and a **close button** in its top-right corner; toasts stack
+  at the top-right above every dialog and auto-dismiss after their timeout.
 
 - **All previews are kept.** Downloads and saves store every preview image of a
   model (`<name>.webp`, `<name>.preview.webp`, `<name>.preview2.webp`, …).
 - **Paging.** When a model has more than one preview, the preview area shows
   **`<` / `>` buttons** and an `i / n` counter, in view mode and in edit mode.
-- **Lightbox.** Clicking (tapping) the preview opens it full‑screen; `<` / `>`
+- **Lightbox.** Clicking (tapping) the preview opens it full-screen; `<` / `>`
   or the arrow keys page through the gallery, `Esc`, the backdrop or the close
   button dismiss it.
 
@@ -460,8 +460,8 @@ traversal).
 
 ### Select files
 
-The toolbar of both layouts has a **Select files** toggle (list‑checks icon).
-While it is on, every card and folder shows a round checkbox at its top‑left;
+The toolbar of both layouts has a **Select files** toggle (list-checks icon).
+While it is on, every card and folder shows a round checkbox at its top-left;
 clicking a card ticks it instead of opening it. As soon as one item is selected
 a bulk bar appears at the bottom of the window:
 
@@ -474,9 +474,9 @@ a bulk bar appears at the bottom of the window:
 - **ZipNN batch** (folders selected) — the ZipNN artwork button: batch
   compress / decompress the selected folders (see below);
 - **ZipNN delta compress** (exactly two plain models selected) — opens the
-  base/fine‑tune picker (see below);
-- **Upload to Hugging Face / ModelScope** (folders selected) — batch‑uploads
-  every model inside the selected folders (sub‑folders preserved) through the
+  base/fine-tune picker (see below);
+- **Upload to Hugging Face / ModelScope** (folders selected) — batch-uploads
+  every model inside the selected folders (sub-folders preserved) through the
   same upload dialog;
 - **Star** (folders selected, icon only) — yellow when every selected folder is
   starred (pressing unstars them all); otherwise it stars exactly the unstarred
@@ -491,7 +491,7 @@ leaves the bundle folders unselected.
 
 Opening a `.safetensors` model shows the **ZipNN button** between the preview
 and the info table. Pressing it asks for confirmation, then runs the whole
-compression as one background job in the Rust core (memory‑mapped streaming —
+compression as one background job in the Rust core (memory-mapped streaming —
 peak RAM is roughly the largest tensor, not the model):
 
 - the button is replaced by a **progress bar** while the task runs, and the
@@ -504,22 +504,22 @@ peak RAM is roughly the largest tensor, not the model):
 
 For a compressed model the info table also swaps its single _File Size_ row for
 **Original File Size** / **Compressed File Size** / **% of Original Size** (the
-pre‑compression size is recorded in the file's metadata at compression time).
+pre-compression size is recorded in the file's metadata at compression time).
 
 ![compressed model detail](../demo-assets/compressed-model.avif)
 
 Compressed files follow the official ZipNN layout (`znn_compressed_vectors`
-metadata, Huffman‑compressed tensors — the Rust core covers **every**
+metadata, Huffman-compressed tensors — the Rust core covers **every**
 safetensors dtype; see _dtype coverage & interoperability_ below), so loaders
 patched with `zipnn_safetensors()` transparently read files in the
 compatibility band. Compression is **lossless and verified**: the core records
-the source's SHA‑256 at compress time and re‑checks it inline on restore (a
+the source's SHA-256 at compress time and re-checks it inline on restore (a
 mismatch keeps the compressed file and moves the output aside as `.corrupt`
 for inspection); the plain `.safetensors` is only removed after the
 `.znn.safetensors` file has been written and verified through an atomic rename,
-and a failed run cleans up its partial output. An opt‑in **paranoid mode**
+and a failed run cleans up its partial output. An opt-in **paranoid mode**
 (default off; `MM_ZNN_PARANOID=1` in the environment) additionally
-re‑decompresses and compares before the original is deleted.
+re-decompresses and compares before the original is deleted.
 
 #### dtype coverage & interoperability
 
@@ -528,22 +528,22 @@ two interoperability bands:
 
 | Band                               | dtypes                                                                                                                          | Official ZipNN 0.5.4 tools                                                                            |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Upstream‑compatible (codes 1–30)   | `F32` `F16` `BF16` `F8_E4M3` `F8_E5M2`                                                                                          | decode Neo's files unchanged                                                                          |
-| Neo extension band (codes 128–146) | `F64` `C64` `I8` `U8` `BOOL` `I16` `U16` `I32` `U32` `I64` `U64` `F8_E4M3FNUZ` `F8_E5M2FNUZ` `F8_E8M0` `F4` `F6_E2M3` `F6_E3M2` | refuse with an explicit `ValueError: Unsupported Dtype` — never a silent mis‑decode (CI‑demonstrated) |
+| Upstream-compatible (codes 1–30)   | `F32` `F16` `BF16` `F8_E4M3` `F8_E5M2`                                                                                          | decode Neo's files unchanged                                                                          |
+| Neo extension band (codes 128–146) | `F64` `C64` `I8` `U8` `BOOL` `I16` `U16` `I32` `U32` `I64` `U64` `F8_E4M3FNUZ` `F8_E5M2FNUZ` `F8_E8M0` `F4` `F6_E2M3` `F6_E3M2` | refuse with an explicit `ValueError: Unsupported Dtype` — never a silent mis-decode (CI-demonstrated) |
 
-A file that contains extension‑band tensors is marked `znn_neo_extended="1"`:
+A file that contains extension-band tensors is marked `znn_neo_extended="1"`:
 the Information tab then shows a **Neo Extended** badge (with a tooltip
 explaining the interoperability) plus a **Compression** row aggregating the
 stored dtypes (`bfloat16×412, uint8×3, …`), and the compress confirmation says
-up front that the artifact will be Neo‑extended. Integer tensors whose high
+up front that the artifact will be Neo-extended. Integer tensors whose high
 bytes are all zero (small `int32` indices, masks, scale tables) additionally
-use the truncation modes — the all‑zero byte planes are dropped from the
+use the truncation modes — the all-zero byte planes are dropped from the
 payload, losslessly (the compressor only drops planes it verified to be zero
 across the whole tensor).
 
 <a id="the-engine"></a>
 
-**No installation step.** The engine is Neo's own **pure‑Rust core**, shipped
+**No installation step.** The engine is Neo's own **pure-Rust core**, shipped
 as prebuilt binaries inside the repository (`native/native-bin/`) and loaded by
 a plain `import` — **no `pip install`, no C compiler and no network access**,
 on every covered platform:
@@ -553,21 +553,23 @@ on every covered platform:
 | Linux x86_64                   | `native-bin/linux-x86_64/mm_core.abi3.so`       | glibc ≥ 2.28 (Debian 10 / Ubuntu 20.04+)               |
 | Linux aarch64                  | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                           |
 | macOS (Intel & Apple Silicon)  | `native-bin/macos-universal2/mm_core.abi3.so`   | one fat binary — Intel macOS 10.12+, Apple Silicon 11+ |
-| Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC‑built                                             |
+| Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC-built                                             |
+| Windows ARM64                  | `native-bin/windows-arm64/mm_core.pyd`          | MSVC-built (ARM64)                                     |
 | Linux x86_64 (free-threaded)   | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28 · free-threaded CPython 3.15+             |
 | Linux aarch64 (free-threaded)  | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28 · free-threaded CPython 3.15+             |
 | macOS (free-threaded)          | `native-bin/macos-universal2t/mm_core.abi3t.so` | one fat binary · free-threaded CPython 3.15+           |
 | Windows x86_64 (free-threaded) | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC-built · free-threaded CPython 3.15+               |
+| Windows ARM64 (free-threaded)  | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC-built (ARM64) · free-threaded CPython 3.15+       |
 
 One binary per platform serves **CPython 3.12 and newer** (the Python Stable
 ABI); free-threaded builds are served by the `<tag>t` **abi3t** binaries
 (CPython 3.15+, PEP 803), which the loader picks automatically — a
 free-threaded interpreter cannot load the plain abi3 ones.
 Interoperability with the official format is enforced in CI: every push
-cross‑validates against the official pip `zipnn` 0.5.4 (both directions). On a
+cross-validates against the official pip `zipnn` 0.5.4 (both directions). On a
 platform outside the table the extension still installs — browsing, downloading
-and hashing degrade to their pure‑Python paths — while ZipNN operations and
-preview re‑encoding report the loader's exact reason in the error toast instead
+and hashing degrade to their pure-Python paths — while ZipNN operations and
+preview re-encoding report the loader's exact reason in the error toast instead
 of failing silently.
 
 ### ZipNN batch compression (folders)
@@ -582,13 +584,13 @@ versions) join the bundle as they are — moved, not re-compressed. Such a
 bundle folder is sealed: only ZipNN content (`*.znn.*` models, `*.znn`
 delta files) can be placed inside it (uploads, downloads and moves of plain
 models into it are refused). The bundle's ZipNN button is **inverted**; pressing it
-**batch‑decompresses** the bundle, moves everything back to the folder it was
+**batch-decompresses** the bundle, moves everything back to the folder it was
 named after and removes the emptied bundle folder. Delta folders
 (`<base>_DeltaZNN`) are bundles as well — their inverted button restores every
-fine‑tune inside them. Model‑type root folders (`checkpoints`, …) get their
+fine-tune inside them. Model-type root folders (`checkpoints`, …) get their
 bundle **inside themselves** (`<root>_DeltaZNN`), because a sibling of a type
 root would fall outside ComfyUI's folder mapping; their direction is
-auto‑detected: compress while plain models exist, decompress when only bundles
+auto-detected: compress while plain models exist, decompress when only bundles
 remain. Bundles created by older versions (`<name>_ZNN`) still decompress back
 to their original name. While a task runs, the button shows a circular ring
 with the percentage inside. Several folders run one after another behind a
@@ -596,15 +598,15 @@ single confirmation.
 
 ### ZipNN delta compression (fine-tunes)
 
-Select exactly two plain `.safetensors` models (base + fine‑tune) and press
+Select exactly two plain `.safetensors` models (base + fine-tune) and press
 **ZipNN delta compress**. A dialog asks which selection is the **base model**;
-the other is the fine‑tune. Confirming stores only the **difference** in
+the other is the fine-tune. Confirming stores only the **difference** in
 `<base>_DeltaZNN/<ft>_delta_<base>.znn` (usually a few percent of the
-fine‑tune's size) and removes the redundant fine‑tune file. The delta's card
-button (inverted) restores the fine‑tuned model **byte‑exactly** next
+fine-tune's size) and removes the redundant fine-tune file. The delta's card
+button (inverted) restores the fine-tuned model **byte-exactly** next
 to the base and deletes the delta folder once it empties. Restoring requires
-the base model to still be present, and the delta records the fine‑tune's own
-SHA‑256 so the restore is verified end to end.
+the base model to still be present, and the delta records the fine-tune's own
+SHA-256 so the restore is verified end to end.
 
 ![ZipNN delta dialog](../demo-assets/zipnn-delta-dialog.avif)
 
@@ -630,17 +632,17 @@ ComfyUI **Settings → Model Manager Neo**:
   added or removed by _another_ program (a `cp` into `models/loras`, a second
   downloader, a mounted volume filling up) refreshes the affected list within
   ~1.5 s instead of waiting for the 30 s periodic revalidation.
-  Network‑mounted folders are skipped automatically (inotify‑style watchers do
+  Network-mounted folders are skipped automatically (inotify-style watchers do
   not receive events from NFS/SMB shares), and if the Linux watch budget
   (`fs.inotify.max_user_watches`) is exhausted the watcher degrades to the
   periodic refresh with a warning in the log; `MM_WATCH_ROOTS=1/0` overrides
   the setting. The watcher's status — armed roots, degrade state, event
-  counters — is available read‑only at `GET /model-manager/watch-status`.
+  counters — is available read-only at `GET /model-manager/watch-status`.
 
 ### Search
 
 - **Hide Hugging Face / ModelScope / Civitai results** — one toggle per
-  platform column of the model‑name search (a hidden column is never queried).
+  platform column of the model-name search (a hidden column is never queried).
 - **Sort order per platform** — any value the respective API accepts; the
   defaults are Hugging Face _trending_, ModelScope _likes_ and Civitai _highest
   rated_.
@@ -650,8 +652,8 @@ ComfyUI **Settings → Model Manager Neo**:
 - **Hugging Face endpoint** — where Hugging Face requests are sent:
   `huggingface.co` (official, default) or `hf-mirror.com` (community mirror
   for networks where huggingface.co is unreachable). The mirror covers model
-  search, model information, pasted‑URL resolution and downloads. Because the
-  mirror does **not** proxy the Xet content‑addressed store, selecting it
+  search, model information, pasted-URL resolution and downloads. Because the
+  mirror does **not** proxy the Xet content-addressed store, selecting it
   also disables the Xet transfer transport for the rest of the process
   (large files download over the classic HTTP/LFS path instead, which the
   mirror does serve). Your Hugging Face API key, if set, is sent to the
@@ -660,9 +662,9 @@ ComfyUI **Settings → Model Manager Neo**:
 
 ### ZipNN
 
-- **Auto‑compress unused days** — compress models untouched for N days
+- **Auto-compress unused days** — compress models untouched for N days
   (0 = off).
-- **Auto‑compress on download** — compress right after a download completes.
+- **Auto-compress on download** — compress right after a download completes.
 
 ### Download
 
@@ -697,9 +699,9 @@ bundle; anything else falls back to English.
 | “Failed to update model: PathIndex …”                  | the selected type has no folder on this machine — pick a type from the dropdown                                                                                                                                                                                           |
 | The UI looks unstyled / grey boxes                     | you are looking at a stale `web/` bundle; rebuild with `pnpm build` (only needed when developing)                                                                                                                                                                         |
 | Preview shows NO PREVIEW                               | the model has no preview file; set one in edit mode                                                                                                                                                                                                                       |
-| ZipNN reports “the native core is unavailable: …”      | the message carries the loader's exact reason: a platform outside the [engine table](#the-engine), or a missing/corrupt `native/native-bin/<tag>` binary (re‑clone the repository). Browsing and downloading keep working                                                 |
+| ZipNN reports “the native core is unavailable: …”      | the message carries the loader's exact reason: a platform outside the [engine table](#the-engine), or a missing/corrupt `native/native-bin/<tag>` binary (re-clone the repository). Browsing and downloading keep working                                                 |
 | ZipNN is unavailable on free-threaded Python 3.13/3.14 | abi3t (the free-threaded Stable ABI, PEP 803) exists only from CPython 3.15 — the toast carries exactly this reason. Run a GIL build (3.12+) or free-threaded 3.15+; browsing and downloading keep working                                                                |
-| An animated preview lost its animation                 | previews saved by versions before the Rust core were frozen to their first frame; re‑saving the preview (edit mode) re‑encodes it as an animated WebP                                                                                                                     |
+| An animated preview lost its animation                 | previews saved by versions before the Rust core were frozen to their first frame; re-saving the preview (edit mode) re-encodes it as an animated WebP                                                                                                                     |
 
 ## Screenshots
 

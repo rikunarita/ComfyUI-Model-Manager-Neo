@@ -1,26 +1,26 @@
 #!/usr/bin/env node
 /**
- * Frontend bench (the K15 acceptance gate): measures the grid pipeline
+ * Frontend bench (the render-bench acceptance gate): measures the grid pipeline
  *
  * Measures the REAL browser code path headlessly: the pure modules under
  * `src/utils` are compiled with the repository's own TypeScript and then driven
- * with a deterministic 5,000-model synthetic library (the same scale K15
+ * with a deterministic 5,000-model synthetic library (the same scale render-bench
  * names) and a DeepSeek-shaped 65k-tensor MoE header.
  *
  * What is measured, and why it is comparable across machines:
  *
- *  - **C1** the flat view's filter pass with the token regexes rebuilt per
- *    model (the pre-Phase-6 code, inlined here verbatim as `naive*`) against
+ *  - **regex hoisting** the flat view's filter pass with the token regexes rebuilt per
+ *    model (the legacy pre-optimization code, inlined here verbatim as `naive*`) against
  *    the hoisted `buildSearchTokens` + `buildModelRows` path;
- *  - **C2** the same sort with `String#localeCompare` against the shared
+ *  - **shared comparator** the same sort with `String#localeCompare` against the shared
  *    `Intl.Collator`;
- *  - **K15 keystroke** the whole `buildModelRows` pipeline (filter → sort →
+ *  - **render-bench keystroke** the whole `buildModelRows` pipeline (filter → sort →
  *    chunk) per keystroke over 200 queries — this is the JS work that has to
  *    fit a 16 ms frame (the browser-side paint leg is outside what a headless
  *    run can reproduce);
- *  - **K15 initial grid** the first (query-less) row build over all 5,000;
- *  - **tensor tree** the pre-Phase-6 in-browser fold (verbatim), the same fold
- *    with shared collators, and the Phase-6 path: decode the Rust payload into
+ *  - **render-bench initial grid** the first (query-less) row build over all 5,000;
+ *  - **tensor tree** the legacy in-browser fold (verbatim), the same fold
+ *    with shared collators, and the display path: decode the Rust payload into
  *    the lazy index (`createTensorTreeIndex`) + render the collapsed rows.
  *
  * The GATES are same-run ratios (before vs after on one machine), so they are
@@ -28,8 +28,8 @@
  * block exactly like the other benches in this suite.
  *
  * Usage:
- *   node scripts/bench/front/k15.mjs [--models 5000] [--keystrokes 200]
- *        [--json-out scripts/bench/results/phase6_front.json] [--cross-check]
+ *   node scripts/bench/front/render-bench.mjs [--models 5000] [--keystrokes 200]
+ *        [--json-out scripts/bench/results/front_render.json] [--cross-check]
  *
  * `--cross-check` additionally verifies that the JS fallback encoder produces
  * the SAME document as the Rust `mm_core.safetensors_tensor_tree` (needs
@@ -59,7 +59,7 @@ const KEYSTROKES = Number(argOf('keystrokes', 200))
 const COLUMNS = Number(argOf('columns', 6))
 const MOE_LAYERS = Number(argOf('moe-layers', 84))
 const MOE_EXPERTS = Number(argOf('moe-experts', 256))
-const JSON_OUT = argOf('json-out', path.join(RESULTS, 'phase6_front.json'))
+const JSON_OUT = argOf('json-out', path.join(RESULTS, 'front_render.json'))
 const CROSS_CHECK = argv.includes('--cross-check')
 
 // ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ if (!fs.existsSync(TSC)) {
   )
   process.exit(2)
 }
-const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'mmneo-k15-'))
+const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'mmneo-render-'))
 const SOURCES = ['src/utils/modelFilter.ts', 'src/utils/tensorTree.ts']
 // `paths` are resolved relative to the tsconfig's own directory (TypeScript 6
 // deprecated `baseUrl`), so the aliases are spelled relative to OUT.
@@ -230,9 +230,9 @@ const keyOf = model =>
 const moeTensors = makeMoeTensors(MOE_LAYERS, MOE_EXPERTS)
 
 // ---------------------------------------------------------------------------
-// the pre-Phase-6 implementations, verbatim (the "before" side of every gate)
+// the legacy implementations, verbatim (the "before" side of every gate)
 // ---------------------------------------------------------------------------
-/** DialogManager.vue's `list` computed before C1/C2 (regex rebuilt per model,
+/** DialogManager.vue's `list` computed before regex hoisting/shared comparator (regex rebuilt per model,
  *  `String#localeCompare` per comparison, es-toolkit `chunk`). */
 const naiveBuildRows = (allModels, rawFilter, cols, starred) => {
   const mergedList = allModels
@@ -267,7 +267,7 @@ const naiveBuildRows = (allModels, rawFilter, cols, starred) => {
   return rows
 }
 
-/** ModelInformation.vue's `tensorTree` computed before Phase 6. */
+/** ModelInformation.vue's `tensorTree` computed before the tensor-tree work. */
 const legacyTensorTree = tensors => {
   const root = { segment: '', path: '', children: [], tensors: [], totalCount: 0, totalParams: 0 }
   const nodes = new Map()
@@ -323,7 +323,7 @@ const legacyTensorTree = tensors => {
   return root
 }
 
-/** The Phase-6 renderer's row walk over the lazy index (collapsed tree). */
+/** The display renderer's row walk over the lazy index (collapsed tree). */
 const renderRows = (index, expanded = new Set()) => {
   const rows = []
   const walk = (nodeIndex, nodePath, depth) => {
@@ -395,7 +395,9 @@ const neverStarred = () => false
 // ---------------------------------------------------------------------------
 // run
 // ---------------------------------------------------------------------------
-console.log(`== k15 front bench: ${models.length} models, ${moeTensors.length} MoE tensors ==`)
+console.log(
+  `== front-end render bench: ${models.length} models, ${moeTensors.length} MoE tensors ==`,
+)
 
 const grid = {}
 
@@ -411,7 +413,7 @@ grid.keystrokeHoisted = timeIt(KEYSTROKES, i => {
     keyOf,
   })
 })
-// isolate C2: the same hoisted pipeline, but sorting with localeCompare
+// isolate shared comparator: the same hoisted pipeline, but sorting with localeCompare
 grid.keystrokeHoistedLocaleSort = timeIt(KEYSTROKES, i => {
   const tokens = buildSearchTokens(QUERIES[i])
   return buildModelRows(models, {
@@ -431,7 +433,7 @@ grid.initialRenderHoisted = timeIt(20, () =>
   }),
 )
 
-// C2: the numeric variant (the tensor tree's segments) is where hoisting a
+// shared comparator: the numeric variant (the tensor tree's segments) is where hoisting a
 // collator pays - V8 has no fast path once options are passed to localeCompare.
 const SEGMENTS = (() => {
   const list = []
@@ -626,7 +628,7 @@ if (!parity.ok) {
 
 // ---------------------------------------------------------------------------
 // rendered-row parity: the lazy-index renderer (`renderRows`, the SHIPPING
-// Phase-6 path in ModelInformation.vue) must emit the SAME row sequence as a
+// the display path in ModelInformation.vue) must emit the SAME row sequence as a
 // walk of the legacy nested tree - both collapsed (the default view) and fully
 // expanded (every folder open). `tensorTreeParity` above pins the ROOT
 // aggregates and the direct children; THIS pins the whole end-user-visible row
@@ -804,12 +806,12 @@ const firstDifference = (a, b) => {
 // ---------------------------------------------------------------------------
 const ratio = (before, after) => before / after
 const gates = {
-  k15BudgetMs: 16,
+  renderBudgetMs: 16,
   keystrokeP95Ms: grid.keystrokeHoisted.p95,
   keystrokeP95WithinBudget: grid.keystrokeHoisted.p95 <= 16,
   c1HoistingIsFaster: grid.keystrokeHoisted.p95 < grid.keystrokeNaive.p95,
   c1SpeedupP95: ratio(grid.keystrokeNaive.p95, grid.keystrokeHoisted.p95),
-  // C2: the numeric variant must be served by the hoisted collator (32x on
+  // shared comparator: the numeric variant must be served by the hoisted collator (32x on
   // V8) ...
   c2NumericHoistingIsFaster: grid.numericHoistedCollator.p50 < grid.numericLocaleCompare.p50,
   c2NumericSpeedupP50: ratio(grid.numericLocaleCompare.p50, grid.numericHoistedCollator.p50),
@@ -842,14 +844,13 @@ gates.passed =
   gates.rustJsTreeIdentical !== false
 
 const report = {
-  phase: 6,
   kind: 'front',
   note:
     'Headless measurement of the REAL src/utils modules (compiled with the repository tsc). ' +
-    'The "naive"/"legacy" sides are verbatim copies of the pre-Phase-6 component code, inlined ' +
+    'The "naive"/"legacy" sides are verbatim copies of the legacy component code, inlined ' +
     'here as the before-side of every gate. The gates are same-run ratios, so they hold on any ' +
-    'machine; the absolute numbers belong to the env block below (K15 is judged on the reference ' +
-    '8C/16T reference machine). The browser paint leg of K15 is instrumented in the app itself ' +
+    'machine; the absolute numbers belong to the env block below (render-bench is judged on the reference ' +
+    '8C/16T reference machine). The browser paint leg of render-bench is instrumented in the app itself ' +
     '(the browser-side paint leg is outside a headless run).',
   env: {
     date: new Date().toISOString().replace(/\.\d+Z$/, '+0000'),
@@ -885,19 +886,19 @@ fs.writeFileSync(JSON_OUT, JSON.stringify(report, null, 2) + '\n')
 const ms = v => `${v.toFixed(2)} ms`
 console.log(`models: ${models.length}  keystrokes: ${QUERIES.length}  columns: ${COLUMNS}`)
 console.log(
-  `C1 filter+sort+chunk  naive p95 ${ms(grid.keystrokeNaive.p95)} -> hoisted ${ms(grid.keystrokeHoistedLocaleSort.p95)}`,
+  `regex hoisting filter+sort+chunk  naive p95 ${ms(grid.keystrokeNaive.p95)} -> hoisted ${ms(grid.keystrokeHoistedLocaleSort.p95)}`,
 )
 console.log(
-  `C2 numeric segments   localeCompare(…, {numeric}) p50 ${ms(grid.numericLocaleCompare.p50)} -> hoisted collator ${ms(grid.numericHoistedCollator.p50)}`,
+  `shared comparator numeric segments   localeCompare(…, {numeric}) p50 ${ms(grid.numericLocaleCompare.p50)} -> hoisted collator ${ms(grid.numericHoistedCollator.p50)}`,
 )
 console.log(
-  `C2 default segments   localeCompare p50 ${ms(grid.defaultLocaleCompare.p50)} vs hoisted collator ${ms(grid.defaultHoistedCollator.p50)} (builtin wins -> kept)`,
+  `shared comparator default segments   localeCompare p50 ${ms(grid.defaultLocaleCompare.p50)} vs hoisted collator ${ms(grid.defaultHoistedCollator.p50)} (builtin wins -> kept)`,
 )
 console.log(
-  `K15 keystroke p95     ${ms(grid.keystrokeHoisted.p95)} (budget 16 ms; paint leg measured in-browser)`,
+  `render-bench keystroke p95     ${ms(grid.keystrokeHoisted.p95)} (budget 16 ms; paint leg measured in-browser)`,
 )
 console.log(
-  `K15 initial grid p95  naive ${ms(grid.initialRenderNaive.p95)} -> hoisted ${ms(grid.initialRenderHoisted.p95)}`,
+  `render-bench initial grid p95  naive ${ms(grid.initialRenderNaive.p95)} -> hoisted ${ms(grid.initialRenderHoisted.p95)}`,
 )
 console.log(
   `tensor tree (MoE ${moeTensors.length})  browser fold p50 ${ms(tree.legacyFold.p50)} -> rust payload decode p50 ${ms(tree.indexCreate.p50)} + render ${ms(tree.renderCollapsed.p50)}`,

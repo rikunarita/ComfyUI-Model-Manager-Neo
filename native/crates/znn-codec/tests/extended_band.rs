@@ -1,4 +1,4 @@
-//! Integration tests of the Neo extension band (Phase 4) — PUBLIC API only.
+//! Integration tests of the Neo extension band (dtype extension) — PUBLIC API only.
 //!
 //! Per the crate's test organisation (native/README): unit tests
 //! live inline next to the code they exercise (`#[cfg(test)]`, private access);
@@ -7,7 +7,7 @@
 //! PyO3 layer and `znn-cli` consume. Keeping them here proves the extension
 //! band is a property of the crate's contract, not of its internals.
 //!
-//! Covers (Phase 4 完了条件 "全拡張 dtype 往復 green (K14)"):
+//! Covers (dtype extension 完了条件 "all extension dtypes round-trip green (対応dtype数)"):
 //! * every safetensors 0.8 dtype (all 22 spellings) round-trips byte-exactly
 //!   through `compress_tensor`/`decompress_tensor` with the truncation
 //!   auto-selection a production caller applies;
@@ -220,7 +220,7 @@ fn mode_gate_is_band_strict_through_the_public_api() {
 
 #[test]
 fn compatibility_set_is_exactly_the_five_official_dtypes() {
-    // The interop contract (README matrix / L5): exactly these five
+    // The interop contract (README matrix / official interoperability gate): exactly these five
     // safetensors dtypes produce official-decodable files.
     let compat: Vec<&str> = CASES
         .iter()

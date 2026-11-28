@@ -1,6 +1,6 @@
 """Loader for the Rust native core (``mm_core``).
 
-Phase 0 scaffold of the native-core refresh: the heavy ZipNN/scan/hash
+the baseline measurements scaffold of the native-core refresh: the heavy ZipNN/scan/hash
 work moves into a Rust extension module that ships as
 **prebuilt binaries** under ``native/native-bin/<platform tag>/``. Loading is
 deliberately dumb and side-effect free — platform detection, one ``sys.path``
@@ -8,7 +8,7 @@ entry, one ``import``, one version check. **No compilation, no pip, no
 network**; when anything does not line up, the module simply
 reports ``available() is False`` plus a human-readable ``reason()``.
 
-Phase 8 removed the ``MM_NATIVE`` transition switch: the prebuilt core under
+the prebuilt distribution removed the ``MM_NATIVE`` transition switch: the prebuilt core under
 ``native-bin/`` is the SINGLE native path (the vendored C core and its Python
 frontends are gone). ``load()`` never raises — when the binary is missing or
 the handshake fails it reports ``available() is False`` plus a human-readable
@@ -37,21 +37,21 @@ from . import config, utils
 # (`api_version()`); bump together with the Rust constant in
 # native/crates/mm-core/src/lib.rs.
 #
-# * 1 — Phase 0: version handshake only,
-# * 2 — Phase 2: the ZipNN safetensors job API (zipnn_compress/decompress +
+# * 1 — the baseline measurements: version handshake only,
+# * 2 — the safetensors pipeline: the ZipNN safetensors job API (zipnn_compress/decompress +
 #   job_progress/cancel/result/error) that py/compress.py calls directly,
-# * 3 — Phase 3: the delta jobs (zipnn_delta_compress/decompress) and the
+# * 3 — delta compression: the delta compression (zipnn_delta_compress/decompress) and the
 #   batch primitives (walk_models/move_with_sidecars) that the delta and
 #   batch-folder routes call directly.
-# * 4 — Phase 5: the scan / hygiene / safetensors-header / hash surface
+# * 4 — the scan/index work: the scan / hygiene / safetensors-header / hash surface
 #   (scan_models/scan_hygiene/safetensors_header/hash_file/hasher_*) that
 #   py/manager.py, py/utils.py, py/identify.py and py/download.py call
 #   directly, plus the persistent front-matter index.
-# * 5 — Phase 6: the display tensor tree (safetensors_tensor_tree, the Rust
+# * 5 — the display tensor tree (safetensors_tensor_tree, the Rust
 #   pre-grouping) that py/utils.py serves to the model-detail
 #   route, plus the optional library watcher (watch_start/watch_poll/
 #   watch_stop/watch_diagnostics) that py/watcher.py drives.
-# * 6 — Phase 7 (T7): the preview WebP codec (webp_decode / webp_encode /
+# * 6 — the preview WebP codec (webp_decode / webp_encode /
 #   webp_encode_animation, the zenwebp-backed pure-Rust encode/decode/animation)
 #   that py/utils.py's preview pipeline calls with a PIL
 #   fallback.
@@ -104,7 +104,8 @@ def _base_platform_tag() -> str | None:
     """The OS/architecture tag WITHOUT the flavour suffix, or None.
 
     Tags: ``linux-x86_64``, ``linux-aarch64``,
-    ``windows-x86_64``, ``macos-universal2`` (one fat binary serves both
+    ``windows-x86_64``, ``windows-arm64``,
+    ``macos-universal2`` (one fat binary serves both
     Intel and Apple Silicon). Anything else (32-bit, exotic architectures)
     has no prebuilt support.
     """
@@ -116,13 +117,14 @@ def _base_platform_tag() -> str | None:
         if machine in ("aarch64", "arm64"):
             return "linux-aarch64"
     elif system == "Windows":
-        # Windows reports AMD64 for x86_64 (and ARM64 for aarch64, which has
-        # no prebuilt binary).
+        # Windows reports AMD64 for x86_64 and ARM64 for aarch64 (both
+        # spellings seen in the wild). Each has its own prebuilt binary.
         if machine in ("amd64", "x86_64"):
             return "windows-x86_64"
-    elif system == "Darwin":
-        if machine in ("x86_64", "arm64"):
-            return "macos-universal2"
+        if machine in ("arm64", "aarch64"):
+            return "windows-arm64"
+    elif system == "Darwin" and machine in ("x86_64", "arm64"):
+        return "macos-universal2"
     return None
 
 
@@ -266,7 +268,7 @@ def core_if_enabled() -> ModuleType | None:
     The shared entry point of every native consumer (``py/compress.py`` jobs,
     ``py/manager.py`` scan, ``py/utils.py`` header/preview, ``py/identify.py``
     hashing, ``py/download.py`` inline verification, ``py/watcher.py``).
-    Phase 8 removed the ``MM_NATIVE`` switch: this simply returns the core
+    the prebuilt distribution removed the ``MM_NATIVE`` switch: this simply returns the core
     when the prebuilt binary loads and passes the handshake, else None (with
     ``reason()`` explaining why).
     """

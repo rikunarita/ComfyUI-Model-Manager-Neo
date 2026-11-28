@@ -1,4 +1,4 @@
-"""Phase 6 golden tests - the Rust-folded display tensor tree.
+"""Golden tests for the Rust-folded display tensor tree.
 
 `safetensors_tensor_tree` moves the Information tab's tensor-tree fold out of
 the browser (~0.73 s of main-thread JS for a 65k-tensor MoE header - BENCH
@@ -32,7 +32,7 @@ TREE_VERSION = 1
 
 
 # ---------------------------------------------------------------------------
-# engine helpers (same conventions as test_phase5_scan.py)
+# engine helpers (same conventions as test_scan.py)
 # ---------------------------------------------------------------------------
 def _reset_native_loader():
     config = import_ext("config")
@@ -55,7 +55,7 @@ def _require_native():
 
 
 def _set_engine(monkeypatch, mode: str):
-    """Engine selection by injection (the MM_NATIVE env switch is gone, Phase 8).
+    """Engine selection by injection (the MM_NATIVE env switch is gone, the prebuilt distribution).
 
     ``"0"`` forces ``native.core_if_enabled`` to None — the resilience
     degradation the header path takes without a core (metadata/tensors from

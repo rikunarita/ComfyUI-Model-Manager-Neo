@@ -1,14 +1,14 @@
-"""Phase 0 (Phase 8 single-path): py/native.py loader — platform tags,
+"""Baseline loader tests (prebuilt distribution single-path): py/native.py — platform tags,
 handshake, diagnostics.
 
 Written against the loader's public surface: ``platform_tag`` / ``load`` /
 ``available`` / ``core`` / ``core_if_enabled`` / ``reason`` / ``core_version``
 / ``diagnostics`` — plus, since the abi3t work (2026-10), the interpreter-flavour
 surface ``is_free_threaded`` / ``tag_rejection_reason`` (abi3t ``<tag>t``
-routing and the GIL-3.12 / free-threaded-3.15 floor guards). Phase 8 removed
+routing and the GIL-3.12 / free-threaded-3.15 floor guards). The prebuilt distribution removed
 the ``MM_NATIVE`` switch: ``load()`` never raises, it reports
 ``available() is False`` + ``reason()``, and the ZipNN routes turn that into
-their actionable error (covered in test_phase2_routes).
+their actionable error (covered in test_routes).
 The loader caches its attempt in module state, so every test reloads
 ``mmneo_py.native``; an autouse fixture restores ``sys.path`` and
 ``sys.modules["mm_core"]`` because ``load()`` appends the binary directory to
@@ -38,7 +38,7 @@ from harness import REPO_ROOT, import_ext
 # an unexpected keyword argument 'total'``). CI only ever escaped this because
 # an alphabetically earlier test file imports aiohttp first: a collection-order
 # accident, not a guarantee (reproduced on 3.15.0rc2t with
-# ``pytest tests/test_phase0_native_loader.py`` alone — 11 of 12 tests failed).
+# ``pytest tests/test_native_loader.py`` alone — 11 of 12 tests failed).
 importlib.import_module("aiohttp.web")
 
 
@@ -166,6 +166,9 @@ def test_platform_tag_mapping(monkeypatch):
         (("Linux", "arm64"), "linux-aarch64"),
         (("Windows", "AMD64"), "windows-x86_64"),
         (("Windows", "x86_64"), "windows-x86_64"),
+        (("Windows", "ARM64"), "windows-arm64"),
+        (("Windows", "arm64"), "windows-arm64"),
+        (("Windows", "aarch64"), "windows-arm64"),
         (("Darwin", "arm64"), "macos-universal2"),
         (("Darwin", "x86_64"), "macos-universal2"),
         (("Plan9", "mips"), None),
@@ -280,7 +283,7 @@ def test_extension_suffixes_enforce_the_flavour_split(monkeypatch):
 
 
 def test_core_if_enabled_never_raises_and_reports_none(tmp_path):
-    """Phase 8 contract: ``core_if_enabled`` is the single entry point — it
+    """the prebuilt distribution contract: ``core_if_enabled`` is the single entry point — it
     loads when the binary is there and returns None (never raises) when it is
     not; ``reason()`` carries the explanation for the ZipNN routes' error."""
     native = _fresh_native()
@@ -377,6 +380,8 @@ def test_free_threaded_detection_and_t_tags(monkeypatch):
         (("Linux", "x86_64"), "linux-x86_64t"),
         (("Linux", "aarch64"), "linux-aarch64t"),
         (("Windows", "AMD64"), "windows-x86_64t"),
+        (("Windows", "ARM64"), "windows-arm64t"),
+        (("Windows", "arm64"), "windows-arm64t"),
         (("Darwin", "arm64"), "macos-universal2t"),
     ]
     for (system, machine), expected in cases:

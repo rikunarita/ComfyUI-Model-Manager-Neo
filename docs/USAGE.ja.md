@@ -1,8 +1,8 @@
-# ComfyUI‑Model‑Manager‑Neo 使い方ガイド（日本語）
+# ComfyUI-Model-Manager-Neo 使い方ガイド（日本語）
 
 > 姉妹ドキュメント: [English](USAGE.md) · [简体中文](USAGE.zh-CN.md) · [繁體中文](USAGE.zh-TW.md)
 
-ComfyUI‑Model‑Manager‑Neo は、ComfyUI にモデルの**閲覧・ダウンロード・
+ComfyUI-Model-Manager-Neo は、ComfyUI にモデルの**閲覧・ダウンロード・
 アップロード・編集**機能を追加するカスタムノードです。ComfyUI プロセスの外には
 一切出ません: バックエンドは ComfyUI サーバ内の `aiohttp` ルート群、
 フロントエンドはページに注入される単一のバンドル済み Vue 3 アプリです。
@@ -43,7 +43,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 **ComfyUI レジストリ（ComfyUI Manager / CLI）** — Neo は
 [ComfyUI レジストリ](https://registry.comfy.org/publishers/rikunarita7669/nodes/comfyui-model-manager-neo)
 （公式ノードカタログ）に `comfyui-model-manager-neo` として公開されています:
-ComfyUI-Manager で **ComfyUI‑Model‑Manager‑Neo** を検索するか、
+ComfyUI-Manager で **ComfyUI-Model-Manager-Neo** を検索するか、
 公式 CLI からインストールできます:
 
 ```bash
@@ -205,12 +205,12 @@ Danger 確認を経て削除できます:
   レンダリング表示。リンクは新しいタブで開きます。
 - **Information タブ** — モデルについて記録されたすべてをテーブル表示します
   （既定では読み取り専用。編集モードでは鉛筆ボタンで**警告を挟んで**開け、
-  フォームの保存がノートの front‑matter を書き換えます）。ノートの YAML
-  front‑matter（Civitai / Hugging Face / ModelScope ダウンロードが書くもの）は
+  フォームの保存がノートの front-matter を書き換えます）。ノートの YAML
+  front-matter（Civitai / Hugging Face / ModelScope ダウンロードが書くもの）は
   行として解析されます: 作者、ベースモデル、全ファイルハッシュ（`AutoV1` …
   `SHA256_12`）、フォーマットと精度、モデルプラットフォーム、クリック可能な
   モデルページリンク、**すべての**プレビュー画像 URL。パーサが知らないキーは
-  テーブル末尾にそのまま列挙されます。front‑matter のないモデルは、safetensors
+  テーブル末尾にそのまま列挙されます。front-matter のないモデルは、safetensors
   ヘッダから直接読んだ `__metadata__` ブロックをそのまま表示します —
   キャッシュもバックグラウンドスキャンも一切行われません。
 - **テンソルセクション**（safetensors モデル） — ヘッダから解析した正確な
@@ -233,7 +233,7 @@ Danger 確認を経て削除できます:
 
 モデル詳細のアクション行にある**ハッシュ逆引きボタン**（HashReverse の
 アートワークアイコン）は、ローカルファイルがどのモデルバージョンかを
-Civitai カタログに問い合わせます: ノートの front‑matter に記録済みのハッシュ
+Civitai カタログに問い合わせます: ノートの front-matter に記録済みのハッシュ
 （`AutoV1` / `AutoV2` / `SHA256` / `CRC32` / `BLAKE3`）を先に試し、どれも
 当たらなければファイルを 1 パスでハッシュ計算します。ヒット時は解決された
 モデル/バージョンがベースモデル・トリガーワード・ファイル一覧とともに開き、
@@ -514,7 +514,7 @@ Huffman 圧縮されたテンソル — Rust コアは**すべての** safetenso
 カバーします。下記の _dtype カバレッジと相互運用_ 参照）に従うため、
 `zipnn_safetensors()` パッチ済みローダーは互換帯のファイルを透過的に
 読み込めます。圧縮は**可逆かつ検証付き**です: コアは圧縮時に原本の
-SHA‑256 を記録し、復元時にインラインで再照合します（不一致時は圧縮ファイルを
+SHA-256 を記録し、復元時にインラインで再照合します（不一致時は圧縮ファイルを
 保持したまま、復元物を検査用に `.corrupt` として退避）。素の
 `.safetensors` は `.znn.safetensors` が書き込まれ検証された後のアトミック
 rename でのみ削除され、失敗した実行は部分出力を掃除します。オプトインの
@@ -553,10 +553,12 @@ Information タブは**Neo Extended** バッジ（相互運用を説明するツ
 | Linux aarch64                    | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                               |
 | macOS（Intel & Apple Silicon）   | `native-bin/macos-universal2/mm_core.abi3.so`   | 1 本の fat binary — Intel macOS 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                   | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC ビルド                                                |
+| Windows ARM64                    | `native-bin/windows-arm64/mm_core.pyd`          | MSVC ビルド（ARM64）                                       |
 | Linux x86_64（フリースレッド）   | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28・フリースレッド CPython 3.15+                 |
 | Linux aarch64（フリースレッド）  | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28・フリースレッド CPython 3.15+                 |
 | macOS（フリースレッド）          | `native-bin/macos-universal2t/mm_core.abi3t.so` | 1 本の fat binary・フリースレッド CPython 3.15+            |
 | Windows x86_64（フリースレッド） | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC ビルド・フリースレッド CPython 3.15+                  |
+| Windows ARM64（フリースレッド）  | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC ビルド（ARM64）・フリースレッド CPython 3.15+         |
 
 プラットフォーム毎の 1 バイナリが **CPython 3.12 以降**すべてに対応します
 （Python Stable ABI）。フリースレッド build は `<tag>t` の **abi3t** バイナリ
@@ -601,7 +603,7 @@ ComfyUI のフォルダマッピングの外側になってしまうためです
 ファイルは削除されます。デルタのカードボタン（反転表示）は、
 ファインチューンモデルをベースの隣に**バイト単位まで正確に**復元し、
 空になったデルタフォルダを削除します。復元にはベースモデルがまだ存在する
-必要があり、デルタにはファインチューン自身の SHA‑256 が記録されるため、
+必要があり、デルタにはファインチューン自身の SHA-256 が記録されるため、
 復元はエンドツーエンドで検証されます。
 
 ![ZipNN デルタダイアログ](../demo-assets/zipnn-delta-dialog.avif)

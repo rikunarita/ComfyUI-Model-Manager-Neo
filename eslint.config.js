@@ -207,7 +207,7 @@ export default tseslint.config(
   },
 
   // ---- Dev/build tooling scope ----------------------------------------------------
-  // The K15 bench harness and the Vite config are file/path TOOLS: reading and
+  // The keystroke-to-render bench harness and the Vite config are file/path TOOLS: reading and
   // writing non-literal paths is their entire purpose (bench fixtures, JSON
   // outputs, bundle emission), and their RegExp uses compile copies of legacy
   // code for measurement. The shipped extension itself never touches node:fs.

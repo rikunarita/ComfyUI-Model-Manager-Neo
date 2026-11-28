@@ -1,5 +1,5 @@
-//! L3 fuzz target 6/6: the file-level DELTA restore core (`delta.rs` — the
-//! Phase-3 surface for hostile `.znn` delta artifacts and hostile sidecars).
+//! ASan fuzz target 6/6: the file-level DELTA restore core (`delta.rs` — the
+//! delta compression surface for hostile `.znn` delta artifacts and hostile sidecars).
 //! Exercises: the streaming container-chain walk (`[24:32]` sizes, bounds,
 //! truncation), the single-container legacy branch, per-container
 //! `original_len` caps against the KNOWN base-rendering length (allocation

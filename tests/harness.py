@@ -114,7 +114,7 @@ DTYPE_BITS = {
 DTYPE_SIZES = {k: max(1, v // 8) for k, v in DTYPE_BITS.items()}
 
 # torch dtype string (as recorded by znn_compressed_vectors) <-> safetensors
-# name. Phase 4 completes the table; the two F6 types record their
+# name. dtype extension completes the table; the two F6 types record their
 # SAFETENSORS name in infos (torch 2.14 has no float6 dtype — verified), so
 # they map to themselves.
 TORCH_TO_ST = {
@@ -280,7 +280,7 @@ def synth_fp8(n: int, seed: int = 1, low_entropy: bool = False) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# L4 model corpus (Phase 2)
+# integration corpus model corpus (the safetensors pipeline)
 #
 # Synthetic stand-ins for the planned corpus classes (sd1.5-fp16,
 # sdxl-fp16, flux-fp8, LLM-bf16, VAE-f32, MoE huge-header, complex64 audio,
@@ -313,7 +313,7 @@ def synth_i64(n: int, seed: int = 1) -> bytes:
 
 def synth_c64(n: int, seed: int = 1) -> bytes:
     """n complex64 values (2 x f32) — audio-model style (compressed via the
-    Neo extension band since Phase 4; pass-through under the legacy engine)."""
+    Neo extension band since dtype extension; pass-through under the legacy engine)."""
     out = bytearray()
     rng_state = seed & 0xFFFFFFFF
     for _ in range(n):
@@ -326,7 +326,7 @@ def synth_c64(n: int, seed: int = 1) -> bytes:
 
 def synth_f64(n: int, seed: int = 1, low_entropy: bool = False) -> bytes:
     """n float64 values — the f64 synth class (compressed via the Neo
-    extension band since Phase 4). low_entropy: values around ±0.005 with
+    extension band since dtype extension). low_entropy: values around ±0.005 with
     concentrated sign/exponent bits (the 8-plane f64 reorder target)."""
     out = bytearray()
     rng_state = seed & 0xFFFFFFFF
@@ -384,7 +384,7 @@ def synth_opaque_bytes(n: int, seed: int = 1) -> bytes:
 
 
 def build_corpus(root: str | Path) -> dict[str, Path]:
-    """Write the L4 corpus under `root`; returns name → path.
+    """Write the integration corpus under `root`; returns name → path.
 
     Key order is deliberately NOT the safetensors-rust sort order in half of
     the files (the harness writer preserves insertion order): Neo's restore
@@ -460,7 +460,7 @@ def build_corpus(root: str | Path) -> dict[str, Path]:
         # the "not worth it" overhead rule, small enough to stay CI-friendly
         moe[f"experts.{i}.w"] = ("BF16", [16, 8], synth_bf16(128, 100 + i, low_entropy=True))
     w("moe-header", moe, {"format": "pt", "num_experts": "600"})
-    # complex64 audio-like (Phase 4: compressed via the Neo band, code 130)
+    # complex64 audio-like (dtype extension: compressed via the Neo band, code 130)
     w(
         "audio-c64",
         {
@@ -469,7 +469,7 @@ def build_corpus(root: str | Path) -> dict[str, Path]:
         },
         {"format": "pt"},
     )
-    # f64 synth (Phase 2 passed it through; Phase 4 compresses it via the
+    # f64 synth (the safetensors pipeline passed it through; dtype extension compresses it via the
     # Neo band — the legacy path still RAISES on such files)
     w(
         "f64-synth",

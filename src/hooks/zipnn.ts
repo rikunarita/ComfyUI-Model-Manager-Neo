@@ -152,7 +152,7 @@ const advanceZipnnQueue = (ok: boolean) => {
 }
 
 const reportZipnnFailure = (detail: ZipnnCompleteDetail) => {
-  // Phase 8: there is no install step to retry any more (the native core
+  // the prebuilt distribution: there is no install step to retry any more (the native core
   // ships prebuilt) — every failure is a plain error toast.
   toast.add({
     severity: 'error',
@@ -229,7 +229,7 @@ const beginTask = async (
 }
 
 /**
- * Phase 4: the dtype breakdown behind the compress
+ * dtype extension: the dtype breakdown behind the compress
  * confirmation. `/zipnn/inspect` parses ONLY the safetensors header (in an
  * executor on the backend), so this is cheap — but it touches the disk, so
  * every failure degrades to `null` and the dialog keeps its generic message
@@ -270,7 +270,7 @@ const inspectZipnnModel = async (model: {
  * corner button and the model-detail action row (they rendered byte
  * identical confirm blocks before).
  *
- * Phase 4: while the dialog is open, the header-only `/zipnn/inspect`
+ * dtype extension: while the dialog is open, the header-only `/zipnn/inspect`
  * pre-check runs; when the model carries dtypes outside the official ZipNN
  * band, the message is upgraded IN PLACE to say the artifact will be
  * Neo-extended (still lossless here, but official ZipNN tools will refuse

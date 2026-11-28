@@ -1,4 +1,4 @@
-"""L5 interop gate (Phase 2 onward): Neo ⇄ OFFICIAL zipnn 0.5.4.
+"""official interoperability gate interop gate (the safetensors pipeline onward): Neo ⇄ OFFICIAL zipnn 0.5.4.
 
 Runs against a pip-installed ``zipnn==0.5.4`` (the upstream release the
 vendored copy mirrors — this script is the mechanical proof that they
@@ -14,7 +14,7 @@ behave identically) and the REAL Neo artifact (``native-bin`` →
   pass through) must restore through the Neo pipeline with every tensor
   byte-identical to the original (verification reports ``skipped`` — the
   official recipe records no ``znn_neo_src_sha256``);
-* **delta cross-validation (Phase 3)**: Neo's streaming delta artifacts
+* **delta cross-validation (delta compression)**: Neo's streaming delta artifacts
   restore through the official ``ZipNN(delta_compressed_type="byte",
   is_streaming=True)`` path byte-exactly, and the official delta output —
   BOTH the single-container and the streaming form — restores through the
@@ -28,7 +28,7 @@ integration job pins exactly the right one.
 Usage::
 
     pip install zipnn==0.5.4 torch safetensors
-    python3 scripts/l5/official_cross.py [--keep-tmp DIR]
+    python3 scripts/cross_validation/official_cross.py [--keep-tmp DIR]
 """
 
 from __future__ import annotations
@@ -153,10 +153,10 @@ def official_decompress_check(znn_path: str, original: dict) -> list[str]:
     """Official-script decompression of a Neo-compressed file; returns the
     list of tensor mismatches (empty = PASS).
 
-    Phase 4 made the check BAND-AWARE: compatibility-band blobs (dtype code
+    dtype extension made the check BAND-AWARE: compatibility-band blobs (dtype code
     < 128) must decode byte-exactly through the official path, while
     Neo-extension blobs (codes 128-146 — the fixture's I32/U8 tensors are
-    compressed since Phase 4) must be REFUSED with the official decoder's
+    compressed since dtype extension) must be REFUSED with the official decoder's
     explicit `ValueError: Unsupported Dtype` (failure-mode safety;
     section E pins this contract in detail)."""
     from safetensors import safe_open
@@ -337,7 +337,7 @@ def _c64(n, seed=29):
 
 
 def build_extended_fixture(path) -> dict:
-    """A Phase-4 fixture mixing the compatibility band (bf16) with Neo
+    """A dtype extension fixture mixing the compatibility band (bf16) with Neo
     extension-band tensors (F64 8-plane, C64 4-plane f32-reorder, I32 with
     truncation, BOOL 1-plane)."""
     tensors = {
@@ -416,7 +416,10 @@ def main() -> int:
 
     missing = [m for m in ("torch", "safetensors", "zipnn") if not _have(m)]
     if missing:
-        print(f"L5 SKIP: missing pip packages {missing} (pip install zipnn==0.5.4 torch safetensors)")
+        print(
+            f"official interoperability gate SKIP: missing pip packages {missing} "
+            f"(pip install zipnn==0.5.4 torch safetensors)"
+        )
         return 0
     import zipnn
 
@@ -426,7 +429,7 @@ def main() -> int:
         version = _pkg_version("zipnn")
     except Exception:
         version = getattr(zipnn, "__version__", "?")
-    print(f"L5 official cross-validation against pip zipnn {version}")
+    print(f"official interoperability gate official cross-validation against pip zipnn {version}")
 
     tmp = args.keep_tmp or tempfile.mkdtemp(prefix="mmneo-l5-")
     os.makedirs(tmp, exist_ok=True)
@@ -447,7 +450,7 @@ def main() -> int:
     print(f"A. Neo → official decompress: {'PASS' if not problems else 'FAIL ' + str(problems)}")
 
     # --- B. official compress → Neo decompress ------------------------------
-    off_znn = os.path.join(tmp, "l5.official.znn.safetensors")
+    off_znn = os.path.join(tmp, "crossval.official.znn.safetensors")
     official_compress(src, off_znn)
     restored = os.path.join(tmp, "l5.restored.safetensors")
     res = neo_job(mm, mm.zipnn_decompress(off_znn, restored, None))
@@ -468,10 +471,10 @@ def main() -> int:
     print(f"B. official → Neo decompress: {'PASS' if not any(f.startswith('B') for f in failures) else 'FAIL'}")
 
     # --- C. blob parity: the two compressors store identical bytes ----------
-    # Phase 4 scope note: parity is asserted for every tensor BOTH engines
-    # handle the same way — compatibility-band blobs (byte-identical, the L2
+    # dtype extension scope note: parity is asserted for every tensor BOTH engines
+    # handle the same way — compatibility-band blobs (byte-identical, the golden differential
     # lineage) and shared pass-throughs. A Neo-extension-band tensor (the
-    # fixture's I32 `vocab` since Phase 4) is stored as a blob by Neo and
+    # fixture's I32 `vocab` since dtype extension) is stored as a blob by Neo and
     # passed through by the official recipe (which cannot compress it at
     # all): an INTENTIONAL divergence, checked here as "official kept the
     # original dtype, Neo stored a U8 blob that restores byte-exactly".
@@ -499,7 +502,7 @@ def main() -> int:
         f"{'PASS' if not diff else 'FAIL ' + str(diff)}"
     )
 
-    # --- D. delta cross-validation (Phase 3) --------------------------------
+    # --- D. delta cross-validation (delta compression) --------------------------------
     d_base = os.path.join(tmp, "l5.base.safetensors")
     d_ft = os.path.join(tmp, "l5.ft.safetensors")
     build_delta_pair(d_base, d_ft)
@@ -507,14 +510,14 @@ def main() -> int:
         ft_original = f.read()
     ft_sha = _sha256(ft_original)
 
-    # D1. Neo native delta compress (official STREAMING chain + ftSha256
+    # delta-1. Neo native delta compress (official STREAMING chain + ftSha256
     #     sidecar) → official zipnn decompress (streaming path)
     d_neo = os.path.join(tmp, "l5.neo_delta.znn")
     res = neo_job(mm, mm.zipnn_delta_compress(d_base, d_ft, d_neo, None))
     with open(d_neo + ".neo-delta.json", encoding="utf-8") as f:
         sidecar = json.load(f)
     if sidecar.get("ftSha256") != ft_sha:
-        failures.append(f"D1: sidecar ftSha256 {sidecar.get('ftSha256')} != {ft_sha}")
+        failures.append(f"delta-1: sidecar ftSha256 {sidecar.get('ftSha256')} != {ft_sha}")
     d_problems = []
     try:
         got = official_delta_decompress(d_base, d_neo, int(sidecar["basePad"]), int(sidecar["ftPad"]))
@@ -522,18 +525,19 @@ def main() -> int:
             d_problems.append("official decompress of the Neo streaming delta differs")
     except Exception as e:
         d_problems.append(f"official decompress of the Neo streaming delta raised: {e}")
-    failures += [f"D1: {p}" for p in d_problems]
-    print(f"D1. Neo streaming delta → official decompress: {'PASS' if not d_problems else 'FAIL ' + str(d_problems)}")
+    failures += [f"delta-1: {p}" for p in d_problems]
+    verdict = "PASS" if not d_problems else "FAIL " + str(d_problems)
+    print(f"delta-1. Neo streaming delta → official decompress: {verdict}")
 
-    # D2. official delta compress (single-container AND streaming) → Neo
+    # delta-2. official delta compress (single-container AND streaming) → Neo
     #     native delta decompress (verified=skipped: no ftSha256 sidecar)
     # single-container with the API-default method (AUTO → byte 7 = 0) AND
     # streaming with the CLI default (HUFFMAN → byte 7 = 1): both official
     # spellings must restore through the Neo native decompressor
     for tag, streaming, method in (("single", False, None), ("stream", True, "HUFFMAN")):
-        d_off = os.path.join(tmp, f"l5.official_delta_{tag}.znn")
+        d_off = os.path.join(tmp, f"crossval.official_delta_{tag}.znn")
         pad_base, pad_ft = official_delta_compress(d_base, d_ft, d_off, streaming, method)
-        d_out = os.path.join(tmp, f"l5.official_delta_{tag}.restored")
+        d_out = os.path.join(tmp, f"crossval.official_delta_{tag}.restored")
         meta = {"basePad": pad_base, "ftPad": pad_ft}
         try:
             res = neo_job(mm, mm.zipnn_delta_decompress(d_base, d_off, d_out, meta, None))
@@ -541,15 +545,17 @@ def main() -> int:
                 got = f.read()
             ok = got == ft_original and res["verified"] == "skipped"
             if not ok:
-                failures.append(f"D2-{tag}: restore mismatch (bytes={got == ft_original}, verified={res['verified']})")
+                failures.append(
+                    f"delta-2-{tag}: restore mismatch (bytes={got == ft_original}, verified={res['verified']})"
+                )
         except Exception as e:
-            failures.append(f"D2-{tag}: Neo decompress of the official delta raised: {e}")
+            failures.append(f"delta-2-{tag}: Neo decompress of the official delta raised: {e}")
             ok = False
         form = "streaming" if streaming else "single container"
-        print(f"D2-{tag}. official delta ({form}) → Neo decompress: {'PASS' if ok else 'FAIL'}")
+        print(f"delta-2-{tag}. official delta ({form}) → Neo decompress: {'PASS' if ok else 'FAIL'}")
 
-    # --- E. Phase 4: the Neo extension band vs the official decoder ---------
-    # Phase 4: "znn_neo_extended マーカー + 公式 zipnn での失敗
+    # --- E. dtype extension: the Neo extension band vs the official decoder ---------
+    # dtype extension: "znn_neo_extended マーカー + 公式 zipnn での失敗
     # モード検証(明示エラーになることを確認)" and the C64 band question
     # ("公式デコーダ可読性の実証 -> 互換帯(9)/Neo 帯(130) 確定"). Every
     # assertion below is a DEMONSTRATION against the pip build, not a

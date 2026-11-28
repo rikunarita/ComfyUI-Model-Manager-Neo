@@ -1,8 +1,8 @@
-# ComfyUI‑Model‑Manager‑Neo 使用指南（繁體中文）
+# ComfyUI-Model-Manager-Neo 使用指南（繁體中文）
 
 > 姊妹文件: [English](USAGE.md) · [日本語](USAGE.ja.md) · [简体中文](USAGE.zh-CN.md)
 
-ComfyUI‑Model‑Manager‑Neo 是一個為 ComfyUI 增加模型**瀏覽、下載、上傳、編輯**
+ComfyUI-Model-Manager-Neo 是一個為 ComfyUI 增加模型**瀏覽、下載、上傳、編輯**
 能力的自定義節點。它完全執行在 ComfyUI 程序內部：後端是 ComfyUI 伺服器中的
 一組 `aiohttp` 路由，前端是注入頁面的單個打包 Vue 3 應用。掃描、雜湊、
 頭部解析以及整個 ZipNN 壓縮引擎等重活，都由儲存庫內附帶的預建置 Rust 核心執行。
@@ -41,7 +41,7 @@ git clone https://github.com/rikunarita/ComfyUI-Model-Manager-Neo.git
 **ComfyUI Registry（ComfyUI Manager / CLI）** —— Neo 已釋出在
 [ComfyUI Registry](https://registry.comfy.org/publishers/rikunarita7669/nodes/comfyui-model-manager-neo)（官方節點儲存庫），
 節點名為 `comfyui-model-manager-neo`：在 ComfyUI-Manager 中搜尋
-**ComfyUI‑Model‑Manager‑Neo**，或用官方命令列安裝：
+**ComfyUI-Model-Manager-Neo**，或用官方命令列安裝：
 
 ```bash
 comfy node install comfyui-model-manager-neo
@@ -178,11 +178,11 @@ Node.js 也不需要編譯器** —— 覆蓋的平台見[引擎](#the-engine)�
 - **Description 標籤** —— 渲染存放在模型旁 `*.md` 檔案中的 Markdown。
   連結在新標籤頁開啟。
 - **Information 標籤** —— 該模型所有已記錄資訊的表格（預設只讀；編輯模式下
-  鉛筆圖示會**在警告之後**開啟它，儲存表單會重寫筆記的 front‑matter）。
-  筆記的 YAML front‑matter（Civitai / Hugging Face / ModelScope 下載時寫入）
+  鉛筆圖示會**在警告之後**開啟它，儲存表單會重寫筆記的 front-matter）。
+  筆記的 YAML front-matter（Civitai / Hugging Face / ModelScope 下載時寫入）
   被解析成行：作者、基礎模型、每個檔案雜湊（`AutoV1` … `SHA256_12`）、
   格式與精度、模型平台、可點選的模型頁連結，以及**所有**預覽圖的 URL；
-  解析器不認識的鍵在表格末尾逐字列出。沒有 front‑matter 的模型逐字顯示
+  解析器不認識的鍵在表格末尾逐字列出。沒有 front-matter 的模型逐字顯示
   直接從 safetensors 頭部讀出的 `__metadata__` 塊 —— 不做任何快取或後臺掃描。
 - **張量區**（safetensors 模型） —— 從頭部解析出的精確張量佈局，按
   Hugging Face safetensors 檢視器的樣式渲染為可摺疊的**資料夾樹**：
@@ -200,7 +200,7 @@ Node.js 也不需要編譯器** —— 覆蓋的平台見[引擎](#the-engine)�
 ### 按雜湊識別
 
 模型詳細操作行中的**雜湊反查按鈕**（HashReverse 圖示）向 Civitai 目錄
-詢問某個本地檔案是哪個模型版本：先嚐試筆記 front‑matter 中已記錄的雜湊
+詢問某個本地檔案是哪個模型版本：先嚐試筆記 front-matter 中已記錄的雜湊
 （`AutoV1` / `AutoV2` / `SHA256` / `CRC32` / `BLAKE3`），全部落空才對檔案做
 單遍雜湊。命中時開啟解析出的模型/版本及其基礎模型、觸發詞、檔案列表，
 並附上官方 CLI 命中時列印的同一條 `civitai download` 命令（可一鍵複製）；
@@ -435,7 +435,7 @@ ZipNN 打包資料夾（`*_DeltaZNN`、舊式 `*_ZNN`）與普通資料夾永遠
 壓縮檔案遵循官方 ZipNN 佈局（`znn_compressed_vectors` 中繼資料、Huffman 壓縮
 張量 —— Rust 核心覆蓋**所有** safetensors dtype，見下文_dtype 覆蓋與互操作_），
 因此打過 `zipnn_safetensors()` 補丁的載入器可以透明讀取相容帶檔案。壓縮是
-**無損且經過驗證的**：核心在壓縮時記錄原始檔的 SHA‑256，還原時內聯複核
+**無損且經過驗證的**：核心在壓縮時記錄原始檔的 SHA-256，還原時內聯複核
 （不匹配則保留壓縮檔案，並把產物移為 `.corrupt` 以供檢查）；只有在
 `.znn.safetensors` 寫入並透過原子改名驗證之後，普通 `.safetensors` 才會被
 刪除，失敗的執行會清理其部分產物。可選的 **paranoid 模式**（預設關；
@@ -470,10 +470,12 @@ Rust 核心壓縮 **safetensors 0.8 定義的每個 dtype**（全部 22 種）�
 | Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                              |
 | macOS（Intel 與 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so`   | 單個 fat 二進位 —— Intel macOS 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC 建置                                                 |
+| Windows ARM64                   | `native-bin/windows-arm64/mm_core.pyd`          | MSVC 建置（ARM64）                                        |
 | Linux x86_64（自由執行緒）      | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28，自由執行緒 CPython 3.15+                    |
 | Linux aarch64（自由執行緒）     | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28，自由執行緒 CPython 3.15+                    |
 | macOS（自由執行緒）             | `native-bin/macos-universal2t/mm_core.abi3t.so` | 單個 fat 二進位，自由執行緒 CPython 3.15+                 |
 | Windows x86_64（自由執行緒）    | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC 建置，自由執行緒 CPython 3.15+                       |
+| Windows ARM64（自由執行緒）     | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC 建置（ARM64），自由執行緒 CPython 3.15+              |
 
 每個平台一個二進位即支援 **CPython 3.12 及更新版本**（Python Stable ABI）；
 自由執行緒建置由 `<tag>t` 的 **abi3t** 二進位支援（CPython 3.15+、PEP 803），
@@ -507,7 +509,7 @@ Rust 核心壓縮 **safetensors 0.8 定義的每個 dtype**（全部 22 種）�
 `<base>_DeltaZNN/<ft>_delta_<base>.znn`（通常只有微調模型大小的百分之幾），
 並刪除冗餘的微調檔案。增量檔案的卡片按鈕（反色顯示）會把微調模型
 **逐位元組精確地**還原到基礎模型旁邊，並在增量資料夾清空後將其刪除。還原需要
-基礎模型仍然存在，且增量檔案記錄了微調模型自己的 SHA‑256，因此還原全程
+基礎模型仍然存在，且增量檔案記錄了微調模型自己的 SHA-256，因此還原全程
 可驗證。
 
 ![ZipNN 增量對話方塊](../demo-assets/zipnn-delta-dialog.avif)

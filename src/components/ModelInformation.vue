@@ -427,7 +427,7 @@ interface TensorRow {
 }
 
 /**
- * Random access over the tensor tree (Phase 6).
+ * Random access over the tensor tree.
  *
  * The backend folds the tree in Rust while it parses the header anyway and
  * ships the compact pre-order table; `createTensorTreeIndex` validates it and

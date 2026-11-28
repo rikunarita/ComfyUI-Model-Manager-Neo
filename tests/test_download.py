@@ -1,4 +1,4 @@
-"""Phase 5 download inline-verification tests (B1 / K7).
+"""Download inline-verification tests.
 
 The download write loop feeds a native hasher as bytes land, so a finished
 Civitai download's SHA256 is verified WITHOUT the extra full re-read the legacy
@@ -13,7 +13,7 @@ is staged in `_inline_sha256` exactly as the write loop does) and assert:
   the `_sha256_of` re-read and still verifies correctly.
 
 The hasher primitive itself (chunk-size-independent SHA256) is golden-tested
-against `hash_file` in test_phase5_scan.py.
+against `hash_file` in test_scan.py.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from harness import REPO_ROOT, import_ext
 
 
 def _require_native():
-    """The built mm_core, or a skip (same convention as test_phase5_scan.py)."""
+    """The built mm_core, or a skip (same convention as test_scan.py)."""
     config = import_ext("config")
     config.extension_uri = str(REPO_ROOT)
     native = import_ext("native")
@@ -122,7 +122,7 @@ async def test_download_complete_falls_back_to_reread_without_inline_sha(downloa
 
 
 # ---------------------------------------------------------------------------
-# resume seeding (Phase 5 audit fix: the read moved off the event loop)
+# resume seeding (the scan/index audit fix: the read moved off the event loop)
 # ---------------------------------------------------------------------------
 def test_seed_hasher_from_file_matches_a_whole_file_hash(tmp_path):
     """Seeding a resumed hasher with the partial file must give the same digest
@@ -168,7 +168,7 @@ def test_hasher_update_on_a_lost_handle_raises_keyerror(tmp_path):
 
 @pytest.mark.asyncio
 async def test_write_loop_survives_a_lost_hasher_handle_and_rereads(download_env, monkeypatch):
-    """Phase 5 audit #2, END TO END (the junction the unit test above only
+    """the scan/index audit #2, END TO END (the junction the unit test above only
     sets up): when ``hasher_update`` raises mid-stream (a lost handle), the
     write loop must CATCH it, abandon inline verification (``hasher = None``)
     and KEEP WRITING, so a download whose bytes are perfectly fine still

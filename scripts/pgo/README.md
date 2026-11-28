@@ -20,14 +20,14 @@ pip 依存ゼロなので、maturin `--pgo` の一時 venv でも任意のラン
 
 ### トレーニングがカバーするホットパス
 
-圧縮/解凍ジョブ往復（bf16 low-entropy + random / f32 / f16 / fp8、SHA‑256
+圧縮/解凍ジョブ往復（bf16 low-entropy + random / f32 / f16 / fp8、SHA-256
 往復検証付き）・paranoid モード・デルタ圧縮/解凍（sidecar 検証込み）・
 scan_models 冷/暖（永続インデックス）・scan_hygiene・walk_models・
 move_with_sidecars・hash_file 5 表記・インクリメンタル hasher・
 safetensors_header + tensor_tree（MoE 形 1,200 テンソル ×20）・
 WebP 静止 + アニメの encode/decode ×10。
 
-**重み付け（run #107 の G1 実測後に改訂）**: PGO の重みは実行カウントに
+**重み付け（run #107 の PGO-A/B 実測後に改訂）**: PGO の重みは実行カウントに
 比例するため、codec 秒級に対して 2 パスしかなかった scan 系を
 冷×5（毎回インデックス削除 = 本番の初回スキャン経路）+ 暖×20
 （インデックスヒット = リフレッシュ経路）、hygiene/walk を ×5 へ
@@ -61,7 +61,7 @@ LLVM_PROFILE_FILE="/tmp/pgo-prof/default_%m.profraw" \
 LLVM_BIN="$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin"
 "$LLVM_BIN/llvm-profdata" merge -o /tmp/pgo-prof/merged.profdata /tmp/pgo-prof
 
-# 4. 出荷ビルド（zigbuild 経路。G2 = scripts/pgo/g2_check.py の 4 条件 —
+# 4. 出荷ビルド（zigbuild 経路。profile-check = scripts/pgo/profile_check.py の 4 条件 —
 #    missing 比率 < 50 % + Total count > 0 + 関数数/znn_codec プローブ）
 scripts/build-native.sh --target linux-x86_64 --size-gate --pgo /tmp/pgo-prof/merged.profdata
 
@@ -76,17 +76,17 @@ CI では **出荷ビルド自体が PGO 化されています**（`native-build
 三段階 + `--pgo-train` の Windows。macOS universal2 は計装 fat dylib の
 終了時 SIGSEGV 実証により非 PGO〔判断 (c)〕、linux-aarch64 は
 クロスコンパイルのため対象外）。
-プロファイルの no-op 化は **`g2_check.py`（恒久 G2 ゲート）**が毎ビルドで
+プロファイルの no-op 化は **`profile_check.py`（恒久 profile-check ゲート）**が毎ビルドで
 機械検出します（しきい値は run #106 の実測で再校正 — fat-LTO + PGO
 インライナの良性乖離 13.81 % は通過、真の no-op ~100 % は失敗。
 判定根拠は同スクリプトの docstring）。A/B 効果レポートは
 **`pgo-measure`** ジョブ（workflow_dispatch または HEAD コミットメッセージの
-`[pgo-measure]` マーカーで起動）が上記 1–5 を一括実行し、G1（compress /
+`[pgo-measure]` マーカーで起動）が上記 1–5 を一括実行し、PGO-A/B（compress /
 decompress +3 %）を job summary へ出力します。
 
 **abi3t（`<tag>t`）成果物は v1 非 PGO** —
 フリースレッドホストでの LLVM profile runtime の挙動（profraw 生成・merge・
-G2 形状の再現性）が未実測のため。「未検証の PGO 組み合わせが出荷を壊す」の
+profile-check 形状の再現性）が未実測のため。「未検証の PGO 組み合わせが出荷を壊す」の
 実例は macOS の計装 fat dylib SIGSEGV（判断 (c)）。GIL 側の PGO
 パイプラインは不変で、t の後追い PGO 化はビルドステップ差し替えだけで済む
 （3.15 ABI は rc1 凍結・成果物は `<tag>t` ディレクトリ分離）。

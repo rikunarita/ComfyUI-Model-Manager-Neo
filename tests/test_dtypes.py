@@ -1,4 +1,4 @@
-"""Phase 4 (L4): the Neo extension dtype band end-to-end.
+"""dtype extension (integration corpus): the Neo extension dtype band end-to-end.
 
 Every safetensors 0.8 dtype (all 22 spellings) compresses through the
 native pipeline: the five compatibility-band floats exactly like before
@@ -6,7 +6,7 @@ native pipeline: the five compatibility-band floats exactly like before
 extension band (codes 128-146, ``znn_neo_extended="1"`` marker, explicit
 rejection by official tools — pinned by ``scripts/l5`` section E).
 
-Gates covered here (Phase 4 完了条件 "全拡張 dtype 往復 green"):
+Gates covered here (dtype extension 完了条件 "all extension dtypes round-trip green"):
 
 * per-dtype round trip: compress → decompress → SHA-256 byte-exact,
   infos torch-name spelling, U8 blob storage, marker presence per band;
@@ -19,9 +19,9 @@ Gates covered here (Phase 4 完了条件 "全拡張 dtype 往復 green"):
   shape semantics (``nelem * bits / 8`` bytes);
 * the inspect route contract (plain + compressed files, error paths).
 
-(Phase 8 retired the legacy-path rejection test together with the vendored
+(the prebuilt distribution retired the legacy-path rejection test together with the vendored
 C core — the OFFICIAL zipnn's explicit refusal of extension-band files is
-pinned by the L5 CI cross-validation instead.)
+pinned by the official interoperability gate CI cross-validation instead.)
 
 Skips cleanly when no native binary exists for this platform (the CI verify
 job); the native workflow's integration job runs it against the artifact.
@@ -53,14 +53,14 @@ from harness import (
     synth_u32,
     write_safetensors,
 )
-from test_phase2_native_pipeline import _compress, _decompress
-from test_phase2_native_pipeline import mm as _imported_mm  # noqa: F401  (fixture re-export)
-from test_phase2_routes import _native_binary_present, _post_zipnn, _reset_native_loader
+from test_native_pipeline import _compress, _decompress
+from test_native_pipeline import mm as _imported_mm  # noqa: F401  (fixture re-export)
+from test_routes import _native_binary_present, _post_zipnn, _reset_native_loader
 
 
 @pytest.fixture
 def mm(_imported_mm):  # noqa: F811 — pytest fixture wiring, not a redefinition
-    """The real mm_core through the production loader (phase-2 fixture)."""
+    """The real mm_core through the production loader (the safetensors pipeline fixture)."""
     return _imported_mm
 
 
@@ -134,7 +134,7 @@ def _build(tmp_path: Path, st: str, shape: list[int], payload: bytes, name: str 
 
 @pytest.mark.parametrize("st,torch_name,shape,payload", DTYPE_CASES, ids=CASE_IDS)
 def test_dtype_roundtrip_and_marker(mm, tmp_path, st, torch_name, shape, payload):
-    """The K14 gate per dtype: compress → blob stored with the right infos
+    """The 対応dtype数 gate per dtype: compress → blob stored with the right infos
     spelling → decompress → byte-exact, marker present iff Neo band."""
     src = _build(tmp_path, st, shape, payload)
     original_sha = sha256_file(src)
@@ -271,7 +271,7 @@ def test_marker_absent_when_neo_tensors_pass_through(mm, tmp_path):
 
 @pytest.mark.asyncio
 async def test_inspect_route_plain_and_compressed(prompt_server, model_lib, mm, tmp_path):
-    from test_phase2_routes import _wait_task
+    from test_routes import _wait_task
 
     root = model_lib / "checkpoints"
     # plain file with a Neo-band dtype
@@ -332,7 +332,7 @@ async def test_inspect_route_plain_and_compressed(prompt_server, model_lib, mm, 
 
 @pytest.mark.asyncio
 async def test_inspect_route_compat_only_file(prompt_server, model_lib):
-    # Phase 8: the inspect header parse goes through mm_core (B4 single
+    # the prebuilt distribution: the inspect header parse goes through mm_core (32 MiB header cap single
     # route) — without a built artifact the route answers with its error
     # FIELD, which test_inspect_helper_survives_broken_files pins instead.
     if not _native_binary_present():
@@ -437,11 +437,11 @@ def test_torch_saved_dtypes_roundtrip(mm, tmp_path):
 
 
 def test_repo_native_loader_pins_api_5():
-    """Phase 5 ADDED the scan / hygiene / header / hash surface (api 4) and
-    Phase 6 ADDS the tensor tree + watcher (api 5), so the loader's exact-range
-    handshake moves to [5, 5] (a v4 binary lacks `safetensors_tensor_tree` /
-    `watch_start` and must be rejected at load, not fail with an AttributeError
-    mid-request)."""
+    """The scan/index work ADDED the scan / hygiene / header / hash surface (api 4),
+    the display tensor tree + watcher were added in api 5, and the WebP codec in
+    api 6, so the loader's exact-range handshake is [6, 6] (an older binary lacks
+    `safetensors_tensor_tree` / `webp_decode` and must be rejected at load, not
+    fail with an AttributeError mid-request)."""
     native = import_ext("native")
     assert (native.MIN_API_VERSION, native.MAX_API_VERSION) == (6, 6)
     if not (REPO_ROOT / "native" / "native-bin").exists():
@@ -449,8 +449,8 @@ def test_repo_native_loader_pins_api_5():
     sys.modules.pop("mm_core", None)
     if native.load():
         assert native.core().api_version() == 6
-        # The Phase 5 surface is present.
-        phase5_fns = (
+        # The scan/index surface is present.
+        scan_fns = (
             "scan_models",
             "scan_hygiene",
             "safetensors_header",
@@ -459,15 +459,15 @@ def test_repo_native_loader_pins_api_5():
             "hasher_update",
             "hasher_finalize",
         )
-        for fn in phase5_fns:
+        for fn in scan_fns:
             assert hasattr(native.core(), fn), f"mm_core.{fn} missing"
-        # The Phase 6 surface is present (tensor tree + the optional watcher).
-        phase6_fns = (
+        # The display surface is present (tensor tree + the optional watcher).
+        display_fns = (
             "safetensors_tensor_tree",
             "watch_start",
             "watch_poll",
             "watch_stop",
             "watch_diagnostics",
         )
-        for fn in phase6_fns:
+        for fn in display_fns:
             assert hasattr(native.core(), fn), f"mm_core.{fn} missing"

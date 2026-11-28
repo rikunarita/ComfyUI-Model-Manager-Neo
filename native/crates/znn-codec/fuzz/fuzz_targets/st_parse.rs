@@ -1,5 +1,5 @@
-//! L3 fuzz target 4/5: the safetensors CONTAINER parser + the canonical
-//! writer round trip (Phase 2's hostile-file surface — ComfyUI loads
+//! ASan fuzz target 4/5: the safetensors CONTAINER parser + the canonical
+//! writer round trip (the safetensors pipeline's hostile-file surface — ComfyUI loads
 //! third-party models). Exercises: the u64 prefix guards, the
 //! jiter-driven header parse (duplicate keys, unknown fields, non-string
 //! metadata, negative/huge integers), the reference validation rules

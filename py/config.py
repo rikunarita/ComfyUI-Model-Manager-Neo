@@ -22,12 +22,12 @@ setting_key = {
     # removed) but the ID string MUST stay `ModelManager.Scan.IncludeHiddenFiles`
     # - it is the key ComfyUI persists the user's value under.
     "model_list": {"include_hidden_files": "ModelManager.Scan.IncludeHiddenFiles"},
-    # Phase 6: the OPTIONAL filesystem watcher behind the
+    # The OPTIONAL filesystem watcher behind the
     # `models_changed` invalidation - default OFF, network roots skipped, TTL
     # revalidation stays the correctness floor (py/watcher.py). The env
     # override MM_WATCH_ROOTS wins over this setting.
     "scan": {"watch_model_folders": "ModelManager.Scan.WatchModelFolders"},
-    # ZipNN native pipeline (Phase 2): paranoid mode re-decodes and verifies
+    # ZipNN native pipeline (the safetensors pipeline): paranoid mode re-decodes and verifies
     # a compressed file before the original is removed (default OFF). The env
     # override MM_ZNN_PARANOID wins over this setting.
     "zipnn": {"paranoid": "ModelManager.ZipNN.Paranoid"},

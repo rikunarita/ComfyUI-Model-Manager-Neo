@@ -39,22 +39,22 @@ repository = "https://github.com/rikunarita/ComfyUI-Model-Manager-Neo"
 # workspace-pinned `abi3-py310` moved into mm-core's own `stable-abi` feature
 # (now `abi3-py312`). The stable-ABI flavour must stay EXCLUSIVELY owned by
 # mm-core's feature axes (`stable-abi` = abi3-py312 for GIL builds, `ft` =
-# abi3t-py315 for free-threaded 3.15+, Step 2): enabling `abi3` and `abi3t`
+# abi3t-py315 for free-threaded 3.15+): enabling `abi3` and `abi3t`
 # together makes the produced flavour host-dependent (abi3 below a 3.15 host,
 # abi3t at/above it — PyO3 building-and-distribution guide), which a workspace
 # pin would silently do for every build mode. The native-test toggle gate
 # verifies the exclusivity from `cargo metadata` on every run.
 pyo3 = { version = "0.29.2" }
 
-# Phase 1 (znn-codec format core) — versions re-verified against the
+# znn-codec (znn-codec format core) — versions re-verified against the
 # crates.io API on 2026-09-23:
 rayon = "1.12.0"
 thiserror = "2.0.20"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 
-# Phase 2 (safetensors I/O + compression pipeline):
-# jiter   borrowed non-destructive JSON parse of mmap'd headers (Phase 0
+# the safetensors pipeline (safetensors I/O + compression pipeline):
+# jiter   borrowed non-destructive JSON parse of mmap'd headers (the baseline measurements
 #         decision: 17.7x faster than simd-json on the 8 MB MoE fixture,
 #         the only candidate satisfying the read-only-mmap requirement)
 # memmap2 zero-copy source reads
@@ -63,11 +63,11 @@ serde_json = "1.0.151"
 jiter = "0.17.0"
 memmap2 = "0.9.11"
 sha2 = "0.11.0"
-# Phase 3 (batch walk primitives) — first candidate for the
-# parallel walk (Phase 5 benches it against dua-core for scan_models).
+# delta compression (batch walk primitives) — first candidate for the
+# parallel walk (the scan/index work benches it against dua-core for scan_models).
 ignore = "0.4.33"
 
-# Phase 5 (scan / index / hash / header — versions
+# the scan/index work (scan / index / hash / header — versions
 # re-verified against the crates.io API on 2026-09-27):
 #   bincode  2.0.1 — persistent-index snapshot. NOTE: crates.io reports
 #          `max_stable_version = 3.0.0`, but that release is a compile_error!
@@ -83,7 +83,7 @@ bincode = { version = "2.0.1", features = ["derive"] }
 blake3 = { version = "1.8.7", features = ["rayon"] }
 crc32fast = "1.5.2"
 yaml-rust2 = "0.13.0"
-# Phase 6 (file-watching): `notify` +
+# File-watching (`watch_roots`): `notify` +
 # `notify-debouncer-full` DIRECTLY — the `extended-notify` wrapper is not used
 # (0.1.x, single author, pulls tokio into the shipped binary, pins
 # debouncer-full a generation back). Versions
@@ -91,7 +91,7 @@ yaml-rust2 = "0.13.0"
 notify = "8.2.0"
 notify-debouncer-full = "0.7.0"
 
-# Phase 7 (T7 — プレビュー WebP パイプライン): zenwebp は純 Rust の
+# preview WebP codec: zenwebp は純 Rust の
 # WebP codec（lossy VP8 + lossless VP8L の encode/decode・alpha・animation・
 # ICC/EXIF/XMP）。imazen（Imageflow 開発元）。**AGPL-3.0-only OR
 # LicenseRef-Imazen-Commercial** のデュアルライセンス — 本拡張は GPL-3.0-only なので

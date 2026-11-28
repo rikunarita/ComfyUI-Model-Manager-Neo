@@ -16,7 +16,7 @@ from PIL import Image
 
 from . import auth, config, hf_endpoint, http_client, readme, utils
 
-# A3: the hub base URLs are module constants so the mock tests
+# aiohttp migration: the hub base URLs are module constants so the mock tests
 # can point them at a local server (no live API dependency).
 HF_API_BASE = "https://huggingface.co/api"
 # Web root for resolve/raw URLs (README, download links, previews) - a module
@@ -109,7 +109,7 @@ def civitai_api_base(host: str) -> str:
     """The Civitai API base of the host a model URL arrived on.
 
     A function (not an f-string at the call site) for two reasons: the mirror
-    hosts must reach THEIR OWN API rather than the canonical one, and the A3
+    hosts must reach THEIR OWN API rather than the canonical one, and the aiohttp migration
     mock tests point it at a local server without touching the URL parsing.
     """
     return f"https://{host}/api/v1"
@@ -119,7 +119,7 @@ class ModelSearcher(ABC):
     """
     Abstract class for model searcher.
 
-    A3: the lookup is a coroutine. The HTTP round trips run on
+    aiohttp migration: the lookup is a coroutine. The HTTP round trips run on
     the server's event loop through the shared aiohttp session; a searcher whose
     backend is a blocking SDK (ModelScope) moves that call into an executor
     itself, so the route never pins an io worker for a network wait.
@@ -300,7 +300,7 @@ class HuggingfaceModelSearcher(ModelSearcher):
 
         headers = auth.get_hf_headers()
 
-        # Fetch model info from HF API (A3: shared aiohttp session, no executor)
+        # Fetch model info from HF API (aiohttp migration: shared aiohttp session, no executor)
         res_data: dict = await http_client.fetch_json(
             f"{api_base}/models/{model_id}",
             headers=headers,
@@ -477,7 +477,7 @@ class ModelScopeModelSearcher(ModelSearcher):
     """
 
     def _list_repo_files(self, repo_id: str):
-        """The blocking `modelscope_hub` call (A3 keeps SDK traffic in an
+        """The blocking `modelscope_hub` call (aiohttp migration keeps SDK traffic in an
         executor; only Neo's own round trips moved to aiohttp)."""
         from modelscope_hub import HubApi
 
@@ -583,7 +583,7 @@ class Information:
                 # blocking `requests.get` round trips (Civitai model + version
                 # data, or the Hugging Face model info AND recursive file tree)
                 # and running them inline froze ComfyUI's event loop, so they
-                # were moved to an io-executor worker. A3 makes
+                # were moved to an io-executor worker. aiohttp migration makes
                 # the round trips async on the loop instead - which is strictly
                 # better than either predecessor: no freeze AND no worker pinned
                 # for the duration of the lookup. The ModelScope SDK call is the

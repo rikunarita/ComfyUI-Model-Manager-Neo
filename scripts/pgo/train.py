@@ -19,7 +19,7 @@ Part of the PGO pipeline. Three modes:
   subprocesses between two built cores (``--a`` = baseline, ``--b`` = PGO),
   N rounds, steal-gated on Linux (contaminated rounds are discarded and
   retried) — the BENCH gate protocol reduced to a single runner
-  session. Verdict statistic = the per-side **median** ratio (the G1
+  session. Verdict statistic = the per-side **median** ratio (the PGO-A/B
   verdict); the per-side minimum (worst window) and maximum (zero-interference
   ceiling) are reported alongside. The original min-only verdict was
   retired after run #108: min-of-N compares whichever unlucky round each
@@ -375,7 +375,7 @@ def train(mm, fx: dict[str, Path], root: Path, rounds: int) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# bench-one / measure modes (Step 3's G1 gate)
+# bench-one / measure modes (the PGO-A/B gate)
 # ---------------------------------------------------------------------------
 BENCH_WORKLOADS = ("compress", "decompress", "hash", "scan")
 MAX_STEAL_RETRIES = 5
@@ -446,7 +446,7 @@ def _steal_ticks() -> int | None:
 def summarize_workloads(samples: dict[tuple[str, str], list[float]]) -> dict[str, dict]:
     """Per-workload A/B statistics: min / median / best per side + ratios.
 
-    The G1 verdict statistic is the per-side **median** ratio.
+    The PGO-A/B verdict statistic is the per-side **median** ratio.
     ``ratio`` (kept as an alias of ``ratioMin``) preserves the JSON key that
     the run #107/#108 records reference; ``ratioBest`` is the
     zero-interference ceiling (per-side best window).

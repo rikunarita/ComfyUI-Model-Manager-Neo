@@ -1,16 +1,16 @@
-//! Multi-algorithm hashing (Phase 5 — K7/K8).
+//! Multi-algorithm hashing (the scan/index work— download verification・マルチハッシュ).
 //!
 //! Two surfaces over ONE streaming pass:
 //! * [`hash_file`] — the `py/identify.py compute_hashes()` replacement: every
 //!   Civitai notation (SHA256 / AutoV2 / AutoV1 / CRC32 / BLAKE3) computed in
-//!   a single read of the file (K8), each in the EXACT published notation
+//!   a single read of the file (multi-hash measurement), each in the EXACT published notation
 //!   (upper-case hex; CRC32 byte-swapped; AutoV1 = the 64 KiB window at the
 //!   1 MiB offset; AutoV2 = `SHA256[:10]`). Golden-tested against the Python
 //!   definitions byte-for-byte.
 //! * [`MultiHasher`] — the incremental form the download loop feeds chunk by
 //!   chunk (`hasher_new` / `hasher_update` / `hasher_finalize`),
 //!   so a finished download's SHA256 is known WITHOUT the extra full re-read
-//!   the legacy `_sha256_of` did (K7: zero added I/O).
+//!   the legacy `_sha256_of` did (download verification: zero added I/O).
 //!
 //! The incremental hasher borrows each chunk as `&[u8]` at the PyO3 boundary
 //! (a `PyBytes` is a zero-copy borrow), so the model bytes are

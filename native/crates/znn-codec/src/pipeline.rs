@@ -1,4 +1,4 @@
-//! The safetensors compression / decompression pipelines (Phase 2) — the
+//! The safetensors compression / decompression pipelines (the safetensors pipeline) — the
 //! Rust replacement of `py/compress.py`'s
 //! `compress_safetensors` / `decompress_safetensors`, with the semantics of
 //! the official `zipnn_compress_safetensors.py` scripts preserved exactly
@@ -9,7 +9,7 @@
 //!   piece straight into `<dst>.tmp` at a pre-computed worst-case header
 //!   offset → seek-back header patch → fsync → (paranoid: decompress-verify
 //!   the artifact) → rename. Peak RAM is O(one tensor) — no RAM dict of the
-//!   whole model, no `tensor.clone()`, no spill copy (KPI K1). The source
+//!   whole model, no `tensor.clone()`, no spill copy (KPI 圧縮ピークRAM). The source
 //!   SHA-256 runs on a worker thread over the same mmap pages — step 1
 //!   of the integrity design — and is recorded as `znn_neo_src_sha256`.
 //! * **decompress** writes the canonical restored header FIRST (every
@@ -59,13 +59,13 @@ use crate::znn_tensor::{
 pub const METADATA_KEY: &str = "znn_compressed_vectors";
 /// Neo: pre-compression on-disk size of the source file (legacy-compatible).
 pub const ORIGINAL_SIZE_KEY: &str = "znn_neo_original_bytes";
-/// Neo: SHA-256 of the whole source file (new in Phase 2).
+/// Neo: SHA-256 of the whole source file (new in the safetensors pipeline).
 pub const SRC_SHA_KEY: &str = "znn_neo_src_sha256";
 /// Neo: "1" when the source header is canonical — decompression can then
 /// restore byte-exactly and ENFORCES the sha; "0" downgrades to the
 /// structural minimum guarantee.
 pub const EXACT_KEY: &str = "znn_neo_exact";
-/// Neo: Phase-4 marker (Neo-extension dtypes present). Phase 2 never writes
+/// Neo: dtype extension marker (Neo-extension dtypes present). The safetensors pipeline never writes
 /// it, but restore strips it so future files round-trip cleanly.
 pub const EXTENDED_KEY: &str = "znn_neo_extended";
 /// Neo: `"1"` when the SOURCE file had no `__metadata__` key at all — the
@@ -112,7 +112,7 @@ pub enum Phase {
     Done = 4,
     /// Terminal: failed (see the job's error).
     Failed = 5,
-    /// The delta chunk loop (Phase 3 — the legacy ws phase vocabulary is
+    /// The delta chunk loop (delta compression — the legacy ws phase vocabulary is
     /// `prepare/tensors/delta/done`; delta routes report
     /// their work under `"delta"` exactly like the legacy 3-step progress).
     Delta = 6,
@@ -387,7 +387,7 @@ enum Piece {
     Pass,
 }
 
-/// The compression scheme of a tensor's dtype (Phase 4: the FULL
+/// The compression scheme of a tensor's dtype (dtype extension: the FULL
 /// safetensors 0.8 set is compressible — the compatibility band through
 /// official-decodable blobs, everything else through the Neo extension
 /// band). `None` is defensive only: `StContainer::parse` validates dtype
@@ -401,7 +401,7 @@ fn compressible_scheme(t: &TensorEntry) -> Option<TensorScheme> {
 
 /// The metadata map of a compressed file: surviving source entries (original
 /// order) + the Neo records (`znn_neo_*` then the infos key — the legacy
-/// pipeline's insertion order). `extended` records the Phase-4 marker
+/// pipeline's insertion order). `extended` records the dtype extension marker
 /// (`znn_neo_extended="1"` — the file contains Neo-extension-band blobs the
 /// official ZipNN tooling rejects with an explicit error).
 fn build_compress_meta(
@@ -567,12 +567,12 @@ pub fn compress_file(
     let mut pieces: Vec<Piece> = Vec::with_capacity(st.tensors.len());
     let mut original_bytes = 0u64;
     let mut compressed_bytes = 0u64;
-    // Phase 4: the file is Neo-extended iff at least one EXTENSION-BAND blob
+    // dtype extension: the file is Neo-extended iff at least one EXTENSION-BAND blob
     // is actually stored (a Neo-dtype tensor that passes through the "not
     // worth it" rule keeps the file official-compatible).
     let mut extended_stored = false;
     // ONE grow-only blob buffer for the whole file (no per-tensor alloc):
-    // peak RAM stays O(largest tensor) — the K1 budget.
+    // peak RAM stays O(largest tensor) — the 圧縮ピークRAM budget.
     let mut blob_buf: Vec<u8> = Vec::new();
 
     // The source SHA-256 streams over the SAME mmap pages on a worker thread
@@ -587,7 +587,7 @@ pub fn compress_file(
                 let data = st.data(&mmap, t)?;
                 match compressible_scheme(t) {
                     Some(base_scheme) => {
-                        // Phase 4: zero-statistics truncation selection for
+                        // dtype extension: zero-statistics truncation selection for
                         // the Neo integer types (a no-op for every other
                         // dtype — `select_truncation` returns the input)
                         let scheme = select_truncation(&base_scheme, data);
@@ -836,7 +836,7 @@ fn stream_write(writer: &mut AtomicWriter, bytes: &[u8], hooks: &Hooks) -> StRes
 // thread fed by a chunk channel was implemented and benchmarked — it made
 // decompression SLOWER here (0.65 s vs 0.60 s for 64 MB: no spare core to
 // overlap with, plus clone traffic) and grew peak RSS by the unbounded
-// channel backlog (a K1 hazard on 12 GB models). The INLINE hasher below is
+// channel backlog (a 圧縮ピークRAM hazard on 12 GB models). The INLINE hasher below is
 // the verification design (zero extra I/O, zero extra memory); on SHA-NI
 // hosts (the reference class) its serial cost is ~45 ms per 64 MB —
 // negligible. Re-parallelising only pays with bounded queues AND spare
@@ -1022,7 +1022,7 @@ pub fn decompress_file(
     })?;
     let mut decoded_count = 0usize;
     // ONE grow-only restore buffer for the whole file (peak RAM O(largest
-    // tensor) — the K1 budget; `resize` re-zeroes only the growth delta and
+    // tensor) — the 圧縮ピークRAM budget; `resize` re-zeroes only the growth delta and
     // the decode overwrites every byte).
     let mut restore_buf: Vec<u8> = Vec::new();
     writer.write_all(&(region.len() as u64).to_le_bytes())?;
@@ -1356,7 +1356,7 @@ mod tests {
                 }
                 v
             }),
-            // Phase 4: every dtype is compressible — these three stay
+            // dtype extension: every dtype is compressible — these three stay
             // pass-through because of the SIZE rule (blob ≥ raw for such
             // small tensors), not because of their dtype
             ("tokens", "U8", vec![100], noisy_bytes(100, 13)),
@@ -1851,7 +1851,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // Phase 4 — the Neo extension band at the FILE level
+    // dtype extension — the Neo extension band at the FILE level
     // -------------------------------------------------------------------
 
     fn f64_bytes(n: usize, seed: u32) -> Vec<u8> {
@@ -1935,8 +1935,8 @@ mod tests {
     }
 
     #[test]
-    fn phase4_extended_dtypes_roundtrip_byte_exact() {
-        let dir = TempDir::new("phase4-extended");
+    fn extband_extended_dtypes_roundtrip_byte_exact() {
+        let dir = TempDir::new("extband-extended");
         let src = dir.path("model.safetensors");
         let znn = dir.path("model.znn.safetensors");
         let back = dir.path("restored.safetensors");
@@ -1955,7 +1955,7 @@ mod tests {
         let (cst, cmmap) = StContainer::open(&znn).expect("parse compressed");
         let cmeta = cst.metadata.clone().expect("metadata");
         let lookup = |k: &str| cmeta.iter().find(|(mk, _)| mk == k).map(|(_, v)| v.clone());
-        // the Phase-4 marker is present (Neo-band blobs were stored)
+        // the dtype extension marker is present (Neo-band blobs were stored)
         assert_eq!(lookup(EXTENDED_KEY).as_deref(), Some("1"));
         assert_eq!(lookup(EXACT_KEY).as_deref(), Some("1"));
         // infos: torch names per the table (the F6 type records its
@@ -2011,8 +2011,8 @@ mod tests {
     }
 
     #[test]
-    fn phase4_marker_only_when_a_neo_blob_is_stored() {
-        let dir = TempDir::new("phase4-marker");
+    fn extband_marker_only_when_neo_blob_is_stored() {
+        let dir = TempDir::new("extband-marker");
         let hooks = Hooks::default();
         // (a) compatibility-only file → no marker
         let src = dir.path("compat.safetensors");
@@ -2051,12 +2051,12 @@ mod tests {
     }
 
     #[test]
-    fn phase4_pseudo_dtype_blobs_are_refused_at_restore() {
+    fn extband_pseudo_dtype_blobs_are_refused_at_restore() {
         // complex128 (code 129) has no safetensors 0.8 representation: a
         // hand-crafted file with such a blob must fail with an explicit
         // error, never write an unreadable header
         use crate::znn_tensor::{compress_tensor, scheme_for_st_dtype};
-        let dir = TempDir::new("phase4-pseudo");
+        let dir = TempDir::new("extband-pseudo");
         let scheme = scheme_for_st_dtype("C128").unwrap();
         let data = f64_bytes(64, 21); // 64 u64 words = 512 B = 32 complex128
         let blob = compress_tensor(&scheme, &data, &[32], 0, None).unwrap();
@@ -2101,10 +2101,10 @@ mod tests {
     }
 
     #[test]
-    fn phase4_truncated_blob_restores_and_beats_canonical() {
+    fn extband_truncated_blob_restores_and_beats_canonical() {
         // I32 with 2-byte values: the file-level pipeline must pick the
         // truncation mode (byte5=9) and restore byte-exactly
-        let dir = TempDir::new("phase4-trunc");
+        let dir = TempDir::new("extband-trunc");
         let src = dir.path("t.safetensors");
         let data: Vec<u8> = (0..40_000u32)
             .flat_map(|i| (256 + i % 60_000).to_le_bytes())
@@ -2129,8 +2129,8 @@ mod tests {
     }
 
     #[test]
-    fn phase4_recompress_extended_file_keeps_single_marker() {
-        let dir = TempDir::new("phase4-recompress");
+    fn extband_recompress_extended_file_keeps_single_marker() {
+        let dir = TempDir::new("extband-recompress");
         let src = dir.path("m.safetensors");
         write_st(
             &src,

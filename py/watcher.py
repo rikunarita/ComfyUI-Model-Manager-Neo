@@ -1,6 +1,6 @@
-"""External-change detection for the model library (Phase 6).
+"""External-change detection for the model library.
 
-The `models_changed` invalidation of Phase 5 covers every change the UI itself
+The `models_changed` invalidation of the scan/index work covers every change the UI itself
 makes (download / rename / move / delete / ZipNN). Files added by *external*
 tools - a `cp` into `models/loras`, a downloader in another terminal, a mounted
 volume that fills up overnight - were only picked up by the 30 s TTL
@@ -12,8 +12,8 @@ This module adds the OPTIONAL `watch_roots` feature on top of that:
   `notify-debouncer-full` on the model roots with a **500 ms debounce**;
 * one asyncio task polls the session every [POLL_INTERVAL] seconds, maps the
   changed paths to model types and broadcasts the SAME `models_changed
-  {type, reason}` event Phase 5 introduced - so the frontend listener is reused
-  **unchanged** (the frontend reuses the Phase-5
+  {type, reason}` event the scan/index work introduced - so the frontend listener is reused
+  **unchanged** (the frontend reuses the scan/index work
   `models_changed` listener with no modification);
 * **default OFF** - a ComfyUI setting (`ModelManager.Scan.WatchModelFolders`)
   with an `MM_WATCH_ROOTS` environment override, exactly like the ZipNN
@@ -475,7 +475,7 @@ class ModelWatcher:
                 # directory and the file-id cache walks the tree, so a large
                 # library takes seconds. It runs in the io executor - doing it
                 # on the loop would freeze every websocket for the whole walk
-                # (the same defect class the Phase-5 audit fixed in the download
+                # (the same defect class the scan/index audit fixed in the download
                 # resume path). The GIL is released inside, so the other
                 # executor workers and the loop keep running.
                 loop = asyncio.get_running_loop()
