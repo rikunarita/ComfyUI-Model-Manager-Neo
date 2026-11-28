@@ -43,11 +43,11 @@ rules:
     #      setup-uv gets `enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}`,
     #      so release verification builds COLD — exactly zizmor's primary
     #      remediation ("release workflows should not read from the cache").
-    # zizmor does not evaluate those conditional expressions (all 11
-    # findings report confidence=Low; the suggested `lookup-only` auto-fix
+    # zizmor does not evaluate those conditional expressions (all findings
+    # report confidence=Low; the suggested `lookup-only` auto-fix
     # would break the main/dev cache-save policy, so it is refused).
     # Re-evaluation history: zizmor 1.31.1 was MEASURED on 2026-10-20 with
-    # these ignores stripped — the 11 findings returned, i.e. 1.31's new
+    # these ignores stripped — the findings returned, i.e. 1.31's new
     # awareness covers only GitHub's native `cache-mode` field (static,
     # workflow/job level — unusable here because it cannot vary per event),
     # NOT per-step conditional expressions. Ignores stay; next re-evaluation
@@ -57,15 +57,29 @@ rules:
     # findings re-appeared at the shifted lines exactly as this fail-safe
     # policy describes; re-verified with zizmor --offline, justifications
     # unchanged).
+    # Line numbers refreshed again 2026-11-28: the Windows ARM64 job
+    # (native-build-windows-arm64, 695–796) inserted ~102 lines after
+    # native-build-windows, shifting every later step down. All 11 prior
+    # ignores re-verified one-by-one against the current lines — same job,
+    # same step kind, same mitigation (rust-cache: `if: !tags` + `save-if`
+    # non-PR main/dev only; setup-uv: `enable-cache` tags-disabled) — and
+    # re-pointed. The integration-job setup-uv ignore formerly labelled
+    # "abi3-import matrix" now points at integration's setup-uv (line 1044);
+    # abi3-import carries no setup-uv at all. The two NEW findings introduced
+    # by the ARM64 job (721 rust-cache / 735 setup-uv) carry the identical
+    # mitigation and are added with the same justification. re-verified with
+    # `zizmor --offline .github` at 1.31.1: 13 findings -> 0.
     ignore:
-      - native.yml:136 # Swatinem/rust-cache (native-test) — if: !tags + save-if
-      - native.yml:285 # Swatinem/rust-cache (native-build-linux)
-      - native.yml:299 # astral-sh/setup-uv (native-build-linux) — enable-cache conditional
-      - native.yml:496 # Swatinem/rust-cache (native-build-macos)
-      - native.yml:509 # astral-sh/setup-uv (native-build-macos)
-      - native.yml:612 # Swatinem/rust-cache (native-build-windows)
-      - native.yml:625 # astral-sh/setup-uv (native-build-windows)
-      - native.yml:861 # astral-sh/setup-uv (abi3-import matrix)
-      - native.yml:1015 # Swatinem/rust-cache (fuzz-smoke)
-      - native.yml:1109 # Swatinem/rust-cache (pgo-measure)
-      - native.yml:1121 # astral-sh/setup-uv (pgo-measure)
+      - native.yml:142 # Swatinem/rust-cache (native-test) — if: !tags + save-if
+      - native.yml:291 # Swatinem/rust-cache (native-build-linux)
+      - native.yml:305 # astral-sh/setup-uv (native-build-linux) — enable-cache conditional
+      - native.yml:502 # Swatinem/rust-cache (native-build-macos)
+      - native.yml:515 # astral-sh/setup-uv (native-build-macos)
+      - native.yml:618 # Swatinem/rust-cache (native-build-windows)
+      - native.yml:631 # astral-sh/setup-uv (native-build-windows)
+      - native.yml:721 # Swatinem/rust-cache (native-build-windows-arm64) — new 2026-11-28; same mitigation
+      - native.yml:735 # astral-sh/setup-uv (native-build-windows-arm64) — new 2026-11-28; same mitigation
+      - native.yml:1044 # astral-sh/setup-uv (integration) — enable-cache conditional
+      - native.yml:1198 # Swatinem/rust-cache (fuzz-smoke)
+      - native.yml:1292 # Swatinem/rust-cache (pgo-measure)
+      - native.yml:1304 # astral-sh/setup-uv (pgo-measure)
