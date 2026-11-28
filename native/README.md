@@ -328,8 +328,8 @@ readelf・lipo 等の無い環境でも
 | linux-aarch64t        | 同上（クロス・非 PGO）                                                              | CI 緑                                                                                                |
 | macos-universal2t     | maturin `--no-default-features --features ft` universal2（非 PGO）                  | CI 緑（lipo + 両フレーバ import 疎通）                                                               |
 | windows-x86_64t       | maturin `--no-default-features --features ft`（非 PGO）                             | CI 緑（`mm_core.pyd` — PEP 803 も Windows の拡張子は変えない。GIL 版と `<tag>t` ディレクトリで分離） |
-| windows-arm64 (MSVC)  | maturin（windows-11-vs2026-arm）                                                    | **CI 初回実走待ち**（PE machine = ARM64 をネイティブ検証する `verify_native_binary.py` 済み）            |
-| windows-arm64t        | maturin `--no-default-features --features ft`（非 PGO・ARM64 ホスト）               | **CI 初回実走待ち**（GIL + フリースレッド両 flavour の import スモークを同一 job に同梱）                |
+| windows-arm64 (MSVC)  | maturin（windows-11-vs2026-arm）                                                    | **CI 初回実走待ち**（PE machine = ARM64 をネイティブ検証する `verify_native_binary.py` 済み）        |
+| windows-arm64t        | maturin `--no-default-features --features ft`（非 PGO・ARM64 ホスト）               | **CI 初回実走待ち**（GIL + フリースレッド両 flavour の import スモークを同一 job に同梱）            |
 
 **2026‑10‑03 以降の検証マトリクス**: floor 3.12 化により
 abi3 の CI 検証解釈系は **3.12 / 3.14**（上表 GIL 行の 3.10 / 3.11 / 3.13 は旧 floor

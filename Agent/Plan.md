@@ -1,14 +1,14 @@
 # Agent/Plan.md — Windows ARM64 配布・表記整合・残件完全クローズ計画書
 
-| 項目 | 内容 |
-| --- | --- |
-| 版数 | 2.0 |
-| 更新日 | 2026-11-27（UTC） |
-| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo` |
-| 対象ブランチ | `dev`（`main` への反映はユーザーのマージ／公開作業） |
+| 項目           | 内容                                                                                         |
+| -------------- | -------------------------------------------------------------------------------------------- |
+| 版数           | 2.0                                                                                          |
+| 更新日         | 2026-11-27（UTC）                                                                            |
+| 対象リポジトリ | `rikunarita/ComfyUI-Model-Manager-Neo`                                                       |
+| 対象ブランチ   | `dev`（`main` への反映はユーザーのマージ／公開作業）                                         |
 | 文書の位置づけ | living document。以下の 5 件を**同一計画として完了**させるための、実装可能で検証可能な計画書 |
-| 文書番号 | なし。内部の計画固有識別子は最終状態に残さない |
-| 成功の定義 | 5 件すべてが、実装・CI・文書・一次証跡により「済んだ」と機械的に判定できること |
+| 文書番号       | なし。内部の計画固有識別子は最終状態に残さない                                               |
+| 成功の定義     | 5 件すべてが、実装・CI・文書・一次証跡により「済んだ」と機械的に判定できること               |
 
 > この文書の適用開始以後、従来の完了済み計画文書の番号・節参照・タスク固有語を、
 > コードや文書へ持ち直さないこと。本書自身も最終スキャンの対象であり、
@@ -62,13 +62,13 @@
 
 現状の出荷対象は次の組み合せのみ。
 
-| 系統 | abi3（GIL） | abi3t（free-threaded, CPython 3.15+） |
-| --- | --- | --- |
-| linux-x86_64 | あり | あり |
-| linux-aarch64 | あり | あり |
-| macos-universal2 | あり（Intel + Apple Silicon） | あり（Intel + Apple Silicon） |
-| windows-x86_64 | あり | あり |
-| **windows-arm64** | **なし** | **なし** |
+| 系統              | abi3（GIL）                   | abi3t（free-threaded, CPython 3.15+） |
+| ----------------- | ----------------------------- | ------------------------------------- |
+| linux-x86_64      | あり                          | あり                                  |
+| linux-aarch64     | あり                          | あり                                  |
+| macos-universal2  | あり（Intel + Apple Silicon） | あり（Intel + Apple Silicon）         |
+| windows-x86_64    | あり                          | あり                                  |
+| **windows-arm64** | **なし**                      | **なし**                              |
 
 現状の根拠:
 
@@ -263,9 +263,9 @@ Windows ARM64 サポートは、以下をすべて満たしたときだけ完了
 
 採用表記:
 
-| 用途 | タグ | ファイル |
-| --- | --- | --- |
-| Windows ARM64 GIL | `windows-arm64` | `native-bin/windows-arm64/mm_core.pyd` |
+| 用途                        | タグ             | ファイル                                       |
+| --------------------------- | ---------------- | ---------------------------------------------- |
+| Windows ARM64 GIL           | `windows-arm64`  | `native-bin/windows-arm64/mm_core.pyd`         |
 | Windows ARM64 free-threaded | `windows-arm64t` | `native/native-bin/windows-arm64t/mm_core.pyd` |
 
 命名根拠:
@@ -436,10 +436,10 @@ pytest を追加・更新する。
 
 最低限の matrix:
 
-| runner | Python | artifact |
-| --- | --- | --- |
-| `windows-11-vs2026-arm` | 3.12 GIL | `windows-arm64` |
-| `windows-11-vs2026-arm` | 3.15 GIL | `windows-arm64t` |
+| runner                  | Python             | artifact         |
+| ----------------------- | ------------------ | ---------------- |
+| `windows-11-vs2026-arm` | 3.12 GIL           | `windows-arm64`  |
+| `windows-11-vs2026-arm` | 3.15 GIL           | `windows-arm64t` |
 | `windows-11-vs2026-arm` | 3.15 free-threaded | `windows-arm64t` |
 
 実行内容:
@@ -518,20 +518,20 @@ Windows ARM64 に対応したローダーだけ先に main へ入れても、art
 
 ### 3.6 Windows ARM64 の詳細リスクと処理
 
-| リスク | 判定方法 | 処理 |
-| --- | --- | --- |
-| runner image の VS2026 が x86_64 binaries 前提 | capability probe | `windows-11-vs2026-arm` 固定。migration 中の `windows-11-arm` は使わない |
-| `setup-python` が x64 Python を入れる | `python -c platform` | ARM64 interpreter を明示。結果が `AMD64` なら失敗 |
-| Python 3.15 FT ARM64 が未提供 | manifest + setup-python probe | abi3 GIL のみ出荷。abi3t 非対応を文書化 |
-| Cargo dependency が x86_64-only | `cargo tree`, build log | 境界実装を ARM64 互換へ変更、または採否判断から除外 |
-| maturin wheel tag 不一致 | wheel name assertion | build script で fail-fast |
-| PE machine が AMD64 | verifier | hard fail |
-| wheel が裸 `.pyd` で分類できない | upload layout | `<tag>/mm_core.pyd` を directory-first 保存 |
-| GIL / FT 両方の成果物を誤配布 | tag + interpreter matrix | abi3 と abi3t を別ディレクトリでゲート |
-| PGO 未検証 | 作業 3 | PGO 採用前に別 PR、初回は非 PGO |
-| 40 MB guideline 超過 | size report | 実測をユーザーへ提示。5 MiB gate は維持 |
-| publish job が ARM64 を分類不能 | `.pyd` fallback 拒否 | directory tag 必須化。誤分類は fail-fast |
-| 既存 fresh clone が壊れる | distribution test | x86_64 互換テストと ARM64 追加テストを同時に実行 |
+| リスク                                         | 判定方法                      | 処理                                                                     |
+| ---------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------ |
+| runner image の VS2026 が x86_64 binaries 前提 | capability probe              | `windows-11-vs2026-arm` 固定。migration 中の `windows-11-arm` は使わない |
+| `setup-python` が x64 Python を入れる          | `python -c platform`          | ARM64 interpreter を明示。結果が `AMD64` なら失敗                        |
+| Python 3.15 FT ARM64 が未提供                  | manifest + setup-python probe | abi3 GIL のみ出荷。abi3t 非対応を文書化                                  |
+| Cargo dependency が x86_64-only                | `cargo tree`, build log       | 境界実装を ARM64 互換へ変更、または採否判断から除外                      |
+| maturin wheel tag 不一致                       | wheel name assertion          | build script で fail-fast                                                |
+| PE machine が AMD64                            | verifier                      | hard fail                                                                |
+| wheel が裸 `.pyd` で分類できない               | upload layout                 | `<tag>/mm_core.pyd` を directory-first 保存                              |
+| GIL / FT 両方の成果物を誤配布                  | tag + interpreter matrix      | abi3 と abi3t を別ディレクトリでゲート                                   |
+| PGO 未検証                                     | 作業 3                        | PGO 採用前に別 PR、初回は非 PGO                                          |
+| 40 MB guideline 超過                           | size report                   | 実測をユーザーへ提示。5 MiB gate は維持                                  |
+| publish job が ARM64 を分類不能                | `.pyd` fallback 拒否          | directory tag 必須化。誤分類は fail-fast                                 |
+| 既存 fresh clone が壊れる                      | distribution test             | x86_64 互換テストと ARM64 追加テストを同時に実行                         |
 
 ### 3.7 作業 1 完了条件（チェックリスト）
 
@@ -598,13 +598,13 @@ README の最上部を見た利用者が、Windows の bitness と ABI を誤解
 
 ### 4.4 表記規約
 
-| 対象 | 標準表記 | 備考 |
-| --- | --- | --- |
-| Linux | `x86_64`, `aarch64` | Rust target triple に一致 |
-| Windows | `x86_64`, `ARM64` | ファイルタグは `windows-x86_64`, `windows-arm64` |
-| Windows wheel ABI | `win_amd64`, `win_arm64` | 表示用語ではなく実装用語 |
-| Apple | `universal2`, `arm64`, `x86_64` | macOS は従来どおり fat binary |
-| 32-bit | `x86` / `i686` | サポートしない。README でこの語を出さない |
+| 対象              | 標準表記                        | 備考                                             |
+| ----------------- | ------------------------------- | ------------------------------------------------ |
+| Linux             | `x86_64`, `aarch64`             | Rust target triple に一致                        |
+| Windows           | `x86_64`, `ARM64`               | ファイルタグは `windows-x86_64`, `windows-arm64` |
+| Windows wheel ABI | `win_amd64`, `win_arm64`        | 表示用語ではなく実装用語                         |
+| Apple             | `universal2`, `arm64`, `x86_64` | macOS は従来どおり fat binary                    |
+| 32-bit            | `x86` / `i686`                  | サポートしない。README でこの語を出さない        |
 
 ### 4.5 検証
 
@@ -651,14 +651,14 @@ acceptance:
 
 #### 標準 matrix
 
-| probe | runner | 目的 |
-| --- | --- | --- |
-| Windows ARM64 GIL | `windows-11-vs2026-arm` | build/import/performance |
-| Windows ARM64 FT | 同上 | ABI3t build/import/performance |
-| Windows x64 PGO baseline | `windows-latest` | 既存 PGO の再検証 |
-| Linux x86_64 baseline | `ubuntu-latest` | existing PGO / target-cpu |
-| Linux ARM64 native | ARM64 Ubuntu runner があれば使用 | aarch64 PGO |
-| macOS arm64 | `macos-latest` | arm64-only / universal2 PGO |
+| probe                    | runner                           | 目的                           |
+| ------------------------ | -------------------------------- | ------------------------------ |
+| Windows ARM64 GIL        | `windows-11-vs2026-arm`          | build/import/performance       |
+| Windows ARM64 FT         | 同上                             | ABI3t build/import/performance |
+| Windows x64 PGO baseline | `windows-latest`                 | 既存 PGO の再検証              |
+| Linux x86_64 baseline    | `ubuntu-latest`                  | existing PGO / target-cpu      |
+| Linux ARM64 native       | ARM64 Ubuntu runner があれば使用 | aarch64 PGO                    |
+| macOS arm64              | `macos-latest`                   | arm64-only / universal2 PGO    |
 
 Windows ARM64 runner の 2026 年 9 月 VS2026 移行中/後の挙動は [GitHub Changelog](https://github.blog/changelog/2026-08-20-windows-11-arm64-vs2026-image-generally-available/) を一次確認に使い、`windows-11-arm` ではなく `windows-11-vs2026-arm` を初期値とする。
 
@@ -692,41 +692,41 @@ Windows ARM64 runner の 2026 年 9 月 VS2026 移行中/後の挙動は [GitHub
 
 #### 5.3.1 Windows ARM64 GIL PGO
 
-| 項目 | 内容 |
-| --- | --- |
-| 実装有無 | Windows ARM64 artifact 自体がなければ先に非 PGO で実装 |
-| 検証方法 | instrumented wheel → temp venv で `pgo-command` → optimized rebuild |
-| 測定 | GIL 3.12/3.15 build で compress/hash/WebP/scan |
+| 項目     | 内容                                                                           |
+| -------- | ------------------------------------------------------------------------------ |
+| 実装有無 | Windows ARM64 artifact 自体がなければ先に非 PGO で実装                         |
+| 検証方法 | instrumented wheel → temp venv で `pgo-command` → optimized rebuild            |
+| 測定     | GIL 3.12/3.15 build で compress/hash/WebP/scan                                 |
 | 合否条件 | build 成功 + import + full tests + median ≥ 3% + size ≤ 5 MiB + verifier green |
-| 採用形態 | 採用なら artifact の GIL 側だけ `--pgo-train`。abi3t は別途判定 |
+| 採用形態 | 採用なら artifact の GIL 側だけ `--pgo-train`。abi3t は別途判定                |
 
 #### 5.3.2 Windows ARM64 free-threaded PGO
 
-| 項目 | 内容 |
-| --- | --- |
-| 前提 | Python 3.15 FT ARM64 を native runner で実装済み |
-| 検証方法 | LLVM profile runtime が FT host で動作することをまず確認 |
-| 合否条件 | profile generate / merge / rebuild / import / full tests / crash 0 / median gain |
-| 採否 | 未検証の組み合せを恒久導入しない。macOS fat dylib での前例を根拠に、必ず measured gate を置く |
+| 項目     | 内容                                                                                          |
+| -------- | --------------------------------------------------------------------------------------------- |
+| 前提     | Python 3.15 FT ARM64 を native runner で実装済み                                              |
+| 検証方法 | LLVM profile runtime が FT host で動作することをまず確認                                      |
+| 合否条件 | profile generate / merge / rebuild / import / full tests / crash 0 / median gain              |
+| 採否     | 未検証の組み合せを恒久導入しない。macOS fat dylib での前例を根拠に、必ず measured gate を置く |
 
 #### 5.3.3 Linux aarch64 PGO
 
-| 項目 | 内容 |
-| --- | --- |
-| 前提 | ARM64 Linux runner（GitHub-hosted ARM64）が `ubuntu-*arm` で利用可能 |
-| 禁止 | x86_64 profile を aarch64 へ流用すること |
-| 検証方法 | native ARM64 runner で instrument → profile merge → zigbuild または同等 cross route で rebuild |
-| 出荷判断 | size/glibc floor/import/integration/performance がすべて green の場合のみ |
-| otherwise | 現状どおり非 PGO |
+| 項目      | 内容                                                                                           |
+| --------- | ---------------------------------------------------------------------------------------------- |
+| 前提      | ARM64 Linux runner（GitHub-hosted ARM64）が `ubuntu-*arm` で利用可能                           |
+| 禁止      | x86_64 profile を aarch64 へ流用すること                                                       |
+| 検証方法  | native ARM64 runner で instrument → profile merge → zigbuild または同等 cross route で rebuild |
+| 出荷判断  | size/glibc floor/import/integration/performance がすべて green の場合のみ                      |
+| otherwise | 現状どおり非 PGO                                                                               |
 
 #### 5.3.4 macOS arm64-only PGO
 
-| 項目 | 内容 |
-| --- | --- |
-| 既知リスク | 既存記録で instrumented universal2 dylib が終了時 SIGSEGV |
-| 検証方法 | arm64-only dylib + arm64 Python + PGO |
-| 出荷判断 | pass しても、直ちに universal2 を arm64-only へ置き換えない。Intel Mac 対応を維持するかユーザー判断が必要 |
-| 選択肢 | (a) 現状 universal2 非 PGO 維持、(b) universal2 のまま profile 試行、(c) arm64-only 追加 artifact、(d) 非 PGO |
+| 項目       | 内容                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------- |
+| 既知リスク | 既存記録で instrumented universal2 dylib が終了時 SIGSEGV                                                     |
+| 検証方法   | arm64-only dylib + arm64 Python + PGO                                                                         |
+| 出荷判断   | pass しても、直ちに universal2 を arm64-only へ置き換えない。Intel Mac 対応を維持するかユーザー判断が必要     |
+| 選択肢     | (a) 現状 universal2 非 PGO 維持、(b) universal2 のまま profile 試行、(c) arm64-only 追加 artifact、(d) 非 PGO |
 
 #### 5.3.5 free-threaded Linux / macOS / Windows PGO
 
@@ -746,14 +746,14 @@ Windows ARM64 runner の 2026 年 9 月 VS2026 移行中/後の挙動は [GitHub
 
 次のビルドを `release` で生成し、サイズ・import・bench を測る。出荷は別途判断。
 
-| target | runner | 目的 |
-| --- | --- | --- |
-| baseline | ubuntu-latest / windows-latest | 現行比較基準 |
-| `x86-64-v2` | ubuntu-latest | 広い64-bit互換維持の限界 |
-| `x86-64-v3` | ubuntu-latest | AVX2 級 |
-| `x86-64-v4` | 対応 runner があれば | AVX-512 級 |
-| Windows x64 baseline | windows-latest | Windows compiler macro 差 |
-| Windows ARM64 baseline | windows-11-vs2026-arm | ARM64 baseline |
+| target                 | runner                         | 目的                      |
+| ---------------------- | ------------------------------ | ------------------------- |
+| baseline               | ubuntu-latest / windows-latest | 現行比較基準              |
+| `x86-64-v2`            | ubuntu-latest                  | 広い64-bit互換維持の限界  |
+| `x86-64-v3`            | ubuntu-latest                  | AVX2 級                   |
+| `x86-64-v4`            | 対応 runner があれば           | AVX-512 級                |
+| Windows x64 baseline   | windows-latest                 | Windows compiler macro 差 |
+| Windows ARM64 baseline | windows-11-vs2026-arm          | ARM64 baseline            |
 
 判定指標:
 
@@ -793,7 +793,7 @@ thin LTO が大幅に小さく同等性能でない限り、fat LTO を維持す
 各候補について、次の 8 列で decision table を作る。
 
 | 候補 | runner | build | tests | median gain | size | risk | decision |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| ---- | ------ | ----- | ----- | ----------- | ---- | ---- | -------- |
 
 decision は必ず次のいずれか。
 
@@ -908,26 +908,26 @@ git ls-files | rg -i '[p]hase|[k][0-9]|[t][0-9]|[l][0-9]'
 
 具体語ではなく、意味で置換する。以下は必須ルールの例。
 
-| 意味 | 置換先の表現 |
-| --- | --- |
-| 初期 loader handshake | availability / version handshake |
-| safetensors job API | native safetensors jobs |
-| delta jobs | delta jobs |
-| dtype extension work | extension-band dtype coverage |
-| scan / index / hash | library scan and hashing |
-| tensor tree fold | display tensor tree |
-| file watcher | library watcher |
-| WebP preview codec | preview WebP codec |
-| inline download hash | inline download verification |
-| multi-notation hash | one-pass multi-notation hashing |
-| 8 MB MoE header parse | large MoE safetensors header parse |
-| fresh-clone distribution | self-contained prebuilt distribution |
-| reference-machine verification | reference-machine verification |
-| interoperability gate | official interoperability gate |
-| unit gate | unit contract |
-| integration gate | integration contract |
-| benchmark KPI | acceptance metric |
-| task branch / step | implementation step |
+| 意味                           | 置換先の表現                         |
+| ------------------------------ | ------------------------------------ |
+| 初期 loader handshake          | availability / version handshake     |
+| safetensors job API            | native safetensors jobs              |
+| delta jobs                     | delta jobs                           |
+| dtype extension work           | extension-band dtype coverage        |
+| scan / index / hash            | library scan and hashing             |
+| tensor tree fold               | display tensor tree                  |
+| file watcher                   | library watcher                      |
+| WebP preview codec             | preview WebP codec                   |
+| inline download hash           | inline download verification         |
+| multi-notation hash            | one-pass multi-notation hashing      |
+| 8 MB MoE header parse          | large MoE safetensors header parse   |
+| fresh-clone distribution       | self-contained prebuilt distribution |
+| reference-machine verification | reference-machine verification       |
+| interoperability gate          | official interoperability gate       |
+| unit gate                      | unit contract                        |
+| integration gate               | integration contract                 |
+| benchmark KPI                  | acceptance metric                    |
+| task branch / step             | implementation step                  |
 
 採用しない表現:
 
@@ -1113,18 +1113,18 @@ rename がある場合は、それぞれの test discovery count が rename 前�
 
 以下を 1 行ずつ `MEMO.md` の該当表へ転記する。推測で埋めない。
 
-| 古い表示 | 更新後の状態 | 根拠の扱い |
-| --- | --- | --- |
-| 公開作業／タグ／registry | 完了済み | ユーザー回答 + MEMO 15 節の `v0.4.0 はユーザーが公開済み` と `tag 00aba50` 記録 |
-| demo-assets 差し替え | 完了済み | ユーザー回答。`demo-assets/*` の現状と user 管理領域であることを併記 |
-| CI 実行結果確認の指示 | 完了済み | ユーザー回答 + 現在の `MEMO.md` に記録された GitHub API 実測 |
-| 圧縮／解凍の reference-machine 再測定 | 完了済み | ユーザー回答。BENCH の絶対値と外挿の扱いを最新値へ同期 |
-| 5,000 モデル warm scan の確認 | 完了済み | ユーザー回答。warm scan の測定結果を BENCH または MEMO で再参照 |
-| request-path spill の endpoints | 対象外として閉じた | 公開契約を変更するため範囲外という既存判断を、未完了ではなく「意図的な対象外」と明記 |
-| 実 UI の手動 QA | 完了済み | ユーザー回答。USAGE の手順と実測手段の参照を更新 |
-| Python 3.15 final 移行 | 既存どおり完了済み | MEMO 内の完了記録を「残件」から履歴節へ移動 |
-| fuzz-long の不要 toolchain 削除 | 既存どおり完了済み | MEMO 内の完了記録を「残件」から履歴節へ移動 |
-| Linux native build cache 方針 | 完了済み | 現行 `native.yml` に `cache-targets: false` が存在しないこと + ユーザー回答 |
+| 古い表示                              | 更新後の状態       | 根拠の扱い                                                                           |
+| ------------------------------------- | ------------------ | ------------------------------------------------------------------------------------ |
+| 公開作業／タグ／registry              | 完了済み           | ユーザー回答 + MEMO 15 節の `v0.4.0 はユーザーが公開済み` と `tag 00aba50` 記録      |
+| demo-assets 差し替え                  | 完了済み           | ユーザー回答。`demo-assets/*` の現状と user 管理領域であることを併記                 |
+| CI 実行結果確認の指示                 | 完了済み           | ユーザー回答 + 現在の `MEMO.md` に記録された GitHub API 実測                         |
+| 圧縮／解凍の reference-machine 再測定 | 完了済み           | ユーザー回答。BENCH の絶対値と外挿の扱いを最新値へ同期                               |
+| 5,000 モデル warm scan の確認         | 完了済み           | ユーザー回答。warm scan の測定結果を BENCH または MEMO で再参照                      |
+| request-path spill の endpoints       | 対象外として閉じた | 公開契約を変更するため範囲外という既存判断を、未完了ではなく「意図的な対象外」と明記 |
+| 実 UI の手動 QA                       | 完了済み           | ユーザー回答。USAGE の手順と実測手段の参照を更新                                     |
+| Python 3.15 final 移行                | 既存どおり完了済み | MEMO 内の完了記録を「残件」から履歴節へ移動                                          |
+| fuzz-long の不要 toolchain 削除       | 既存どおり完了済み | MEMO 内の完了記録を「残件」から履歴節へ移動                                          |
+| Linux native build cache 方針         | 完了済み           | 現行 `native.yml` に `cache-targets: false` が存在しないこと + ユーザー回答          |
 
 なお、`BENCH.md` または `MEMO.md` の後続節に完成済みの実測値・`run ID`・`tag`・commit SHA がある場合は、それを一次根拠として併記する。
 見つからない項目を数値や日付で埋めない。
