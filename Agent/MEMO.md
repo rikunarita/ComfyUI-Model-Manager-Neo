@@ -1691,3 +1691,53 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
   fuzz 表面・Rust 成果物は無変更 = fuzz-long の再ディスパッチ不要（週次と既存 run が担保）。
 - プロジェクト全体の残件は §7 に記載したとおり、2026-11-27 のユーザー回答により
   全件完了（または対象外として close）済み。
+
+## 21. セッション 2026-11-27/28 — Windows ARM64 配布・表記整合計画の実行と、最適化プローブの採否決定
+
+> 対象 = `Agent/Plan.md`「Windows ARM64 配布・表記整合・残件完全クローズ計画書」。
+> 作業 1（Windows ARM64 専用バイナリの配布）・作業 2（README 冒頭タグの表記修正）・
+> 作業 4（残留する内部計画・内部表記の除去）・作業 5 は本セッション前段で完了・push 済み
+> （個別の commit は git log を参照。採否を伴う計測の記録は本節と BENCH §14 に集約）。
+> 本節は作業 3（optimization-probe）の関係者向け要約。**詳細・生データ・再評価条件の
+> 正は `docs/BENCH.md` §14**。
+
+### 一時ワークフロー `optimization-probe.yml` — 採否決定後に dev から削除済み
+
+- 証跡 run（workflow_dispatch、ref=dev）: `46125394184`（初回・途中 cancelled）→
+  `46125762011`（`245f9a7`）→ `46128155030`（`3d7c5aa`、thin LTO アーム追加）→
+  `46129914155`（`39c46a1`、target-feature アーム追加）。push 起因の run は全アーム skip。
+  BLOCKED の 3 job（windows-arm64 GIL / windows-arm64t FT / macos-arm64 PGO）は
+  4 run 連続で同一失敗を再現 = 環境起因でなく toolchain/upstream 起因の決定的ブロッカー。
+
+### 採否（1 行サマリ）
+
+- **採用: なし**。出荷構成（fat LTO + codegen-units=1 + runtime ISA detection +
+  PGO = linux-x86_64 / windows-x86_64、非 PGO = aarch64 / universal2 macOS）は不変。
+- **不採用**: linux-aarch64 PGO（scan 単独 +3.35 %、他 3 workload はパリティ）/
+  linux-x86_64 abi3t（free-threaded）PGO（compress **−9.8 % 退行**、scan +3.6 % では相殺不能）/
+  target-cpu x86-64-v2（scan −6.2 %）/ x86-64-v3（パリティ、±0.3 %）/
+  target-feature `+sha,+sse4.2`（SHA-256 対照 hash 0.9962 = 利得なし。decompress +5.3 % は
+  両側各 2/5 round が二峰性外れ値で中央値不安定。sha_ni 非搭載 CPU への違法命令リスクもあり
+  baseline には使えない）/ thin LTO（fat と size 同一 4,153,024 B・全 workload < 3 %。
+  build wall time 57 s → 52 s のみ。fat LTO 維持の規程に該当）。
+- **保留（BLOCKED、4 run 連続再現）**: Windows ARM64 GIL PGO と Windows ARM64 FT（abi3t）PGO —
+  `rustc`（aarch64-pc-windows-msvc, stable）が `magetypes v0.9.29` コンパイル中に
+  `STATUS_ACCESS_VIOLATION`（0xc0000005）。macOS arm64-only PGO — train 完走するが
+  profile flush が `LLVM Profile Error: Runtime and instrumentation version mismatch :
+expected 11, but get 10` で失敗し profraw 0 件 → `llvm-profdata merge` が input なし。
+  いずれも upstream 修正待ち。universal2 非 PGO（§13.4）は維持。
+- **未測定として明示**: x86-64-v4（avx512f なしの runner。run `46129914155` の runner では
+  avx512f があったが v4 計測は未実施）/ macOS free-threaded PGO / Windows x64 の PGO 再検証
+  （恒久 native.yml の `maturin --pgo` は常時緑で出荷済みだが、probe での性能再計測は未実施）。
+- 絶対値の改変なし・`scripts/bench/results/` は非汚染（計測 JSON は artifact 内に保持、
+  期限 1 日。必要なら BENCH §14 の手順から再現）。
+
+### 恒久 CI の修正（本セッション、計測と併行）
+
+- probe 用 commit（いずれも dev、評価後にワークフロー削除）: `245f9a7`（aarch64.whl 名称ズレ修正
+  = glob を `arm64.whl` に）、`3d7c5aa`（thin-LTO アーム追加）、`39c46a1`（target-feature アーム追加）。
+- **clippy `doc_markdown` 修正**（commit `fd94a04`）: `mm-core` / `znn-codec` の doc コメント中の
+  裸トークン `ASan` をバッククォート化（rust-clippy 1.100.0、`-D warnings` 下で
+  native-test ×4 が失敗していた）。→ run `46128116843`（head `3d7c5aa`）で native-test ×4 を
+  含む全 job が success（`46125712945` の失敗から復帰）を確認済み。
+- 一時ワークフローは削除コミットで dev から除去（作業 3 §5.6-1）。
