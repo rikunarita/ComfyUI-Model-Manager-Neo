@@ -123,9 +123,8 @@ def _base_platform_tag() -> str | None:
             return "windows-x86_64"
         if machine in ("arm64", "aarch64"):
             return "windows-arm64"
-    elif system == "Darwin":
-        if machine in ("x86_64", "arm64"):
-            return "macos-universal2"
+    elif system == "Darwin" and machine in ("x86_64", "arm64"):
+        return "macos-universal2"
     return None
 
 

@@ -10,10 +10,8 @@ from __future__ import annotations
 import importlib.util
 import struct
 import sys
-from pathlib import Path
 
 import pytest
-
 from harness import REPO_ROOT
 
 _SCRIPT = REPO_ROOT / "scripts" / "verify_native_binary.py"
@@ -80,7 +78,7 @@ class TestPeMachineSelection:
     def test_amd64_still_rejected_as_arm64(self):
         # Real x86_64 artifacts must not pass the windows-arm64 verification.
         data = _pe(AMD64, [b"python3.dll"])
-        result_ok, report = _verify.check_pe(data, "windows-arm64")
+        result_ok, _report = _verify.check_pe(data, "windows-arm64")
         assert result_ok is False
 
 
