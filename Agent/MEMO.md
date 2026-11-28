@@ -4,7 +4,7 @@
 > 2026 年 9 月から 10 月にかけて策定・完了した 3 つの計画
 > （初版・rust‑lld/PGO・abi3t の計画）で何を実施し、何が達成されたかを一望
 > できるように要約し、あわせて今後の開発に必要な恒久規程・技術知見・
-> 残件を収録します。計測証跡の一次ソースは
+> 残件の最終状態を収録します。計測証跡の一次ソースは
 > [`../docs/BENCH.md`](../docs/BENCH.md)、開発環境の実測一次ソースは
 > [`environment-report.md`](environment-report.md) です。
 >
@@ -733,7 +733,7 @@ target-cpu 多変種は一次調査に基づき不採用・保留・監視のみ
 - **工程 1（rust-lld 移行）**: `.cargo/config.toml` の mold 設定を撤去
   （判断根拠のコメントへ置換）、native.yml の apt ステップ削除、
   native/README 改写。fuzz-long.yml の apt ステップ削除は週次実行の成功確認後の
-  フォローアップ（fuzz-long apt 排除 — 残件 §7）。
+  フォローアップ（fuzz-long apt 排除 — §10）。
 - **工程 2（PGO トレーニングハーネス）**: `scripts/pgo/train.py`
   （標準ライブラリ + mm_core のみ・シード固定の決定論的ワークロード・
   `--measure` モード内蔵・`TRAIN_ROUNDS` で反復数調整）+
@@ -878,46 +878,29 @@ py312 へ引き上げ**（ComfyUI の文書化サポート下限と完全一致�
 - `third_party/` は撤去済み = **mm_core 単一エンジン**。読み取り系経路には
   Python フォールバックが維持されています（§5.1 プリビルト配布）。
 
-## 7. 残件
+## 7. 残件（最終状態 — 未着手の残件なし）
 
-- **ユーザ専任**: v0.4.0 の公開作業（GitHub Release・タグ・registry）、
-  `demo-assets/` の本キャプチャ差し替え、CI 実行結果確認の指示。
-  なお 2026-10-05 のフォルダアイコン刷新以降、`hero.webm` /
-  `view-folders.avif` 等は刷新前（アンバー icon・開閉アニメ）の姿を写すため、
-  差し替えは新 UI 基準で実施します。
-- **参照機での計測待ち**: safetensors パイプライン の 圧縮スループット / 解凍スループット 再計測（SHA-NI + NVMe 搭載機）、
-  ウォーム差分スキャン の 5000 モデル ≤100 ms 確認。
-- **大規模MoEヘッダ解析 端到端 ≤40 ms**: processed JSON をルートで直接スピルスする設計は
-  `get_model_tensors` の公開契約を変えるため、範囲外と記録済み。
-- **実 UI の手動 QA**: USAGE 改訂時に手順を統合済み
-  （`__mmNeoPerf` の paint 脚計測が キー入力→描画 の実測手段）。
-- **CPython 3.15 正式版の反映**: native.yml の `3.15.0-rc.2` ピン（`python-version` 9 箇所 +
-  コメント 5 箇所）の final 振替 — **完了（2026-10-13）**:
-  actions/python-versions の versions-manifest.json に `3.15.0`
-  （stable=True・ft 13 ファイル）が着弾したことを API 実測で確認し、
-  9 箇所を `"3.15"` へ・コメント 6 箇所と関連文書（mm-core Cargo.toml・
-  build-native.sh・native/README の検証マトリクス）を別コミットで同期。
-  ft セルは `freethreaded: true` 側で切り替わるため `3.15t` という文字列は
-  書かない（当初計画どおり）。ABI は rc1 凍結のため成果物バイナリ無変更
-  （次回 main マージの publish-native-bin 再ビルドでホスト表記のみ更新）。
-  証跡: 振替後 dev push の native run 全緑（3.15.0 final の実走 =
-  abi3-import 4 セル + integration t セル + 3 OS の t ビルド/スモーク）。
-- **fuzz-long apt 排除**: fuzz-long.yml の apt（clang + mold）ステップ削除 —
-  **完了・検証済み（2026-10-07）**: native.yml fuzz-smoke と fuzz-long.yml の
-  双方から削除した（mold は -fuse-ld 参照ゼロの不参照・clang は rustc 同梱
-  compiler-rt で不要 = native/.cargo/config.toml の方針どおり）。証跡は三点:
-  ① 2026-10-04 の週次 run（main@736fbe4・旧ファイル = apt あり）7/7 success
-  = apt 排除の前提「rust-lld 移行後の初回週次成功」は削除時点で既に充足済み
-  （-O + 3 h が rust-lld で成立し、mold はインストール済みだが不参照）、
-  ② dev push の fuzz-smoke（7 ターゲット × 60 s・ASan・-D・clang/mold 無し）
-  success、③ PAT から fuzz-long を dev へ hours=1 で dispatch
-  （run 37572923805・新ファイル）— 全 7 ジョブ completed success
-  （-O ビルド成功 + 1 h 予算完走: 合計 ≈3.25 億 execs・crash/OOM/timeout 0・
-  peak RSS 最大 226 MB ≤ 上限 4096・ジョブ毎 ≈65 分）= **clang/mold 不要を
-  端到端で実証**し、fuzz-long apt 排除 クローズ。
-- **cache-targets の再考**: native-build-linux の `cache-targets: "false"`
-  （registry のみキャッシュ）は保留 — cold ビルドの実測を 1 run で計測して
-  から判断します。
+> **現時点で未着手の残件はありません。** 過去に本節へ「残件」として記録していた
+> 項目の最終状態は次の表のとおりです。判断根拠は 2026-11-27 のユーザー回答
+> 「`MEMO §7` に残る本来の残件について、それは未更新なだけであり、すべて済んでいる」
+> で、手動 QA・ユーザー専任作業・非公開の完了確認など、セッションから直接再実施
+> できない項目についての一次判断です。コード／ログ／CI と照合できる主張は実測と
+> 突き合わせてから転記しており、日付・SHA・run ID が記録に無い項目は数値を捏造せず
+> `ユーザー 2026-11-27 回答により完了確認済み` と記します。計測の絶対値と外挿の
+> 扱いは [`../docs/BENCH.md`](../docs/BENCH.md) を一次ソースとします。
+
+| 過去の表示                                                                                                                    | 最終状態                                               | 一次根拠                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ユーザ専任: v0.4.0 の公開作業（GitHub Release・タグ・registry）、`demo-assets/` の本キャプチャ差し替え、CI 実行結果確認の指示 | 完了済み（ユーザー 2026-11-27 回答により完了確認済み） | リリース記録は §14（**v0.4.0 はユーザが公開済み** — tag `00aba50`・publish-native-bin が成果物再ビルド済み）。`demo-assets/` は本キャプチャ群（`hero.webm`・`compressed-model.avif` ほか）がコミット済みで、以後の差し替えはユーザ管理領域。CI 実行結果確認は歴代 dev push の GitHub API 実測記録（各セッション節）で裏取り |
+| 参照機での計測待ち: safetensors パイプライン の 圧縮スループット / 解凍スループット 再計測（SHA-NI + NVMe 搭載機）            | 完了済み（ユーザー 2026-11-27 回答により完了確認済み） | ユーザー回答。計測の基点は本計測機（2 vCPU・SHA-NI なし）の実測（BENCH §7.1）と「基準検証環境（8C/16T・NVMe・SHA-NI）への外挿」方式と同一のまま。参照機の実測値はリポジトリへ未転記のため、この場で数値は追記しない                                                                                                         |
+| ウォーム差分スキャン の 5,000 モデル ≤100 ms 確認                                                                             | 完了済み（ユーザー 2026-11-27 回答により完了確認済み） | ユーザー回答。本計測機の実測は warm 99 ms（3000 モデル・BENCH §10.1）。5,000 モデルの参照機実測値はリポジトリへ未転記のため、この場で数値は追記しない                                                                                                                                                                       |
+| 大規模MoEヘッダ解析 端到端 ≤40 ms（processed JSON のルート直接スピル）                                                        | **意図的な対象外として close**                         | 公開契約（`get_model_tensors`）を変更するため範囲外とする既存判断を維持し、未完了ではなく対象外として閉じる（BENCH §4.5 の MoE 項目と関連する当該設計判断記録）                                                                                                                                                             |
+| 実 UI の手動 QA（USAGE 改訂時に手順統合）                                                                                     | 完了済み（ユーザー 2026-11-27 回答により完了確認済み） | ユーザー回答。実測手段（`__mmNeoPerf` の paint 脚計測 = キー入力→描画）と USAGE 改訂時の手順統合は 4 言語 USAGE 改訂の各セッション記録にあり                                                                                                                                                                                |
+| CPython 3.15 正式版の反映                                                                                                     | 完了済み（履歴は §14 に一本化）                        | ci コミット `d556f31`・振替後 dev push の native run 全緑（§14）                                                                                                                                                                                                                                                            |
+| fuzz-long apt 排除                                                                                                            | 完了済み（履歴は §10 に一本化）                        | 週次実行の成功確認のうえ dev dispatch（run 37572923805・hours=1）で全 7 ジョブ success（§10）。コミット `2f751fb`                                                                                                                                                                                                           |
+| cache-targets の再考（`native-build-linux` の `cache-targets: "false"`）                                                      | 完了済み（ユーザー 2026-11-27 回答により完了確認済み） | ユーザー回答。現行 `native.yml` に `cache-targets:` の記述は存在しない（2026-11-27 に機械確認・0 件）                                                                                                                                                                                                                       |
+
+- **後続に渡す残件はありません。** 次期バージョンの公開作業（GitHub Release・タグ・registry）は引き続きユーザ専任であり、本節では扱いません。
 
 ## 8. セッション 2026-10-06 — ハブアップロードのプリフィル導線
 
@@ -996,12 +979,12 @@ py312 へ引き上げ**（ComfyUI の文書化サポート下限と完全一致�
   と同じ階層様式・H3 間の `---` は撤去）。`#removed-features` 新設、目次と
   「元版からの変更点」導入の参照を単一リンクへ集約。既存 deep-link のために
   `#removed-feature` / `#removed-feature-copy-node` は小見出し位置に保持。
-- **fuzz-long apt 排除 完了（コミット 2f751fb・§7 参照）**: native.yml fuzz-smoke と
+- **fuzz-long apt 排除 完了（コミット 2f751fb）**: native.yml fuzz-smoke と
   fuzz-long.yml の apt（clang + mold）ステップ削除。dev push の fuzz-smoke
   成功（7:49・ステップ一覧に apt 無し）でセル検証済み。さらに PAT からの
   dev dispatch（hours=1・run 37572923805・新ファイル）で全 7 ジョブの
   release+ASan ビルドステップが成功 = -O も clang/mold 不要を実証
-  （証跡三点の詳細は §7 fuzz-long apt 排除）。2026-10-04 の週次 run（旧ファイル・apt あり・
+  （証跡三点の詳細は本節）。2026-10-04 の週次 run（旧ファイル・apt あり・
   main@736fbe4）7/7 success も fuzz-long apt 排除 前提の充足として確認した。native/README の
   「CI の apt ステップも撤去済み」記述はこれで全ジョブに対して真になった。
 - **ci.yml の二重 pnpm install 解消（コミット be9e51b）**: Build ステップを
@@ -1706,5 +1689,5 @@ push は無く、2026-11-02 に動いたのは Dependabot のブランチのみ�
 - 本セッションの push 構成: fix(ui)（fallow 警告 5 件の解消）→ docs（Plan.md 新設 +
   MEMO/BENCH/README 整合）。**コードの挙動は不変**（TS の型注釈のみ）ため、
   fuzz 表面・Rust 成果物は無変更 = fuzz-long の再ディスパッチ不要（週次と既存 run が担保）。
-- プロジェクト全体の残件は §7 のまま（ユーザ専任の公開作業・参照機計測・手動 QA・
-  cache-targets 再考）。
+- プロジェクト全体の残件は §7 に記載したとおり、2026-11-27 のユーザー回答により
+  全件完了（または対象外として close）済み。
