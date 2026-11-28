@@ -205,6 +205,13 @@ jobs:
         with:
           python-version: "3.15"
           freethreaded: true
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: Install cross toolchain (pinned)
+        env:
+          UV_MALWARE_CHECK: "1"
+        run: uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0
       - name: Build baseline abi3t artifact
         run: |
           set -euo pipefail
@@ -414,23 +421,44 @@ jobs:
         with:
           python-version: "3.12"
           architecture: arm64
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: Install maturin (pinned)
+        env:
+          UV_MALWARE_CHECK: "1"
+        run: uv pip install --system maturin==1.15.0
       - name: Build baseline arm64-only artifact
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/ab/baseline"
-          cd native
-          MM_CORE_COMMIT="$(git rev-parse --short=9 HEAD 2>/dev/null || echo dev)" \
-            cargo build --release -p mm-core --target aarch64-apple-darwin
-          cp target/aarch64-apple-darwin/release/libmm_core.so "$RUNNER_TEMP/ab/baseline/mm_core.abi3.so"
+          (cd native && maturin build --release --target aarch64-apple-darwin --out target/wheels)
+          wheel="$(ls -t native/target/wheels/mm_core-*-cp312-abi3-*aarch64.whl | head -1)"
+          python - "$wheel" "$RUNNER_TEMP/ab/baseline/mm_core.abi3.so" <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as zf:
+              names = [n for n in zf.namelist() if n.endswith("mm_core.abi3.so")]
+              assert len(names) == 1, names
+              with zf.open(names[0]) as src, open(sys.argv[2], "wb") as dst:
+                  dst.write(src.read())
+          PY
+          ls -la "$RUNNER_TEMP/ab/baseline/"
       - name: Build the instrumented arm64 core (host)
         run: |
           set -euo pipefail
           rm -rf "$RUNNER_TEMP/pgo-prof" && mkdir -p "$RUNNER_TEMP/pgo-prof" "$RUNNER_TEMP/pgo-inst"
-          cd native
-          MM_CORE_COMMIT="$(git rev-parse --short=9 HEAD 2>/dev/null || echo dev)" \
-          RUSTFLAGS="-Cprofile-generate=$RUNNER_TEMP/pgo-prof" \
-            cargo build --release -p mm-core --target aarch64-apple-darwin
-          cp target/aarch64-apple-darwin/release/libmm_core.so "$RUNNER_TEMP/pgo-inst/mm_core.abi3.so"
+          (cd native && MM_CORE_COMMIT="$(git rev-parse --short=9 HEAD 2>/dev/null || echo dev)" \
+            RUSTFLAGS="-Cprofile-generate=$RUNNER_TEMP/pgo-prof" \
+            maturin build --release --target aarch64-apple-darwin --out target/wheels-inst)
+          wheel="$(ls -t native/target/wheels-inst/mm_core-*-cp312-abi3-*aarch64.whl | head -1)"
+          python - "$wheel" "$RUNNER_TEMP/pgo-inst/mm_core.abi3.so" <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as zf:
+              names = [n for n in zf.namelist() if n.endswith("mm_core.abi3.so")]
+              assert len(names) == 1, names
+              with zf.open(names[0]) as src, open(sys.argv[2], "wb") as dst:
+                  dst.write(src.read())
+          PY
       - name: Train the instrumented core (watch for SIGSEGV at profile write)
         run: |
           set -euo pipefail
@@ -448,11 +476,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/ab/pgo"
-          cd native
-          MM_CORE_COMMIT="$(git rev-parse --short=9 HEAD 2>/dev/null || echo dev)" \
-          RUSTFLAGS="-Cprofile-use=$RUNNER_TEMP/pgo-prof/merged.profdata -Cllvm-args=-pgo-warn-missing-function" \
-            cargo build --release -p mm-core --target aarch64-apple-darwin
-          cp target/aarch64-apple-darwin/release/libmm_core.so "$RUNNER_TEMP/ab/pgo/mm_core.abi3.so"
+          (cd native && MM_CORE_COMMIT="$(git rev-parse --short=9 HEAD 2>/dev/null || echo dev)" \
+            RUSTFLAGS="-Cprofile-use=$RUNNER_TEMP/pgo-prof/merged.profdata -Cllvm-args=-pgo-warn-missing-function" \
+            maturin build --release --target aarch64-apple-darwin --out target/wheels-pgo)
+          wheel="$(ls -t native/target/wheels-pgo/mm_core-*-cp312-abi3-*aarch64.whl | head -1)"
+          python - "$wheel" "$RUNNER_TEMP/ab/pgo/mm_core.abi3.so" <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as zf:
+              names = [n for n in zf.namelist() if n.endswith("mm_core.abi3.so")]
+              assert len(names) == 1, names
+              with zf.open(names[0]) as src, open(sys.argv[2], "wb") as dst:
+                  dst.write(src.read())
+          PY
       - name: A/B measure (arm64-only baseline vs PGO)
         run: |
           set -euo pipefail
