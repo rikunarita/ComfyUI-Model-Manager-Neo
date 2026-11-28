@@ -11,6 +11,7 @@
 #   probe-macos-arm64-pgo     arm64-ONLY macOS build with -Cprofile-use (the universal2 FAT SIGSEGV workaround)
 #   probe-cold-build          from-scratch zigbuild wall time with NO caches (cache policy input)
 #   probe-linux-lto-thin       lto = thin (vs shipping fat): size + build wall time + A/B
+#   probe-linux-x86-64-target-feature  +sha,+sse4.2 compile-time feature vs baseline A/B
 #
 # Triggers: workflow_dispatch (if the token has Actions permission) or a push
 # to dev whose HEAD commit message carries [optimization-probe].
@@ -603,4 +604,65 @@ jobs:
             ${{ runner.temp }}/probe-lto-thin.json
             ${{ runner.temp }}/fat-time.log
             ${{ runner.temp }}/thin-time.log
+            ${{ runner.temp }}/ab/*/mm_core.abi3.so
+  probe-linux-x86-64-target-feature:
+    # Plan 5.3.7: compile-time ISA pinning (+sha,+sse4.2) vs the shipping
+    # baseline (runtime detection via sha2/blake3). Same-run A/B with wall-time
+    # accounting. Decision input only; output not shippable without a product
+    # decision on CPU-specific artifacts.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[optimization-probe]')
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy; see .github/zizmor.yml
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: Install cross toolchain (pinned)
+        env:
+          UV_MALWARE_CHECK: "1"
+        run: uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0
+      - name: Record runner ISA features
+        run: (grep -o -E 'sha_ni|sse4_2|avx2|avx512f' /proc/cpuinfo | sort | uniq -c | tee "$RUNNER_TEMP/cpuinfo-flags.log") || true
+      - name: Build baseline (shipping profile, no extra target-feature)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ab/baseline"
+          start=$(date +%s)
+          ./scripts/build-native.sh --target linux-x86_64 --size-gate
+          end=$(date +%s)
+          echo "baseline build wall time: $((end - start)) s" | tee "$RUNNER_TEMP/baseline-time.log"
+          cp native/native-bin/linux-x86_64/mm_core.abi3.so "$RUNNER_TEMP/ab/baseline/"
+      - name: Build with RUSTFLAGS target-feature +sha,+sse4.2
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ab/target-feature"
+          start=$(date +%s)
+          RUSTFLAGS="-C target-feature=+sha,+sse4.2" ./scripts/build-native.sh --target linux-x86_64 --size-gate
+          end=$(date +%s)
+          echo "target-feature build wall time: $((end - start)) s" | tee "$RUNNER_TEMP/target-feature-time.log"
+          cp native/native-bin/linux-x86_64/mm_core.abi3.so "$RUNNER_TEMP/ab/target-feature/"
+          stat -c '%s %n' "$RUNNER_TEMP/ab/baseline/mm_core.abi3.so" "$RUNNER_TEMP/ab/target-feature/mm_core.abi3.so"
+      - name: A/B measure (baseline vs +sha,+sse4.2), median of 5 rounds
+        run: |
+          set -euo pipefail
+          python scripts/pgo/train.py --measure --a "$RUNNER_TEMP/ab/baseline" --b "$RUNNER_TEMP/ab/target-feature" \
+            --rounds 5 --workdir "$RUNNER_TEMP/probe-tf-work" --json-out "$RUNNER_TEMP/probe-target-feature.json"
+      - name: Upload probe report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: probe-linux-x86-64-target-feature
+          retention-days: 1
+          path: |
+            ${{ runner.temp }}/probe-target-feature.json
+            ${{ runner.temp }}/baseline-time.log
+            ${{ runner.temp }}/target-feature-time.log
+            ${{ runner.temp }}/cpuinfo-flags.log
             ${{ runner.temp }}/ab/*/mm_core.abi3.so
