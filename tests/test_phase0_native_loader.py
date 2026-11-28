@@ -166,6 +166,9 @@ def test_platform_tag_mapping(monkeypatch):
         (("Linux", "arm64"), "linux-aarch64"),
         (("Windows", "AMD64"), "windows-x86_64"),
         (("Windows", "x86_64"), "windows-x86_64"),
+        (("Windows", "ARM64"), "windows-arm64"),
+        (("Windows", "arm64"), "windows-arm64"),
+        (("Windows", "aarch64"), "windows-arm64"),
         (("Darwin", "arm64"), "macos-universal2"),
         (("Darwin", "x86_64"), "macos-universal2"),
         (("Plan9", "mips"), None),
@@ -377,6 +380,8 @@ def test_free_threaded_detection_and_t_tags(monkeypatch):
         (("Linux", "x86_64"), "linux-x86_64t"),
         (("Linux", "aarch64"), "linux-aarch64t"),
         (("Windows", "AMD64"), "windows-x86_64t"),
+        (("Windows", "ARM64"), "windows-arm64t"),
+        (("Windows", "arm64"), "windows-arm64t"),
         (("Darwin", "arm64"), "macos-universal2t"),
     ]
     for (system, machine), expected in cases:

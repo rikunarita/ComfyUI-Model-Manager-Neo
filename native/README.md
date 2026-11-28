@@ -242,14 +242,16 @@ cargo test -p mm-core --no-default-features   # Python 開発ヘッダ/共有ラ
 scripts/build-native.sh --target linux-x86_64 --size-gate
 scripts/build-native.sh --target linux-aarch64 --size-gate
 scripts/build-native.sh --target macos-universal2 --size-gate   # macOS ホスト
-scripts/build-native.sh --target windows-x86_64 --size-gate     # Windows ホスト
+scripts/build-native.sh --target windows-x86_64 --size-gate     # Windows x86_64 ホスト
+scripts/build-native.sh --target windows-arm64 --size-gate      # ARM64 Windows ホスト（aarch64-pc-windows-msvc ツールチェイン必須）
 
 # abi3t（<tag>t — フリースレッド CPython 3.15+・PEP 803）。
 # 条件: Python >= 3.15 のホスト解釈系（GIL build で可）・非 PGO:
 scripts/build-native.sh --target linux-x86_64t --size-gate
 scripts/build-native.sh --target linux-aarch64t --size-gate
 scripts/build-native.sh --target macos-universal2t --size-gate   # macOS ホスト
-scripts/build-native.sh --target windows-x86_64t --size-gate     # Windows ホスト
+scripts/build-native.sh --target windows-x86_64t --size-gate     # Windows x86_64 ホスト
+scripts/build-native.sh --target windows-arm64t --size-gate      # ARM64 Windows ホスト
 
 # PGO 版（下記「PGO」節参照）:
 scripts/build-native.sh --target linux-x86_64 --size-gate --pgo /path/merged.profdata
@@ -302,8 +304,10 @@ linux-aarch64 は対象外 — 下記。計画・ゲート・不採用技術の�
   将来的な選択肢は arm64 単一 arch の PGO ビルド（要 upstream 修正待ち）。
   **run #108 で非 PGO 経路の緑を実走確認済み**（fat x86_64 + arm64・
   6,730,080 B・SIGSEGV 再現なし・2 分 41 秒）。
-- **linux-aarch64 は PGO 対象外**: クロスコンパイルかつ ARM ランナーが
-  無く、x86_64 プロファイルの流用は arch 非互換のため禁止。
+- **linux-aarch64 は PGO 対象外**: 計装プロファイルを収集するための
+  ARM64 Linux 計装ビルドをワークフローへ未組込み（`ubuntu-24.04-arm` は
+  GA 済みで利用可能。導入可否は一時計測ワークフローでの実測が前提）であり、
+  x86_64 プロファイルの流用は arch 非互換のため禁止。
 - **プロファイルはコミットしません**: ビルド毎生成（ドリフトゼロ・
   肥大ゼロ）。
 
@@ -324,10 +328,12 @@ readelf・lipo 等の無い環境でも
 | linux-aarch64t        | 同上（クロス・非 PGO）                                                              | CI 緑                                                                                                |
 | macos-universal2t     | maturin `--no-default-features --features ft` universal2（非 PGO）                  | CI 緑（lipo + 両フレーバ import 疎通）                                                               |
 | windows-x86_64t       | maturin `--no-default-features --features ft`（非 PGO）                             | CI 緑（`mm_core.pyd` — PEP 803 も Windows の拡張子は変えない。GIL 版と `<tag>t` ディレクトリで分離） |
+| windows-arm64 (MSVC)  | maturin（windows-11-vs2026-arm）                                                    | **CI 初回実走待ち**（PE machine = ARM64 をネイティブ検証する `verify_native_binary.py` 済み）            |
+| windows-arm64t        | maturin `--no-default-features --features ft`（非 PGO・ARM64 ホスト）               | **CI 初回実走待ち**（GIL + フリースレッド両 flavour の import スモークを同一 job に同梱）                |
 
 **2026‑10‑03 以降の検証マトリクス**: floor 3.12 化により
 abi3 の CI 検証解釈系は **3.12 / 3.14**（上表 GIL 行の 3.10 / 3.11 / 3.13 は旧 floor
-時代の実証史）。t 4 本の検証解釈系は **3.15 final（GIL）+ フリースレッド build
+時代の実証史）。t 5 本の検証解釈系は **3.15 final（GIL）+ フリースレッド build
 （`freethreaded: true`）**— 各 build job の両フレーバ import スモーク + abi3‑import の
 4 セル + integration の ubuntu t セル（フル pytest = フリースレッド soak、D3）。
 D4: **完了（2026‑10‑13）**— runner manifest へ 3.15.0（stable=True・ft 13 ファイル）が

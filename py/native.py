@@ -104,7 +104,8 @@ def _base_platform_tag() -> str | None:
     """The OS/architecture tag WITHOUT the flavour suffix, or None.
 
     Tags: ``linux-x86_64``, ``linux-aarch64``,
-    ``windows-x86_64``, ``macos-universal2`` (one fat binary serves both
+    ``windows-x86_64``, ``windows-arm64``,
+    ``macos-universal2`` (one fat binary serves both
     Intel and Apple Silicon). Anything else (32-bit, exotic architectures)
     has no prebuilt support.
     """
@@ -116,10 +117,12 @@ def _base_platform_tag() -> str | None:
         if machine in ("aarch64", "arm64"):
             return "linux-aarch64"
     elif system == "Windows":
-        # Windows reports AMD64 for x86_64 (and ARM64 for aarch64, which has
-        # no prebuilt binary).
+        # Windows reports AMD64 for x86_64 and ARM64 for aarch64 (both
+        # spellings seen in the wild). Each has its own prebuilt binary.
         if machine in ("amd64", "x86_64"):
             return "windows-x86_64"
+        if machine in ("arm64", "aarch64"):
+            return "windows-arm64"
     elif system == "Darwin":
         if machine in ("x86_64", "arm64"):
             return "macos-universal2"

@@ -11,14 +11,15 @@ Pure-stdlib container parsing (no readelf/objdump on minimal hosts or CI):
   glibc >= 2.34).
 * Mach-O / fat Mach-O (macos-universal2): both x86_64 and arm64 slices must
   be present.
-* PE (windows-x86_64): machine must be x86_64; the ONLY python import
-  allowed is the stable-ABI forwarder ``python3.dll``.
+* PE (windows-x86_64 / windows-arm64): the machine must match the tag's
+  architecture (x86_64 -> AMD64 0x8664, arm64 -> ARM64 0xAA64); the ONLY
+  python import allowed is the stable-ABI forwarder ``python3.dll``.
 
-The four ``<tag>t`` abi3t variants (linux-x86_64t /
-linux-aarch64t / macos-universal2t / windows-x86_64t — the PEP 803
-free-threaded stable ABI) go through the SAME container checks: the trailing
-``t`` is stripped for the architecture expectations (PEP 803 changes the ABI,
-not the file format — the checks are tag-orthogonal).
+The five ``<tag>t`` abi3t variants (linux-x86_64t /
+linux-aarch64t / macos-universal2t / windows-x86_64t / windows-arm64t — the
+PEP 803 free-threaded stable ABI) go through the SAME container checks: the
+trailing ``t`` is stripped for the architecture expectations (PEP 803 changes
+the ABI, not the file format — the checks are tag-orthogonal).
 
 Usage: verify_native_binary.py <tag> <file> [--glibc-floor 2.28]
 Exit code 0 = all checks passed; the JSON report is printed either way.
@@ -44,6 +45,13 @@ FAT_MAGIC_64 = 0xCAFEBABF
 CPU_TYPE_X86_64 = 0x01000007
 CPU_TYPE_ARM64 = 0x0100000C
 IMAGE_FILE_MACHINE_AMD64 = 0x8664
+IMAGE_FILE_MACHINE_ARM64 = 0xAA64
+# PE machine expected for each Windows tag family (the trailing abi3t ``t`` is
+# stripped before the lookup — flavour is orthogonal to the file format).
+_PE_MACHINE_BY_TAG = {
+    "windows-x86_64": IMAGE_FILE_MACHINE_AMD64,
+    "windows-arm64": IMAGE_FILE_MACHINE_ARM64,
+}
 
 
 def _base_tag(tag: str) -> str:
@@ -164,9 +172,16 @@ def check_pe(data: bytes, tag: str) -> tuple[bool, dict]:
         return False, {"format": "pe", "error": "bad PE signature"}
     machine = struct.unpack_from("<H", data, pe_off + 4)[0]
     report: dict[str, object] = {"format": "pe", "machine": f"{machine:#x}"}
-    ok = machine == IMAGE_FILE_MACHINE_AMD64
-    if not ok:
-        report["error"] = f"machine {machine:#x} != AMD64"
+    base = _base_tag(tag)
+    expected = _PE_MACHINE_BY_TAG.get(base)
+    if expected is None:
+        report["error"] = f"no known PE machine expectation for tag {tag}"
+        ok = False
+    else:
+        report["expected_machine"] = f"{expected:#x}"
+        ok = machine == expected
+        if not ok:
+            report["error"] = f"machine {machine:#x} != expected {expected:#x} for {tag}"
     pydlls = sorted({m.group(0).decode() for m in re.finditer(rb"python3\d*\.dll", data)})
     report["python_dll_imports"] = pydlls
     bad = [d for d in pydlls if d != "python3.dll"]

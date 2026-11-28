@@ -1,26 +1,32 @@
-# Native core CI — Phase 0 scope:
+# Native core CI — scope:
 #
 #   native-test    cargo fmt / clippy -D warnings / tests on the three OSes
 #                  (Linux links with rustc's bundled rust-lld — the default
-#                  since Rust 1.90; no apt toolchain is installed any more)
+#                  since Rust 1.90; no apt toolchain is installed any more;
+#                  the ARM64 Windows runner additionally gates the ARM64
+#                  host triple)
 #   native-build-* the stable-ABI artifacts for every platform tag in BOTH
 #                  flavours: abi3 (GIL builds, floor
 #                  abi3-py312) and abi3t (<tag>t, PEP 803 — free-threaded
 #                  CPython 3.15+, non-PGO per D2, host 3.15 final per D4),
-#                  over the same 5 rust targets: linux x86_64 + aarch64 via
-#                  cargo-zigbuild glibc 2.28, windows x86_64 MSVC, macOS
-#                  universal2 = both darwin archs; per-binary size-budget
-#                  gate + import smoke on each OS (the t smokes run on the
-#                  3.15 GIL AND the free-threaded interpreter)
+#                  over the same 6 rust targets: linux x86_64 + aarch64 via
+#                  cargo-zigbuild glibc 2.28, windows x86_64 + aarch64 MSVC,
+#                  macOS universal2 = both darwin archs; per-binary
+#                  size-budget gate + import smoke on each OS (the t smokes
+#                  run on the 3.15 GIL AND the free-threaded interpreter)
 #   abi3-import    the linux artifacts imported across the support matrix:
 #                  abi3 under CPython 3.12 AND 3.14 (the abi3-py312 single-
 #                  binary claim, floor raised from 3.10 in 2026-10)
 #                  + abi3t under BOTH 3.15 builds (GIL and free-threaded —
 #                  the PEP 803 load table's two columns)
+#   abi3-import-windows-arm64
+#                  the windows-arm64 artifacts imported on a real ARM64
+#                  Windows runner: abi3 under CPython 3.12 AND 3.14, abi3t
+#                  under BOTH 3.15 builds — the arm64 load table's columns
 #   size-budget    <= 5 MB per binary (per arch slice; the macOS universal2
 #                  fat binaries are detected by their FAT_MAGIC and get a
-#                  doubled 10 MB file budget), all 8 artifacts present (the
-#                  shape contract: 4 abi3 + 4 abi3t) and the 40 MB total
+#                  doubled 10 MB file budget), all 10 artifacts present (the
+#                  shape contract: 5 abi3 + 5 abi3t) and the 40 MB total
 #                  GUIDELINE (an overage warns in the job summary,
 #                  it does not block the run)
 #
@@ -34,7 +40,7 @@
 # prebuilt C core) was retired in Phase 8 together with third_party/; the
 # committed evidence stays under scripts/bench/results/ (l2_*.json).
 # Artifacts are verification only on PR/dev runs; on `main` the
-# publish-native-bin job commits the eight platform binaries (4 abi3 + 4
+# publish-native-bin job commits the ten platform binaries (5 abi3 + 5
 # abi3t) back into `native/native-bin/` (Phase 8 distribution: a
 # fresh clone must work with no compiler, no pip and no network - K16).
 name: native
@@ -91,7 +97,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest, windows-11-vs2026-arm]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -639,6 +645,9 @@ jobs:
       - name: Build windows-x86_64 (MSVC, PGO)
         run: ./scripts/build-native.sh --target windows-x86_64 --size-gate --pgo-train
 
+      - name: Verify the windows-x86_64 PE machine (0x8664) and stable-ABI forwarder
+        run: python scripts/verify_native_binary.py windows-x86_64 native/native-bin/windows-x86_64/mm_core.pyd
+
       - name: Import smoke (CPython 3.12)
         run: |
           PYTHONPATH=native/native-bin/windows-x86_64 python -c "import mm_core; print('abi3 import OK:', mm_core.api_version(), mm_core.core_version())"
@@ -655,6 +664,9 @@ jobs:
 
       - name: Build windows-x86_64t (MSVC, abi3t, non-PGO)
         run: ./scripts/build-native.sh --target windows-x86_64t --size-gate
+
+      - name: Verify the windows-x86_64t PE machine (0x8664)
+        run: python scripts/verify_native_binary.py windows-x86_64t native/native-bin/windows-x86_64t/mm_core.pyd
 
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         id: py315t
@@ -679,6 +691,108 @@ jobs:
           path: |
             native/native-bin/windows-x86_64/mm_core.pyd
             native/native-bin/windows-x86_64t/mm_core.pyd
+
+  native-build-windows-arm64:
+    # Native aarch64 MSVC build on a REAL ARM64 Windows host
+    # (windows-11-vs2026-arm): the ARM64 .pyd family is built, smoke-tested
+    # and shipped exactly like the x86_64 one — never cross-compiled from an
+    # x86 runner (PyO3 links against the host interpreter and the MSVC ARM64
+    # SDK). PGO is deliberately NOT enabled yet: the maturin three-phase PGO
+    # flow is unvalidated on this runner/toolchain, and the abi3t flavour is
+    # non-PGO by policy anyway. The interpreter-side install is explicit
+    # (architecture: arm64) so the smokes can never accidentally execute
+    # x64-under-emulation instead of the arm64 build.
+    if: github.event_name != 'pull_request' || startsWith(github.ref, 'refs/pull/')
+    timeout-minutes: 60
+    runs-on: windows-11-vs2026-arm
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # artipacked hardening (zizmor): no git operation in this job needs
+          # credentials; keep none persisted on the runner.
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy (D2) — see .github/zizmor.yml
+
+      # Cache write policy — see native-test.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          workspaces: native
+          save-if: >-
+            ${{ github.event_name != 'pull_request' &&
+            (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          architecture: arm64
+
+      # uv replaces pip in the CI layer — see the native-build-linux toolchain step.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Install maturin (pinned)
+        env:
+          UV_MALWARE_CHECK: "1" # MAL-block expansion — rollback rule: see the native-build-linux toolchain step
+        run: uv pip install --system maturin==1.15.0
+
+      # The GIL artifact (abi3) is built NON-PGO for now — see the job comment.
+      - name: Build windows-arm64 (MSVC, non-PGO)
+        run: ./scripts/build-native.sh --target windows-arm64 --size-gate
+
+      - name: Verify the windows-arm64 PE machine (0xaa64) and stable-ABI forwarder
+        run: python scripts/verify_native_binary.py windows-arm64 native/native-bin/windows-arm64/mm_core.pyd
+
+      - name: Import smoke (CPython 3.12, ARM64 host)
+        run: |
+          python -c "import platform; print('host machine:', platform.machine())"
+          PYTHONPATH=native/native-bin/windows-arm64 python -c "import mm_core; print('abi3 import OK (windows-arm64):', mm_core.api_version(), mm_core.core_version())"
+
+      # abi3t (non-PGO). Host 3.15 final (GIL build — the abi3t flavour is
+      # selected by the `ft` Cargo feature; PyO3 only requires host >= target).
+      # PEP 803 keeps the plain .pyd name on Windows, so the t artifact is
+      # separated ONLY by its windows-arm64t directory.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        id: py315
+        with:
+          python-version: "3.15"
+          architecture: arm64
+
+      - name: Build windows-arm64t (MSVC, abi3t, non-PGO)
+        run: ./scripts/build-native.sh --target windows-arm64t --size-gate
+
+      - name: Verify the windows-arm64t PE machine (0xaa64)
+        run: python scripts/verify_native_binary.py windows-arm64t native/native-bin/windows-arm64t/mm_core.pyd
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        id: py315t
+        with:
+          python-version: "3.15"
+          architecture: arm64
+          freethreaded: true
+
+      - name: Import smoke (windows-arm64t artifact, CPython 3.15 GIL + free-threaded)
+        env:
+          # template-injection hardening (zizmor): step outputs via env binding.
+          PY315: ${{ steps.py315.outputs.python-path }}
+          PY315T: ${{ steps.py315t.outputs.python-path }}
+        run: |
+          PYTHONPATH=native/native-bin/windows-arm64t "$PY315" -c "import mm_core; print('abi3t import OK (GIL 3.15):', mm_core.api_version(), mm_core.core_version())"
+          PYTHONPATH=native/native-bin/windows-arm64t "$PY315T" -c "import sys, mm_core; assert not sys._is_gil_enabled(); print('abi3t import OK (3.15t):', mm_core.api_version(), mm_core.core_version())"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-bin-windows-arm64
+          # Verification-only, 7 days — see the native-bin-linux upload.
+          retention-days: 7
+          path: |
+            native/native-bin/windows-arm64/mm_core.pyd
+            native/native-bin/windows-arm64t/mm_core.pyd
 
   abi3-import:
     timeout-minutes: 60
@@ -738,10 +852,66 @@ jobs:
           print(f"import OK on CPython {sys.version.split()[0]} (gil_enabled={gil}): {mm_core.core_version()}")
           PY
 
+  abi3-import-windows-arm64:
+    timeout-minutes: 60
+    # The windows-arm64 artifacts imported across the support matrix, on a
+    # real ARM64 runner — the arm64 mirror of abi3-import (the linux one
+    # above stays ubuntu-only because it is the size-budget reference).
+    #   abi3  (windows-arm64, floor abi3-py312): 3.12 (the floor) + 3.14
+    #   abi3t (windows-arm64t, floor 3.15, PEP 803): BOTH 3.15 builds
+    runs-on: windows-11-vs2026-arm
+    defaults:
+      run:
+        shell: bash
+    needs: native-build-windows-arm64
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.12"
+            freethreaded: false
+            tag: windows-arm64
+          - python-version: "3.14"
+            freethreaded: false
+            tag: windows-arm64
+          - python-version: "3.15"
+            freethreaded: false
+            tag: windows-arm64t
+          - python-version: "3.15"
+            freethreaded: true
+            tag: windows-arm64t
+    steps:
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: arm64
+          freethreaded: ${{ matrix.freethreaded }}
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: native-bin-windows-arm64
+          path: native-bin
+
+      - name: Import the stable-ABI artifact for this flavour
+        run: |
+          PYTHONPATH=native-bin/${{ matrix.tag }} python - <<'PY'
+          import sys
+          import mm_core
+
+          assert mm_core.api_version() == 6, mm_core.api_version()
+          # v6 = the preview WebP codec must be present in the binary.
+          assert all(
+              hasattr(mm_core, n)
+              for n in ("webp_decode", "webp_decode_animation", "webp_encode", "webp_encode_animation")
+          )
+          gil = sys._is_gil_enabled() if hasattr(sys, "_is_gil_enabled") else True
+          print(f"import OK on CPython {sys.version.split()[0]} (gil_enabled={gil}): {mm_core.core_version()}")
+          PY
+
   size-budget:
     timeout-minutes: 60
-    # HARD gates: <= 5 MB per binary, and `found = 8` — the
-    # shape contract of the distribution (4 abi3 + 4 abi3t),
+    # HARD gates: <= 5 MB per binary, and `found = 10` — the
+    # shape contract of the distribution (5 abi3 + 5 abi3t),
     # not a size statement. The macOS universal2 artifacts (abi3 AND abi3t) are
     # FAT binaries holding TWO architecture slices (x86_64 + arm64), so the
     # per-file budget is doubled for them — each slice is within the single-
@@ -758,7 +928,7 @@ jobs:
     # (the trend is tracked as a follow-up). The old 20 MB hard total is physically
     # unreachable with 8 binaries (the 4 abi3 ones alone measured 18.1 MB).
     runs-on: ubuntu-latest
-    needs: [native-build-linux, native-build-macos, native-build-windows]
+    needs: [native-build-linux, native-build-macos, native-build-windows, native-build-windows-arm64]
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -783,11 +953,11 @@ jobs:
             found=$((found + 1))
           done < <(find artifacts -type f \( -name '*.so' -o -name '*.pyd' \) | sort)
           echo "binaries: $found, total: $total bytes"
-          if [ "$found" -lt 8 ]; then echo "expected 8 platform binaries (4 abi3 + 4 abi3t), found $found"; exit 1; fi
+          if [ "$found" -lt 10 ]; then echo "expected 10 platform binaries (5 abi3 + 5 abi3t), found $found"; exit 1; fi
           {
             echo "## native-bin size report"
             echo ""
-            echo "binaries: **$found** (shape contract: 8) — total: **$total bytes** (guideline: <= 40 MB)"
+            echo "binaries: **$found** (shape contract: 10) — total: **$total bytes** (guideline: <= 40 MB)"
           } >> "$GITHUB_STEP_SUMMARY"
           guideline=41943040
           if [ "$total" -gt "$guideline" ]; then
@@ -810,7 +980,7 @@ jobs:
     # the abi3t artifact): the FULL suite as the no-GIL soak, while the torch/
     # tsc/L5 legs stay in the GIL ubuntu cell (no cp315t wheels — the
     # conditions below key on the cell's tag, not its OS).
-    needs: [native-build-linux, native-build-windows, native-build-macos]
+    needs: [native-build-linux, native-build-windows, native-build-macos, native-build-windows-arm64]
     strategy:
       fail-fast: false
       matrix:
@@ -823,6 +993,17 @@ jobs:
             artifact: native-bin-windows
             tag: windows-x86_64
             python-version: "3.12"
+          - os: windows-11-vs2026-arm
+            artifact: native-bin-windows-arm64
+            tag: windows-arm64
+            python-version: "3.12"
+          # The free-threaded soak on ARM64: the FULL suite under 3.15t
+          # against the windows-arm64t abi3t artifact.
+          - os: windows-11-vs2026-arm
+            artifact: native-bin-windows-arm64
+            tag: windows-arm64t
+            python-version: "3.15"
+            freethreaded: true
           - os: macos-latest
             artifact: native-bin-macos
             tag: macos-universal2
@@ -899,7 +1080,7 @@ jobs:
           done
           rm -rf _staging
           case "${{ matrix.tag }}" in
-            windows-x86_64 | windows-x86_64t) need="mm_core.pyd" ;;
+            windows-x86_64 | windows-x86_64t | windows-arm64 | windows-arm64t) need="mm_core.pyd" ;;
             *t) need="mm_core.abi3t.so" ;;
             *) need="mm_core.abi3.so" ;;
           esac
@@ -1290,7 +1471,7 @@ jobs:
 
   publish-native-bin:
     # Phase 8 distribution (K16): on `main` pushes, commit the
-    # eight freshly built platform binaries (4 abi3 + 4 abi3t) back into
+    # ten freshly built platform binaries (5 abi3 + 5 abi3t) back into
     # native/native-bin/ so a fresh clone runs the ZipNN
     # engine with NO compiler, NO pip and NO network. dev/PR runs never
     # publish (their artifacts are verification only); release tags ship
@@ -1299,7 +1480,7 @@ jobs:
     # token-created commits, so this cannot loop.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    needs: [native-build-linux, native-build-macos, native-build-windows]
+    needs: [native-build-linux, native-build-macos, native-build-windows, native-build-windows-arm64]
     permissions:
       contents: write
     timeout-minutes: 30
@@ -1314,16 +1495,17 @@ jobs:
 
       # download-artifact's layout is the uploads' least-common ancestor, so
       # the `<tag>` directory segment can vanish for single-file artifacts
-      # (the size-budget job's FAT_MAGIC note). All three
+      # (the size-budget job's FAT_MAGIC note). All four
       # build jobs now upload BOTH flavours WITH their directory structure,
       # so staging is DIRECTORY-TAG-FIRST; content classification (ELF
       # e_machine x86_64/aarch64, Mach-O FAT magic, the .abi3t.so name) is
       # the fallback. The fallback deliberately REFUSES a bare .pyd: the GIL
       # and the t windows binary share one filename (mm_core.pyd — PEP 803
-      # keeps the plain Windows suffix), so only the directory tag can tell
-      # them apart (a mis-staged pair would ship the abi3 binary
-      # to free-threaded users, whose interpreters reject it at load).
-      - name: Stage the eight platform binaries into native/native-bin/
+      # keeps the plain Windows suffix) on BOTH architectures, so only the
+      # directory tag can tell them apart (a mis-staged pair would ship the
+      # abi3 binary to free-threaded users, whose interpreters reject it at
+      # load).
+      - name: Stage the ten platform binaries into native/native-bin/
         run: |
           python3 - <<'PY'
           import pathlib, shutil, sys
@@ -1333,10 +1515,12 @@ jobs:
               "linux-aarch64": "mm_core.abi3.so",
               "macos-universal2": "mm_core.abi3.so",
               "windows-x86_64": "mm_core.pyd",
+              "windows-arm64": "mm_core.pyd",
               "linux-x86_64t": "mm_core.abi3t.so",
               "linux-aarch64t": "mm_core.abi3t.so",
               "macos-universal2t": "mm_core.abi3t.so",
               "windows-x86_64t": "mm_core.pyd",
+              "windows-arm64t": "mm_core.pyd",
           }
 
           def classify(path):
@@ -1379,17 +1563,19 @@ jobs:
               print(f"staged {found[tag]} -> {out / name} ({(out / name).stat().st_size} bytes)")
           PY
 
-      - name: Verify all eight platform binaries are staged in the worktree
+      - name: Verify all ten platform binaries are staged in the worktree
         run: |
           set -euo pipefail
           for f in native/native-bin/linux-x86_64/mm_core.abi3.so \
                    native/native-bin/linux-aarch64/mm_core.abi3.so \
                    native/native-bin/macos-universal2/mm_core.abi3.so \
                    native/native-bin/windows-x86_64/mm_core.pyd \
+                   native/native-bin/windows-arm64/mm_core.pyd \
                    native/native-bin/linux-x86_64t/mm_core.abi3t.so \
                    native/native-bin/linux-aarch64t/mm_core.abi3t.so \
                    native/native-bin/macos-universal2t/mm_core.abi3t.so \
-                   native/native-bin/windows-x86_64t/mm_core.pyd; do
+                   native/native-bin/windows-x86_64t/mm_core.pyd \
+                   native/native-bin/windows-arm64t/mm_core.pyd; do
             test -s "$f" || { echo "BUG: $f is missing or empty"; exit 1; }
           done
 
@@ -1408,8 +1594,8 @@ jobs:
             git commit -m "chore(native-bin): rebuild the prebuilt mm_core artifacts from ${GITHUB_SHA::7}
 
           Generated by the publish-native-bin job (Phase 8):
-          the eight platform binaries (linux x86_64/aarch64 glibc>=2.28,
-          macos universal2, windows x86_64 — each as abi3 AND, for
+          the ten platform binaries (linux x86_64/aarch64 glibc>=2.28,
+          macos universal2, windows x86_64 + arm64 — each as abi3 AND, for
           free-threaded CPython 3.15+, abi3t) that a
           fresh clone imports directly - no compiler, no pip, no network
           (K16)."
