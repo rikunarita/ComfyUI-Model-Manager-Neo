@@ -10,6 +10,7 @@
 #   probe-windows-arm64t-pgo  windows-arm64t abi3t artifact: direct maturin --pgo (feasibility)
 #   probe-macos-arm64-pgo     arm64-ONLY macOS build with -Cprofile-use (the universal2 FAT SIGSEGV workaround)
 #   probe-cold-build          from-scratch zigbuild wall time with NO caches (cache policy input)
+#   probe-linux-lto-thin       lto = thin (vs shipping fat): size + build wall time + A/B
 #
 # Triggers: workflow_dispatch (if the token has Actions permission) or a push
 # to dev whose HEAD commit message carries [optimization-probe].
@@ -542,3 +543,64 @@ jobs:
           name: probe-cold-build
           retention-days: 1
           path: ${{ runner.temp }}/probe-cold-build.log
+
+  probe-linux-lto-thin:
+    # thin LTO vs the shipping `lto = "fat"` (codegen-units = 1). Keeps
+    # fat unless thin shrinks the artifact meaningfully at equal
+    # performance. Same-run A/B (thin as B vs fat baseline as A) with
+    # wall-time accounting on both sides.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[optimization-probe]')
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable # floating branch by policy; see .github/zizmor.yml
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: Install cross toolchain (pinned)
+        env:
+          UV_MALWARE_CHECK: "1"
+        run: uv pip install --system cargo-zigbuild==0.23.4 ziglang==0.16.0
+      - name: Build baseline (fat LTO, shipping profile)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ab/baseline"
+          start=$(date +%s)
+          ./scripts/build-native.sh --target linux-x86_64 --size-gate
+          end=$(date +%s)
+          echo "fat build wall time: $((end - start)) s" | tee "$RUNNER_TEMP/fat-time.log"
+          cp native/native-bin/linux-x86_64/mm_core.abi3.so "$RUNNER_TEMP/ab/baseline/"
+      - name: Switch workspace to thin LTO and build
+        run: |
+          set -euo pipefail
+          sed -i 's/^lto = "fat"$/lto = "thin"/' native/Cargo.toml
+          grep -n '^lto' native/Cargo.toml
+          mkdir -p "$RUNNER_TEMP/ab/thin"
+          start=$(date +%s)
+          ./scripts/build-native.sh --target linux-x86_64 --size-gate
+          end=$(date +%s)
+          echo "thin build wall time: $((end - start)) s" | tee "$RUNNER_TEMP/thin-time.log"
+          cp native/native-bin/linux-x86_64/mm_core.abi3.so "$RUNNER_TEMP/ab/thin/"
+          stat -c '%s %n' "$RUNNER_TEMP/ab/baseline/mm_core.abi3.so" "$RUNNER_TEMP/ab/thin/mm_core.abi3.so"
+      - name: A/B measure (fat vs thin), median of 5 rounds
+        run: |
+          set -euo pipefail
+          python scripts/pgo/train.py --measure --a "$RUNNER_TEMP/ab/baseline" --b "$RUNNER_TEMP/ab/thin" \
+            --rounds 5 --workdir "$RUNNER_TEMP/probe-lto-work" --json-out "$RUNNER_TEMP/probe-lto-thin.json"
+      - name: Upload probe report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: probe-linux-lto-thin
+          retention-days: 1
+          path: |
+            ${{ runner.temp }}/probe-lto-thin.json
+            ${{ runner.temp }}/fat-time.log
+            ${{ runner.temp }}/thin-time.log
+            ${{ runner.temp }}/ab/*/mm_core.abi3.so
