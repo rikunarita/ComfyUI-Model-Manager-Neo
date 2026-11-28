@@ -40,7 +40,7 @@ in a **prebuilt pure‑Rust core**.
 ![ESLint](https://img.shields.io/badge/ESLint-10-4B32C3.svg?logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
-![Ruff](https://img.shields.io/badge/Ruff-0.17.2-D7FF64.svg?logo=ruff&logoColor=black)
+![Ruff](https://img.shields.io/badge/Ruff-0.17.5-D7FF64.svg?logo=ruff&logoColor=black)
 ![mypy](https://img.shields.io/badge/mypy-static_types-2A6DB2.svg)
 ![Fallow](https://img.shields.io/badge/Fallow-dead_code_%C2%B7_dupes-2E7D32.svg)
 
@@ -952,13 +952,13 @@ orphans, no devDependency or Node core imports from shipped code).
 types on top.
 
 **CI** runs all of the above on every push, plus the frontend measurement gate
-(`scripts/bench/front/k15.mjs`). The `native` workflow builds the eight
-platform artifacts (four abi3 + four abi3t) and enforces the size budget; it
+(`scripts/bench/front/k15.mjs`). The `native` workflow builds the ten
+platform artifacts (five abi3 + five abi3t) and enforces the size budget; it
 smoke‑fuzzes all seven targets, imports the abi3 artifact under CPython 3.12
 and 3.14 and the abi3t artifact under both 3.15 builds (GIL and
-free‑threaded), runs the full pytest suite — including a free‑threaded 3.15t
-cell — and cross‑validates against the official `zipnn` on Linux, Windows and
-macOS.
+free‑threaded) on x86_64 and Windows ARM64, runs the full pytest suite —
+including free‑threaded 3.15t cells — and cross‑validates against the official
+`zipnn` on Linux, Windows and macOS.
 
 **Security gates** run alongside all of the above in the `Security` workflow:
 **CodeQL** (default setup, extended query suite — TypeScript/Vue, Python,

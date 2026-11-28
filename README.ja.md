@@ -41,7 +41,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ![ESLint](https://img.shields.io/badge/ESLint-10-4B32C3.svg?logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
-![Ruff](https://img.shields.io/badge/Ruff-0.17.2-D7FF64.svg?logo=ruff&logoColor=black)
+![Ruff](https://img.shields.io/badge/Ruff-0.17.5-D7FF64.svg?logo=ruff&logoColor=black)
 ![mypy](https://img.shields.io/badge/mypy-static_types-2A6DB2.svg)
 ![Fallow](https://img.shields.io/badge/Fallow-dead_code_%C2%B7_dupes-2E7D32.svg)
 
@@ -924,12 +924,12 @@ CI は ERROR レベルの指摘で失敗します。
 （target `py312`・行長 120・精選ルールセット）、**mypy** が静的型を検査します。
 
 **CI** は push のたびに上記すべてに加え、フロントエンド計測ゲート
-（`scripts/bench/front/k15.mjs`）を実行し、`native` ワークフローが 8
-プラットフォーム成果物（abi3 ×4 + abi3t ×4）をビルドし、サイズ予算を強制し、
+（`scripts/bench/front/k15.mjs`）を実行し、`native` ワークフローが 10
+プラットフォーム成果物（abi3 ×5 + abi3t ×5）をビルドし、サイズ予算を強制し、
 7 本の fuzz ターゲットをスモークし、abi3 成果物を CPython 3.12 と 3.14 で・
-abi3t 成果物を 3.15 の GIL/フリースレッド両 build で import 疎通し、pytest スイート
-全体（フリースレッド 3.15t セルを含む）と公式 `zipnn` クロス検証を
-Linux・Windows・macOS で実行します。
+abi3t 成果物を 3.15 の GIL/フリースレッド両 build で（x86_64 と Windows ARM64 の
+両方で）import 疎通し、pytest スイート全体（フリースレッド 3.15t セルを含む）と
+公式 `zipnn` クロス検証を Linux・Windows・macOS で実行します。
 
 **セキュリティゲート**は上記すべてと並んで `Security` ワークフローが
 担当します: **CodeQL**（default setup・extended クエリスイート —

@@ -38,7 +38,7 @@
 ![ESLint](https://img.shields.io/badge/ESLint-10-4B32C3.svg?logo=eslint&logoColor=white)
 ![Prettier](https://img.shields.io/badge/Prettier-3-F7B93E.svg?logo=prettier&logoColor=black)
 ![Stylelint](https://img.shields.io/badge/Stylelint-17-263238.svg?logo=stylelint&logoColor=white)
-![Ruff](https://img.shields.io/badge/Ruff-0.17.2-D7FF64.svg?logo=ruff&logoColor=black)
+![Ruff](https://img.shields.io/badge/Ruff-0.17.5-D7FF64.svg?logo=ruff&logoColor=black)
 ![mypy](https://img.shields.io/badge/mypy-static_types-2A6DB2.svg)
 ![Fallow](https://img.shields.io/badge/Fallow-dead_code_%C2%B7_dupes-2E7D32.svg)
 
@@ -830,11 +830,12 @@ ESLint + Stylelint + Prettier，後端 Ruff），外加完整的 `pnpm typecheck
 `py312`、行寬 120、精選規則集），其上再由 **mypy** 檢查靜態類型。
 
 **CI** 在每次 push 時執行以上全部，外加前端測量關卡
-（`scripts/bench/front/k15.mjs`）；`native` 工作流建置八個平台產物
-（四個 abi3 + 四個 abi3t）、強制執行尺寸預算、對全部七個 fuzz 目標做
+（`scripts/bench/front/k15.mjs`）；`native` 工作流建置十個平台產物
+（五個 abi3 + 五個 abi3t）、強制執行尺寸預算、對全部七個 fuzz 目標做
 smoke fuzz、在 CPython 3.12 與 3.14 下 import abi3 產物、在 3.15 的
-GIL/自由執行緒兩種建置下 import abi3t 產物，並在 Linux、Windows、macOS 上
-執行完整 pytest 套件（含自由執行緒 3.15t 單元）與官方 `zipnn` 交叉驗證。
+GIL/自由執行緒兩種建置下（x86_64 與 Windows ARM64 雙方）import abi3t 產物，
+並在 Linux、Windows、macOS 上執行完整 pytest 套件（含自由執行緒 3.15t 單元）
+與官方 `zipnn` 交叉驗證。
 
 **安全關卡**與上述檢查並行，由 `Security` 工作流程承載：**CodeQL**
 （default setup、extended 查詢套件 —— TypeScript/Vue、Python、Rust 以及
