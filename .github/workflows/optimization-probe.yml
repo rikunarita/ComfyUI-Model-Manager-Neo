@@ -433,7 +433,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/ab/baseline"
           (cd native && maturin build --release --target aarch64-apple-darwin --out target/wheels)
-          wheel="$(ls -t native/target/wheels/mm_core-*-cp312-abi3-*aarch64.whl | head -1)"
+          wheel="$(ls -t native/target/wheels/mm_core-*-cp312-abi3-*arm64.whl | head -1)"
           python - "$wheel" "$RUNNER_TEMP/ab/baseline/mm_core.abi3.so" <<'PY'
           import sys, zipfile
           with zipfile.ZipFile(sys.argv[1]) as zf:
@@ -450,7 +450,7 @@ jobs:
           (cd native && MM_CORE_COMMIT="$(git rev-parse --short=9 HEAD 2>/dev/null || echo dev)" \
             RUSTFLAGS="-Cprofile-generate=$RUNNER_TEMP/pgo-prof" \
             maturin build --release --target aarch64-apple-darwin --out target/wheels-inst)
-          wheel="$(ls -t native/target/wheels-inst/mm_core-*-cp312-abi3-*aarch64.whl | head -1)"
+          wheel="$(ls -t native/target/wheels-inst/mm_core-*-cp312-abi3-*arm64.whl | head -1)"
           python - "$wheel" "$RUNNER_TEMP/pgo-inst/mm_core.abi3.so" <<'PY'
           import sys, zipfile
           with zipfile.ZipFile(sys.argv[1]) as zf:
@@ -479,7 +479,7 @@ jobs:
           (cd native && MM_CORE_COMMIT="$(git rev-parse --short=9 HEAD 2>/dev/null || echo dev)" \
             RUSTFLAGS="-Cprofile-use=$RUNNER_TEMP/pgo-prof/merged.profdata -Cllvm-args=-pgo-warn-missing-function" \
             maturin build --release --target aarch64-apple-darwin --out target/wheels-pgo)
-          wheel="$(ls -t native/target/wheels-pgo/mm_core-*-cp312-abi3-*aarch64.whl | head -1)"
+          wheel="$(ls -t native/target/wheels-pgo/mm_core-*-cp312-abi3-*arm64.whl | head -1)"
           python - "$wheel" "$RUNNER_TEMP/ab/pgo/mm_core.abi3.so" <<'PY'
           import sys, zipfile
           with zipfile.ZipFile(sys.argv[1]) as zf:
