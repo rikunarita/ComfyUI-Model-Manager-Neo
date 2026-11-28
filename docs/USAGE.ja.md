@@ -553,10 +553,12 @@ Information タブは**Neo Extended** バッジ（相互運用を説明するツ
 | Linux aarch64                    | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                               |
 | macOS（Intel & Apple Silicon）   | `native-bin/macos-universal2/mm_core.abi3.so`   | 1 本の fat binary — Intel macOS 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                   | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC ビルド                                                |
+| Windows ARM64                    | `native-bin/windows-arm64/mm_core.pyd`          | MSVC ビルド（ARM64）                                       |
 | Linux x86_64（フリースレッド）   | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28・フリースレッド CPython 3.15+                 |
 | Linux aarch64（フリースレッド）  | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28・フリースレッド CPython 3.15+                 |
 | macOS（フリースレッド）          | `native-bin/macos-universal2t/mm_core.abi3t.so` | 1 本の fat binary・フリースレッド CPython 3.15+            |
 | Windows x86_64（フリースレッド） | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC ビルド・フリースレッド CPython 3.15+                  |
+| Windows ARM64（フリースレッド）  | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC ビルド（ARM64）・フリースレッド CPython 3.15+         |
 
 プラットフォーム毎の 1 バイナリが **CPython 3.12 以降**すべてに対応します
 （Python Stable ABI）。フリースレッド build は `<tag>t` の **abi3t** バイナリ

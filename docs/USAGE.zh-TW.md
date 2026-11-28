@@ -470,10 +470,12 @@ Rust 核心壓縮 **safetensors 0.8 定義的每個 dtype**（全部 22 種）�
 | Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                              |
 | macOS（Intel 與 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so`   | 單個 fat 二進位 —— Intel macOS 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC 建置                                                 |
+| Windows ARM64                   | `native-bin/windows-arm64/mm_core.pyd`          | MSVC 建置（ARM64）                                        |
 | Linux x86_64（自由執行緒）      | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28，自由執行緒 CPython 3.15+                    |
 | Linux aarch64（自由執行緒）     | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28，自由執行緒 CPython 3.15+                    |
 | macOS（自由執行緒）             | `native-bin/macos-universal2t/mm_core.abi3t.so` | 單個 fat 二進位，自由執行緒 CPython 3.15+                 |
 | Windows x86_64（自由執行緒）    | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC 建置，自由執行緒 CPython 3.15+                       |
+| Windows ARM64（自由執行緒）     | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC 建置（ARM64），自由執行緒 CPython 3.15+              |
 
 每個平台一個二進位即支援 **CPython 3.12 及更新版本**（Python Stable ABI）；
 自由執行緒建置由 `<tag>t` 的 **abi3t** 二進位支援（CPython 3.15+、PEP 803），

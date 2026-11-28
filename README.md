@@ -53,7 +53,8 @@ in a **prebuilt pure‑Rust core**.
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
 ![macOS universal2](https://img.shields.io/badge/macOS-Intel_%2B_Apple_Silicon-000000.svg?logo=apple)
-![Windows x64](https://img.shields.io/badge/Windows-x64-0078D6.svg?logo=windows&logoColor=white)
+![Windows x86_64](https://img.shields.io/badge/Windows-x86__64-0078D6.svg?logo=windows&logoColor=white)
+![Windows ARM64](https://img.shields.io/badge/Windows-ARM64-0078D6.svg?logo=windows&logoColor=white)
 
 **English** · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
@@ -87,7 +88,7 @@ in a **prebuilt pure‑Rust core**.
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust native core** — library scanning, hashing, safetensors header
   parsing, the tensor tree, the folder watcher, the preview WebP codec and the
   entire ZipNN engine run in a **prebuilt Rust extension** shipped inside the
-  repository: four platforms × two Stable-ABI flavours (abi3 for GIL builds,
+  repository: five platforms × two Stable-ABI flavours (abi3 for GIL builds,
   CPython 3.12 and newer; abi3t for free-threaded builds, CPython 3.15+ per
   PEP 803), one binary each. The core loads with a plain `import` — **no
   compiler, no pip package and no download** (the extension's four Python hub
@@ -619,10 +620,12 @@ flavour, loaded by `import` alone:
 | Linux aarch64                  | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                     |
 | macOS (Intel & Apple Silicon)  | `native-bin/macos-universal2/mm_core.abi3.so`   | one fat binary — Intel 10.12+, Apple Silicon 11+ |
 | Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC‑built                                       |
+| Windows ARM64                  | `native-bin/windows-arm64/mm_core.pyd`          | MSVC‑built (ARM64)                               |
 | Linux x86_64 (free-threaded)   | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28 · free-threaded CPython 3.15+       |
 | Linux aarch64 (free-threaded)  | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28 · free-threaded CPython 3.15+       |
 | macOS (free-threaded)          | `native-bin/macos-universal2t/mm_core.abi3t.so` | one fat binary · free-threaded CPython 3.15+     |
 | Windows x86_64 (free-threaded) | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC-built · free-threaded CPython 3.15+         |
+| Windows ARM64 (free-threaded)  | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC-built (ARM64) · free-threaded CPython 3.15+ |
 
 One binary serves **CPython 3.12 and newer** on each platform (the Stable ABI,
 `abi3-py312` — proven against 3.12 and 3.14 in CI); free-threaded builds use
@@ -630,8 +633,8 @@ the **abi3t** counterparts (`abi3t-py315`, PEP 803 — proven against both 3.15
 builds in CI), which the loader picks automatically. A free-threaded
 interpreter cannot load the plain abi3 binaries, and the GIL build of 3.15+
 keeps using those. Every artifact is gated at ≤ 5 MB by the CI size budget,
-with the eight-binary total checked against a 40 MB guideline. The
-linux-x86_64 and Windows GIL binaries are **PGO-optimized**: the profile is
+with the ten-binary total checked against a 40 MB guideline. The
+linux-x86_64 and Windows x86_64 GIL binaries are **PGO-optimized**: the profile is
 regenerated from a deterministic workload in every CI build, and A/B
 measurements in CI show up to ~10 % faster first-run throughput against the
 non-optimized build ([BENCH §13](docs/BENCH.md)); the abi3t binaries ship

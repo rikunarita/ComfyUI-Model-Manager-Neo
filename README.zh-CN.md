@@ -51,7 +51,8 @@
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
 ![macOS universal2](https://img.shields.io/badge/macOS-Intel_%2B_Apple_Silicon-000000.svg?logo=apple)
-![Windows x64](https://img.shields.io/badge/Windows-x64-0078D6.svg?logo=windows&logoColor=white)
+![Windows x86_64](https://img.shields.io/badge/Windows-x86__64-0078D6.svg?logo=windows&logoColor=white)
+![Windows ARM64](https://img.shields.io/badge/Windows-ARM64-0078D6.svg?logo=windows&logoColor=white)
 
 [English](README.md) · [日本語](README.ja.md) · **简体中文** · [繁體中文](README.zh-TW.md)
 
@@ -79,7 +80,7 @@
 
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust 原生核心** —— 模型库扫描、哈希、safetensors 头部解析、张量树、
   文件夹监视、预览 WebP 编解码以及整个 ZipNN 引擎，都运行在仓库内附带的
-  **预构建 Rust 扩展**中：四个平台 × 两种 Stable ABI 风味（GIL 构建用 abi3 =
+  **预构建 Rust 扩展**中：五个平台 × 两种 Stable ABI 风味（GIL 构建用 abi3 =
   CPython 3.12 及以上，自由线程构建用 abi3t = CPython 3.15 及以上、PEP 803），
   各一个二进制。核心本身只需一次普通的 `import` 即可加载 ——
   **不需要编译器、不需要 pip 包、不需要下载**（扩展的四个 Python hub 依赖
@@ -531,18 +532,20 @@ Stable ABI 风味一个，仅靠 `import` 加载：
 | Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                        |
 | macOS（Intel 与 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so`   | 单个 fat 二进制 —— Intel 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC 构建                                           |
+| Windows ARM64                   | `native-bin/windows-arm64/mm_core.pyd`          | MSVC 构建（ARM64）                                  |
 | Linux x86_64（自由线程）        | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28，自由线程 CPython 3.15+                |
 | Linux aarch64（自由线程）       | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28，自由线程 CPython 3.15+                |
 | macOS（自由线程）               | `native-bin/macos-universal2t/mm_core.abi3t.so` | 单个 fat 二进制，自由线程 CPython 3.15+             |
 | Windows x86_64（自由线程）      | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC 构建，自由线程 CPython 3.15+                   |
+| Windows ARM64（自由线程）       | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC 构建（ARM64），自由线程 CPython 3.15+          |
 
 每个平台的一个二进制即可覆盖 **CPython 3.12 及以上**所有版本（Stable
 ABI、`abi3-py312` —— 已在 CI 中针对 3.12 与 3.14 实证）；自由线程构建则由
 **abi3t** 版产物承担（`abi3t-py315`、PEP 803 —— 已在 CI 中针对 3.15 的
 GIL/自由线程两种构建实证），加载器会自动选择（自由线程解释器无法加载普通
 abi3 二进制；3.15+ 的 GIL 构建继续使用普通产物）。每个二进制都受 ≤ 5 MB 的
-CI 尺寸预算关卡约束（八个二进制的合计以 40 MB 参考上限管理）。linux-x86_64 与
-Windows 的 GIL 二进制经过 **PGO 优化**：profile 在每次 CI 构建时都从
+CI 尺寸预算关卡约束（十个二进制的合计以 40 MB 参考上限管理）。linux-x86_64 与
+Windows x86_64 的 GIL 二进制经过 **PGO 优化**：profile 在每次 CI 构建时都从
 确定性工作负载重新生成，CI 内的 A/B 实测显示首次运行吞吐比未优化构建
 最高快约 10 %（[BENCH §13](docs/BENCH.md)）；abi3t 二进制现阶段以非 PGO
 方式发布。

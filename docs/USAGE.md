@@ -554,10 +554,12 @@ on every covered platform:
 | Linux aarch64                  | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                           |
 | macOS (Intel & Apple Silicon)  | `native-bin/macos-universal2/mm_core.abi3.so`   | one fat binary — Intel macOS 10.12+, Apple Silicon 11+ |
 | Windows x86_64                 | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC‑built                                             |
+| Windows ARM64                  | `native-bin/windows-arm64/mm_core.pyd`          | MSVC‑built (ARM64)                                     |
 | Linux x86_64 (free-threaded)   | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28 · free-threaded CPython 3.15+             |
 | Linux aarch64 (free-threaded)  | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28 · free-threaded CPython 3.15+             |
 | macOS (free-threaded)          | `native-bin/macos-universal2t/mm_core.abi3t.so` | one fat binary · free-threaded CPython 3.15+           |
 | Windows x86_64 (free-threaded) | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC-built · free-threaded CPython 3.15+               |
+| Windows ARM64 (free-threaded)  | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC-built (ARM64) · free-threaded CPython 3.15+       |
 
 One binary per platform serves **CPython 3.12 and newer** (the Python Stable
 ABI); free-threaded builds are served by the `<tag>t` **abi3t** binaries

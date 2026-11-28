@@ -470,10 +470,12 @@ Rust 核心压缩 **safetensors 0.8 定义的每个 dtype**（全部 22 种）�
 | Linux aarch64                   | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                              |
 | macOS（Intel 与 Apple Silicon） | `native-bin/macos-universal2/mm_core.abi3.so`   | 单个 fat 二进制 —— Intel macOS 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                  | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC 构建                                                 |
+| Windows ARM64                   | `native-bin/windows-arm64/mm_core.pyd`          | MSVC 构建（ARM64）                                        |
 | Linux x86_64（自由线程）        | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28，自由线程 CPython 3.15+                      |
 | Linux aarch64（自由线程）       | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28，自由线程 CPython 3.15+                      |
 | macOS（自由线程）               | `native-bin/macos-universal2t/mm_core.abi3t.so` | 单个 fat 二进制，自由线程 CPython 3.15+                   |
 | Windows x86_64（自由线程）      | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC 构建，自由线程 CPython 3.15+                         |
+| Windows ARM64（自由线程）       | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC 构建（ARM64），自由线程 CPython 3.15+                |
 
 每个平台一个二进制即支持 **CPython 3.12 及更新版本**（Python Stable ABI）；
 自由线程构建由 `<tag>t` 的 **abi3t** 二进制支持（CPython 3.15+、PEP 803），

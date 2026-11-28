@@ -54,7 +54,8 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 ![Linux x86_64](https://img.shields.io/badge/Linux-x86__64-FCC624.svg?logo=linux&logoColor=black)
 ![Linux aarch64](https://img.shields.io/badge/Linux-aarch64-FCC624.svg?logo=linux&logoColor=black)
 ![macOS universal2](https://img.shields.io/badge/macOS-Intel_%2B_Apple_Silicon-000000.svg?logo=apple)
-![Windows x64](https://img.shields.io/badge/Windows-x64-0078D6.svg?logo=windows&logoColor=white)
+![Windows x86_64](https://img.shields.io/badge/Windows-x86__64-0078D6.svg?logo=windows&logoColor=white)
+![Windows ARM64](https://img.shields.io/badge/Windows-ARM64-0078D6.svg?logo=windows&logoColor=white)
 
 [English](README.md) · **日本語** · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
@@ -86,7 +87,7 @@ ComfyUI のモデルマネージャーを **Vue 3 + Tailwind CSS v4 + reka‑ui*
 
 - <img src="https://api.iconify.design/lucide/cpu.svg?color=%23f59e0b" width="19" height="19" align="middle" alt=""> **Rust ネイティブコア** — ライブラリスキャン・ハッシュ・safetensors ヘッダ
   解析・テンソルツリー・フォルダ監視・プレビュー WebP codec・ZipNN エンジン
-  全体が、リポジトリ同梱の**プリビルド Rust 拡張**で動きます（4 プラットフォーム ×
+  全体が、リポジトリ同梱の**プリビルド Rust 拡張**で動きます（5 プラットフォーム ×
   Stable ABI 2 フレーバ: GIL build は abi3 = CPython 3.12 以降、フリースレッド build は
   abi3t = CPython 3.15 以降・PEP 803、各 1 バイナリ）。コア自体は素の
   `import` だけでロードされます — **コア単体にコンパイラも pip パッケージも
@@ -598,10 +599,12 @@ Stable ABI フレーバごとに 1 本、ロードは `import` だけ:
 | Linux aarch64                    | `native-bin/linux-aarch64/mm_core.abi3.so`      | glibc ≥ 2.28                                         |
 | macOS（Intel & Apple Silicon）   | `native-bin/macos-universal2/mm_core.abi3.so`   | 1 本の fat binary — Intel 10.12+ / Apple Silicon 11+ |
 | Windows x86_64                   | `native-bin/windows-x86_64/mm_core.pyd`         | MSVC ビルド                                          |
+| Windows ARM64                    | `native-bin/windows-arm64/mm_core.pyd`          | MSVC ビルド（ARM64）                                 |
 | Linux x86_64（フリースレッド）   | `native-bin/linux-x86_64t/mm_core.abi3t.so`     | glibc ≥ 2.28・フリースレッド CPython 3.15+           |
 | Linux aarch64（フリースレッド）  | `native-bin/linux-aarch64t/mm_core.abi3t.so`    | glibc ≥ 2.28・フリースレッド CPython 3.15+           |
 | macOS（フリースレッド）          | `native-bin/macos-universal2t/mm_core.abi3t.so` | 1 本の fat binary・フリースレッド CPython 3.15+      |
 | Windows x86_64（フリースレッド） | `native-bin/windows-x86_64t/mm_core.pyd`        | MSVC ビルド・フリースレッド CPython 3.15+            |
+| Windows ARM64（フリースレッド）  | `native-bin/windows-arm64t/mm_core.pyd`         | MSVC ビルド（ARM64）・フリースレッド CPython 3.15+   |
 
 各プラットフォームの 1 バイナリが **CPython 3.12 以降**すべてに対応します
 （Stable ABI、`abi3-py312` — CI で 3.12 と 3.14 に対して実証）。
@@ -609,8 +612,8 @@ Stable ABI フレーバごとに 1 本、ロードは `import` だけ:
 3.15 の GIL/フリースレッド両 build に対して実証）が対応し、ローダーが自動で
 選びます（フリースレッド解釈系は通常の abi3 バイナリをロードできず、3.15+ の
 GIL build は従来どおり通常バイナリを使います）。サイズは CI の予算ゲートが
-1 本 ≤ 5 MB に抑えます（8 本の合計は 40 MB の目安で管理）。linux-x86_64 と
-Windows の GIL バイナリは **PGO 最適化済み**です: プロファイルは CI ビルド毎に
+1 本 ≤ 5 MB に抑えます（10 本の合計は 40 MB の目安で管理）。linux-x86_64 と
+Windows x86_64 の GIL バイナリは **PGO 最適化済み**です: プロファイルは CI ビルド毎に
 決定論的ワークロードから生成し直し、CI 内の A/B 計測で非最適化ビルド比の
 初回実行スループットが最大 ~10 % 向上しています
 （[BENCH §13](docs/BENCH.md)）。abi3t バイナリは現時点では非 PGO で出荷します。
