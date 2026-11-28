@@ -35,9 +35,9 @@
 
 use pyo3::prelude::*;
 
+mod display;
 mod jobs;
 mod scan;
-mod display;
 mod webp;
 
 /// Version of the Python-facing API surface (`api_version()`).
