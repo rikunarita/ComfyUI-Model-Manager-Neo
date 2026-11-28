@@ -1072,6 +1072,11 @@ py312 へ引き上げ**（ComfyUI の文書化サポート下限と完全一致�
   （超過は 422「Only 280 characters are allowed」）。dtolnay の
   unpinned-tag 7 件を won't fix で dismiss 済み（コメントは zizmor.yml の
   ref-pin 方針を参照）→ main の open アラート 0。
+- **2026-11-28 再 dismiss**: native.yml の Windows ARM64 ジョブ挿入で行がずれ、
+  CodeQL actions/unpinned-tag が 8 件（native.yml ×7 + fuzz-long.yml ×1、すべて
+  ref=refs/heads/main・medium）を新規 alert として再検出。同一ポリシーで
+  won't fix 再 dismiss（コメントは zizmor.yml ref-pin + 本節参照、280 字上限内）。
+  main の open アラート 0。
 - **Dependabot は設定発効直後に初回チェックを即時実行する**（schedule を
   待たない）: main マージ当日に 3 PR（pyo3 0.29.3 / torch 2.14.1 /
   development group = frontend-types 1.56.0 + fallow 3.31.0）が到着し、
