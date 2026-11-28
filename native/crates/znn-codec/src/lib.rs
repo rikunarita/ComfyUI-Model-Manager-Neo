@@ -50,7 +50,7 @@
 //! manages the crate-level integration gates over the PUBLIC API
 //! (`extended_band.rs` = the dtype extension 対応dtype数 round-trip gate).
 //!
-//! Correctness strategy: unit contract (unit + proptest) suites here and ASan cargo-fuzz on
+//! Correctness strategy: unit contract (unit + proptest) suites here and `ASan` cargo-fuzz on
 //! hostile inputs (`fuzz/`). The golden differential gate against the original C
 //! core was retired together with the core (its evidence stays committed in
 //! `scripts/bench/results/`); the official-`zipnn` cross-validation (official interoperability gate,

@@ -132,7 +132,7 @@ static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
 /// Pools for EXPLICIT thread counts, cached per count. Building (and
 /// dropping) a rayon pool on every call churns OS threads: each spawned
 /// thread leaves runtime metadata behind that accumulates for the process
-/// lifetime — under ASan this measured ~35–100 B per exec (live heap stayed
+/// lifetime — under `ASan` this measured ~35–100 B per exec (live heap stayed
 /// ~25 MB while RSS grew linearly with the exec count), which tripped the
 /// libFuzzer `rss_limit` in the 3 h `blob_decompress` long runs (36088280583
 /// / 36114455354; the harness pins `threads = 1`). Production pays the same
@@ -1338,7 +1338,7 @@ mod tests {
     /// Regression (fuzz-long runs 36088280583 / 36114455354): an explicit
     /// thread count must NOT build a fresh rayon pool per call. The per-call
     /// build+destroy churned one OS thread per exec and accumulated runtime
-    /// metadata (~35–100 B/thread under ASan) until libFuzzer's rss_limit
+    /// metadata (~35–100 B/thread under `ASan`) until libFuzzer's rss_limit
     /// aborted the 3 h `blob_decompress` run with only ~25 MB of live heap.
     #[test]
     fn explicit_thread_counts_reuse_cached_pools() {

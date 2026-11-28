@@ -10,7 +10,7 @@
 //! the canvas dimensions and the pixel count BEFORE allocating, and every
 //! zenwebp error is mapped to [`WebpError`] (never a panic).
 //!
-//! [`decode_still`] is the ASan fuzz target (`webp_decode`): hostile WebP bytes
+//! [`decode_still`] is the `ASan` fuzz target (`webp_decode`): hostile WebP bytes
 //! must always come back as `Err`, never a panic and never an allocation beyond
 //! the input's own scale.
 //!
@@ -114,7 +114,7 @@ fn rgba_len(w: u32, h: u32) -> Result<usize, WebpError> {
 /// Returns `(rgba, width, height, icc_profile)` — `icc_profile` is empty when
 /// the file carries no ICCP chunk. This is the still-image leg of the preview
 /// pipeline (a WebP input is decoded here, re-encoded by [`encode_still`]) and
-/// the **ASan fuzz surface**: `data` is treated as fully hostile, so the canvas
+/// the **`ASan` fuzz surface**: `data` is treated as fully hostile, so the canvas
 /// is validated from the header ([`ImageInfo::from_webp`]) BEFORE any decode
 /// allocation, and every zenwebp error becomes [`WebpError::Decode`].
 ///

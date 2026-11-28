@@ -301,7 +301,7 @@ mod mm_core {
     /// Decode the first frame of a WebP into RGBA: returns
     /// `(rgba, width, height, icc_profile)` (`icc_profile` empty when the file
     /// carries no ICCP chunk). The WebP-decode leg of the preview pipeline and
-    /// the surface the `webp_decode` ASan fuzz target drives (preview WebP). GIL
+    /// the surface the `webp_decode` `ASan` fuzz target drives (preview WebP). GIL
     /// released; corrupt / hostile input raises `RuntimeError` (the
     /// Python caller falls back to the PIL path), never a panic.
     #[pyfunction]

@@ -1077,7 +1077,7 @@ pub fn delta_decompress(
     })
 }
 
-/// Fuzz-only entry point (the `delta_decompress` ASan fuzz target): runs the whole
+/// Fuzz-only entry point (the `delta_decompress` `ASan` fuzz target): runs the whole
 /// restore core on arbitrary bytes — a hostile delta chain, hostile sidecar
 /// pads and a hostile base image — with a bounded counting sink. Must never
 /// panic and never allocate beyond the base-rendering bound (`delta_restore`

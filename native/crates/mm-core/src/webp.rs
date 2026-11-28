@@ -27,7 +27,7 @@ fn opts(quality: f32, method: u8, lossless: bool) -> WebpEncodeOpts {
 /// Returns `(rgba, width, height, icc_profile)`; `icc_profile` is empty when the
 /// file carries no ICCP chunk. The WebP-decode leg of the preview pipeline (a
 /// WebP input is decoded here, re-encoded by [`webp_encode`]) and the surface
-/// the `webp_decode` ASan fuzz target drives. Hostile input comes back as a
+/// the `webp_decode` `ASan` fuzz target drives. Hostile input comes back as a
 /// `RuntimeError`, never a panic. GIL released for the decode.
 pub fn webp_decode(py: Python<'_>, data: &[u8]) -> PyResult<(Vec<u8>, u32, u32, Vec<u8>)> {
     let data = data.to_vec();
